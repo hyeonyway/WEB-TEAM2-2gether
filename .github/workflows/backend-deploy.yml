@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: web-team5-2gether-backend
+  IMAGE_NAME: ${{ github.repository }}/backend
 
 jobs:
   build-and-deploy:
