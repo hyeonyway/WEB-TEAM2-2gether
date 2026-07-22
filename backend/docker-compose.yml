@@ -1,0 +1,11 @@
+services:
+  spring-app:
+    image: ${IMAGE_TAG}
+    container_name: spring-app
+    restart: always
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
