@@ -1,7 +1,7 @@
 services:
-  spring-app:
+  backend:
     image: ${IMAGE_TAG}
-    container_name: spring-app
+    container_name: backend
     restart: always
     networks:
       - app-network
