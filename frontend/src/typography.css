@@ -1,0 +1,22 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css');
+
+:root,
+html,
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "system-ui", system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+}
+
+button,
+input,
+textarea,
+select,
+option {
+  font-family: inherit;
+}
+
+body { font-weight: 400; }
+h1, h2, h3, h4, h5, h6 { font-weight: 600 !important; }
+button, input, textarea, select, label { font-weight: 400; }
+button { font-weight: 500 !important; }
+strong, b { font-weight: 600 !important; }
+.logo { font-weight: 800 !important; }
