@@ -1,3 +1,4 @@
 .cards-mypage .participating-section .card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-.cards-mypage .card-search{margin-bottom:30px}
-@media(max-width:760px){.cards-mypage .participating-section .card-grid{grid-template-columns:1fr}.cards-mypage .card-search{margin-bottom:22px}}
+.cards-mypage .card-search{margin-bottom:14px}
+.dashboard-filters{display:flex;gap:8px;margin:0 0 30px}.dashboard-filters button{height:34px;padding:0 14px;border:1px solid #e2e2e2;border-radius:18px;background:#fff;color:#777;font-size:12px;cursor:pointer}.dashboard-filters button.active{border-color:#181a2b;background:#181a2b;color:#fff;font-weight:700}.cards-dash-title .dashboard-all-auctions{height:38px;padding:0 15px;border-radius:9px;background:#181a2b;color:#fff;font-size:11px;font-weight:600;gap:5px}.cards-dash-title .dashboard-all-auctions:hover{background:#303247}
+@media(max-width:760px){.cards-mypage .participating-section .card-grid{grid-template-columns:1fr}.cards-mypage .card-search{margin-bottom:12px}.dashboard-filters{overflow-x:auto;scrollbar-width:none;margin-bottom:22px}.dashboard-filters button{flex:0 0 auto;white-space:nowrap}.cards-dash-title .dashboard-all-auctions{height:34px;padding:0 11px}}
