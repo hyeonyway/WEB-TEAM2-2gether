@@ -1,0 +1,21 @@
+import mockupData from '../mocks/mockup-data.json';
+import {mapAuction,mapCard} from './auctionMapper';
+import type {AuctionListRequestDto,AuctionResponseDto,CardListRequestDto,CardResponseDto,MockAuctionResponseDto} from '../dto/auctionDto';
+
+const cards=(mockupData.cards as CardResponseDto[]).map(mapCard);
+const cardResponses=mockupData.cards as CardResponseDto[];
+const auctions=(mockupData.auctions as MockAuctionResponseDto[]).map(auction=>{
+  const card=cardResponses.find(item=>item.id===auction.card_id);
+  if(!card)throw new Error(`Mock card ${auction.card_id} not found`);
+  const response:AuctionResponseDto={...auction,card};
+  return mapAuction(response);
+});
+
+export async function fetchMockCards(query:CardListRequestDto){
+  return cards.filter(card=>card.name.includes(query.keyword)&&(query.psaGrade===null||card.psaGrade===query.psaGrade));
+}
+
+export async function fetchMockAuctions(query:AuctionListRequestDto){
+  const result=auctions.filter(item=>item.card.name.includes(query.keyword)&&(query.psaGrade===null||item.card.psaGrade===query.psaGrade));
+  return [...result].sort((a,b)=>query.sort==='PRICE_HIGH'?b.currentPrice-a.currentPrice:query.sort==='PRICE_LOW'?a.currentPrice-b.currentPrice:query.sort==='CHANGE_HIGH'?b.card.changeRate-a.card.changeRate:b.bidCount-a.bidCount);
+}
