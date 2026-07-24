@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "ko-KR"
+early_access: false
+tone_instructions: "간결하고 근거 중심으로 리뷰합니다. 취향보다 실제 오류, 보안, 데이터 정합성과 동시성 위험을 우선하고 수정 방향을 함께 제시합니다."
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  changed_files_summary: true
+  assess_linked_issues: true
+  review_status: true
+  poem: false
+  in_progress_fortune: false
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - "dev"
+    ignore_title_keywords:
+      - "WIP"
+      - "[skip review]"
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/.gradle/**"
+    - "!**/.idea/**"
+    - "!**/*.min.js"
+    - "!**/*.map"
+    - "!**/package-lock.json"
+    - "!**/*.{png,jpg,jpeg,gif}"
+
+  path_instructions:
+    - path: "backend/src/main/java/**/*.java"
+      instructions: |
+        도메인 중심 패키지와 의존성 방향을 확인합니다. 다른 도메인의 Entity나 Repository를 직접 참조하지 말고,
+        소비자 도메인이 소유한 Port/Interface, ID, DTO 또는 이벤트로 연결합니다.
+        컨트롤러는 요청 처리에 집중하고 트랜잭션과 비즈니스 규칙은 애플리케이션 계층에서 다룹니다.
+
+    - path: "backend/src/main/java/com/dbidding/{auction,bid,wallet}/**/*.java"
+      instructions: |
+        동시 입찰, 최소 입찰가, 종료 상태와 3분 자동 연장이 하나의 트랜잭션에서 일관되게 보장되는지 확인합니다.
+        가용 잔액은 활성 wallet_holds 합계를 기준으로 하며 wallets.held_amount 같은 중복 집계 필드를 두지 않습니다.
+        hold 생성·해제·차감은 원자적이어야 하고 재시도에도 이중 차감이나 잔액 초과가 없어야 합니다.
+
+    - path: "backend/src/main/java/com/dbidding/{auth,user,global/security}/**/*.java"
+      instructions: |
+        인증은 세션이 아닌 JWT 방식이며 서버에는 Refresh Token만 저장합니다.
+        토큰의 검증·만료·폐기와 권한 확인을 점검하고 토큰, 비밀번호, 개인정보가 로그나 응답에 노출되지 않게 합니다.
+        개발용 인증 우회 기능은 운영 환경에서 반드시 차단합니다.
+
+    - path: "backend/src/main/java/com/dbidding/{card,wishlist}/**/*.java"
+      instructions: |
+        카드 등급은 auction이 아니라 card_metadata에 둡니다.
+        관심 목록은 Favorite가 아닌 Wishlist, 테이블은 wishlists 명칭을 사용합니다.
+
+    - path: "frontend/src/**/*.{ts,tsx}"
+      instructions: |
+        불필요한 any·강제 단언, 서버 상태 중복과 TanStack Query 캐시 무효화 누락을 확인합니다.
+        금액·날짜·경매 종료 시각과 API 타입이 백엔드 계약과 일치해야 합니다.
+        로딩·빈 상태·오류 처리, 폼 중복 제출 방지와 기본 접근성을 검토합니다.
+
+    - path: ".github/workflows/**/*.{yml,yaml}"
+      instructions: |
+        액션 권한, 비밀값 노출과 배포 안전성을 확인합니다.
+        운영 배포가 ARM64 환경과 맞고 실패 시 롤백 가능한지 검토합니다.
+
+    - path: "backend/{build.gradle,settings.gradle,Dockerfile,src/main/resources/**}"
+      instructions: |
+        Java 21과 Spring Boot 4.1 기준을 유지하고 비밀값이나 운영 자격 증명을 저장소에 넣지 않습니다.
+        의존성 추가가 필요한지와 프로필별 설정이 안전하게 분리되는지 확인합니다.
+
+  tools:
+    actionlint:
+      enabled: true
+    trivy:
+      enabled: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "README.md"
