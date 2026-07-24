@@ -1,14 +1,71 @@
-# vscode settings
+# Local agent instructions
+/AGENTS.md
+
+# Operating-system files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# IDE and editor files
+.idea/
+*.iml
+*.ipr
+*.iws
+.fleet/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+*.sw?
+*~
 
-# IntelliJ
-.idea/
-
-# macOS
-.DS_Store
-
-# SSL certificates
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.sample
+*.local
 fullchain.crt
 private.key
+localhost.pem
+localhost-key.pem
+
+# Logs and runtime artifacts
+logs/
+*.log
+*.pid
+*.seed
+*.stackdump
+tmp/
+temp/
+.cache/
+coverage/
+
+# Java and Gradle
+**/.gradle/
+**/build/
+**/out/
+*.class
+hs_err_pid*
+replay_pid*
+*.h2.db
+*.mv.db
+*.trace.db
+
+# Node and frontend builds
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/.pnpm-store/
+**/storybook-static/
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/playwright/.cache/
+**/playwright/.auth/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
