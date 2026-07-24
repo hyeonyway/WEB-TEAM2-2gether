@@ -7,13 +7,14 @@ import {auctionQueries} from '../../queries/auctionQueries';
 import {Header} from '../../components';
 
 const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
-  ['입찰순','BID_COUNT'],['경매가 높은순','PRICE_HIGH'],['경매가 낮은순','PRICE_LOW'],['상승률 높은순','CHANGE_HIGH'],
+  ['입찰 수 높은순','BID_COUNT'],['경매가 높은순','PRICE_HIGH'],['경매가 낮은순','PRICE_LOW'],['상승률 높은순','CHANGE_HIGH'],
 ];
-
 export default function AuctionPage(){
+  const requestedSort=new URLSearchParams(window.location.search).get('sort');
+  const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
   const[query,setQuery]=useState('');
   const[grade,setGrade]=useState(0);
-  const[sort,setSort]=useState<AuctionListRequestDto['sort']>('BID_COUNT');
+  const[sort,setSort]=useState<AuctionListRequestDto['sort']>(initialSort);
   const{data:auctions=[],isPending,error}=useQuery(auctionQueries.list({keyword:query,psaGrade:grade||null,sort}));
 
   return <div className="cards-page enhanced-cards"><Header/><main>

@@ -165,3 +165,4 @@ strong, b { font-weight: 600 !important; }
 .dashboard-all-auctions{display:none!important}
 .price-buy-row{grid-template-columns:38px 38px 1fr}
 @media(max-width:760px){.price-detail-page .price-buy-row{grid-template-columns:38px 38px 1fr}}
+.ranking a.rank{color:inherit;text-decoration:none}

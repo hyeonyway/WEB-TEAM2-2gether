@@ -19,6 +19,37 @@
     {"id":7,"card_id":7,"start_price":80000,"current_price":157000,"bid_increment":1000,"bid_count":62,"ends_at":"2026-07-24T22:00:00.000Z","status":"OPEN","my_bid_status":"OUTBID","my_bid_amount":154000},
     {"id":8,"card_id":8,"start_price":150000,"current_price":289000,"bid_increment":5000,"bid_count":54,"ends_at":"2026-07-25T00:00:00.000Z","status":"OPEN","my_bid_status":"NONE","my_bid_amount":null}
   ],
+  "home": {
+    "insights": [
+      {"id":"RISING","title":"경매가 상승","value":8,"changeRate":9.4,"note":"상승률이 높은 경매부터 확인하세요.","sort":"CHANGE_HIGH"},
+      {"id":"NEW_BIDS","title":"신규 입찰","value":8,"changeRate":10.2,"note":"입찰 수가 많은 경매부터 확인하세요.","sort":"BID_COUNT"},
+      {"id":"ACTIVE","title":"프리미엄 경매","value":3,"changeRate":null,"note":"현재 경매가가 높은 카드부터 확인하세요.","sort":"PRICE_HIGH"}
+    ],
+    "marketSummary": {
+      "currentPriceAverage": 248875,
+      "dailyChangeRate": 3.7,
+      "weeklyChangeRate": 12.1,
+      "monthlyChangeRate": 30.2,
+      "monthlyBidCount": 942
+    },
+    "marketHistory": [
+      {"date":"06/19","averagePrice":151000,"bidCount":112},
+      {"date":"06/24","averagePrice":164000,"bidCount":148},
+      {"date":"06/29","averagePrice":179000,"bidCount":183},
+      {"date":"07/04","averagePrice":198000,"bidCount":226},
+      {"date":"07/09","averagePrice":217000,"bidCount":281},
+      {"date":"07/14","averagePrice":234000,"bidCount":337},
+      {"date":"07/19","averagePrice":248875,"bidCount":392}
+    ],
+    "topGainersTitle": "전일 상승 Top 5",
+    "topGainers": [
+      {"cardId":2,"auctionId":2,"name":"피카츄 P 스칼렛&바이올렛 프로모 카드","price":135000,"changeRate":8.9,"theme":"gold","bidCount":105},
+      {"cardId":8,"auctionId":8,"name":"리자몽 ex 스페셜 아트 카드","price":289000,"changeRate":6.2,"theme":"multi","bidCount":54},
+      {"cardId":4,"auctionId":4,"name":"피카츄 AR 포켓몬 카드 151","price":171000,"changeRate":5.0,"theme":"multi","bidCount":97},
+      {"cardId":7,"auctionId":7,"name":"고라파덕 AR 메가 드림 ex","price":157000,"changeRate":4.7,"theme":"water","bidCount":62},
+      {"cardId":1,"auctionId":1,"name":"피카츄 P 메가 에볼루션 프로모카드","price":138000,"changeRate":2.7,"theme":"gold","bidCount":368}
+    ]
+  },
   "card_recognition": {
     "cardName":"피카츄 AR 프로모 카드",
     "setName":"SV2D",
