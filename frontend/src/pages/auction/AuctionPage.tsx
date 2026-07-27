@@ -5,6 +5,7 @@ import {AuctionCatalog} from './components';
 import type {AuctionListRequestDto} from '../../dto/auctionDto';
 import {auctionQueries} from '../../queries/auctionQueries';
 import {Header} from '../../components';
+import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 
 const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
   ['입찰 수 높은순','BID_COUNT'],['경매가 높은순','PRICE_HIGH'],['경매가 낮은순','PRICE_LOW'],['상승률 높은순','CHANGE_HIGH'],
@@ -13,9 +14,10 @@ export default function AuctionPage(){
   const requestedSort=new URLSearchParams(window.location.search).get('sort');
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
   const[query,setQuery]=useState('');
+  const debouncedQuery=useDebouncedValue(query);
   const[grade,setGrade]=useState(0);
   const[sort,setSort]=useState<AuctionListRequestDto['sort']>(initialSort);
-  const{data:auctions=[],isPending,error}=useQuery(auctionQueries.list({keyword:query,psaGrade:grade||null,sort}));
+  const{data:auctions=[],isPending,error}=useQuery(auctionQueries.list({keyword:debouncedQuery,psaGrade:grade||null,sort}));
 
   return <div className="cards-page enhanced-cards"><Header/><main>
     <div className="card-page-title"><h2>카드 경매</h2><span>전체 경매</span></div>

@@ -4,12 +4,14 @@ import {Search} from 'lucide-react';
 import {CardCatalog} from './components';
 import {cardQueries} from '../../queries/auctionQueries';
 import {Header} from '../../components';
+import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 
 export default function CardsPage(){
   const[query,setQuery]=useState('');
   const[grade,setGrade]=useState(0);
+  const debouncedQuery=useDebouncedValue(query);
   const loadMoreRef=useRef<HTMLDivElement>(null);
-  const cardQuery=cardQueries.infiniteList({keyword:query,psaGrade:grade||null});
+  const cardQuery=cardQueries.infiniteList({keyword:debouncedQuery,psaGrade:grade||null});
   const{data,isPending,error,hasNextPage,isFetchingNextPage,fetchNextPage}=useInfiniteQuery(cardQuery);
   const cards=data?.pages.flatMap(page=>page.content)??[];
   const totalElements=data?.pages[0]?.total_elements??0;
