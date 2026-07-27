@@ -19,7 +19,6 @@ class UserTest {
 		assertThat(user.getNickname()).isEqualTo("collector");
 		assertThat(user.getEncryptedPassword()).isEqualTo("a".repeat(64));
 		assertThat(user.getSalt()).isEqualTo("b".repeat(32));
-		assertThat(user.getImagePath()).isEmpty();
 		assertThat(user.getRole()).isEqualTo(UserRole.USER);
 		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
 	}

@@ -28,9 +28,6 @@ public class User {
 	@Column(name = "created_at", nullable = false, insertable = false, updatable = false)
 	private Instant createdAt;
 
-	@Column(name = "image_path", nullable = false, length = 255)
-	private String imagePath;
-
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private UserRole role;
@@ -51,7 +48,6 @@ public class User {
 	private User(
 		String email,
 		String nickname,
-		String imagePath,
 		UserRole role,
 		UserStatus status,
 		String encryptedPassword,
@@ -59,7 +55,6 @@ public class User {
 	) {
 		this.email = email;
 		this.nickname = nickname;
-		this.imagePath = imagePath;
 		this.role = role;
 		this.status = status;
 		this.encryptedPassword = encryptedPassword;
@@ -70,7 +65,6 @@ public class User {
 		return new User(
 			email,
 			nickname,
-			"",
 			UserRole.USER,
 			UserStatus.ACTIVE,
 			encryptedPassword,
@@ -92,10 +86,6 @@ public class User {
 
 	public Instant getCreatedAt() {
 		return createdAt;
-	}
-
-	public String getImagePath() {
-		return imagePath;
 	}
 
 	public UserRole getRole() {

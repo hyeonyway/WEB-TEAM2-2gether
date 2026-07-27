@@ -11,7 +11,6 @@ CREATE TABLE users
     email              VARCHAR(255) NOT NULL,
     nickname           VARCHAR(30)  NOT NULL,
     created_at         TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    image_path         VARCHAR(255) NOT NULL,
     role               VARCHAR(20)  NOT NULL,
     status             VARCHAR(20)  NOT NULL,
     encrypted_password CHAR(64)     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
