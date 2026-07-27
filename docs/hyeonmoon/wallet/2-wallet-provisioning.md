@@ -12,6 +12,8 @@
 - Wallet 구현체는 AuthService나 User Entity를 참조하지 않는다.
 - 별도 `REQUIRES_NEW` 트랜잭션을 만들지 않는다.
 - 동일 userId의 Wallet을 조용히 중복 생성하지 않는다.
+- 사전 조회 이후 발생한 `uk_wallets_user_id` 경쟁 충돌만
+  `WalletAlreadyExistsException`으로 변환하고 다른 DB 오류는 그대로 전파한다.
 
 ---
 
@@ -71,10 +73,21 @@ public class WalletProvisioningAdapter implements WalletProvisioningPort {
         if (walletRepository.existsByUserId(userId)) {
             throw new WalletAlreadyExistsException();
         }
-        walletRepository.save(Wallet.open(userId));
+        try {
+            walletRepository.saveAndFlush(Wallet.open(userId));
+        } catch (DataIntegrityViolationException exception) {
+            if (isUserIdUniqueConstraintViolation(exception)) {
+                throw new WalletAlreadyExistsException(exception);
+            }
+            throw exception;
+        }
     }
 }
 ```
+
+`saveAndFlush()`로 이 메서드 안에서 INSERT를 실행해 UNIQUE 충돌을 잡는다.
+Hibernate `ConstraintViolationException`의 제약조건명이
+`uk_wallets_user_id`일 때만 중복 지갑 예외로 변환한다.
 
 ### Task 2: 단위 테스트와 커밋
 
@@ -106,6 +119,8 @@ git commit -m "feat: 회원가입 Wallet 생성 연동"
 - Auth 소유 Port를 Wallet adapter가 구현한다.
 - Wallet adapter는 별도 트랜잭션을 열지 않아 호출자의 트랜잭션에 참여할 수 있다.
 - 같은 userId로 Wallet을 중복 생성하지 않는다.
+- 동시 중복 생성도 `WalletAlreadyExistsException`으로 일관되게 처리한다.
+- userId UNIQUE 이외의 DB 무결성 예외는 숨기지 않는다.
 - 초기 Wallet point는 항상 0이다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다

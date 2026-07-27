@@ -5,4 +5,8 @@ public class WalletAlreadyExistsException extends RuntimeException {
 	public WalletAlreadyExistsException() {
 		super("이미 지갑이 존재합니다.");
 	}
+
+	public WalletAlreadyExistsException(Throwable cause) {
+		super("이미 지갑이 존재합니다.", cause);
+	}
 }
