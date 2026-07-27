@@ -138,6 +138,7 @@ CREATE TABLE auctions
     bid_count            INT          NOT NULL,
     bid_price_unit       BIGINT       NOT NULL,
     is_hyped             BOOLEAN      NOT NULL,
+    version              BIGINT       NOT NULL DEFAULT 1,
 
     CONSTRAINT pk_auctions PRIMARY KEY (id),
     CONSTRAINT fk_auctions_user
