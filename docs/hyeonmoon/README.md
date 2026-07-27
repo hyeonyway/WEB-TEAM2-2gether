@@ -23,6 +23,9 @@
 - Refresh Token은 HttpOnly 쿠키로 전달하며 DB에는 SHA-256 해시를 저장한다.
 - 실제 JWT 필터를 전역 적용하기 전에는 비운영 환경의 `X-Debug-User-Id` 필터를 사용한다.
 - 다른 도메인의 Entity나 Repository를 직접 import하지 않고 consumer-owned port로 연결한다.
+- JPA 엔티티는 Lombok의 `@Getter`와
+  `@NoArgsConstructor(access = AccessLevel.PROTECTED)`만 기본으로 사용한다.
+  `@Data`, `@Setter`, 공개 기본 생성자는 사용하지 않는다.
 
 ## 패키지 경계
 
@@ -52,14 +55,15 @@ wallet
 |---|---|---|
 | 1 | [Auth 엔티티](auth/1-entity.md) | User와 Authentication 매핑 및 Repository |
 | 2 | [Wallet 엔티티](wallet/1-entity.md) | Wallet 매핑 및 Repository |
-| 3 | [회원가입](auth/2-signup.md) | User와 Wallet의 원자적 생성 |
-| 4 | [Wallet 생성 연동](wallet/2-wallet-provisioning.md) | Auth가 사용할 WalletProvisioningPort 구현 |
+| 3 | [Wallet 생성 연동](wallet/2-wallet-provisioning.md) | Auth가 사용할 WalletProvisioningPort와 구현체 |
+| 4 | [회원가입](auth/2-signup.md) | User와 Wallet의 원자적 생성 |
 | 5 | [로그인과 토큰](auth/3-login-and-token.md) | 로그인, Access/Refresh 발급 |
 | 6 | [Refresh와 로그아웃](auth/4-refresh-and-logout.md) | Rotation, 로그아웃 |
 | 7 | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
 | 8 | [지갑 잔액 조회](wallet/3-balance-query.md) | 총액·동결액·가용액 조회 |
 
-회원가입은 Wallet 구현을 소비하므로 실제 실행은 Auth 1 → Wallet 1·2 → Auth 2 순서가 안전하다. 문서 번호는 도메인 안의 책임 순서를 나타낸다.
+문서 번호는 도메인 안의 책임 순서를 나타낸다. 도메인 사이의 실제 구현은
+Auth 1 → Wallet 1·2 → Auth 2 순서로 진행한다.
 
 ## 공통 테스트 규칙
 
@@ -84,7 +88,7 @@ cd backend
 
 ## 참고 문서
 
-- `backend/docs/DB_SETUP.md`
+- `docs/DB_SETUP.md`
 - `backend/src/main/resources/schema.sql`
 - `../docs/module-interfaces.md`
 - `../docs/package-structure.md`

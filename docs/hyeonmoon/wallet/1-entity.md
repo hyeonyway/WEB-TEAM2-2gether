@@ -1,7 +1,5 @@
 # Wallet Entity Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** `wallets` 테이블에 정확히 대응하는 Wallet 엔티티와 Repository를 만든다.
 
 **Architecture:** Wallet은 User 객체 대신 `Integer userId`를 보유하며 사용자당 하나만 존재한다. 금액은 DB `BIGINT`, Java `long`으로 저장한다.
@@ -14,6 +12,8 @@
 - point는 `long`이며 음수 잔액을 허용하지 않는다.
 - User Entity와 UserRepository를 import하지 않는다.
 - `wallets.held_amount`를 추가하지 않는다.
+- `@Getter`와 `@NoArgsConstructor(access = AccessLevel.PROTECTED)`를 사용한다.
+- `@Data`, `@Setter`, public 기본 생성자를 노출하지 않는다.
 
 ---
 
@@ -50,6 +50,8 @@ Expected: Wallet 클래스가 없어 FAIL.
 - [x] **Step 3: 엔티티 구현**
 
 ```java
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "wallets")
 public class Wallet {
@@ -63,7 +65,13 @@ public class Wallet {
     @Column(nullable = false)
     private long point;
 
-    protected Wallet() {}
+    private Wallet(Integer userId, long point) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
+        this.userId = userId;
+        this.point = point;
+    }
 
     public static Wallet open(Integer userId) {
         return new Wallet(userId, 0L);
@@ -116,6 +124,7 @@ git commit -m "feat: Wallet 엔티티와 Repository 추가"
 
 - Hibernate schema validation을 통과한다.
 - Wallet 생성 경로는 `Wallet.open(userId)` 하나뿐이다.
+- null userId로 Wallet을 생성할 수 없다.
 - 외부 코드가 point를 임의로 변경할 수 없다.
 - userId 중복이 DB와 애플리케이션 양쪽에서 차단된다.
 

@@ -1,7 +1,5 @@
 # Address CRUD Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 로그인 사용자가 자신의 배송지를 등록·조회·수정·삭제할 수 있는 CRUD를 구현한다.
 
 **Architecture:** Address는 `Integer userId` scalar FK만 보유한다. 모든 조회와 변경 쿼리는 `addressId`와 현재 로그인 `userId`를 함께 조건으로 사용해 다른 사용자의 데이터 접근을 차단한다.
@@ -16,6 +14,8 @@
 - 상세 주소는 입력하지 않을 수 있으므로 nullable이다.
 - 국내 우편번호는 숫자 5자리 `CHAR(5)`다.
 - 사용자당 기본 배송지는 최대 하나만 유지한다.
+- 엔티티는 `@Getter`와
+  `@NoArgsConstructor(access = AccessLevel.PROTECTED)`를 사용하며 setter를 만들지 않는다.
 
 ---
 
@@ -48,6 +48,8 @@ void 배송지의_표시명과_주소를_수정한다() {
 - [ ] **Step 2: 스키마와 동일하게 엔티티 구현**
 
 ```java
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "addresses")
 public class Address {
@@ -73,7 +75,6 @@ public class Address {
     @Column(name = "is_default", nullable = false)
     private boolean defaultAddress;
 
-    protected Address() {}
 }
 ```
 

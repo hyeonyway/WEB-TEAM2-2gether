@@ -10,7 +10,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "users")
 public class User {
@@ -42,9 +47,6 @@ public class User {
 	@Column(nullable = false, length = 32)
 	private String salt;
 
-	protected User() {
-	}
-
 	private User(
 		String email,
 		String nickname,
@@ -72,35 +74,4 @@ public class User {
 		);
 	}
 
-	public Integer getId() {
-		return id;
-	}
-
-	public String getEmail() {
-		return email;
-	}
-
-	public String getNickname() {
-		return nickname;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
-
-	public UserRole getRole() {
-		return role;
-	}
-
-	public UserStatus getStatus() {
-		return status;
-	}
-
-	public String getEncryptedPassword() {
-		return encryptedPassword;
-	}
-
-	public String getSalt() {
-		return salt;
-	}
 }

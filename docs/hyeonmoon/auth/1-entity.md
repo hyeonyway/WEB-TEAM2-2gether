@@ -1,7 +1,5 @@
 # Auth Entity Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** `users`와 `authentication` 테이블에 정확히 대응하는 JPA 엔티티와 Repository를 만든다.
 
 **Architecture:** User는 `user` 패키지, Authentication은 `auth` 패키지가 소유한다. 연관관계 객체 대신 `Authentication.userId`를 `Integer` scalar FK로 두어 조회와 생명주기를 명시적으로 관리한다.
@@ -17,7 +15,8 @@
 - `encrypted_password`는 hex 64자, `salt`는 hex 32자다.
 - DB에는 Refresh Token 원문이 아닌 SHA-256 hex 해시를 `CHAR(64)`로 저장한다.
 - enum은 문자열로 저장한다.
-- setter와 public 기본 생성자를 노출하지 않는다.
+- `@Getter`와 `@NoArgsConstructor(access = AccessLevel.PROTECTED)`를 사용한다.
+- `@Data`, `@Setter`, public 기본 생성자를 노출하지 않는다.
 
 ## MVP 범위 결정: User 프로필 이미지 제외
 
@@ -64,6 +63,8 @@ Expected: `User`, `UserRole`, `UserStatus`를 찾지 못해 FAIL.
 - [x] **Step 3: 스키마와 동일한 엔티티 구현**
 
 ```java
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "users")
 public class User {
@@ -93,8 +94,6 @@ public class User {
 
     @Column(nullable = false, length = 32)
     private String salt;
-
-    protected User() {}
 
     public static User create(String email, String nickname, String encryptedPassword, String salt) {
         return new User(email, nickname, UserRole.USER, UserStatus.ACTIVE, encryptedPassword, salt);
@@ -138,6 +137,8 @@ void refresh_token_hash를_교체한다() {
 - [x] **Step 2: 실패 확인 후 엔티티 최소 구현**
 
 ```java
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "authentication")
 public class Authentication {
@@ -150,8 +151,6 @@ public class Authentication {
 
     @Column(name = "refresh_token", nullable = false, unique = true, length = 64)
     private String refreshTokenHash;
-
-    protected Authentication() {}
 
     public static Authentication issue(Integer userId, String refreshTokenHash) {
         return new Authentication(userId, refreshTokenHash);

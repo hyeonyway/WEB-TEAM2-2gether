@@ -32,7 +32,8 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 
 - 회원가입, 로그인, refresh, logout 서비스 테스트가 독립적으로 통과한다.
 - Refresh Token 원문과 비밀번호 평문이 DB에 저장되지 않는다.
-- 잘못된 서명, 만료, 잘못된 token type을 서로 다른 인증 실패로 처리한다.
+- 잘못된 서명, 만료, token type과 Access Token의 잘못된 role을 각각 정의된
+  인증 실패로 처리한다.
 - 실제 `JwtAuthFilter` 전역 적용은 인증 통합 스프린트까지 보류한다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다
