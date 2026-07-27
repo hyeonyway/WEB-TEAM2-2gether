@@ -27,7 +27,7 @@
 - Produces: `Wallet.open(Integer userId)`
 - Produces: `long Wallet.getPoint()`
 
-- [ ] **Step 1: 초기 잔액 테스트 작성**
+- [x] **Step 1: 초기 잔액 테스트 작성**
 
 ```java
 @Test
@@ -39,7 +39,7 @@ void 신규_지갑은_잔액_0으로_생성된다() {
 }
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [x] **Step 2: 테스트 실패 확인**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.WalletTest
@@ -47,7 +47,7 @@ void 신규_지갑은_잔액_0으로_생성된다() {
 
 Expected: Wallet 클래스가 없어 FAIL.
 
-- [ ] **Step 3: 엔티티 구현**
+- [x] **Step 3: 엔티티 구현**
 
 ```java
 @Entity
@@ -73,7 +73,7 @@ public class Wallet {
 
 충전·차감 메서드는 해당 유스케이스의 불변식이 확정될 때 추가한다. 이번 단계에서는 임의의 `setPoint`를 만들지 않는다.
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.WalletTest
@@ -91,7 +91,7 @@ Expected: PASS.
 - Produces: `Optional<Wallet> findByUserId(Integer userId)`
 - Produces: `boolean existsByUserId(Integer userId)`
 
-- [ ] **Step 1: Repository 작성**
+- [x] **Step 1: Repository 작성**
 
 ```java
 public interface WalletRepository extends JpaRepository<Wallet, Integer> {
@@ -100,14 +100,14 @@ public interface WalletRepository extends JpaRepository<Wallet, Integer> {
 }
 ```
 
-- [ ] **Step 2: MySQL 매핑 통합 테스트**
+- [x] **Step 2: MySQL 매핑 통합 테스트**
 
 Wallet을 저장한 뒤 userId 조회와 초기 point 0을 확인한다. 동일 userId 두 건 저장은 unique constraint로 실패해야 한다.
 
-- [ ] **Step 3: 전체 테스트와 커밋**
+- [x] **Step 3: 전체 테스트와 커밋**
 
 ```bash
-DB_NAME=dbidding_test ./gradlew clean test
+./gradlew clean test
 git add backend/src/main/java/com/dbidding/wallet backend/src/test/java/com/dbidding/wallet
 git commit -m "feat: Wallet 엔티티와 Repository 추가"
 ```
