@@ -28,12 +28,14 @@
 
 ```text
 auth
-├── User
 ├── Authentication
 ├── 회원가입·로그인·토큰
-└── auth.port.WalletProvisioningPort
+└── auth.port.UserAccountPort, WalletProvisioningPort
 
 user
+├── User
+├── UserRepository
+├── UserAccountPort 구현
 └── Address CRUD
 
 wallet
@@ -42,7 +44,7 @@ wallet
 └── 잔액 조회
 ```
 
-`User`는 현재 `package-structure.md` 결정대로 `auth` 패키지에 둔다. `user` 패키지는 User FK를 `Integer userId`로만 보유하는 Address를 담당한다.
+`User`와 `UserRepository`는 계정 정보를 소유하는 `user` 패키지에 둔다. `auth`는 사용자 조회·등록에 필요한 `auth.port.UserAccountPort`를 소유하고 해당 Port만 의존한다. `user`는 `UserRepository`를 사용해 이 Port를 구현하며, `auth`는 `user`의 Entity나 Repository를 직접 import하지 않는다.
 
 ## 실행 순서
 
@@ -74,12 +76,11 @@ cd backend
 
 현재 테스트 소스가 없는 경우 `NO-SOURCE`를 성공한 테스트처럼 보고하지 않는다.
 
-## 후속 결정
+## Wallet 원장 제약
 
-다음 항목은 현재 범위의 구현 시작을 막지 않지만 Wallet 원장과 홀드 작업 전에 별도 결정이 필요하다.
-
-- 일반 충전·환불에는 경매가 없으므로 `point_records.auction_id` 처리 방식을 결정한다.
-- 활성 hold에는 해제 시각이 없으므로 `wallet_holds.released_at` nullable 전환을 검토한다.
+- 일반 충전·환불에는 경매가 없으므로 `point_records.auction_id`는 nullable이다.
+- 활성 hold에는 해제 시각이 없으므로 `wallet_holds.released_at`은 nullable이다.
+- Wallet 상태와 거래 유형 문자열은 각각 `VARCHAR(20)`, `VARCHAR(32)`를 사용한다.
 
 ## 참고 문서
 
@@ -89,3 +90,4 @@ cd backend
 - `../docs/package-structure.md`
 - `../docs/erd-review.md`
 
+> 이 문서는 codex의 도움을 받아 작성하였습니다

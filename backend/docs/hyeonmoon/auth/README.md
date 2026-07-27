@@ -21,7 +21,7 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 ## 주요 규칙
 
 - 회원가입 입력은 `email`, `password`, `nickname`만 사용한다.
-- User 기본값은 `role=USER`, `status=ACTIVE`, `imagePath=""`다.
+- User 기본값은 `role=USER`, `status=ACTIVE`이며 MVP에서는 프로필 이미지를 저장하지 않는다.
 - Authentication row는 회원가입 시 만들지 않고 첫 로그인 성공 시 생성한다.
 - 사용자당 Authentication row가 하나이므로 MVP는 한 사용자의 활성 Refresh Token을 하나만 허용한다.
 - Access Token에는 `sub=userId`, `role`, `type=access`, `iat`, `exp`만 넣는다.
@@ -35,3 +35,4 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 - 잘못된 서명, 만료, 잘못된 token type을 서로 다른 인증 실패로 처리한다.
 - 실제 `JwtAuthFilter` 전역 적용은 인증 통합 스프린트까지 보류한다.
 
+> 이 문서는 codex의 도움을 받아 작성하였습니다

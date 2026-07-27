@@ -12,7 +12,9 @@
 
 - `users` Entity와 UserRepository를 `user` 패키지에서 import하지 않는다.
 - Controller는 URL이나 본문에서 userId를 받지 않고 `@CurrentUser Integer userId`를 사용한다.
-- 주소 문자열은 모두 `VARCHAR(255) NOT NULL`이다.
+- 배송지 별칭은 `VARCHAR(50)`, 기본 주소는 `VARCHAR(255)`다.
+- 상세 주소는 입력하지 않을 수 있으므로 nullable이다.
+- 국내 우편번호는 숫자 5자리 `CHAR(5)`다.
 - 사용자당 기본 배송지는 최대 하나만 유지한다.
 
 ---
@@ -56,16 +58,16 @@ public class Address {
     @Column(name = "user_id", nullable = false)
     private Integer userId;
 
-    @Column(name = "address_name", nullable = false, length = 255)
+    @Column(name = "address_name", nullable = false, length = 50)
     private String addressName;
 
     @Column(nullable = false, length = 255)
     private String address;
 
-    @Column(name = "detailed_address", nullable = false, length = 255)
+    @Column(name = "detailed_address", length = 255)
     private String detailedAddress;
 
-    @Column(name = "postal_code", nullable = false, length = 255)
+    @Column(name = "postal_code", nullable = false, length = 5)
     private String postalCode;
 
     @Column(name = "is_default", nullable = false)
@@ -106,10 +108,10 @@ Expected: PASS.
 
 ```java
 public record AddressRequest(
-    @NotBlank @Size(max = 255) String addressName,
+    @NotBlank @Size(max = 50) String addressName,
     @NotBlank @Size(max = 255) String address,
-    @NotBlank @Size(max = 255) String detailedAddress,
-    @NotBlank @Size(max = 255) String postalCode,
+    @Size(max = 255) String detailedAddress,
+    @NotBlank @Pattern(regexp = "\\d{5}") String postalCode,
     boolean defaultAddress
 ) {}
 ```
@@ -217,3 +219,5 @@ git commit -m "feat: 배송지 CRUD 구현"
 - `defaultAddress=true`로 저장할 때 기존 기본 배송지를 해제한다.
 - User Entity나 UserRepository를 직접 참조하지 않는다.
 - Controller가 임의의 userId를 입력으로 받지 않는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

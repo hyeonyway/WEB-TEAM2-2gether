@@ -31,3 +31,4 @@ availableBalance = totalBalance - frozenBalance
 - 여러 활성 hold가 있으면 합계가 정확하다.
 - Wallet이나 hold가 없어도 정의된 도메인 예외 또는 0 합계로 일관되게 처리한다.
 
+> 이 문서는 codex의 도움을 받아 작성하였습니다

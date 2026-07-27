@@ -9,11 +9,10 @@ CREATE TABLE users
 (
     id                 INT          NOT NULL AUTO_INCREMENT,
     email              VARCHAR(255) NOT NULL,
-    nickname           VARCHAR(255) NOT NULL,
+    nickname           VARCHAR(30)  NOT NULL,
     created_at         TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    image_path         VARCHAR(255) NOT NULL,
-    role               VARCHAR(255) NOT NULL,
-    status             VARCHAR(255) NOT NULL,
+    role               VARCHAR(20)  NOT NULL,
+    status             VARCHAR(20)  NOT NULL,
     encrypted_password CHAR(64)     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     salt               CHAR(32)     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
 
@@ -29,7 +28,7 @@ CREATE TABLE authentication
 (
     id            INT          NOT NULL AUTO_INCREMENT,
     user_id       INT          NOT NULL,
-    refresh_token VARCHAR(255) NOT NULL,
+    refresh_token CHAR(64)     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
 
     CONSTRAINT pk_authentication PRIMARY KEY (id),
     CONSTRAINT uk_authentication_user_id UNIQUE (user_id),
@@ -45,10 +44,10 @@ CREATE TABLE addresses
 (
     id               INT          NOT NULL AUTO_INCREMENT,
     user_id          INT          NOT NULL,
-    address_name     VARCHAR(255) NOT NULL,
+    address_name     VARCHAR(50)  NOT NULL,
     address          VARCHAR(255) NOT NULL,
-    detailed_address VARCHAR(255) NOT NULL,
-    postal_code      VARCHAR(255) NOT NULL,
+    detailed_address VARCHAR(255) NULL,
+    postal_code      CHAR(5)      CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     is_default       BOOLEAN      NOT NULL,
 
     CONSTRAINT pk_addresses PRIMARY KEY (id),
@@ -239,11 +238,9 @@ CREATE TABLE wallet_holds
     wallet_id  INT          NOT NULL,
     auction_id INT          NOT NULL,
     amount     BIGINT       NOT NULL,
-    status     VARCHAR(255) NOT NULL,
+    status     VARCHAR(20)  NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    -- NOTE: 현재 모든 컬럼을 NOT NULL로 통일했기 때문에 HELD 상태에서도 임시 해제 시각이 필요하다.
-    -- 실제 동결 처리 구현 전, 해제되지 않은 hold를 표현할 수 있도록 NULL 허용 여부를 다시 검토한다.
-    released_at TIMESTAMP(6) NOT NULL,
+    released_at TIMESTAMP(6) NULL,
 
     CONSTRAINT pk_wallet_holds PRIMARY KEY (id),
     CONSTRAINT fk_wallet_holds_wallet
@@ -263,11 +260,11 @@ CREATE TABLE point_records
 (
     id               BIGINT       NOT NULL AUTO_INCREMENT,
     wallet_id        INT          NOT NULL,
-    auction_id       INT          NOT NULL,
+    auction_id       INT          NULL,
     amount           BIGINT       NOT NULL,
     created_at       TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     balance          BIGINT       NOT NULL,
-    transaction_type VARCHAR(255) NOT NULL,
+    transaction_type VARCHAR(32)  NOT NULL,
 
     CONSTRAINT pk_point_records PRIMARY KEY (id),
     CONSTRAINT fk_point_records_wallet
