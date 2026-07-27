@@ -68,8 +68,7 @@ public class CardPriceService {
                 ? estimatedHigh(marketPrice)
                 : firstPrice(latest.getHighestPrice(), estimatedHigh(marketPrice));
         return new CardResponses.CardDetail(
-                card.getId(), card.getName(), card.getCardSet().getName(), card.getCardNumber(),
-                card.getRarity(), marketPrice,
+                card.getId(), card.getName(), card.getCardSet().getName(), card.getRarity(), marketPrice,
                 lowPrice, highPrice, averagePrice,
                 rate(latest == null ? null : latest.getDailyChangeRate()),
                 rate(latest == null ? null : latest.getWeeklyChangeRate()),

@@ -3,6 +3,7 @@ package com.dbidding.card.domain;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,6 +32,8 @@ public class ItemStatistic {
     private Long lowestPrice;
     @Column(name = "highest_price")
     private Long highestPrice;
+    @Column(name = "trade_amount_sum", nullable = false)
+    private Long tradeAmountSum;
     @Column(name = "trade_count")
     private Integer tradeCount;
     @Column(name = "bid_count")
@@ -43,6 +46,8 @@ public class ItemStatistic {
     private BigDecimal weeklyChangeRate;
     @Column(name = "monthly_change_rate", precision = 8, scale = 2)
     private BigDecimal monthlyChangeRate;
+    @Column(name = "calculated_at", insertable = false, updatable = false)
+    private LocalDateTime calculatedAt;
 
     public ItemStatistic(CardMetadata item, LocalDate statisticsDate, Long latestPrice, Long avgPrice,
                          Long lowestPrice, Long highestPrice, Integer tradeCount, Integer bidCount,
@@ -54,9 +59,20 @@ public class ItemStatistic {
         this.avgPrice = avgPrice;
         this.lowestPrice = lowestPrice;
         this.highestPrice = highestPrice;
+        this.tradeAmountSum = avgPrice == null || tradeCount == null ? 0L : avgPrice * tradeCount;
         this.tradeCount = tradeCount;
         this.bidCount = bidCount;
         this.activeAuctionCount = activeAuctionCount;
+        this.dailyChangeRate = dailyChangeRate;
+        this.weeklyChangeRate = weeklyChangeRate;
+        this.monthlyChangeRate = monthlyChangeRate;
+    }
+
+    public void updateChangeRates(
+            BigDecimal dailyChangeRate,
+            BigDecimal weeklyChangeRate,
+            BigDecimal monthlyChangeRate
+    ) {
         this.dailyChangeRate = dailyChangeRate;
         this.weeklyChangeRate = weeklyChangeRate;
         this.monthlyChangeRate = monthlyChangeRate;

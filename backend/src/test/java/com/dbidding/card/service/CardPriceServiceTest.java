@@ -29,9 +29,9 @@ class CardPriceServiceTest {
         CardSet set = new CardSet("메가 에볼루션", "ME01");
         entityManager.persist(set);
         CardMetadata pikachu = cardRepository.save(new CardMetadata(
-                set, "피카츄 프로모", "001", "JP", 10, "gold", 100_000L, "/pikachu.png"));
+                set, "피카츄 프로모", "JP", 10, "gold", 100_000L, "/pikachu.png"));
         cardRepository.save(new CardMetadata(
-                set, "리자몽 프로모", "002", "JP", 9, "multi", 200_000L, "/charizard.png"));
+                set, "리자몽 프로모", "JP", 9, "multi", 200_000L, "/charizard.png"));
         statisticRepository.save(new ItemStatistic(pikachu, LocalDate.now().minusDays(1),
                 120_000L, 115_000L, 110_000L, 125_000L, 3, 7, 1,
                 new BigDecimal("1.20"), new BigDecimal("2.30"), new BigDecimal("4.50")));
@@ -55,7 +55,7 @@ class CardPriceServiceTest {
         CardSet set = new CardSet("151", "SV2A");
         entityManager.persist(set);
         CardMetadata card = cardRepository.save(new CardMetadata(
-                set, "피카츄 AR", "173/165", "JPN", 10, "rainbow", 100_000L, null));
+                set, "피카츄 AR", "JPN", 10, "rainbow", 100_000L, null));
         statisticRepository.save(new ItemStatistic(card, LocalDate.now(),
                 138_000L, 136_500L, 124_000L, 149_000L, 14, 20, 3,
                 new BigDecimal("2.70"), new BigDecimal("8.20"), new BigDecimal("12.10")));
@@ -75,7 +75,7 @@ class CardPriceServiceTest {
         CardSet set = new CardSet("프로모", "PROMO-FALLBACK");
         entityManager.persist(set);
         CardMetadata card = cardRepository.save(new CardMetadata(
-                set, "피카츄 프로모", "001/P", "JP", 10, "gold", 138_000L, null));
+                set, "피카츄 프로모", "JP", 10, "gold", 138_000L, null));
         statisticRepository.save(new ItemStatistic(card, LocalDate.now(),
                 null, null, null, null, 0, 0, 0,
                 null, null, null));
@@ -93,9 +93,9 @@ class CardPriceServiceTest {
         CardSet set = new CardSet("정렬 테스트", "SORT");
         entityManager.persist(set);
         CardMetadata expensive = cardRepository.save(new CardMetadata(
-                set, "고가 카드", "001", "JP", 10, "gold", 500_000L, null));
+                set, "고가 카드", "JP", 10, "gold", 500_000L, null));
         CardMetadata popular = cardRepository.save(new CardMetadata(
-                set, "인기 카드", "002", "JP", 10, "gold", 100_000L, null));
+                set, "인기 카드", "JP", 10, "gold", 100_000L, null));
         statisticRepository.save(new ItemStatistic(expensive, LocalDate.now(),
                 500_000L, 500_000L, 480_000L, 520_000L, 1, 1, 0,
                 null, null, null));

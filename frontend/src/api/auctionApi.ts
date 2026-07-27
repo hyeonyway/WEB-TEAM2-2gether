@@ -44,7 +44,7 @@ export async function fetchCardDetail(cardId:number):Promise<CardDetailResponseD
     const card=(await fetchMockCards({keyword:'',psaGrade:null})).find(item=>item.id===cardId);
     if(!card)throw new Error('카드를 찾을 수 없습니다.');
     return {
-      id:card.id,name:card.name,set_name:'Pokemon Trading Card Game',card_number:null,rarity:null,
+      id:card.id,name:card.name,set_name:'Pokemon Trading Card Game',rarity:null,
       market_price:card.marketPrice,low_price:Math.round(card.marketPrice*.9/1000)*1000,
       high_price:Math.round(card.marketPrice*1.08/1000)*1000,average_price:card.marketPrice,
       change_rate:card.changeRate,weekly_change_rate:card.changeRate*1.8,

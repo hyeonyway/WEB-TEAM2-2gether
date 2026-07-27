@@ -66,9 +66,6 @@ CREATE TABLE card_sets
     id           BIGINT       NOT NULL AUTO_INCREMENT,
     name         VARCHAR(150) NOT NULL,
     code         VARCHAR(50)  NULL,
-    release_year SMALLINT     NULL,
-    country      VARCHAR(20)  NULL,
-    created_at   TIMESTAMP(6) NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     CONSTRAINT pk_card_sets PRIMARY KEY (id),
     CONSTRAINT uk_card_sets_code UNIQUE (code)
@@ -82,16 +79,12 @@ CREATE TABLE card_metadata
     id              BIGINT       NOT NULL AUTO_INCREMENT,
     card_set_id     BIGINT       NOT NULL,
     name            VARCHAR(200) NOT NULL,
-    card_number     VARCHAR(50)  NULL,
     language        VARCHAR(20)  NULL,
     psa_grade       INT          NULL,
     rarity          VARCHAR(30)  NULL,
     favorite_count  INT          NULL DEFAULT 0,
     reference_price BIGINT       NULL,
     image_path      VARCHAR(500) NULL,
-    created_at      TIMESTAMP(6) NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at      TIMESTAMP(6) NULL DEFAULT CURRENT_TIMESTAMP(6)
-        ON UPDATE CURRENT_TIMESTAMP(6),
 
     CONSTRAINT pk_card_metadata PRIMARY KEY (id),
     CONSTRAINT fk_card_metadata_card_set
@@ -113,13 +106,15 @@ CREATE TABLE item_statistics
     avg_price            BIGINT        NULL,
     lowest_price         BIGINT        NULL,
     highest_price        BIGINT        NULL,
+    trade_amount_sum     BIGINT        NOT NULL DEFAULT 0,
     trade_count          INT           NULL DEFAULT 0,
     bid_count            INT           NULL DEFAULT 0,
     active_auction_count INT           NULL DEFAULT 0,
     daily_change_rate    DECIMAL(8, 2) NULL,
     weekly_change_rate   DECIMAL(8, 2) NULL,
     monthly_change_rate  DECIMAL(8, 2) NULL,
-    calculated_at        TIMESTAMP(6)  NULL DEFAULT CURRENT_TIMESTAMP(6),
+    calculated_at        TIMESTAMP(6)  NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
 
     CONSTRAINT pk_item_statistics PRIMARY KEY (id),
     CONSTRAINT uk_item_statistics_item_date UNIQUE (item_id, statistics_date),
@@ -159,7 +154,8 @@ CREATE TABLE auctions
 
     INDEX idx_auctions_user_id (user_id),
     INDEX idx_auctions_item_id (item_id),
-    INDEX idx_auctions_status (status)
+    INDEX idx_auctions_status (status),
+    INDEX idx_auctions_item_status (item_id, status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

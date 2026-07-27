@@ -36,7 +36,6 @@ export type CardDetailResponseDto={
   id:number;
   name:string;
   set_name:string;
-  card_number:string|null;
   rarity:string|null;
   market_price:number;
   low_price:number;

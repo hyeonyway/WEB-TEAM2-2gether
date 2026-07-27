@@ -35,7 +35,6 @@ public final class CardResponses {
             Long id,
             String name,
             @JsonProperty("set_name") String setName,
-            @JsonProperty("card_number") String cardNumber,
             String rarity,
             @JsonProperty("market_price") long marketPrice,
             @JsonProperty("low_price") long lowPrice,

@@ -17,7 +17,7 @@ public class CardSet {
     @Column(nullable = false, length = 150)
     private String name;
 
-    @Column(unique = true, length = 50)
+    @Column(name = "code", unique = true, length = 50)
     private String code;
 
     public CardSet(String name, String code) {

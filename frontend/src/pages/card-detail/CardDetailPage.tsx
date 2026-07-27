@@ -39,7 +39,7 @@ export default function CardPriceDetailPage(){
           <div className="detail-grades"><span className="grade">PSA {card.psa_grade??'-'}</span><span className="grade">{card.language}</span></div>
           <h1>{money(card.low_price)} - {money(card.high_price)}</h1>
           <p>{card.name}</p>
-          <small>{card.set_name}{card.card_number&&` · ${card.card_number}`}</small>
+          <small>{card.set_name}</small>
           <u>포켓몬 · 트레이딩 카드 · PSA {card.psa_grade??'-'}</u>
         </div>
         <div className="buy-row price-buy-row">
