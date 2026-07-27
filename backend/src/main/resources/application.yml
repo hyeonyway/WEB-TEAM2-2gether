@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: dbidding
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:dbidding}?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    # 테이블은 schema.sql로 직접 관리하므로 JPA가 생성/변경하지 않게 함
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  sql:
+    init:
+      # schema.sql은 앱이 자동 실행하지 않음 (최초 1회 수동 실행 방식 - DB_SETUP.md 참고)
+      mode: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
