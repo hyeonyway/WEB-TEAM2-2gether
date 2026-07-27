@@ -1,5 +1,5 @@
-import {keepPreviousData,queryOptions} from '@tanstack/react-query';
-import {fetchAuctions,fetchCards} from '../api/auctionApi';
+import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
+import {fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
 import type {AuctionListRequestDto,CardListRequestDto} from '../dto/auctionDto';
 
 export const auctionQueryKeys={
@@ -10,6 +10,8 @@ export const auctionQueryKeys={
 export const cardQueryKeys={
   all:['cards'] as const,
   list:(query:CardListRequestDto)=>[...cardQueryKeys.all,'list',query] as const,
+  infiniteList:(query:CardListRequestDto)=>[...cardQueryKeys.all,'infinite-list',query] as const,
+  detail:(cardId:number)=>[...cardQueryKeys.all,'detail',cardId] as const,
 };
 
 export const auctionQueries={
@@ -26,6 +28,18 @@ export const cardQueries={
     queryKey:cardQueryKeys.list(query),
     queryFn:()=>fetchCards(query),
     placeholderData:keepPreviousData,
+    staleTime:60_000,
+  }),
+  detail:(cardId:number)=>queryOptions({
+    queryKey:cardQueryKeys.detail(cardId),
+    queryFn:()=>fetchCardDetail(cardId),
+    staleTime:60_000,
+  }),
+  infiniteList:(query:CardListRequestDto)=>infiniteQueryOptions({
+    queryKey:cardQueryKeys.infiniteList(query),
+    queryFn:({pageParam})=>fetchCardPage(query,pageParam),
+    initialPageParam:0,
+    getNextPageParam:lastPage=>lastPage.has_next?lastPage.page+1:undefined,
     staleTime:60_000,
   }),
 };

@@ -2,13 +2,15 @@ export type CardTheme='gold'|'water'|'dark'|'multi'|'sketch';
 export type AuctionStatus='OPEN'|'ENDED';
 export type MyBidStatus='LEADING'|'OUTBID'|'NONE';
 export type AuctionSort='BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
+export type CardSort='PRICE'|'FAVORITE'|'REGISTERED';
 
 export type CardListRequestDto={
   keyword:string;
-  psaGrade:number|null;
+  psaGrade:string|null;
+  sort?:CardSort;
 };
 
-export type AuctionListRequestDto=CardListRequestDto&{
+export type AuctionListRequestDto=Omit<CardListRequestDto,'sort'>&{
   sort:AuctionSort;
 };
 
@@ -16,11 +18,43 @@ export type CardResponseDto={
   id:number;
   name:string;
   market_price:number;
+  low_price?:number;
+  high_price?:number;
   change_rate:number;
   theme:string;
   bid_count:number;
-  psa_grade:number;
+  psa_grade:string;
   language:string;
+  thumbnail_url?:string|null;
+};
+
+export type CardPricePointResponseDto={
+  date:string;
+  average_price:number;
+  change_rate:number;
+  weekly_change_rate:number;
+  monthly_change_rate:number;
+};
+
+export type CardDetailResponseDto={
+  id:number;
+  name:string;
+  set_name:string;
+  rarity:string|null;
+  market_price:number;
+  low_price:number;
+  high_price:number;
+  average_price:number;
+  change_rate:number;
+  weekly_change_rate:number;
+  monthly_change_rate:number;
+  bid_count:number;
+  active_auction_count:number;
+  wishlist_count:number;
+  psa_grade:string|null;
+  language:string;
+  image_url:string|null;
+  history:CardPricePointResponseDto[];
 };
 
 export type AuctionResponseDto={
@@ -52,11 +86,14 @@ export type CardDto={
   id:number;
   name:string;
   marketPrice:number;
+  lowPrice:number;
+  highPrice:number;
   changeRate:number;
   theme:CardTheme;
   bidCount:number;
-  psaGrade:number;
+  psaGrade:string;
   language:'JP'|'EN'|'KR';
+  imageUrl:string|null;
 };
 
 export type AuctionDto={

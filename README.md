@@ -34,30 +34,39 @@
 ```
 production
  └─ dev
-     ├─ front/이슈번호-description
-     ├─ back/이슈번호-description
-     └─ infra/이슈번호-description
+     ├─ feature/이슈번호-description
+     ├─ fix/이슈번호-description
+     ├─ hotfix/이슈번호-description
+     ├─ refactor/이슈번호-description
+     └─ chore/이슈번호-description
 ```
  
-- `front`, `back`, `infra` 각 파트별 작업 브랜치 → `dev` → `production` 순으로 병합
-- 각 파트 브랜치에서 기능 단위 작업 후 `dev`로 PR
+- 작업 성격에 맞는 브랜치를 생성한 뒤 `dev` → `production` 순으로 병합
+- 작업 브랜치에서 이슈 단위 작업 후 `dev`로 PR
 - `dev`가 안정화되면 `production`으로 병합하여 배포
 ### 브랜치 네이밍 컨벤션
  
 ```
-front/이슈번호-description
-back/이슈번호-description
-infra/이슈번호-description
+feature/{이슈번호}-{설명}
+fix/{이슈번호}-{설명}
+hotfix/{이슈번호}-{설명}
+refactor/{이슈번호}-{설명}
+chore/{이슈번호}-{설명}
 ```
  
-- 예: `front/1-login-page`, `back/12-user-api`, `infra/3-ci-setup`
-- 파트 접두사(`front` / `back` / `infra`) + 이슈 번호 + 작업 설명(kebab-case)
+- `feature`: 새로운 기능 개발
+- `fix`: 개발 중 발견된 버그 수정
+- `hotfix`: 운영 환경의 긴급한 문제 수정
+- `refactor`: 기능 변경 없는 코드 구조 개선
+- `chore`: 설정, 문서, 빌드 등 기타 작업
+- 설명은 영문 kebab-case로 작성
+- 예: `feature/1-login-page`, `fix/12-user-api`, `chore/10-branch-convention`
 ### 머지 전략
  
 - 작업 브랜치에서 `dev`로 병합 전, **rebase로 커밋 히스토리 정리 후 병합**
 - 순서: `dev` 최신 내용 rebase → 충돌 해결 → merge
 ```bash
-  git checkout front/1-login-page
+  git checkout feature/1-login-page
   git fetch origin
   git rebase origin/dev
   # 충돌 해결 후
@@ -158,4 +167,3 @@ closes #이슈번호
 | 회의록 | (GitHub Wiki) |
 | 이슈 트래커 | (GitHub Issues / Jira 링크) |
 | 위키 | (GitHub Wiki)
-

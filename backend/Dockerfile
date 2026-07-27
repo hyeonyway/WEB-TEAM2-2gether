@@ -11,7 +11,17 @@ RUN ./gradlew --no-daemon bootJar
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends default-mysql-client gzip \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/src/main/resources /app/db/resources
+COPY scripts/start-server.sh /app/scripts/start-server.sh
+
+RUN chmod +x /app/scripts/start-server.sh \
+    && mkdir -p /app/db-snapshots
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/scripts/start-server.sh"]
+CMD ["java", "-jar", "app.jar"]
