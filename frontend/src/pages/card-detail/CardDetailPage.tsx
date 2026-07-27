@@ -1,15 +1,16 @@
-import {useMemo,useState} from 'react';
+import {useMemo} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {Bookmark,Share2} from 'lucide-react';
 import {Header} from '../../components';
 import {cardQueries} from '../../queries/auctionQueries';
+import {useCardFavorites} from '../../hooks/useCardFavorites';
 
 const money=(value:number)=>`${value.toLocaleString()}원`;
 
 export default function CardPriceDetailPage(){
   const cardId=Number(window.location.pathname.split('/').filter(Boolean).pop());
   const{data:card,isPending,error}=useQuery(cardQueries.detail(cardId));
-  const[saved,setSaved]=useState(false);
+  const{favoriteCardIds,toggleFavorite}=useCardFavorites();
   const chartPath=useMemo(()=>{
     if(!card?.history.length)return '';
     const prices=card.history.map(point=>point.average_price);
@@ -25,6 +26,7 @@ export default function CardPriceDetailPage(){
   if(error||!card)return <div className="detail-page price-detail-page"><Header/><main><p className="form-error">카드 시세를 불러오지 못했습니다.</p></main></div>;
 
   const image=card.image_url||'/assets/pikachu-promo-card.png';
+  const saved=favoriteCardIds.includes(card.id);
   return <div className="detail-page price-detail-page">
     <Header/>
     <div className="detail-layout">
@@ -41,7 +43,7 @@ export default function CardPriceDetailPage(){
           <u>포켓몬 · 트레이딩 카드 · PSA {card.psa_grade??'-'}</u>
         </div>
         <div className="buy-row price-buy-row">
-          <button className={'icon-action '+(saved?'saved':'')} onClick={()=>setSaved(!saved)} aria-label="관심 카드"><Bookmark/><small>{card.favorite_count}</small></button>
+          <button className={'icon-action '+(saved?'saved':'')} onClick={()=>toggleFavorite(card.id)} aria-label="관심 카드"><Bookmark/><small>{card.favorite_count}</small></button>
           <button className="icon-action" aria-label="공유" onClick={()=>navigator.clipboard?.writeText(window.location.href)}><Share2/><small>공유</small></button>
           <a className="buy detail-bid-button" href={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</a>
         </div>

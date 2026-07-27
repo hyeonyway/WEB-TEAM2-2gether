@@ -2,13 +2,15 @@ export type CardTheme='gold'|'water'|'dark'|'multi'|'sketch';
 export type AuctionStatus='OPEN'|'ENDED';
 export type MyBidStatus='LEADING'|'OUTBID'|'NONE';
 export type AuctionSort='BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
+export type CardSort='PRICE'|'FAVORITE';
 
 export type CardListRequestDto={
   keyword:string;
   psaGrade:number|null;
+  sort?:CardSort;
 };
 
-export type AuctionListRequestDto=CardListRequestDto&{
+export type AuctionListRequestDto=Omit<CardListRequestDto,'sort'>&{
   sort:AuctionSort;
 };
 

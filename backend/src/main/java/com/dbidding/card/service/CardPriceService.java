@@ -1,6 +1,7 @@
 package com.dbidding.card.service;
 
 import com.dbidding.card.domain.CardMetadata;
+import com.dbidding.card.domain.CardSort;
 import com.dbidding.card.domain.ItemStatistic;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.repository.CardMetadataRepository;
@@ -27,8 +28,9 @@ public class CardPriceService {
     private final ItemStatisticRepository statisticRepository;
 
     public CardResponses.Page<CardResponses.CardSummary> getCards(
-            String keyword, Integer psaGrade, int page, int size) {
+            String keyword, Integer psaGrade, CardSort sort, int page, int size) {
         var cards = cardRepository.search(keyword == null ? "" : keyword.trim(), psaGrade,
+                sort.name(),
                 PageRequest.of(page, size));
         var ids = cards.getContent().stream().map(CardMetadata::getId).toList();
         Map<Long, ItemStatistic> statistics = ids.isEmpty() ? Map.of()

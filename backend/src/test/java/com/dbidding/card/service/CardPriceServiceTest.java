@@ -2,6 +2,7 @@ package com.dbidding.card.service;
 
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
+import com.dbidding.card.domain.CardSort;
 import com.dbidding.card.domain.ItemStatistic;
 import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.card.repository.ItemStatisticRepository;
@@ -38,7 +39,7 @@ class CardPriceServiceTest {
                 138_000L, 130_000L, 124_000L, 149_000L, 5, 12, 2,
                 new BigDecimal("2.70"), new BigDecimal("5.10"), new BigDecimal("12.10")));
 
-        var response = cardPriceService.getCards("피카츄", 10, 0, 20);
+        var response = cardPriceService.getCards("피카츄", 10, CardSort.PRICE, 0, 20);
 
         assertThat(response.totalElements()).isEqualTo(1);
         assertThat(response.content()).singleElement().satisfies(card -> {
@@ -85,5 +86,35 @@ class CardPriceServiceTest {
         assertThat(response.lowPrice()).isEqualTo(124_000L);
         assertThat(response.highPrice()).isEqualTo(149_000L);
         assertThat(response.averagePrice()).isEqualTo(138_000L);
+    }
+
+    @Test
+    void 가격순과_찜순으로_카드_목록을_정렬한다() {
+        CardSet set = new CardSet("정렬 테스트", "SORT");
+        entityManager.persist(set);
+        CardMetadata expensive = cardRepository.save(new CardMetadata(
+                set, "고가 카드", "001", "JP", 10, "gold", 500_000L, null));
+        CardMetadata popular = cardRepository.save(new CardMetadata(
+                set, "인기 카드", "002", "JP", 10, "gold", 100_000L, null));
+        statisticRepository.save(new ItemStatistic(expensive, LocalDate.now(),
+                500_000L, 500_000L, 480_000L, 520_000L, 1, 1, 0,
+                null, null, null));
+        statisticRepository.save(new ItemStatistic(popular, LocalDate.now(),
+                100_000L, 100_000L, 90_000L, 110_000L, 1, 1, 0,
+                null, null, null));
+        entityManager.flush();
+        entityManager.createNativeQuery(
+                        "update card_metadata set favorite_count = 100 where id = :id")
+                .setParameter("id", popular.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        var priceSorted = cardPriceService.getCards("", null, CardSort.PRICE, 0, 20);
+        var favoriteSorted = cardPriceService.getCards("", null, CardSort.FAVORITE, 0, 20);
+
+        assertThat(priceSorted.content()).extracting("name")
+                .containsExactly("고가 카드", "인기 카드");
+        assertThat(favoriteSorted.content()).extracting("name")
+                .containsExactly("인기 카드", "고가 카드");
     }
 }

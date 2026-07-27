@@ -4,7 +4,11 @@ import {mapAuction,mapCard,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {AuctionDto,AuctionListRequestDto,AuctionResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
 
-const params=(query:CardListRequestDto)=>new URLSearchParams({keyword:query.keyword,...(query.psaGrade===null?{}:{psaGrade:String(query.psaGrade)})});
+const params=(query:{keyword:string;psaGrade:number|null;sort?:string})=>new URLSearchParams({
+  keyword:query.keyword,
+  ...(query.psaGrade===null?{}:{psaGrade:String(query.psaGrade)}),
+  ...(query.sort?{sort:query.sort}:{}),
+});
 
 export async function fetchCards(query:CardListRequestDto):Promise<CardDto[]>{
   if(isMockApiEnabled())return fetchMockCards(query);
