@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-3306}"
-DB_NAME="${DB_NAME:-dbidding}"
-DB_USERNAME="${DB_USERNAME:-root}"
-DB_PASSWORD="${DB_PASSWORD:-}"
+DB_HOST="${DB_HOST:?DB_HOST 환경변수가 필요합니다.}"
+DB_PORT="${DB_PORT:?DB_PORT 환경변수가 필요합니다.}"
+DB_NAME="${DB_NAME:?DB_NAME 환경변수가 필요합니다.}"
+DB_USERNAME="${DB_USERNAME:?DB_USERNAME 환경변수가 필요합니다.}"
+DB_PASSWORD="${DB_PASSWORD:?DB_PASSWORD 환경변수가 필요합니다.}"
 DB_SCHEMA_SYNC_MODE="${DB_SCHEMA_SYNC_MODE:-reset-on-mismatch}"
 DB_SCHEMA_WAIT_SECONDS="${DB_SCHEMA_WAIT_SECONDS:-60}"
 DB_SNAPSHOT_DIR="${DB_SNAPSHOT_DIR:-/app/db-snapshots}"
