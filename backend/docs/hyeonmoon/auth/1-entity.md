@@ -19,6 +19,13 @@
 - enum은 문자열로 저장한다.
 - setter와 public 기본 생성자를 노출하지 않는다.
 
+## MVP 범위 결정: User 프로필 이미지 제외
+
+- MVP에서는 사용자 프로필 이미지를 제공하지 않는다.
+- `users` 테이블과 `User` 엔티티에 `image_path` 또는 `imagePath`를 두지 않는다.
+- `card_metadata.image_path`와 경매의 `images.image_path`는 서로 다른 도메인의 이미지이므로 유지한다.
+- 현재 초기 공유 스키마를 수정하는 단계이므로 별도의 운영 DB 마이그레이션 파일은 만들지 않는다.
+
 ---
 
 ### Task 1: User 엔티티
@@ -42,7 +49,6 @@ void 신규_사용자는_USER_ACTIVE_상태로_생성된다() {
 
     assertThat(user.getRole()).isEqualTo(UserRole.USER);
     assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-    assertThat(user.getImagePath()).isEmpty();
 }
 ```
 
@@ -74,9 +80,6 @@ public class User {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(name = "image_path", nullable = false, length = 255)
-    private String imagePath;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserRole role;
@@ -94,7 +97,7 @@ public class User {
     protected User() {}
 
     public static User create(String email, String nickname, String encryptedPassword, String salt) {
-        return new User(email, nickname, "", UserRole.USER, UserStatus.ACTIVE, encryptedPassword, salt);
+        return new User(email, nickname, UserRole.USER, UserStatus.ACTIVE, encryptedPassword, salt);
     }
 }
 ```
