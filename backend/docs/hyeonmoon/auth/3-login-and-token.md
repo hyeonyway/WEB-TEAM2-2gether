@@ -4,7 +4,7 @@
 
 **Goal:** 이메일과 비밀번호를 검증하고 Access Token은 응답 본문으로, Refresh Token은 HttpOnly 쿠키로 발급한다.
 
-**Architecture:** JwtTokenProvider가 토큰 생성·검증을 전담하고 AuthService는 사용자 검증과 Authentication 저장을 조정한다. DB에는 Refresh Token 원문 대신 SHA-256 hex hash만 저장한다.
+**Architecture:** JwtTokenProvider가 토큰 생성·검증을 전담하고 AuthService는 `UserAccountPort`를 통한 사용자 검증과 Authentication 저장을 조정한다. Auth는 User Entity와 UserRepository를 직접 참조하지 않으며, DB에는 Refresh Token 원문 대신 SHA-256 hex hash만 저장한다.
 
 **Tech Stack:** JJWT 0.13.0, Java 21, Spring MVC, JUnit 5, Mockito
 
@@ -79,7 +79,7 @@ Expected: 설정 바인딩 오류 없이 실행된다.
 - Test: `backend/src/test/java/com/dbidding/auth/JwtTokenProviderTest.java`
 
 **Interfaces:**
-- Produces: `IssuedTokens JwtTokenProvider.issue(Integer userId, UserRole role, Instant now)`
+- Produces: `IssuedTokens JwtTokenProvider.issue(Integer userId, String role, Instant now)`
 - Produces: `TokenClaims JwtTokenProvider.parseRefresh(String token)`
 - Produces: `String RefreshTokenHasher.hash(String token)`
 
@@ -88,7 +88,7 @@ Expected: 설정 바인딩 오류 없이 실행된다.
 ```java
 @Test
 void access와_refresh에_서로_다른_type과_만료시간을_넣는다() {
-    IssuedTokens tokens = provider.issue(1, UserRole.USER, now);
+    IssuedTokens tokens = provider.issue(1, "USER", now);
 
     assertThat(parse(tokens.accessToken()).get("type")).isEqualTo("access");
     assertThat(parse(tokens.refreshToken()).get("type")).isEqualTo("refresh");
@@ -103,7 +103,7 @@ void access와_refresh에_서로_다른_type과_만료시간을_넣는다() {
 ```java
 Jwts.builder()
     .subject(userId.toString())
-    .claim("role", role.name())
+    .claim("role", role)
     .claim("type", tokenType.value())
     .issuedAt(Date.from(now))
     .expiration(Date.from(expiresAt))
@@ -144,7 +144,7 @@ void refresh_token은_64자_sha256_hex로_변환한다() {
 - Test: `backend/src/test/java/com/dbidding/auth/AuthServiceLoginTest.java`
 
 **Interfaces:**
-- Consumes: `UserRepository.findByEmail`
+- Consumes: `UserAccountPort.findByEmail`
 - Consumes: `PasswordHasher.matches`
 - Produces: `LoginResult AuthService.login(LoginRequest request)`
 
@@ -157,9 +157,9 @@ void refresh_token은_64자_sha256_hex로_변환한다() {
 ```java
 @Test
 void 로그인하면_refresh_hash를_저장하고_access를_반환한다() {
-    given(userRepository.findByEmail(request.email())).willReturn(Optional.of(user));
-    given(passwordHasher.matches(request.password(), user.getSalt(), user.getEncryptedPassword())).willReturn(true);
-    given(jwtTokenProvider.issue(eq(1), eq(UserRole.USER), any())).willReturn(tokens);
+    given(userAccountPort.findByEmail(request.email())).willReturn(Optional.of(user));
+    given(passwordHasher.matches(request.password(), user.salt(), user.encryptedPassword())).willReturn(true);
+    given(jwtTokenProvider.issue(eq(1), eq("USER"), any())).willReturn(tokens);
 
     LoginResult result = authService.login(request);
 
@@ -217,5 +217,6 @@ git commit -m "feat: 로그인과 JWT 발급 구현"
 - Access Token만 JSON에 나타난다.
 - Refresh Token 원문은 HttpOnly 쿠키로만 전달된다.
 - DB에는 Refresh Token의 64자 SHA-256 hash만 남는다.
+- Auth는 User Entity와 UserRepository를 직접 import하지 않는다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다

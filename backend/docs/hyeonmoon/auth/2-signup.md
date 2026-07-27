@@ -4,7 +4,7 @@
 
 **Goal:** 이메일과 닉네임 중복을 차단하고 PBKDF2로 비밀번호를 해싱한 뒤 User와 초기 Wallet을 하나의 트랜잭션으로 생성한다.
 
-**Architecture:** AuthService가 회원가입 유스케이스를 조정한다. Auth는 `auth.port.WalletProvisioningPort`만 알고, Wallet Repository는 import하지 않는다. Wallet 구현 실패 시 User 저장도 같은 트랜잭션에서 롤백된다.
+**Architecture:** AuthService가 회원가입 유스케이스를 조정한다. Auth는 자신이 소유한 `auth.port.UserAccountPort`와 `auth.port.WalletProvisioningPort`만 알고 User·Wallet Entity와 Repository를 import하지 않는다. User와 Wallet 구현체는 각 Port를 구현하며, 어느 한쪽이 실패하면 같은 트랜잭션에서 모두 롤백된다.
 
 **Tech Stack:** Java 21, Spring Boot Validation, JPA Transaction, JUnit 5, Mockito, PBKDF2WithHmacSHA256
 
@@ -89,12 +89,16 @@ Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/auth/dto/SignupRequest.java`
 - Create: `backend/src/main/java/com/dbidding/auth/dto/SignupResponse.java`
+- Create: `backend/src/main/java/com/dbidding/auth/port/UserAccount.java`
+- Create: `backend/src/main/java/com/dbidding/auth/port/UserAccountPort.java`
 - Create: `backend/src/main/java/com/dbidding/auth/port/WalletProvisioningPort.java`
+- Create: `backend/src/main/java/com/dbidding/user/UserAccountAdapter.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateEmailException.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateNicknameException.java`
 
 **Interfaces:**
-- Consumes: `UserRepository`, `PasswordHasher`
+- Consumes: `UserAccountPort`, `PasswordHasher`
+- Produces: `UserAccount UserAccountPort.create(String email, String nickname, String encryptedPassword, String salt)`
 - Produces: `void WalletProvisioningPort.createFor(Integer userId)`
 - Produces: `SignupResponse AuthService.signup(SignupRequest request)`
 
@@ -109,21 +113,41 @@ public record SignupRequest(
 
 public record SignupResponse(Integer id, String email, String nickname, String role, String status) {}
 
+public record UserAccount(
+    Integer id,
+    String email,
+    String nickname,
+    String role,
+    String status,
+    String encryptedPassword,
+    String salt
+) {}
+
+public interface UserAccountPort {
+    boolean existsByEmail(String email);
+    boolean existsByNickname(String nickname);
+    UserAccount create(String email, String nickname, String encryptedPassword, String salt);
+    Optional<UserAccount> findByEmail(String email);
+    Optional<UserAccount> findById(Integer userId);
+}
+
 public interface WalletProvisioningPort {
     void createFor(Integer userId);
 }
 ```
+
+`UserAccountAdapter`는 `user` 패키지에서 `UserRepository`를 사용해 `UserAccountPort`를 구현하고, User Entity를 auth에 노출하지 않은 채 `UserAccount`로 변환한다.
 
 - [ ] **Step 2: 중복 이메일 서비스 실패 테스트**
 
 ```java
 @Test
 void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
-    given(userRepository.existsByEmail("collector@example.com")).willReturn(true);
+    given(userAccountPort.existsByEmail("collector@example.com")).willReturn(true);
 
     assertThatThrownBy(() -> authService.signup(request))
         .isInstanceOf(DuplicateEmailException.class);
-    then(userRepository).should(never()).save(any());
+    then(userAccountPort).should(never()).create(any(), any(), any(), any());
     then(walletProvisioningPort).shouldHaveNoInteractions();
 }
 ```
@@ -145,15 +169,13 @@ void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
 ```java
 @Test
 void 회원가입하면_사용자와_잔액_0원_지갑을_생성한다() {
-    User savedUser = mock(User.class);
-    given(userRepository.existsByEmail(request.email())).willReturn(false);
-    given(userRepository.existsByNickname(request.nickname())).willReturn(false);
-    given(userRepository.save(any(User.class))).willReturn(savedUser);
-    given(savedUser.getId()).willReturn(1);
-    given(savedUser.getEmail()).willReturn(request.email());
-    given(savedUser.getNickname()).willReturn(request.nickname());
-    given(savedUser.getRole()).willReturn(UserRole.USER);
-    given(savedUser.getStatus()).willReturn(UserStatus.ACTIVE);
+    UserAccount savedUser = new UserAccount(
+        1, request.email(), request.nickname(), "USER", "ACTIVE", hash, salt
+    );
+    given(userAccountPort.existsByEmail(request.email())).willReturn(false);
+    given(userAccountPort.existsByNickname(request.nickname())).willReturn(false);
+    given(userAccountPort.create(request.email(), request.nickname(), hash, salt))
+        .willReturn(savedUser);
 
     SignupResponse response = authService.signup(request);
 
@@ -167,18 +189,18 @@ void 회원가입하면_사용자와_잔액_0원_지갑을_생성한다() {
 ```java
 @Transactional
 public SignupResponse signup(SignupRequest request) {
-    if (userRepository.existsByEmail(request.email())) {
+    if (userAccountPort.existsByEmail(request.email())) {
         throw new DuplicateEmailException();
     }
-    if (userRepository.existsByNickname(request.nickname())) {
+    if (userAccountPort.existsByNickname(request.nickname())) {
         throw new DuplicateNicknameException();
     }
 
     PasswordHash password = passwordHasher.hash(request.password());
-    User user = userRepository.save(User.create(
+    UserAccount user = userAccountPort.create(
         request.email(), request.nickname(), password.encryptedPassword(), password.salt()
-    ));
-    walletProvisioningPort.createFor(user.getId());
+    );
+    walletProvisioningPort.createFor(user.id());
     return SignupResponse.from(user);
 }
 ```
@@ -212,5 +234,6 @@ git commit -m "feat: 회원가입 구현"
 - PBKDF2 hash와 salt만 저장된다.
 - User 저장 또는 Wallet 생성 중 하나가 실패하면 둘 다 롤백된다.
 - 회원가입 시 Authentication row는 생성되지 않는다.
+- Auth는 User Entity와 UserRepository를 직접 import하지 않는다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다

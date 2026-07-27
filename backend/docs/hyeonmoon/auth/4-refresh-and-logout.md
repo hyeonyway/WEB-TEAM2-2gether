@@ -4,7 +4,7 @@
 
 **Goal:** 유효한 Refresh Token을 한 번만 사용할 수 있도록 회전하고 로그아웃 시 서버 저장값과 쿠키를 모두 폐기한다.
 
-**Architecture:** Refresh 요청은 JWT 자체 검증 후 DB hash 비교를 수행한다. Rotation은 기존 Authentication row의 hash를 같은 트랜잭션에서 교체한다. 현재 스키마는 token family를 저장하지 않으므로 MVP는 재사용 요청을 401로 거절하되 family 추적은 하지 않는다.
+**Architecture:** Refresh 요청은 JWT 자체 검증 후 DB hash 비교를 수행한다. Rotation은 Authentication row를 비관적 쓰기 잠금으로 조회하고 기존 hash를 같은 트랜잭션에서 교체한다. 사용자 정보는 `UserAccountPort`로 조회하며 User Entity와 UserRepository를 직접 참조하지 않는다. 현재 스키마는 token family를 저장하지 않으므로 MVP는 재사용 요청을 401로 거절하되 family 추적은 하지 않는다.
 
 **Tech Stack:** Spring Transaction, JJWT 0.13.0, MockMvc, JUnit 5, Mockito
 
@@ -27,7 +27,8 @@
 
 **Interfaces:**
 - Consumes: `JwtTokenProvider.parseRefresh(String token)`
-- Consumes: `AuthenticationRepository.findByUserId(Integer userId)`
+- Consumes: `AuthenticationRepository.findByUserIdForUpdate(Integer userId)`
+- Consumes: `UserAccountPort.findById(Integer userId)`
 - Produces: `RefreshResult AuthService.refresh(String refreshToken)`
 
 - [ ] **Step 1: 저장 hash 불일치 실패 테스트**
@@ -36,7 +37,7 @@
 @Test
 void 이미_회전된_refresh_token은_거절한다() {
     given(jwtTokenProvider.parseRefresh(oldToken)).willReturn(new TokenClaims(1, TokenType.REFRESH));
-    given(authenticationRepository.findByUserId(1)).willReturn(Optional.of(authentication));
+    given(authenticationRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(authentication));
 
     assertThatThrownBy(() -> authService.refresh(oldToken))
         .isInstanceOf(InvalidRefreshTokenException.class);
@@ -53,7 +54,7 @@ void 이미_회전된_refresh_token은_거절한다() {
 @Transactional
 public RefreshResult refresh(String refreshToken) {
     TokenClaims claims = jwtTokenProvider.parseRefresh(refreshToken);
-    Authentication authentication = authenticationRepository.findByUserId(claims.userId())
+    Authentication authentication = authenticationRepository.findByUserIdForUpdate(claims.userId())
         .orElseThrow(InvalidRefreshTokenException::new);
 
     String presentedHash = refreshTokenHasher.hash(refreshToken);
@@ -63,9 +64,9 @@ public RefreshResult refresh(String refreshToken) {
         throw new InvalidRefreshTokenException();
     }
 
-    User user = userRepository.findById(claims.userId())
+    UserAccount user = userAccountPort.findById(claims.userId())
         .orElseThrow(InvalidRefreshTokenException::new);
-    IssuedTokens next = jwtTokenProvider.issue(user.getId(), user.getRole(), clock.instant());
+    IssuedTokens next = jwtTokenProvider.issue(user.id(), user.role(), clock.instant());
     authentication.rotate(refreshTokenHasher.hash(next.refreshToken()));
     return RefreshResult.of(next);
 }
@@ -73,7 +74,7 @@ public RefreshResult refresh(String refreshToken) {
 
 - [ ] **Step 4: 두 동시 Refresh 요청 테스트 계획**
 
-동일 토큰으로 두 트랜잭션이 동시에 들어오면 둘 다 기존 hash를 읽을 수 있다. MVP 구현 시 `AuthenticationRepository.findByUserIdForUpdate()`에 `PESSIMISTIC_WRITE`를 적용해 Rotation을 직렬화한다.
+동일 토큰으로 두 트랜잭션이 동시에 들어오면 일반 조회로는 둘 다 기존 hash 검증을 통과할 수 있다. `AuthenticationRepository.findByUserIdForUpdate()`에 `PESSIMISTIC_WRITE`를 적용하고 위 서비스 흐름에서도 반드시 이 메서드를 사용해 Rotation을 직렬화한다.
 
 ```java
 @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -120,7 +121,11 @@ mockMvc.perform(post("/api/auth/refresh")
 
 제출된 Refresh Token을 SHA-256으로 해싱하고 `findByRefreshTokenHash(hash)`로 Authentication을 찾아 삭제한다. 이 방식은 JWT가 만료됐어도 서버에 남은 동일 hash를 제거할 수 있다. DB row가 없거나 토큰 형식이 잘못돼도 로그아웃은 성공 처리하고 민감한 상태를 노출하지 않는다.
 
-- [ ] **Step 2: 만료 쿠키 생성**
+- [ ] **Step 2: 쓰기 트랜잭션 서비스 구현**
+
+로그아웃 서비스 메서드에 `@Transactional`을 적용한다. `AuthenticationRepository.deleteByUserId(...)` 같은 직접 선언 삭제 메서드는 Repository 테스트의 트랜잭션에 기대지 않고 반드시 이 서비스 트랜잭션 안에서 호출한다.
+
+- [ ] **Step 3: 만료 쿠키 생성**
 
 ```http
 Set-Cookie: refreshToken=; Max-Age=0; HttpOnly; Path=/api/auth; SameSite=Strict
@@ -128,7 +133,7 @@ Set-Cookie: refreshToken=; Max-Age=0; HttpOnly; Path=/api/auth; SameSite=Strict
 
 발급 쿠키와 삭제 쿠키의 이름, path, secure, same-site 속성을 동일하게 유지한다.
 
-- [ ] **Step 3: Controller 204 테스트**
+- [ ] **Step 4: Controller 204 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/logout")
@@ -137,7 +142,7 @@ mockMvc.perform(post("/api/auth/logout")
     .andExpect(cookie().maxAge("refreshToken", 0));
 ```
 
-- [ ] **Step 4: 전체 테스트 및 커밋**
+- [ ] **Step 5: 전체 테스트 및 커밋**
 
 ```bash
 JWT_SECRET='local-development-secret-at-least-32-bytes' ./gradlew clean test
@@ -149,8 +154,11 @@ git commit -m "feat: Refresh Rotation과 로그아웃 구현"
 
 - 동일 Refresh Token의 순차 재사용은 401이다.
 - 동시 Refresh 요청 중 하나만 성공한다.
+- Rotation의 hash 비교와 갱신은 `findByUserIdForUpdate()`가 획득한 쓰기 잠금 안에서 수행된다.
 - Rotation 시 새 hash가 커밋되기 전 새 쿠키 응답을 만들지 않는다.
 - 로그아웃 후 기존 Refresh Token으로 재발급할 수 없다.
+- 로그아웃의 인증정보 삭제는 서비스 `@Transactional` 경계 안에서 실행된다.
+- Auth는 User Entity와 UserRepository를 직접 import하지 않는다.
 - 현재 스키마에서 지원하지 않는 token family 탐지는 구현했다고 주장하지 않는다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다

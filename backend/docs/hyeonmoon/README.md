@@ -30,11 +30,12 @@
 auth
 ├── Authentication
 ├── 회원가입·로그인·토큰
-└── auth.port.WalletProvisioningPort
+└── auth.port.UserAccountPort, WalletProvisioningPort
 
 user
 ├── User
 ├── UserRepository
+├── UserAccountPort 구현
 └── Address CRUD
 
 wallet
@@ -43,7 +44,7 @@ wallet
 └── 잔액 조회
 ```
 
-`User`와 `UserRepository`는 계정 정보를 소유하는 `user` 패키지에 둔다. `auth`는 인증 정보와 인증 흐름을 소유하고, 필요한 사용자 조회는 `user` 패키지의 Repository를 사용한다.
+`User`와 `UserRepository`는 계정 정보를 소유하는 `user` 패키지에 둔다. `auth`는 사용자 조회·등록에 필요한 `auth.port.UserAccountPort`를 소유하고 해당 Port만 의존한다. `user`는 `UserRepository`를 사용해 이 Port를 구현하며, `auth`는 `user`의 Entity나 Repository를 직접 import하지 않는다.
 
 ## 실행 순서
 
