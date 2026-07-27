@@ -57,7 +57,8 @@ public class CardPriceService {
         var history = statistics.stream()
                 .filter(stat -> stat.getAvgPrice() != null && stat.getAvgPrice() > 0)
                 .map(stat -> new CardResponses.PricePoint(stat.getStatisticsDate(),
-                        value(stat.getAvgPrice()), rate(stat.getDailyChangeRate())))
+                        value(stat.getAvgPrice()), rate(stat.getDailyChangeRate()),
+                        rate(stat.getWeeklyChangeRate()), rate(stat.getMonthlyChangeRate())))
                 .toList();
         long marketPrice = firstPrice(
                 latestNonNull(statistics, ItemStatistic::getLatestPrice),

@@ -32,6 +32,8 @@ export type CardPricePointResponseDto={
   date:string;
   average_price:number;
   change_rate:number;
+  weekly_change_rate:number;
+  monthly_change_rate:number;
 };
 
 export type CardDetailResponseDto={

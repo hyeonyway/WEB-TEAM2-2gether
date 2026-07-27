@@ -24,15 +24,43 @@ export default function PriceChangeAreaChart({history}:Props){
     const start=new Date(end);
     start.setDate(start.getDate()-29);
     start.setHours(0,0,0,0);
-    const data=history
-      .map(point=>({
-      timestamp:new Date(point.date).getTime(),
-      price:point.average_price,
-      changeRate:point.change_rate,
-      }))
+    const observations=history
+      .map(point=>{
+        const date=new Date(point.date);
+        date.setHours(0,0,0,0);
+        return {
+          timestamp:date.getTime(),
+          price:point.average_price,
+          dailyRate:point.change_rate,
+          weeklyRate:point.weekly_change_rate,
+          monthlyRate:point.monthly_change_rate,
+        };
+      })
       .filter(point=>point.timestamp>=start.getTime()&&point.timestamp<=end.getTime())
-      .sort((a,b)=>a.timestamp-b.timestamp);
+      .sort((a,b)=>a.timestamp-b.timestamp)
+      .filter((point,index,points)=>points[index+1]?.timestamp!==point.timestamp);
     const day=24*60*60*1000;
+    const data=observations.length?Array.from({length:30},(_,index)=>{
+      const timestamp=start.getTime()+index*day;
+      const nextIndex=observations.findIndex(point=>point.timestamp>=timestamp);
+      if(nextIndex===-1){
+        return {...observations[observations.length-1],timestamp};
+      }
+      if(nextIndex<=0){
+        const point=observations[Math.max(0,nextIndex)];
+        return {...point,timestamp};
+      }
+      const previous=observations[nextIndex-1];
+      const next=observations[nextIndex];
+      const ratio=(timestamp-previous.timestamp)/(next.timestamp-previous.timestamp);
+      return {
+        timestamp,
+        price:Math.round(previous.price+(next.price-previous.price)*ratio),
+        dailyRate:Number((previous.dailyRate+(next.dailyRate-previous.dailyRate)*ratio).toFixed(2)),
+        weeklyRate:Number((previous.weeklyRate+(next.weeklyRate-previous.weeklyRate)*ratio).toFixed(2)),
+        monthlyRate:Number((previous.monthlyRate+(next.monthlyRate-previous.monthlyRate)*ratio).toFixed(2)),
+      };
+    }):[];
     return {
       data,
       start:start.getTime(),
@@ -82,14 +110,14 @@ export default function PriceChangeAreaChart({history}:Props){
             if(!active||!point)return null;
             return <div className="chart-tooltip">
               <span>{dateLabel(point.timestamp)}</span>
-              <strong>{point.changeRate>=0?'+':''}{point.changeRate.toFixed(2)}%</strong>
+              <strong>{point.dailyRate>=0?'+':''}{point.dailyRate.toFixed(2)}%</strong>
               <small>평균 {money(point.price)}</small>
             </div>;
           }}
         />
         <Area
           type="monotone"
-          dataKey="changeRate"
+          dataKey="dailyRate"
           stroke="#16ad64"
           strokeWidth={2.5}
           fill="url(#price-change-fill)"
