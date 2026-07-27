@@ -3,10 +3,15 @@ package com.dbidding.card.domain;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+@Getter
 @Entity
 @Table(name = "item_statistics",
         uniqueConstraints = @UniqueConstraint(columnNames = {"item_id", "statistics_date"}))
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ItemStatistic {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,9 +44,6 @@ public class ItemStatistic {
     @Column(name = "monthly_change_rate", precision = 8, scale = 2)
     private BigDecimal monthlyChangeRate;
 
-    protected ItemStatistic() {
-    }
-
     public ItemStatistic(CardMetadata item, LocalDate statisticsDate, Long latestPrice, Long avgPrice,
                          Long lowestPrice, Long highestPrice, Integer tradeCount, Integer bidCount,
                          Integer activeAuctionCount, BigDecimal dailyChangeRate,
@@ -59,18 +61,4 @@ public class ItemStatistic {
         this.weeklyChangeRate = weeklyChangeRate;
         this.monthlyChangeRate = monthlyChangeRate;
     }
-
-    public Long getId() { return id; }
-    public CardMetadata getItem() { return item; }
-    public LocalDate getStatisticsDate() { return statisticsDate; }
-    public Long getLatestPrice() { return latestPrice; }
-    public Long getAvgPrice() { return avgPrice; }
-    public Long getLowestPrice() { return lowestPrice; }
-    public Long getHighestPrice() { return highestPrice; }
-    public Integer getTradeCount() { return tradeCount; }
-    public Integer getBidCount() { return bidCount; }
-    public Integer getActiveAuctionCount() { return activeAuctionCount; }
-    public BigDecimal getDailyChangeRate() { return dailyChangeRate; }
-    public BigDecimal getWeeklyChangeRate() { return weeklyChangeRate; }
-    public BigDecimal getMonthlyChangeRate() { return monthlyChangeRate; }
 }

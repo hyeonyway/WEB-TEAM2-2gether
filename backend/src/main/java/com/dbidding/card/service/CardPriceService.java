@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,15 +20,11 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class CardPriceService {
     private static final BigDecimal ZERO_RATE = BigDecimal.ZERO.setScale(2);
     private final CardMetadataRepository cardRepository;
     private final ItemStatisticRepository statisticRepository;
-
-    public CardPriceService(CardMetadataRepository cardRepository, ItemStatisticRepository statisticRepository) {
-        this.cardRepository = cardRepository;
-        this.statisticRepository = statisticRepository;
-    }
 
     public CardResponses.Page<CardResponses.CardSummary> getCards(
             String keyword, Integer psaGrade, int page, int size) {

@@ -1,9 +1,14 @@
 package com.dbidding.card.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+@Getter
 @Entity
 @Table(name = "card_sets")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CardSet {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -15,19 +20,8 @@ public class CardSet {
     @Column(unique = true, length = 50)
     private String code;
 
-    protected CardSet() {
-    }
-
     public CardSet(String name, String code) {
         this.name = name;
         this.code = code;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
     }
 }

@@ -1,9 +1,14 @@
 package com.dbidding.card.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+@Getter
 @Entity
 @Table(name = "card_metadata")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CardMetadata {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,9 +42,6 @@ public class CardMetadata {
     @Column(name = "image_path", length = 500)
     private String imagePath;
 
-    protected CardMetadata() {
-    }
-
     public CardMetadata(CardSet cardSet, String name, String cardNumber, String language,
                         Integer psaGrade, String rarity, Long referencePrice, String imagePath) {
         this.cardSet = cardSet;
@@ -52,15 +54,4 @@ public class CardMetadata {
         this.imagePath = imagePath;
         this.favoriteCount = 0;
     }
-
-    public Long getId() { return id; }
-    public CardSet getCardSet() { return cardSet; }
-    public String getName() { return name; }
-    public String getCardNumber() { return cardNumber; }
-    public String getLanguage() { return language; }
-    public Integer getPsaGrade() { return psaGrade; }
-    public String getRarity() { return rarity; }
-    public Integer getFavoriteCount() { return favoriteCount; }
-    public Long getReferencePrice() { return referencePrice; }
-    public String getImagePath() { return imagePath; }
 }

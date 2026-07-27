@@ -4,18 +4,16 @@ import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.service.CardPriceService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @Validated
 @RestController
 @RequestMapping("/api/cards")
+@RequiredArgsConstructor
 public class CardPriceController {
     private final CardPriceService cardPriceService;
-
-    public CardPriceController(CardPriceService cardPriceService) {
-        this.cardPriceService = cardPriceService;
-    }
 
     @GetMapping
     public CardResponses.Page<CardResponses.CardSummary> getCards(
