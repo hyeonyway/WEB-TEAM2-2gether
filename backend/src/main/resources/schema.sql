@@ -61,22 +61,44 @@ CREATE TABLE addresses
   COLLATE = utf8mb4_0900_ai_ci;
 
 
+CREATE TABLE card_sets
+(
+    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    name         VARCHAR(150) NOT NULL,
+    code         VARCHAR(50)  NULL,
+    release_year SMALLINT     NULL,
+    country      VARCHAR(20)  NULL,
+    created_at   TIMESTAMP(6) NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    CONSTRAINT pk_card_sets PRIMARY KEY (id),
+    CONSTRAINT uk_card_sets_code UNIQUE (code)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
 CREATE TABLE card_metadata
 (
-    id              INT          NOT NULL AUTO_INCREMENT,
-    name            VARCHAR(255) NOT NULL,
-    set_name        VARCHAR(255) NOT NULL,
-    image_path      VARCHAR(255) NOT NULL,
-    country         VARCHAR(255) NOT NULL,
-    card_number     VARCHAR(255) NOT NULL,
-    language        VARCHAR(255) NOT NULL,
-    release_year    INT          NOT NULL,
-    grade_type      VARCHAR(255) NOT NULL,
-    grade_value     VARCHAR(255) NOT NULL,
-    psa_cert_number VARCHAR(255) NOT NULL,
-    population      INT          NOT NULL,
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    card_set_id     BIGINT       NOT NULL,
+    name            VARCHAR(200) NOT NULL,
+    card_number     VARCHAR(50)  NULL,
+    language        VARCHAR(20)  NULL,
+    psa_grade       INT          NULL,
+    rarity          VARCHAR(30)  NULL,
+    favorite_count  INT          NULL DEFAULT 0,
+    reference_price BIGINT       NULL,
+    image_path      VARCHAR(500) NULL,
+    created_at      TIMESTAMP(6) NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at      TIMESTAMP(6) NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
 
-    CONSTRAINT pk_card_metadata PRIMARY KEY (id)
+    CONSTRAINT pk_card_metadata PRIMARY KEY (id),
+    CONSTRAINT fk_card_metadata_card_set
+        FOREIGN KEY (card_set_id) REFERENCES card_sets (id),
+
+    INDEX idx_card_metadata_card_set_id (card_set_id),
+    INDEX idx_card_metadata_name (name)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -84,17 +106,27 @@ CREATE TABLE card_metadata
 
 CREATE TABLE item_statistics
 (
-    id            INT    NOT NULL AUTO_INCREMENT,
-    item_id       INT    NOT NULL,
-    avg_price     BIGINT NOT NULL,
-    lowest_price  BIGINT NOT NULL,
-    highest_price BIGINT NOT NULL,
-    count         INT    NOT NULL,
+    id                   BIGINT        NOT NULL AUTO_INCREMENT,
+    item_id              BIGINT        NOT NULL,
+    statistics_date      DATE          NOT NULL,
+    latest_price         BIGINT        NULL,
+    avg_price            BIGINT        NULL,
+    lowest_price         BIGINT        NULL,
+    highest_price        BIGINT        NULL,
+    trade_count          INT           NULL DEFAULT 0,
+    bid_count            INT           NULL DEFAULT 0,
+    active_auction_count INT           NULL DEFAULT 0,
+    daily_change_rate    DECIMAL(8, 2) NULL,
+    weekly_change_rate   DECIMAL(8, 2) NULL,
+    monthly_change_rate  DECIMAL(8, 2) NULL,
+    calculated_at        TIMESTAMP(6)  NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     CONSTRAINT pk_item_statistics PRIMARY KEY (id),
-    CONSTRAINT uk_item_statistics_item_id UNIQUE (item_id),
+    CONSTRAINT uk_item_statistics_item_date UNIQUE (item_id, statistics_date),
     CONSTRAINT fk_item_statistics_item
-        FOREIGN KEY (item_id) REFERENCES card_metadata (id)
+        FOREIGN KEY (item_id) REFERENCES card_metadata (id),
+
+    INDEX idx_item_statistics_date (statistics_date)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -104,7 +136,7 @@ CREATE TABLE auctions
 (
     id                   INT          NOT NULL AUTO_INCREMENT,
     user_id              INT          NOT NULL,
-    item_id              INT          NOT NULL,
+    item_id              BIGINT       NOT NULL,
     auction_name         VARCHAR(255) NOT NULL,
     description          VARCHAR(255) NOT NULL,
     start_price          BIGINT       NOT NULL,
@@ -265,7 +297,7 @@ CREATE TABLE wishlists
 (
     id      INT NOT NULL AUTO_INCREMENT,
     user_id INT NOT NULL,
-    item_id INT NOT NULL,
+    item_id BIGINT NOT NULL,
 
     CONSTRAINT pk_wishlists PRIMARY KEY (id),
     CONSTRAINT uk_wishlists_user_item UNIQUE (user_id, item_id),
