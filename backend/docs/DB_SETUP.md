@@ -75,7 +75,7 @@ export DB_PASSWORD=본인비번
 
 (IntelliJ에서 실행한다면 Run Configuration > Environment variables에 등록)
 
-## 5. schema.sql 적용 (최초 1회, 수동 실행)
+## 5. schema.sql 적용
 
 앱이 자동으로 실행해주지 않으므로(`spring.sql.init.mode=never`), DB를 만든 직후 **mysql 클라이언트로 직접 한 번** 실행해서 테이블을 만듭니다.
 
@@ -86,6 +86,61 @@ mysql -u root -p dbidding < src/main/resources/schema.sql
 - `CREATE TABLE`에 `IF NOT EXISTS`가 없기 때문에, 이미 테이블이 있는 상태에서 다시 실행하면 `Table ... already exists` 에러가 납니다. 즉 이 명령은 **DB를 새로 만들 때만** 실행하세요 (앱을 켤 때마다 실행하는 게 아님).
 - 스키마를 변경해야 하면: 로컬 DB를 `DROP DATABASE dbidding;` 후 다시 만들고 위 명령을 재실행하거나, 바뀐 부분만 `ALTER TABLE`로 직접 반영하세요.
 - 운영(EC2) DB도 동일하게 최초 1회만 이 방식으로 스키마를 적용하고, 이후에는 마이그레이션(스키마 변경 SQL)만 별도로 관리하는 걸 권장합니다.
+
+### Docker 서버 시작 시 자동 검증
+
+백엔드 Docker 이미지는 `/app/scripts/start-server.sh`를 entrypoint로 사용한다.
+
+1. 현재 `schema.sql`로 임시 비교 DB를 생성한다.
+2. 실제 DB와 임시 DB의 구조 덤프를 비교한다.
+3. 구조가 다르면 기존 DB를 SQL gzip 스냅샷으로 저장하고 검증한다.
+4. 스냅샷이 정상일 때만 실제 DB를 현재 `schema.sql`로 초기화한다.
+5. `required-data/*.sql`을 파일명 오름차순으로 스키마 생성 후 모두 실행한다.
+6. 어느 단계든 실패하면 애플리케이션을 시작하지 않는다.
+
+관련 환경변수:
+
+| 환경변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `DB_SCHEMA_SYNC_MODE` | `reset-on-mismatch` | 불일치 시 초기화. `validate`는 변경 없이 시작을 중단 |
+| `DB_SCHEMA_WAIT_SECONDS` | `60` | MySQL 연결 대기 시간 |
+| `DB_SNAPSHOT_DIR` | `/app/db-snapshots` | 스냅샷 저장 경로 |
+| `SCHEMA_FILE` | `/app/db/resources/schema.sql` | 기준 스키마 파일 |
+| `INITIAL_DATA_DIR` | `/app/db/resources/required-data` | 필수 초기 데이터 SQL 디렉터리 |
+
+초기 데이터는 실행 순서를 파일명 접두사로 관리한다.
+
+```text
+src/main/resources/required-data/
+├── 001-pokemon-cards.sql
+├── 002-required-users.sql
+└── 003-other-data.sql
+```
+
+DB 초기화 시 비어 있지 않은 `.sql` 파일만 정렬된 순서대로 실행한다. 하나라도
+실패하면 이후 파일과 애플리케이션 실행을 즉시 중단한다.
+
+DB 계정은 실제 DB와 `dbidding_schema_check_%` 비교용 DB를 생성·삭제할 수
+있어야 한다.
+
+스냅샷을 컨테이너 재생성 후에도 보존하려면 Docker Compose에서 영속 볼륨을
+`/app/db-snapshots`에 마운트해야 한다.
+
+```yaml
+services:
+  backend:
+    volumes:
+      - db_snapshots:/app/db-snapshots
+
+volumes:
+  db_snapshots:
+```
+
+운영 환경에서 자동 초기화를 허용하지 않으려면 다음 값을 사용한다.
+
+```bash
+DB_SCHEMA_SYNC_MODE=validate
+```
 
 ## 6. Entity 작성 시 주의
 
