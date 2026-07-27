@@ -119,3 +119,4 @@ git commit -m "feat: Wallet 엔티티와 Repository 추가"
 - 외부 코드가 point를 임의로 변경할 수 없다.
 - userId 중복이 DB와 애플리케이션 양쪽에서 차단된다.
 
+> 이 문서는 codex의 도움을 받아 작성하였습니다

@@ -104,3 +104,4 @@ git commit -m "feat: 회원가입 Wallet 생성 연동"
 - Wallet 생성 실패 시 User도 남지 않는다.
 - 초기 Wallet point는 항상 0이다.
 
+> 이 문서는 codex의 도움을 받아 작성하였습니다

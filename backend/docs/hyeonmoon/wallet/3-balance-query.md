@@ -147,3 +147,5 @@ git commit -m "feat: 지갑 잔액 조회 구현"
 - RELEASED와 CAPTURED는 frozenBalance에 포함되지 않는다.
 - 가용 잔액은 저장하지 않고 요청 시 계산한다.
 - WalletHold 엔티티나 hold/release 로직을 이번 작업에 섞지 않는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

@@ -212,3 +212,5 @@ git commit -m "feat: 회원가입 구현"
 - PBKDF2 hash와 salt만 저장된다.
 - User 저장 또는 Wallet 생성 중 하나가 실패하면 둘 다 롤백된다.
 - 회원가입 시 Authentication row는 생성되지 않는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

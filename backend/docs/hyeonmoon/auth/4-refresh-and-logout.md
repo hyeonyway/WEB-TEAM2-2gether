@@ -152,3 +152,5 @@ git commit -m "feat: Refresh Rotation과 로그아웃 구현"
 - Rotation 시 새 hash가 커밋되기 전 새 쿠키 응답을 만들지 않는다.
 - 로그아웃 후 기존 Refresh Token으로 재발급할 수 없다.
 - 현재 스키마에서 지원하지 않는 token family 탐지는 구현했다고 주장하지 않는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

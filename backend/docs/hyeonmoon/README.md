@@ -88,3 +88,4 @@ cd backend
 - `../docs/package-structure.md`
 - `../docs/erd-review.md`
 
+> 이 문서는 codex의 도움을 받아 작성하였습니다

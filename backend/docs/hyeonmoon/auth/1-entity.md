@@ -240,3 +240,5 @@ git commit -m "feat: Auth 엔티티와 Repository 추가"
 - Authentication은 User 객체가 아니라 `Integer userId`만 참조한다.
 - `User.create()`가 스키마의 모든 NOT NULL 필드를 채운다.
 - 비밀번호와 Refresh Token 원문을 저장하는 API가 엔티티에 존재하지 않는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

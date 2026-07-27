@@ -35,3 +35,4 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 - 잘못된 서명, 만료, 잘못된 token type을 서로 다른 인증 실패로 처리한다.
 - 실제 `JwtAuthFilter` 전역 적용은 인증 통합 스프린트까지 보류한다.
 
+> 이 문서는 codex의 도움을 받아 작성하였습니다

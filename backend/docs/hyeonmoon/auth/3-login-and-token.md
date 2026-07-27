@@ -217,3 +217,5 @@ git commit -m "feat: 로그인과 JWT 발급 구현"
 - Access Token만 JSON에 나타난다.
 - Refresh Token 원문은 HttpOnly 쿠키로만 전달된다.
 - DB에는 Refresh Token의 64자 SHA-256 hash만 남는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

@@ -219,3 +219,5 @@ git commit -m "feat: 배송지 CRUD 구현"
 - `defaultAddress=true`로 저장할 때 기존 기본 배송지를 해제한다.
 - User Entity나 UserRepository를 직접 참조하지 않는다.
 - Controller가 임의의 userId를 입력으로 받지 않는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다
