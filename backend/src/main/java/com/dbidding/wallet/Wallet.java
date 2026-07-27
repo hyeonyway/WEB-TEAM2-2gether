@@ -6,7 +6,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "wallets")
 public class Wallet {
@@ -21,9 +26,6 @@ public class Wallet {
 	@Column(nullable = false)
 	private long point;
 
-	protected Wallet() {
-	}
-
 	private Wallet(Integer userId, long point) {
 		if (userId == null) {
 			throw new IllegalArgumentException("User ID cannot be null");
@@ -36,11 +38,4 @@ public class Wallet {
 		return new Wallet(userId, 0L);
 	}
 
-	public Integer getUserId() {
-		return userId;
-	}
-
-	public long getPoint() {
-		return point;
-	}
 }
