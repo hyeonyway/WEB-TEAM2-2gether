@@ -1,7 +1,5 @@
 # Signup Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 이메일과 닉네임 중복을 차단하고 PBKDF2로 비밀번호를 해싱한 뒤 User와 초기 Wallet을 하나의 트랜잭션으로 생성한다.
 
 **Architecture:** AuthService가 회원가입 유스케이스를 조정한다. Auth는 자신이 소유한 `auth.port.UserAccountPort`와 `auth.port.WalletProvisioningPort`만 알고 User·Wallet Entity와 Repository를 import하지 않는다. User와 Wallet 구현체는 각 Port를 구현하며, 어느 한쪽이 실패하면 같은 트랜잭션에서 모두 롤백된다.
@@ -92,13 +90,13 @@ Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟
 - Create: `backend/src/main/java/com/dbidding/auth/port/UserAccount.java`
 - Create: `backend/src/main/java/com/dbidding/auth/port/UserAccountRole.java`
 - Create: `backend/src/main/java/com/dbidding/auth/port/UserAccountPort.java`
-- Create: `backend/src/main/java/com/dbidding/auth/port/WalletProvisioningPort.java`
+- Consumes: `backend/src/main/java/com/dbidding/auth/port/WalletProvisioningPort.java`
 - Create: `backend/src/main/java/com/dbidding/user/UserAccountAdapter.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateEmailException.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateNicknameException.java`
 
 **Interfaces:**
-- Consumes: `UserAccountPort`, `PasswordHasher`
+- Consumes: `UserAccountPort`, `WalletProvisioningPort`, `PasswordHasher`
 - Produces: `UserAccount UserAccountPort.create(String email, String nickname, String encryptedPassword, String salt)`
 - Produces: `void WalletProvisioningPort.createFor(Integer userId)`
 - Produces: `SignupResponse AuthService.signup(SignupRequest request)`
@@ -137,12 +135,12 @@ public interface UserAccountPort {
     Optional<UserAccount> findById(Integer userId);
 }
 
-public interface WalletProvisioningPort {
-    void createFor(Integer userId);
-}
 ```
 
 `UserAccountAdapter`는 `user` 패키지에서 `UserRepository`를 사용해 `UserAccountPort`를 구현하고, User Entity를 auth에 노출하지 않은 채 `UserAccount`로 변환한다. `user.UserRole`은 명시적인 `switch`로 `auth.port.UserAccountRole`에 매핑하여 역할 추가 시 누락을 컴파일 단계에서 확인한다.
+
+`WalletProvisioningPort`는 선행 Wallet 생성 연동 작업에서 Auth가 소유하도록
+정의한다. 회원가입 작업은 이미 등록된 Port와 Wallet 구현체를 소비한다.
 
 - [ ] **Step 2: 중복 이메일 서비스 실패 테스트**
 
@@ -165,6 +163,7 @@ void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
 - Create: `backend/src/main/java/com/dbidding/auth/AuthController.java`
 - Test: `backend/src/test/java/com/dbidding/auth/AuthServiceSignupTest.java`
 - Test: `backend/src/test/java/com/dbidding/auth/AuthControllerSignupTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/SignupTransactionTest.java`
 
 **Interfaces:**
 - Consumes: `WalletProvisioningPort.createFor(Integer userId)`
@@ -226,7 +225,13 @@ mockMvc.perform(post("/api/auth/signup")
     .andExpect(jsonPath("$.password").doesNotExist());
 ```
 
-- [ ] **Step 4: 전체 테스트와 커밋**
+- [ ] **Step 4: User·Wallet 트랜잭션 통합 테스트**
+
+실제 `UserAccountAdapter`와 `WalletProvisioningAdapter`를 사용해 회원가입 성공 시
+`users`와 `wallets`에 각각 한 row가 생성되는지 확인한다. Wallet 생성이 실패하면
+같은 트랜잭션에서 User 저장도 롤백되는지 검증한다.
+
+- [ ] **Step 5: 전체 테스트와 커밋**
 
 ```bash
 ./gradlew clean test

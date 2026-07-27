@@ -1,7 +1,5 @@
 # Login and Token Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 이메일과 비밀번호를 검증하고 Access Token은 응답 본문으로, Refresh Token은 HttpOnly 쿠키로 발급한다.
 
 **Architecture:** JwtTokenProvider가 토큰 생성·검증을 전담하고 AuthService는 `UserAccountPort`를 통한 사용자 검증과 Authentication 저장을 조정한다. Auth는 User Entity와 UserRepository를 직접 참조하지 않으며, DB에는 Refresh Token 원문 대신 SHA-256 hex hash만 저장한다.
@@ -98,7 +96,7 @@ void access와_refresh에_서로_다른_type과_만료시간을_넣는다() {
 
 - [ ] **Step 2: JJWT 0.13 API로 발급 구현**
 
-토큰에는 최소 claim만 포함한다.
+Access Token에는 최소 claim만 포함한다.
 
 ```java
 Jwts.builder()
@@ -110,6 +108,9 @@ Jwts.builder()
     .signWith(secretKey)
     .compact();
 ```
+
+Refresh Token은 동일한 등록 claim 중 `role`을 제외하고 `type=refresh`로 발급한다.
+Refresh 검증 결과는 사용자 ID와 token type만 반환한다.
 
 검증은 다음 API를 사용한다.
 

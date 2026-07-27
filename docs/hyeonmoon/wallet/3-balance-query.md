@@ -1,7 +1,5 @@
 # Wallet Balance Query Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 로그인 사용자의 총 잔액, 활성 동결 합계, 가용 잔액을 조회한다.
 
 **Architecture:** Wallet point를 총액으로 읽고 `wallet_holds`의 HELD 합계를 native aggregate query로 계산한다. 활성 hold의 `released_at`은 null이고, 해제 또는 낙찰 차감 시 실제 처리 시각을 기록한다.

@@ -1,7 +1,5 @@
 # Refresh Rotation and Logout Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 유효한 Refresh Token을 한 번만 사용할 수 있도록 회전하고 로그아웃 시 서버 저장값과 쿠키를 모두 폐기한다.
 
 **Architecture:** Refresh 요청은 JWT 자체 검증 후 DB hash 비교를 수행한다. Rotation은 Authentication row를 비관적 쓰기 잠금으로 조회하고 기존 hash를 같은 트랜잭션에서 교체한다. 사용자 정보는 `UserAccountPort`로 조회하며 User Entity와 UserRepository를 직접 참조하지 않는다. 현재 스키마는 token family를 저장하지 않으므로 MVP는 재사용 요청을 401로 거절하되 family 추적은 하지 않는다.
