@@ -1,6 +1,6 @@
 # User 개발 계획
 
-현재 패키지 계약에서 User 엔티티는 `auth`가 소유하고, `user` 패키지는 배송지 Address를 소유한다. User 엔티티나 UserRepository를 직접 import하지 않고 로그인 사용자 ID인 `Integer userId`만 사용한다.
+`user` 패키지는 User 엔티티와 UserRepository, 배송지 Address를 소유한다. 배송지 API에서는 요청으로 임의의 사용자 ID를 받지 않고, 로그인 사용자 ID인 `Integer userId`를 사용한다.
 
 ## 구현 단계
 

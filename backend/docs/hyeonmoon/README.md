@@ -28,12 +28,13 @@
 
 ```text
 auth
-├── User
 ├── Authentication
 ├── 회원가입·로그인·토큰
 └── auth.port.WalletProvisioningPort
 
 user
+├── User
+├── UserRepository
 └── Address CRUD
 
 wallet
@@ -42,7 +43,7 @@ wallet
 └── 잔액 조회
 ```
 
-`User`는 현재 `package-structure.md` 결정대로 `auth` 패키지에 둔다. `user` 패키지는 User FK를 `Integer userId`로만 보유하는 Address를 담당한다.
+`User`와 `UserRepository`는 계정 정보를 소유하는 `user` 패키지에 둔다. `auth`는 인증 정보와 인증 흐름을 소유하고, 필요한 사용자 조회는 `user` 패키지의 Repository를 사용한다.
 
 ## 실행 순서
 

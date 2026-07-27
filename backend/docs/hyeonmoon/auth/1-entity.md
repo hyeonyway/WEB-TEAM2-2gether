@@ -4,7 +4,7 @@
 
 **Goal:** `users`와 `authentication` 테이블에 정확히 대응하는 JPA 엔티티와 Repository를 만든다.
 
-**Architecture:** User와 Authentication은 `auth` 패키지가 소유한다. 연관관계 객체 대신 `Authentication.userId`를 `Integer` scalar FK로 두어 조회와 생명주기를 명시적으로 관리한다.
+**Architecture:** User는 `user` 패키지, Authentication은 `auth` 패키지가 소유한다. 연관관계 객체 대신 `Authentication.userId`를 `Integer` scalar FK로 두어 조회와 생명주기를 명시적으로 관리한다.
 
 **Tech Stack:** Java 21, Spring Boot 4.1, Spring Data JPA, MySQL 8.4, JUnit 5, AssertJ
 
@@ -24,10 +24,10 @@
 ### Task 1: User 엔티티
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/auth/User.java`
-- Create: `backend/src/main/java/com/dbidding/auth/UserRole.java`
-- Create: `backend/src/main/java/com/dbidding/auth/UserStatus.java`
-- Test: `backend/src/test/java/com/dbidding/auth/UserTest.java`
+- Create: `backend/src/main/java/com/dbidding/user/User.java`
+- Create: `backend/src/main/java/com/dbidding/user/UserRole.java`
+- Create: `backend/src/main/java/com/dbidding/user/UserStatus.java`
+- Test: `backend/src/test/java/com/dbidding/user/UserTest.java`
 
 **Interfaces:**
 - Produces: `User.create(String email, String nickname, String encryptedPassword, String salt)`
@@ -50,7 +50,7 @@ void 신규_사용자는_USER_ACTIVE_상태로_생성된다() {
 
 ```bash
 cd backend
-./gradlew test --tests com.dbidding.auth.UserTest
+./gradlew test --tests com.dbidding.user.UserTest
 ```
 
 Expected: `User`, `UserRole`, `UserStatus`를 찾지 못해 FAIL.
@@ -104,7 +104,7 @@ enum의 최초 값은 `USER`, `ADMIN`과 `ACTIVE`, `SUSPENDED`, `WITHDRAWN`만 �
 - [ ] **Step 4: User 단위 테스트 통과 확인**
 
 ```bash
-./gradlew test --tests com.dbidding.auth.UserTest
+./gradlew test --tests com.dbidding.user.UserTest
 ```
 
 Expected: PASS.
@@ -171,9 +171,10 @@ Expected: PASS.
 ### Task 3: Repository
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/auth/UserRepository.java`
+- Create: `backend/src/main/java/com/dbidding/user/UserRepository.java`
 - Create: `backend/src/main/java/com/dbidding/auth/AuthenticationRepository.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthRepositoryTest.java`
+- Test: `backend/src/test/java/com/dbidding/user/UserRepositoryTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/AuthenticationRepositoryTest.java`
 
 **Interfaces:**
 - Produces: `boolean UserRepository.existsByEmail(String email)`
@@ -205,7 +206,7 @@ public interface AuthenticationRepository extends JpaRepository<Authentication, 
 
 ```java
 @DataJpaTest
-class AuthRepositoryTest {
+class UserRepositoryTest {
     @Autowired UserRepository userRepository;
 
     @Test
@@ -221,7 +222,8 @@ class AuthRepositoryTest {
 ```
 
 ```bash
-DB_NAME=dbidding_test ./gradlew test --tests com.dbidding.auth.AuthRepositoryTest
+DB_NAME=dbidding_test ./gradlew test --tests com.dbidding.user.UserRepositoryTest
+DB_NAME=dbidding_test ./gradlew test --tests com.dbidding.auth.AuthenticationRepositoryTest
 ```
 
 Expected: PASS하며 Hibernate schema validation 오류가 없어야 한다.
@@ -230,7 +232,8 @@ Expected: PASS하며 Hibernate schema validation 오류가 없어야 한다.
 
 ```bash
 ./gradlew clean test
-git add backend/src/main/java/com/dbidding/auth backend/src/test/java/com/dbidding/auth
+git add backend/src/main/java/com/dbidding/auth backend/src/test/java/com/dbidding/auth \
+  backend/src/main/java/com/dbidding/user backend/src/test/java/com/dbidding/user
 git commit -m "feat: Auth 엔티티와 Repository 추가"
 ```
 
