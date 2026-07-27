@@ -131,7 +131,7 @@ void refresh_token_hash를_교체한다() {
 
     authentication.rotate("b".repeat(64));
 
-    assertThat(authentication.getRefreshToken()).isEqualTo("b".repeat(64));
+    assertThat(authentication.getRefreshTokenHash()).isEqualTo("b".repeat(64));
 }
 ```
 
@@ -149,7 +149,7 @@ public class Authentication {
     private Integer userId;
 
     @Column(name = "refresh_token", nullable = false, unique = true, length = 64)
-    private String refreshToken;
+    private String refreshTokenHash;
 
     protected Authentication() {}
 
@@ -158,7 +158,7 @@ public class Authentication {
     }
 
     public void rotate(String newRefreshTokenHash) {
-        this.refreshToken = newRefreshTokenHash;
+        this.refreshTokenHash = newRefreshTokenHash;
     }
 }
 ```
@@ -196,7 +196,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
 public interface AuthenticationRepository extends JpaRepository<Authentication, Integer> {
     Optional<Authentication> findByUserId(Integer userId);
-    Optional<Authentication> findByRefreshToken(String refreshTokenHash);
+    Optional<Authentication> findByRefreshTokenHash(String refreshTokenHash);
     void deleteByUserId(Integer userId);
 }
 ```

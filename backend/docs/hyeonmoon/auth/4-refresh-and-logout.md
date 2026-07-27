@@ -59,7 +59,7 @@ public RefreshResult refresh(String refreshToken) {
     String presentedHash = refreshTokenHasher.hash(refreshToken);
     if (!MessageDigest.isEqual(
             presentedHash.getBytes(StandardCharsets.US_ASCII),
-            authentication.getRefreshToken().getBytes(StandardCharsets.US_ASCII))) {
+            authentication.getRefreshTokenHash().getBytes(StandardCharsets.US_ASCII))) {
         throw new InvalidRefreshTokenException();
     }
 
@@ -118,7 +118,7 @@ mockMvc.perform(post("/api/auth/refresh")
 
 - [ ] **Step 1: 서비스 멱등성 테스트**
 
-제출된 Refresh Token을 SHA-256으로 해싱하고 `findByRefreshToken(hash)`로 Authentication을 찾아 삭제한다. 이 방식은 JWT가 만료됐어도 서버에 남은 동일 hash를 제거할 수 있다. DB row가 없거나 토큰 형식이 잘못돼도 로그아웃은 성공 처리하고 민감한 상태를 노출하지 않는다.
+제출된 Refresh Token을 SHA-256으로 해싱하고 `findByRefreshTokenHash(hash)`로 Authentication을 찾아 삭제한다. 이 방식은 JWT가 만료됐어도 서버에 남은 동일 hash를 제거할 수 있다. DB row가 없거나 토큰 형식이 잘못돼도 로그아웃은 성공 처리하고 민감한 상태를 노출하지 않는다.
 
 - [ ] **Step 2: 만료 쿠키 생성**
 

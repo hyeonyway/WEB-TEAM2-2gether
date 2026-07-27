@@ -165,7 +165,7 @@ void 로그인하면_refresh_hash를_저장하고_access를_반환한다() {
 
     assertThat(result.response().accessToken()).isEqualTo(tokens.accessToken());
     then(authenticationRepository).should().save(argThat(auth ->
-        auth.getRefreshToken().equals(refreshTokenHasher.hash(tokens.refreshToken()))
+        auth.getRefreshTokenHash().equals(refreshTokenHasher.hash(tokens.refreshToken()))
     ));
 }
 ```
