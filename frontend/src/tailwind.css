@@ -172,3 +172,7 @@ strong, b { font-weight: 600 !important; }
 .price-buy-row{grid-template-columns:38px 38px 1fr}
 @media(max-width:760px){.price-detail-page .price-buy-row{grid-template-columns:38px 38px 1fr}}
 .ranking a.rank{color:inherit;text-decoration:none}
+.detail-grid-line{stroke:#e8ecea;stroke-width:1;vector-effect:non-scaling-stroke}
+.detail-line{stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.detail-point{fill:#fff;stroke:#16ad64;stroke-width:3;vector-effect:non-scaling-stroke}
+.shadcn-area-chart{width:100%;margin-top:18px;user-select:none}.shadcn-area-chart svg,.shadcn-area-chart *{outline:none}.shadcn-chart-canvas{height:235px;position:relative}.chart-empty{position:absolute;inset:0;display:grid;place-items:center;color:#999;font-size:11px;pointer-events:none}.chart-tooltip{min-width:150px;padding:10px 12px;border:1px solid #e3e7e5;border-radius:9px;background:#fffffff2;box-shadow:0 8px 24px #00000014;display:grid;gap:3px}.chart-tooltip span{font-size:10px;color:#8b928e}.chart-tooltip strong{font-size:14px;color:#0ba660}.chart-tooltip small{font-size:10px;color:#555}

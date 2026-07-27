@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 public class CardSet {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(nullable = false, length = 150)
     private String name;

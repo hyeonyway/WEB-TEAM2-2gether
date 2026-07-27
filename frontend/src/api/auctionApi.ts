@@ -4,7 +4,7 @@ import {mapAuction,mapCard,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {AuctionDto,AuctionListRequestDto,AuctionResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
 
-const params=(query:{keyword:string;psaGrade:number|null;sort?:string})=>new URLSearchParams({
+const params=(query:{keyword:string;psaGrade:string|null;sort?:string})=>new URLSearchParams({
   keyword:query.keyword,
   ...(query.psaGrade===null?{}:{psaGrade:String(query.psaGrade)}),
   ...(query.sort?{sort:query.sort}:{}),
@@ -48,8 +48,8 @@ export async function fetchCardDetail(cardId:number):Promise<CardDetailResponseD
       market_price:card.marketPrice,low_price:Math.round(card.marketPrice*.9/1000)*1000,
       high_price:Math.round(card.marketPrice*1.08/1000)*1000,average_price:card.marketPrice,
       change_rate:card.changeRate,weekly_change_rate:card.changeRate*1.8,
-      monthly_change_rate:card.changeRate*3.4,trade_count:card.bidCount,bid_count:card.bidCount,
-      active_auction_count:1,favorite_count:0,psa_grade:card.psaGrade,language:card.language,
+      monthly_change_rate:card.changeRate*3.4,bid_count:card.bidCount,
+      active_auction_count:1,wishlist_count:0,psa_grade:card.psaGrade,language:card.language,
       image_url:'/assets/pikachu-promo-card.png',history:[],
     };
   }

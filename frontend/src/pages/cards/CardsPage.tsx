@@ -10,8 +10,8 @@ import {useCardFavorites} from '../../hooks/useCardFavorites';
 
 export default function CardsPage(){
   const[query,setQuery]=useState('');
-  const[grade,setGrade]=useState(0);
-  const[sort,setSort]=useState<CardSort>('PRICE');
+  const[grade,setGrade]=useState('');
+  const[sort,setSort]=useState<CardSort>('REGISTERED');
   const[favoriteOnly,setFavoriteOnly]=useState(false);
   const{favoriteCardIds}=useCardFavorites();
   const debouncedQuery=useDebouncedValue(query);
@@ -40,13 +40,14 @@ export default function CardsPage(){
       </div>
       <div className="catalog-controls">
         <label className="card-search"><Search/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="카드명 검색..."/></label>
-        <label className="grade-filter"><span>PSA 등급</span><select value={grade} onChange={event=>setGrade(Number(event.target.value))}>
-          <option value="0">전체 등급</option>
+        <label className="grade-filter"><span>PSA 등급</span><select value={grade} onChange={event=>setGrade(event.target.value)}>
+          <option value="">전체 등급</option>
           {Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
         </select></label>
       </div>
       <div className="card-toolbar">
         <div>
+          <button className={!favoriteOnly&&sort==='REGISTERED'?'active':''} onClick={()=>{setFavoriteOnly(false);setSort('REGISTERED')}}>등록순</button>
           <button className={!favoriteOnly&&sort==='PRICE'?'active':''} onClick={()=>{setFavoriteOnly(false);setSort('PRICE')}}>가격순</button>
           <button className={!favoriteOnly&&sort==='FAVORITE'?'active':''} onClick={()=>{setFavoriteOnly(false);setSort('FAVORITE')}}>찜 많은 순</button>
           <button className={favoriteOnly?'active':''} onClick={()=>setFavoriteOnly(true)}>나의 찜</button>

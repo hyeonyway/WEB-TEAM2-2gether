@@ -19,8 +19,8 @@ public class CardPriceController {
     @GetMapping
     public CardResponses.Page<CardResponses.CardSummary> getCards(
             @RequestParam(defaultValue = "") String keyword,
-            @RequestParam(required = false) @Min(1) @Max(10) Integer psaGrade,
-            @RequestParam(defaultValue = "PRICE") CardSort sort,
+            @RequestParam(required = false) String psaGrade,
+            @RequestParam(defaultValue = "REGISTERED") CardSort sort,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return cardPriceService.getCards(keyword, psaGrade, sort, page, size);
@@ -28,7 +28,7 @@ public class CardPriceController {
 
     @GetMapping("/{cardId}")
     public CardResponses.CardDetail getCard(
-            @PathVariable @Min(1) Long cardId,
+            @PathVariable @Min(1) Integer cardId,
             @RequestParam(defaultValue = "30") @Min(1) @Max(365) int days) {
         return cardPriceService.getCard(cardId, days);
     }

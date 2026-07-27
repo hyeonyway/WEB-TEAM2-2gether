@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface CardMetadataRepository extends JpaRepository<CardMetadata, Long> {
+public interface CardMetadataRepository extends JpaRepository<CardMetadata, Integer> {
     @Query(
             value = """
                     select c.*
@@ -23,11 +23,14 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Long
                       and (:psaGrade is null or c.psa_grade = :psaGrade)
                     order by
                       case when :sort = 'PRICE'
-                           then coalesce(s.latest_price, s.avg_price, c.reference_price, 0)
+                           then coalesce(s.latest_price, s.avg_price, 0)
                       end desc,
                       case when :sort = 'FAVORITE'
-                           then coalesce(c.favorite_count, 0)
+                           then coalesce(s.wishlist_count, 0)
                       end desc,
+                      case when :sort = 'REGISTERED'
+                           then c.id
+                      end asc,
                       c.id desc
                     """,
             countQuery = """
@@ -39,7 +42,7 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Long
             nativeQuery = true
     )
     Page<CardMetadata> search(@Param("keyword") String keyword,
-                              @Param("psaGrade") Integer psaGrade,
+                              @Param("psaGrade") String psaGrade,
                               @Param("sort") String sort,
                               Pageable pageable);
 }

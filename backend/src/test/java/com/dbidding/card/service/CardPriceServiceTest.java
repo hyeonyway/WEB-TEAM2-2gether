@@ -8,7 +8,7 @@ import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.card.repository.ItemStatisticRepository;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -29,17 +29,17 @@ class CardPriceServiceTest {
         CardSet set = new CardSet("메가 에볼루션", "ME01");
         entityManager.persist(set);
         CardMetadata pikachu = cardRepository.save(new CardMetadata(
-                set, "피카츄 프로모", "JP", 10, "gold", 100_000L, "/pikachu.png"));
+                set, "피카츄 프로모", "JP", "10", "gold", "/pikachu.png"));
         cardRepository.save(new CardMetadata(
-                set, "리자몽 프로모", "JP", 9, "multi", 200_000L, "/charizard.png"));
-        statisticRepository.save(new ItemStatistic(pikachu, LocalDate.now().minusDays(1),
-                120_000L, 115_000L, 110_000L, 125_000L, 3, 7, 1,
+                set, "리자몽 프로모", "JP", "9", "multi", "/charizard.png"));
+        statisticRepository.save(new ItemStatistic(pikachu, LocalDateTime.now().minusDays(1),
+                120_000L, 115_000L, 110_000L, 125_000L, 7, 1, 10,
                 new BigDecimal("1.20"), new BigDecimal("2.30"), new BigDecimal("4.50")));
-        statisticRepository.save(new ItemStatistic(pikachu, LocalDate.now(),
-                138_000L, 130_000L, 124_000L, 149_000L, 5, 12, 2,
+        statisticRepository.save(new ItemStatistic(pikachu, LocalDateTime.now(),
+                138_000L, 130_000L, 124_000L, 149_000L, 12, 2, 20,
                 new BigDecimal("2.70"), new BigDecimal("5.10"), new BigDecimal("12.10")));
 
-        var response = cardPriceService.getCards("피카츄", 10, CardSort.PRICE, 0, 20);
+        var response = cardPriceService.getCards("피카츄", "10", CardSort.PRICE, 0, 20);
 
         assertThat(response.totalElements()).isEqualTo(1);
         assertThat(response.content()).singleElement().satisfies(card -> {
@@ -55,9 +55,9 @@ class CardPriceServiceTest {
         CardSet set = new CardSet("151", "SV2A");
         entityManager.persist(set);
         CardMetadata card = cardRepository.save(new CardMetadata(
-                set, "피카츄 AR", "JPN", 10, "rainbow", 100_000L, null));
-        statisticRepository.save(new ItemStatistic(card, LocalDate.now(),
-                138_000L, 136_500L, 124_000L, 149_000L, 14, 20, 3,
+                set, "피카츄 AR", "JPN", "10", "rainbow", null));
+        statisticRepository.save(new ItemStatistic(card, LocalDateTime.now(),
+                138_000L, 136_500L, 124_000L, 149_000L, 20, 3, 30,
                 new BigDecimal("2.70"), new BigDecimal("8.20"), new BigDecimal("12.10")));
 
         var response = cardPriceService.getCard(card.getId(), 30);
@@ -66,26 +66,26 @@ class CardPriceServiceTest {
         assertThat(response.lowPrice()).isEqualTo(124_000L);
         assertThat(response.activeAuctionCount()).isEqualTo(3);
         assertThat(response.history()).singleElement()
-                .extracting("averagePrice", "tradeCount")
-                .containsExactly(136_500L, 14);
+                .extracting("averagePrice")
+                .isEqualTo(136_500L);
     }
 
     @Test
-    void 최저가와_최고가가_없으면_현재_시세를_범위로_사용한다() {
+    void 시세가_없으면_가격을_0으로_반환한다() {
         CardSet set = new CardSet("프로모", "PROMO-FALLBACK");
         entityManager.persist(set);
         CardMetadata card = cardRepository.save(new CardMetadata(
-                set, "피카츄 프로모", "JP", 10, "gold", 138_000L, null));
-        statisticRepository.save(new ItemStatistic(card, LocalDate.now(),
+                set, "피카츄 프로모", "JP", "10", "gold", null));
+        statisticRepository.save(new ItemStatistic(card, LocalDateTime.now(),
                 null, null, null, null, 0, 0, 0,
                 null, null, null));
 
         var response = cardPriceService.getCard(card.getId(), 30);
 
-        assertThat(response.marketPrice()).isEqualTo(138_000L);
-        assertThat(response.lowPrice()).isEqualTo(124_000L);
-        assertThat(response.highPrice()).isEqualTo(149_000L);
-        assertThat(response.averagePrice()).isEqualTo(138_000L);
+        assertThat(response.marketPrice()).isZero();
+        assertThat(response.lowPrice()).isZero();
+        assertThat(response.highPrice()).isZero();
+        assertThat(response.averagePrice()).isZero();
     }
 
     @Test
@@ -93,28 +93,27 @@ class CardPriceServiceTest {
         CardSet set = new CardSet("정렬 테스트", "SORT");
         entityManager.persist(set);
         CardMetadata expensive = cardRepository.save(new CardMetadata(
-                set, "고가 카드", "JP", 10, "gold", 500_000L, null));
+                set, "고가 카드", "JP", "10", "gold", null));
         CardMetadata popular = cardRepository.save(new CardMetadata(
-                set, "인기 카드", "JP", 10, "gold", 100_000L, null));
-        statisticRepository.save(new ItemStatistic(expensive, LocalDate.now(),
-                500_000L, 500_000L, 480_000L, 520_000L, 1, 1, 0,
+                set, "인기 카드", "JP", "10", "gold", null));
+        statisticRepository.save(new ItemStatistic(expensive, LocalDateTime.now(),
+                500_000L, 500_000L, 480_000L, 520_000L, 1, 0, 1,
                 null, null, null));
-        statisticRepository.save(new ItemStatistic(popular, LocalDate.now(),
-                100_000L, 100_000L, 90_000L, 110_000L, 1, 1, 0,
+        statisticRepository.save(new ItemStatistic(popular, LocalDateTime.now(),
+                100_000L, 100_000L, 90_000L, 110_000L, 1, 0, 100,
                 null, null, null));
         entityManager.flush();
-        entityManager.createNativeQuery(
-                        "update card_metadata set favorite_count = 100 where id = :id")
-                .setParameter("id", popular.getId())
-                .executeUpdate();
         entityManager.clear();
 
         var priceSorted = cardPriceService.getCards("", null, CardSort.PRICE, 0, 20);
         var favoriteSorted = cardPriceService.getCards("", null, CardSort.FAVORITE, 0, 20);
+        var registeredSorted = cardPriceService.getCards("", null, CardSort.REGISTERED, 0, 20);
 
         assertThat(priceSorted.content()).extracting("name")
                 .containsExactly("고가 카드", "인기 카드");
         assertThat(favoriteSorted.content()).extracting("name")
                 .containsExactly("인기 카드", "고가 카드");
+        assertThat(registeredSorted.content()).extracting("name")
+                .containsExactly("고가 카드", "인기 카드");
     }
 }

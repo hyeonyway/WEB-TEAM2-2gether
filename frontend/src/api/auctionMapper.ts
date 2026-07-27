@@ -14,10 +14,12 @@ export const mapCard=(dto:CardResponseDto):CardDto=>({
   id:dto.id,
   name:dto.name,
   marketPrice:dto.market_price,
+  lowPrice:dto.low_price??dto.market_price,
+  highPrice:dto.high_price??dto.market_price,
   changeRate:dto.change_rate,
   theme:themes.includes(dto.theme as CardTheme)?dto.theme as CardTheme:'gold',
   bidCount:dto.bid_count,
-  psaGrade:dto.psa_grade,
+  psaGrade:String(dto.psa_grade),
   language:dto.language==='EN'?'EN':dto.language==='KR'?'KR':'JP',
   imageUrl:resolveImageUrl(dto.thumbnail_url),
 });

@@ -5,7 +5,7 @@ import com.dbidding.card.domain.ItemStatistic;
 import com.dbidding.card.repository.ItemStatisticRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,17 +23,17 @@ public class ItemStatisticCommandService {
         this.statisticRepository = statisticRepository;
     }
 
-    public void recordBid(Long itemId, LocalDate date) {
+    public void recordBid(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
         statisticRepository.incrementBidCount(itemId, date);
     }
 
-    public void recordAuctionOpened(Long itemId, LocalDate date) {
+    public void recordAuctionOpened(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
         statisticRepository.refreshActiveAuctionCount(itemId, date);
     }
 
-    public void recordAuctionCompleted(Long itemId, long winningPrice, LocalDate date) {
+    public void recordAuctionCompleted(Integer itemId, long winningPrice, LocalDateTime date) {
         validateItem(itemId);
         if (winningPrice <= 0) {
             throw new IllegalArgumentException("낙찰가는 0보다 커야 합니다.");
@@ -43,12 +43,12 @@ public class ItemStatisticCommandService {
         updateChangeRates(itemId, date);
     }
 
-    public void recordAuctionClosedWithoutTrade(Long itemId, LocalDate date) {
+    public void recordAuctionClosedWithoutTrade(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
         statisticRepository.refreshActiveAuctionCount(itemId, date);
     }
 
-    private void updateChangeRates(Long itemId, LocalDate date) {
+    private void updateChangeRates(Integer itemId, LocalDateTime date) {
         ItemStatistic current = statisticRepository.findByItemIdAndStatisticsDate(itemId, date)
                 .orElseThrow(() -> new IllegalStateException("생성된 통계 행을 찾을 수 없습니다."));
         current.updateChangeRates(
@@ -58,7 +58,7 @@ public class ItemStatisticCommandService {
         );
     }
 
-    private ItemStatistic previous(Long itemId, LocalDate date) {
+    private ItemStatistic previous(Integer itemId, LocalDateTime date) {
         return statisticRepository
                 .findFirstByItemIdAndStatisticsDateLessThanEqualOrderByStatisticsDateDesc(itemId, date)
                 .orElse(null);
@@ -80,7 +80,7 @@ public class ItemStatisticCommandService {
         return statistic.getAvgPrice() == null ? 0 : statistic.getAvgPrice();
     }
 
-    private void validateItem(Long itemId) {
+    private void validateItem(Integer itemId) {
         if (itemId == null || !cardRepository.existsById(itemId)) {
             throw new IllegalArgumentException("존재하지 않는 카드입니다.");
         }

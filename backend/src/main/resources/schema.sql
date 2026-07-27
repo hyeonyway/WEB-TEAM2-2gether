@@ -63,7 +63,7 @@ CREATE TABLE addresses
 
 CREATE TABLE card_sets
 (
-    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    id           INT          NOT NULL AUTO_INCREMENT,
     name         VARCHAR(150) NOT NULL,
     code         VARCHAR(50)  NULL,
 
@@ -76,14 +76,12 @@ CREATE TABLE card_sets
 
 CREATE TABLE card_metadata
 (
-    id              BIGINT       NOT NULL AUTO_INCREMENT,
-    card_set_id     BIGINT       NOT NULL,
+    id              INT          NOT NULL AUTO_INCREMENT,
+    card_set_id     INT          NOT NULL,
     name            VARCHAR(200) NOT NULL,
     language        VARCHAR(20)  NULL,
-    psa_grade       INT          NULL,
+    psa_grade       VARCHAR(15)  NULL,
     rarity          VARCHAR(30)  NULL,
-    favorite_count  INT          NULL DEFAULT 0,
-    reference_price BIGINT       NULL,
     image_path      VARCHAR(500) NULL,
 
     CONSTRAINT pk_card_metadata PRIMARY KEY (id),
@@ -99,23 +97,19 @@ CREATE TABLE card_metadata
 
 CREATE TABLE item_statistics
 (
-    id                   BIGINT        NOT NULL AUTO_INCREMENT,
-    item_id              BIGINT        NOT NULL,
-    statistics_date      DATE          NOT NULL,
+    id                   INT           NOT NULL AUTO_INCREMENT,
+    item_id              INT           NOT NULL,
+    statistics_date      TIMESTAMP(6)  NOT NULL,
     latest_price         BIGINT        NULL,
     avg_price            BIGINT        NULL,
     lowest_price         BIGINT        NULL,
     highest_price        BIGINT        NULL,
-    trade_amount_sum     BIGINT        NOT NULL DEFAULT 0,
-    trade_count          INT           NULL DEFAULT 0,
     bid_count            INT           NULL DEFAULT 0,
     active_auction_count INT           NULL DEFAULT 0,
+    wishlist_count       INT           NOT NULL DEFAULT 0,
     daily_change_rate    DECIMAL(8, 2) NULL,
     weekly_change_rate   DECIMAL(8, 2) NULL,
     monthly_change_rate  DECIMAL(8, 2) NULL,
-    calculated_at        TIMESTAMP(6)  NULL DEFAULT CURRENT_TIMESTAMP(6)
-        ON UPDATE CURRENT_TIMESTAMP(6),
-
     CONSTRAINT pk_item_statistics PRIMARY KEY (id),
     CONSTRAINT uk_item_statistics_item_date UNIQUE (item_id, statistics_date),
     CONSTRAINT fk_item_statistics_item
@@ -131,7 +125,7 @@ CREATE TABLE auctions
 (
     id                   INT          NOT NULL AUTO_INCREMENT,
     user_id              INT          NOT NULL,
-    item_id              BIGINT       NOT NULL,
+    item_id              INT          NOT NULL,
     auction_name         VARCHAR(255) NOT NULL,
     description          VARCHAR(255) NOT NULL,
     start_price          BIGINT       NOT NULL,
@@ -293,7 +287,7 @@ CREATE TABLE wishlists
 (
     id      INT NOT NULL AUTO_INCREMENT,
     user_id INT NOT NULL,
-    item_id BIGINT NOT NULL,
+    item_id INT NOT NULL,
 
     CONSTRAINT pk_wishlists PRIMARY KEY (id),
     CONSTRAINT uk_wishlists_user_item UNIQUE (user_id, item_id),
