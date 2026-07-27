@@ -33,4 +33,10 @@ public class WishlistService {
     public List<Wishlist> findAll(Integer userId) {
         return wishlistRepository.findByUserId(userId);
     }
+
+    public List<Integer> findUserIdsByCardId(Integer cardId) {
+        return wishlistRepository.findByCardId(cardId).stream()
+                .map(Wishlist::getUserId)
+                .toList();
+    }
 }

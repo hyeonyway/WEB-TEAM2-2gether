@@ -64,4 +64,13 @@ class WishlistServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getCardId()).isEqualTo(10);
     }
+
+    @Test
+    void 카드를_찜한_유저_ID_목록을_조회한다() {
+        given(wishlistRepository.findByCardId(10)).willReturn(List.of(Wishlist.of(1, 10), Wishlist.of(2, 10)));
+
+        List<Integer> result = wishlistService.findUserIdsByCardId(10);
+
+        assertThat(result).containsExactly(1, 2);
+    }
 }
