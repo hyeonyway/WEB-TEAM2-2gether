@@ -1,0 +1,26 @@
+# User 개발 계획
+
+현재 패키지 계약에서 User 엔티티는 `auth`가 소유하고, `user` 패키지는 배송지 Address를 소유한다. User 엔티티나 UserRepository를 직접 import하지 않고 로그인 사용자 ID인 `Integer userId`만 사용한다.
+
+## 구현 단계
+
+1. [배송지 CRUD](1-address-crud.md)
+
+## API
+
+| Method | Path | 기능 |
+|---|---|---|
+| GET | `/api/users/me/addresses` | 내 배송지 목록 조회 |
+| POST | `/api/users/me/addresses` | 배송지 등록 |
+| PUT | `/api/users/me/addresses/{addressId}` | 배송지 수정 |
+| DELETE | `/api/users/me/addresses/{addressId}` | 배송지 삭제 |
+
+모든 API는 `@CurrentUser Integer userId`를 사용한다. URL이나 요청 본문에서 임의의 사용자 ID를 받지 않는다.
+
+## 완료 기준
+
+- 다른 사용자의 배송지를 조회·수정·삭제할 수 없다.
+- 기본 배송지는 사용자당 최대 하나만 유지된다.
+- 기본 배송지 삭제 후 자동 승격은 하지 않는다. 기본 배송지가 없는 상태를 허용한다.
+- Address의 모든 문자열 필드는 빈 문자열이 아닌 값으로 검증한다.
+
