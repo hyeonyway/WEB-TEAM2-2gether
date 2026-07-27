@@ -27,7 +27,7 @@
 - Produces: `void WalletProvisioningPort.createFor(Integer userId)`
 - Produces: 초기 point 0인 Wallet 저장
 
-- [ ] **Step 1: Auth 소유 Port 작성**
+- [x] **Step 1: Auth 소유 Port 작성**
 
 ```java
 package com.dbidding.auth.port;
@@ -37,7 +37,7 @@ public interface WalletProvisioningPort {
 }
 ```
 
-- [ ] **Step 2: 생성 성공 테스트**
+- [x] **Step 2: 생성 성공 테스트**
 
 ```java
 @Test
@@ -50,7 +50,7 @@ void 사용자_ID로_잔액_0원_지갑을_생성한다() {
 }
 ```
 
-- [ ] **Step 3: 중복 생성 실패 테스트**
+- [x] **Step 3: 중복 생성 실패 테스트**
 
 ```java
 given(walletRepository.existsByUserId(1)).willReturn(true);
@@ -59,7 +59,7 @@ assertThatThrownBy(() -> adapter.createFor(1))
     .isInstanceOf(WalletAlreadyExistsException.class);
 ```
 
-- [ ] **Step 4: 최소 구현**
+- [x] **Step 4: 최소 구현**
 
 ```java
 @Component
@@ -81,7 +81,7 @@ public class WalletProvisioningAdapter implements WalletProvisioningPort {
 **Files:**
 - Test: `backend/src/test/java/com/dbidding/wallet/WalletProvisioningAdapterTest.java`
 
-- [ ] **Step 1: 테스트 실행**
+- [x] **Step 1: 테스트 실행**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.WalletProvisioningAdapterTest
@@ -89,7 +89,7 @@ public class WalletProvisioningAdapter implements WalletProvisioningPort {
 
 Expected: 생성 성공과 중복 생성 거절 시나리오 PASS.
 
-- [ ] **Step 2: 커밋**
+- [x] **Step 2: 커밋**
 
 ```bash
 git add backend/src/main/java/com/dbidding/auth/port/WalletProvisioningPort.java \
