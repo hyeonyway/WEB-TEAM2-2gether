@@ -1,15 +1,70 @@
-// @ts-nocheck
-import React,{useEffect,useMemo,useState}from'react';
-import{CalendarDays,Flame,TrendingUp,Diamond,LineChart,SlidersVertical,Info,Search,Grid2X2,Menu,ArrowDownRight,ArrowUpRight,Bookmark,Share2,ChevronRight,Zap,ShoppingBag,Wallet,MapPin,Phone,Clock3,Gavel,Package,MessageCircle,Plus,CheckCircle2}from'lucide-react';
+import {useMemo,useState} from 'react';
+import {useQuery} from '@tanstack/react-query';
+import {Bookmark,Share2} from 'lucide-react';
 import {Header} from '../../components';
+import {cardQueries} from '../../queries/auctionQueries';
 
-const cards:any[][]=[
-['피카츄 P 메가 에볼루션 프로모카드',138000,2.7,'gold','368'],['피카츄 P 스칼렛&바이올렛 프로모 카드',135000,8.9,'gold','105'],['메타몽의 타임 캡슐 프로모 카드 메타몽',415000,1.2,'water','97'],['피카츄 P 스칼렛&바이올렛 프로모 카드',171000,5,'multi','97'],['피카츄 25주년 기념 컬렉션',115000,0.9,'dark','83'],['피카츄 P 유나가바 소트&실드 프로모 카드',571000,0.4,'sketch','76'],['피카츄 P 스칼렛&바이올렛 프로모 카드',116000,1.9,'gold','71'],['피카츄 P 스칼렛&바이올렛 프로모 카드',165000,8.3,'gold','68'],['고라파덕 AR 메가 드림 ex',157000,4.7,'water','62'],['리자몽 ex 스페셜 아트 경매 카드',289000,6.2,'multi','54']];
+const money=(value:number)=>`${value.toLocaleString()}원`;
 
-const cardGrades=[10,9,8,7,6,5,4,3,2,1];
+export default function CardPriceDetailPage(){
+  const cardId=Number(window.location.pathname.split('/').filter(Boolean).pop());
+  const{data:card,isPending,error}=useQuery(cardQueries.detail(cardId));
+  const[saved,setSaved]=useState(false);
+  const chartPath=useMemo(()=>{
+    if(!card?.history.length)return '';
+    const prices=card.history.map(point=>point.average_price);
+    const min=Math.min(...prices),max=Math.max(...prices),range=Math.max(1,max-min);
+    return card.history.map((point,index)=>{
+      const x=card.history.length===1?325:index*650/(card.history.length-1);
+      const y=205-(point.average_price-min)/range*185;
+      return `${index?'L':'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+    }).join(' ');
+  },[card]);
 
-const marketPath='M0 198 L34 198 L34 188 L78 188 L78 174 L116 174 L116 158 L161 158 L161 142 L205 142 L205 126 L251 126 L251 110 L294 110 L294 95 L342 95 L342 79 L389 79 L389 64 L437 64 L437 49 L486 49 L486 35 L535 35 L535 23 L586 23 L586 12 L650 12';
+  if(isPending)return <div className="detail-page price-detail-page"><Header/><main><p>카드 시세를 불러오는 중…</p></main></div>;
+  if(error||!card)return <div className="detail-page price-detail-page"><Header/><main><p className="form-error">카드 시세를 불러오지 못했습니다.</p></main></div>;
 
-const trades:any[][]=[[137000,'2시간 전'],[122000,'7시간 전'],[128000,'8시간 전'],[130000,'9시간 전'],[139000,'11시간 전']];
-
-export default function CardPriceDetailPage(){const id=Math.max(1,Number(window.location.pathname.split('/').filter(Boolean).pop())||1),index=(id-1)%cards.length,card=cards[index],[name,price,change,theme,tradeCount]=card,grade=cardGrades[index]||10,low=Math.round(price*.9/1000)*1000,high=Math.round(price*1.08/1000)*1000,activeCount=index%4+1,[saved,setSaved]=useState(false);return <div className="detail-page price-detail-page"><Header/><div className="detail-layout"><section className="product-visual"><img className="product-image" src="/assets/pikachu-promo-card.png" alt={name}/><div className="thumbs"><img src="/assets/pikachu-promo-card.png" alt="선택된 카드 이미지"/></div></section><section className="product-info"><div className="title-block"><div className="detail-grades"><span className="grade">PSA {grade}</span><span className="grade">JP</span></div><h1>{low.toLocaleString()}원 - {high.toLocaleString()}원</h1><p>{name}</p><small>Pokemon TCG Collectible Card · Japanese Ver.</small><u>포켓몬 · 트레이딩 카드 · PSA {grade}</u></div><div className="buy-row price-buy-row"><button className={'icon-action '+(saved?'saved':'')} onClick={()=>setSaved(!saved)} aria-label="관심 카드"><Bookmark/><small>{2792+index*31}</small></button><button className="icon-action" aria-label="공유"><Share2/><small>공유</small></button><a className="sell detail-sell-button" href="/sell">판매하기</a><a className="buy detail-bid-button" href={'/auction/'+id}>입찰하기 ({activeCount}개)</a></div><section className="detail-price-summary"><div><span>최근 시세</span><strong>{price.toLocaleString()}원</strong><em>+{change.toFixed(1)}%</em></div><div><span>과거 입찰 건수</span><strong>{tradeCount}건</strong></div><div><span>현재 경매 수</span><strong>{activeCount}개</strong></div></section><section className="price-trend"><div className="price-trend-head"><div><h2>시세 변화 추이</h2><p>최근 30일 카드 거래 가격과 거래량입니다.</p></div><span>30일</span></div><div className="detail-chart"><div className="detail-bars">{Array.from({length:24},(_,i)=><i key={i} style={{height:28+(i*19%58)}}/> )}</div><svg viewBox="0 0 650 220" preserveAspectRatio="none"><path className="detail-area" d={marketPath+' L650 220 L0 220Z'}/><path className="detail-line" d={marketPath}/></svg><div className="detail-dates"><span>06/19</span><span>06/24</span><span>06/29</span><span>07/04</span><span>07/09</span><span>07/14</span><span>07/19</span></div></div><div className="trend-stats"><span>1일 변화<b>+{change.toFixed(1)}%</b></span><span>7일 변화<b>+{(change*1.8).toFixed(1)}%</b></span><span>30일 변화<b>+{(change*3.4).toFixed(1)}%</b></span><span>평균 거래가<strong>{price.toLocaleString()}원</strong></span></div></section><section className="transactions"><h2>과거 입찰 내역 <small>최근 5건</small></h2><div className="trade-head"><span>등급</span><span>입찰가</span><span>입찰 시점</span></div>{trades.map((t,i)=><div className="trade" key={i}><b>PSA {grade}</b><span>{t[0].toLocaleString()}원{i===0&&<Zap/>}</span><small>{t[1]}</small></div>)}</section></section></div></div>}
+  const image=card.image_url||'/assets/pikachu-promo-card.png';
+  return <div className="detail-page price-detail-page">
+    <Header/>
+    <div className="detail-layout">
+      <section className="product-visual">
+        <img className="product-image" src={image} alt={card.name}/>
+        <div className="thumbs"><img src={image} alt="선택된 카드 이미지"/></div>
+      </section>
+      <section className="product-info">
+        <div className="title-block">
+          <div className="detail-grades"><span className="grade">PSA {card.psa_grade??'-'}</span><span className="grade">{card.language}</span></div>
+          <h1>{money(card.low_price)} - {money(card.high_price)}</h1>
+          <p>{card.name}</p>
+          <small>{card.set_name}{card.card_number&&` · ${card.card_number}`}</small>
+          <u>포켓몬 · 트레이딩 카드 · PSA {card.psa_grade??'-'}</u>
+        </div>
+        <div className="buy-row price-buy-row">
+          <button className={'icon-action '+(saved?'saved':'')} onClick={()=>setSaved(!saved)} aria-label="관심 카드"><Bookmark/><small>{card.favorite_count}</small></button>
+          <button className="icon-action" aria-label="공유" onClick={()=>navigator.clipboard?.writeText(window.location.href)}><Share2/><small>공유</small></button>
+          <a className="buy detail-bid-button" href={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</a>
+        </div>
+        <section className="detail-price-summary">
+          <div><span>최근 시세</span><strong>{money(card.market_price)}</strong><em>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</em></div>
+          <div><span>과거 입찰 건수</span><strong>{card.bid_count}건</strong></div>
+          <div><span>현재 경매 수</span><strong>{card.active_auction_count}개</strong></div>
+        </section>
+        <section className="price-trend">
+          <div className="price-trend-head"><div><h2>시세 변화 추이</h2><p>최근 30일 카드 평균 가격과 거래량입니다.</p></div><span>30일</span></div>
+          {card.history.length?<div className="detail-chart">
+            <div className="detail-bars">{card.history.map(point=><i key={point.date} style={{height:Math.min(90,20+point.trade_count*3)}}/>)}</div>
+            <svg viewBox="0 0 650 220" preserveAspectRatio="none"><path className="detail-line" d={chartPath}/></svg>
+            <div className="detail-dates">{card.history.filter((_,index)=>index%Math.max(1,Math.floor(card.history.length/6))===0).map(point=><span key={point.date}>{point.date.slice(5).replace('-','/')}</span>)}</div>
+          </div>:<p className="catalog-count">최근 30일 시세 데이터가 없습니다.</p>}
+          <div className="trend-stats">
+            <span>1일 변화<b>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</b></span>
+            <span>7일 변화<b>{card.weekly_change_rate>=0?'+':''}{card.weekly_change_rate.toFixed(1)}%</b></span>
+            <span>30일 변화<b>{card.monthly_change_rate>=0?'+':''}{card.monthly_change_rate.toFixed(1)}%</b></span>
+            <span>평균 거래가<strong>{money(card.average_price)}</strong></span>
+          </div>
+        </section>
+      </section>
+    </div>
+  </div>;
+}

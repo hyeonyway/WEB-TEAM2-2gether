@@ -1,7 +1,7 @@
 # 프론트엔드 기준 API 명세서
 
 > 기준 화면: 홈, 카드 시세 목록/상세, 경매 목록/상세/입찰, 판매 등록, 나의 대시보드, 마이페이지
-> Base URL: `/api/v1`
+> Base URL: `/api`
 > 인증: Access/Refresh Token을 `HttpOnly + Secure + SameSite=Lax` 쿠키로 전달
 > 날짜: ISO-8601 UTC 문자열, 금액: 정수 원 단위, ID: `string`
 

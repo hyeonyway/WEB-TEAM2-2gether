@@ -2,6 +2,14 @@ import type {AuctionDto,AuctionResponseDto,CardDto,CardResponseDto,CardTheme} fr
 
 const themes:CardTheme[]=['gold','water','dark','multi','sketch'];
 
+export const resolveImageUrl=(path?:string|null):string|null=>{
+  if(!path)return null;
+  if(/^https?:\/\//i.test(path))return path;
+  const base=(import.meta.env.VITE_IMAGE_BASE_URL??'https://dbidding.shop/upload').replace(/\/+$/,'');
+  const normalizedPath=path.replace(/^\/+/,'').replace(/^upload\/+/,'');
+  return `${base}/${normalizedPath}`;
+};
+
 export const mapCard=(dto:CardResponseDto):CardDto=>({
   id:dto.id,
   name:dto.name,
@@ -11,6 +19,7 @@ export const mapCard=(dto:CardResponseDto):CardDto=>({
   bidCount:dto.bid_count,
   psaGrade:dto.psa_grade,
   language:dto.language==='EN'?'EN':dto.language==='KR'?'KR':'JP',
+  imageUrl:resolveImageUrl(dto.thumbnail_url),
 });
 
 export const mapAuction=(dto:AuctionResponseDto):AuctionDto=>({

@@ -21,6 +21,36 @@ export type CardResponseDto={
   bid_count:number;
   psa_grade:number;
   language:string;
+  thumbnail_url?:string|null;
+};
+
+export type CardPricePointResponseDto={
+  date:string;
+  average_price:number;
+  trade_count:number;
+};
+
+export type CardDetailResponseDto={
+  id:number;
+  name:string;
+  set_name:string;
+  card_number:string|null;
+  rarity:string|null;
+  market_price:number;
+  low_price:number;
+  high_price:number;
+  average_price:number;
+  change_rate:number;
+  weekly_change_rate:number;
+  monthly_change_rate:number;
+  trade_count:number;
+  bid_count:number;
+  active_auction_count:number;
+  favorite_count:number;
+  psa_grade:number|null;
+  language:string;
+  image_url:string|null;
+  history:CardPricePointResponseDto[];
 };
 
 export type AuctionResponseDto={
@@ -57,6 +87,7 @@ export type CardDto={
   bidCount:number;
   psaGrade:number;
   language:'JP'|'EN'|'KR';
+  imageUrl:string|null;
 };
 
 export type AuctionDto={

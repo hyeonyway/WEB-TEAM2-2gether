@@ -1,5 +1,5 @@
-import {useState} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useEffect,useRef,useState} from 'react';
+import {useInfiniteQuery} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {CardCatalog} from './components';
 import {cardQueries} from '../../queries/auctionQueries';
@@ -8,7 +8,21 @@ import {Header} from '../../components';
 export default function CardsPage(){
   const[query,setQuery]=useState('');
   const[grade,setGrade]=useState(0);
-  const{data:cards=[],isPending,error}=useQuery(cardQueries.list({keyword:query,psaGrade:grade||null}));
+  const loadMoreRef=useRef<HTMLDivElement>(null);
+  const cardQuery=cardQueries.infiniteList({keyword:query,psaGrade:grade||null});
+  const{data,isPending,error,hasNextPage,isFetchingNextPage,fetchNextPage}=useInfiniteQuery(cardQuery);
+  const cards=data?.pages.flatMap(page=>page.content)??[];
+  const totalElements=data?.pages[0]?.total_elements??0;
+
+  useEffect(()=>{
+    const target=loadMoreRef.current;
+    if(!target)return;
+    const observer=new IntersectionObserver(entries=>{
+      if(entries[0]?.isIntersecting&&hasNextPage&&!isFetchingNextPage)void fetchNextPage();
+    },{rootMargin:'300px'});
+    observer.observe(target);
+    return()=>observer.disconnect();
+  },[fetchNextPage,hasNextPage,isFetchingNextPage]);
 
   return <div className="card-catalog-page">
     <Header/>
@@ -23,8 +37,11 @@ export default function CardsPage(){
           {Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
         </select></label>
       </div>
-      <p className="catalog-count">전체 {cards.length}개</p>
+      <p className="catalog-count">전체 {totalElements.toLocaleString()}개 · {cards.length.toLocaleString()}개 표시 중</p>
       {isPending?<p className="catalog-count">불러오는 중…</p>:error?<p className="form-error">카드 정보를 불러오지 못했습니다.</p>:<CardCatalog cards={cards}/>}
+      <div ref={loadMoreRef} className="catalog-count" aria-live="polite">
+        {isFetchingNextPage?'다음 카드를 불러오는 중…':hasNextPage?'아래로 스크롤하면 더 불러옵니다.':cards.length?'모든 카드를 불러왔습니다.':''}
+      </div>
     </main>
   </div>;
 }

@@ -8,7 +8,7 @@ export default function CardCatalog({cards}:{cards:CardDto[]}){
     const low=Math.round(card.marketPrice*.9/1000)*1000;
     const high=Math.round(card.marketPrice*1.08/1000)*1000;
     return <a className="catalog-card" href={`/cards/${card.id}`} key={card.id}>
-      <div className="catalog-art"><CardArtwork theme={card.theme}/><span>PSA {card.psaGrade}</span></div>
+      <div className="catalog-art"><CardArtwork theme={card.theme} imageUrl={card.imageUrl} name={card.name}/><span>PSA {card.psaGrade}</span></div>
       <div className="catalog-card-body">
         <small>Pokemon Trading Card Game</small><h2>{card.name}</h2><p>PSA {card.psaGrade} · {card.language}</p>
         <div className="catalog-preview">
