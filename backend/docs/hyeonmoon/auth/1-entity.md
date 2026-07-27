@@ -12,7 +12,10 @@
 
 - `schema.sql`이 원본이며 엔티티는 `ddl-auto=validate`를 통과해야 한다.
 - User와 Authentication의 ID는 `Integer`다.
+- 이메일은 `VARCHAR(255)`, 닉네임은 `VARCHAR(30)`이다.
+- User의 role과 status는 `VARCHAR(20)`이다.
 - `encrypted_password`는 hex 64자, `salt`는 hex 32자다.
+- DB에는 Refresh Token 원문이 아닌 SHA-256 hex 해시를 `CHAR(64)`로 저장한다.
 - enum은 문자열로 저장한다.
 - setter와 public 기본 생성자를 노출하지 않는다.
 
@@ -65,7 +68,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(nullable = false, unique = true, length = 30)
     private String nickname;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
@@ -75,11 +78,11 @@ public class User {
     private String imagePath;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false, length = 20)
     private UserRole role;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false, length = 20)
     private UserStatus status;
 
     @Column(name = "encrypted_password", nullable = false, length = 64)
@@ -142,7 +145,7 @@ public class Authentication {
     @Column(name = "user_id", nullable = false, unique = true)
     private Integer userId;
 
-    @Column(name = "refresh_token", nullable = false, unique = true, length = 255)
+    @Column(name = "refresh_token", nullable = false, unique = true, length = 64)
     private String refreshToken;
 
     protected Authentication() {}
@@ -237,4 +240,3 @@ git commit -m "feat: Auth 엔티티와 Repository 추가"
 - Authentication은 User 객체가 아니라 `Integer userId`만 참조한다.
 - `User.create()`가 스키마의 모든 NOT NULL 필드를 채운다.
 - 비밀번호와 Refresh Token 원문을 저장하는 API가 엔티티에 존재하지 않는다.
-

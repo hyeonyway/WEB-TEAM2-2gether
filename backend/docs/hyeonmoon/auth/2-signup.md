@@ -104,7 +104,7 @@ Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟
 public record SignupRequest(
     @NotBlank @Email @Size(max = 255) String email,
     @NotBlank @Size(min = 8, max = 128) String password,
-    @NotBlank @Size(max = 255) String nickname
+    @NotBlank @Size(min = 2, max = 30) String nickname
 ) {}
 
 public record SignupResponse(Integer id, String email, String nickname, String role, String status) {}

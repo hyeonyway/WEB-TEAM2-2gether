@@ -4,7 +4,7 @@
 
 **Goal:** 로그인 사용자의 총 잔액, 활성 동결 합계, 가용 잔액을 조회한다.
 
-**Architecture:** Wallet point를 총액으로 읽고 `wallet_holds`의 HELD 합계를 native aggregate query로 계산한다. WalletHold 엔티티는 hold/release 구현 단계까지 만들지 않아 `released_at` 결정과 현재 조회 기능을 분리한다.
+**Architecture:** Wallet point를 총액으로 읽고 `wallet_holds`의 HELD 합계를 native aggregate query로 계산한다. 활성 hold의 `released_at`은 null이고, 해제 또는 낙찰 차감 시 실제 처리 시각을 기록한다.
 
 **Tech Stack:** Spring Data JPA native query, Spring MVC, JUnit 5, Mockito, MockMvc
 
@@ -46,7 +46,7 @@ Wallet만 저장하고 합계를 조회했을 때 null이 아니라 0이 반환�
 long sumHeldAmount(Integer walletId);
 ```
 
-현재 `released_at NOT NULL` 제약 때문에 fixture에는 임시 시각이 필요하지만, 운영 코드가 그 값을 잔액 판정에 사용해서는 안 된다.
+HELD fixture의 `released_at`은 null로 두며, 잔액 판정은 `released_at`이 아니라 `status`를 기준으로 한다.
 
 ### Task 2: WalletBalanceService
 
