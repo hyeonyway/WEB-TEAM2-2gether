@@ -1,13 +1,13 @@
 {
   "cards": [
-    {"id":1,"name":"피카츄 P 메가 에볼루션 프로모카드","market_price":138000,"change_rate":2.7,"theme":"gold","bid_count":368,"psa_grade":10,"language":"JP"},
-    {"id":2,"name":"피카츄 P 스칼렛&바이올렛 프로모 카드","market_price":135000,"change_rate":8.9,"theme":"gold","bid_count":105,"psa_grade":9,"language":"JP"},
-    {"id":3,"name":"메타몽의 타임 캡슐 프로모 카드","market_price":415000,"change_rate":1.2,"theme":"water","bid_count":97,"psa_grade":8,"language":"JP"},
-    {"id":4,"name":"피카츄 AR 포켓몬 카드 151","market_price":171000,"change_rate":5,"theme":"multi","bid_count":97,"psa_grade":7,"language":"JP"},
-    {"id":5,"name":"피카츄 25주년 기념 컬렉션","market_price":115000,"change_rate":0.9,"theme":"dark","bid_count":83,"psa_grade":6,"language":"JP"},
-    {"id":6,"name":"유나가바 피카츄 프로모 카드","market_price":571000,"change_rate":0.4,"theme":"sketch","bid_count":76,"psa_grade":5,"language":"JP"},
-    {"id":7,"name":"고라파덕 AR 메가 드림 ex","market_price":157000,"change_rate":4.7,"theme":"water","bid_count":62,"psa_grade":4,"language":"JP"},
-    {"id":8,"name":"리자몽 ex 스페셜 아트 카드","market_price":289000,"change_rate":6.2,"theme":"multi","bid_count":54,"psa_grade":3,"language":"JP"}
+    {"id":1,"name":"피카츄 P 메가 에볼루션 프로모카드","market_price":138000,"change_rate":2.7,"theme":"gold","bid_count":368,"psa_grade":"10","language":"JP"},
+    {"id":2,"name":"피카츄 P 스칼렛&바이올렛 프로모 카드","market_price":135000,"change_rate":8.9,"theme":"gold","bid_count":105,"psa_grade":"9","language":"JP"},
+    {"id":3,"name":"메타몽의 타임 캡슐 프로모 카드","market_price":415000,"change_rate":1.2,"theme":"water","bid_count":97,"psa_grade":"8","language":"JP"},
+    {"id":4,"name":"피카츄 AR 포켓몬 카드 151","market_price":171000,"change_rate":5,"theme":"multi","bid_count":97,"psa_grade":"7","language":"JP"},
+    {"id":5,"name":"피카츄 25주년 기념 컬렉션","market_price":115000,"change_rate":0.9,"theme":"dark","bid_count":83,"psa_grade":"6","language":"JP"},
+    {"id":6,"name":"유나가바 피카츄 프로모 카드","market_price":571000,"change_rate":0.4,"theme":"sketch","bid_count":76,"psa_grade":"5","language":"JP"},
+    {"id":7,"name":"고라파덕 AR 메가 드림 ex","market_price":157000,"change_rate":4.7,"theme":"water","bid_count":62,"psa_grade":"4","language":"JP"},
+    {"id":8,"name":"리자몽 ex 스페셜 아트 카드","market_price":289000,"change_rate":6.2,"theme":"multi","bid_count":54,"psa_grade":"3","language":"JP"}
   ],
   "auctions": [
     {"id":1,"card_id":1,"start_price":42000,"current_price":138000,"bid_increment":1000,"bid_count":368,"ends_at":"2026-07-24T10:00:00.000Z","status":"OPEN","my_bid_status":"LEADING","my_bid_amount":138000},

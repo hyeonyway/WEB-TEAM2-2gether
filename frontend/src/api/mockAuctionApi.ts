@@ -12,7 +12,12 @@ const auctions=(mockupData.auctions as MockAuctionResponseDto[]).map(auction=>{
 });
 
 export async function fetchMockCards(query:CardListRequestDto){
-  return cards.filter(card=>card.name.includes(query.keyword)&&(query.psaGrade===null||card.psaGrade===query.psaGrade));
+  const result=cards.filter(card=>card.name.includes(query.keyword)&&(query.psaGrade===null||card.psaGrade===query.psaGrade));
+  return [...result].sort((a,b)=>query.sort==='FAVORITE'
+    ?b.bidCount-a.bidCount
+    :query.sort==='REGISTERED'
+      ?a.id-b.id
+      :b.marketPrice-a.marketPrice);
 }
 
 export async function fetchMockAuctions(query:AuctionListRequestDto){

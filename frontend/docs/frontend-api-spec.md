@@ -1,7 +1,7 @@
 # 프론트엔드 기준 API 명세서
 
 > 기준 화면: 홈, 카드 시세 목록/상세, 경매 목록/상세/입찰, 판매 등록, 나의 대시보드, 마이페이지
-> Base URL: `/api/v1`
+> Base URL: `/api`
 > 인증: Access/Refresh Token을 `HttpOnly + Secure + SameSite=Lax` 쿠키로 전달
 > 날짜: ISO-8601 UTC 문자열, 금액: 정수 원 단위, ID: `string`
 
@@ -1097,8 +1097,8 @@ PSA 등급과 Population은 인증 응답으로만 입력하며 경매 등록 �
 HomePage
 → homeQueries.overview()
 → fetchHomeOverview()
-→ VITE_USE_MOCK_API=true: mockup-data.json.home
-→ VITE_USE_MOCK_API=false: GET /api/home
+→ 키가 없거나 `localStorage.USE_MOCK_API !== "false"`: `mockup-data.json.home`
+→ `localStorage.USE_MOCK_API === "false"`: `GET /api/home`
 ```
 
 홈 컴포넌트는 인사이트 수치·문구·정렬 값, 시장 요약, 차트, Top 5 데이터를 직접 하드코딩하지 않는다.
