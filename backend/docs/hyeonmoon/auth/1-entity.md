@@ -40,7 +40,7 @@
 - Produces: `User.create(String email, String nickname, String encryptedPassword, String salt)`
 - Produces: `Integer User.getId()`, `String User.getEmail()`, `String User.getNickname()`
 
-- [ ] **Step 1: 생성 규칙을 표현하는 실패 테스트 작성**
+- [x] **Step 1: 생성 규칙을 표현하는 실패 테스트 작성**
 
 ```java
 @Test
@@ -52,7 +52,7 @@ void 신규_사용자는_USER_ACTIVE_상태로_생성된다() {
 }
 ```
 
-- [ ] **Step 2: 테스트가 컴파일 실패하는지 확인**
+- [x] **Step 2: 테스트가 컴파일 실패하는지 확인**
 
 ```bash
 cd backend
@@ -61,7 +61,7 @@ cd backend
 
 Expected: `User`, `UserRole`, `UserStatus`를 찾지 못해 FAIL.
 
-- [ ] **Step 3: 스키마와 동일한 엔티티 구현**
+- [x] **Step 3: 스키마와 동일한 엔티티 구현**
 
 ```java
 @Entity
@@ -104,7 +104,7 @@ public class User {
 
 enum의 최초 값은 `USER`, `ADMIN`과 `ACTIVE`, `SUSPENDED`, `WITHDRAWN`만 둔다. 아직 사용하지 않는 상태를 미리 늘리지 않는다.
 
-- [ ] **Step 4: User 단위 테스트 통과 확인**
+- [x] **Step 4: User 단위 테스트 통과 확인**
 
 ```bash
 ./gradlew test --tests com.dbidding.user.UserTest
@@ -122,7 +122,7 @@ Expected: PASS.
 - Produces: `Authentication.issue(Integer userId, String refreshTokenHash)`
 - Produces: `void Authentication.rotate(String newRefreshTokenHash)`
 
-- [ ] **Step 1: Rotation 실패 테스트 작성**
+- [x] **Step 1: Rotation 실패 테스트 작성**
 
 ```java
 @Test
@@ -135,7 +135,7 @@ void refresh_token_hash를_교체한다() {
 }
 ```
 
-- [ ] **Step 2: 실패 확인 후 엔티티 최소 구현**
+- [x] **Step 2: 실패 확인 후 엔티티 최소 구현**
 
 ```java
 @Entity
@@ -163,7 +163,7 @@ public class Authentication {
 }
 ```
 
-- [ ] **Step 3: 테스트 통과 확인**
+- [x] **Step 3: 테스트 통과 확인**
 
 ```bash
 ./gradlew test --tests com.dbidding.auth.AuthenticationTest
@@ -185,7 +185,7 @@ Expected: PASS.
 - Produces: `Optional<User> UserRepository.findByEmail(String email)`
 - Produces: `Optional<Authentication> AuthenticationRepository.findByUserId(Integer userId)`
 
-- [ ] **Step 1: Repository 시그니처 작성**
+- [x] **Step 1: Repository 시그니처 작성**
 
 ```java
 public interface UserRepository extends JpaRepository<User, Integer> {
@@ -201,11 +201,11 @@ public interface AuthenticationRepository extends JpaRepository<Authentication, 
 }
 ```
 
-- [ ] **Step 2: 로컬 MySQL 테스트 DB 준비**
+- [x] **Step 2: 로컬 MySQL 테스트 DB 준비**
 
-`backend/docs/DB_SETUP.md`에 따라 DB를 만들고 `schema.sql`을 최초 1회 적용한다. 테스트 실행용 `DB_NAME`은 개인 개발 DB와 분리한다.
+`../docker-compose.yml`로 MySQL 8.4 컨테이너를 실행하고 `schema.sql`을 최초 1회 적용한다. JPA 통합 테스트는 각 테스트 트랜잭션을 롤백하여 로컬 개발 데이터를 남기지 않는다.
 
-- [ ] **Step 3: 저장·중복 조회 통합 테스트 작성 및 실행**
+- [x] **Step 3: 저장·중복 조회 통합 테스트 작성 및 실행**
 
 ```java
 @DataJpaTest
@@ -225,13 +225,13 @@ class UserRepositoryTest {
 ```
 
 ```bash
-DB_NAME=dbidding_test ./gradlew test --tests com.dbidding.user.UserRepositoryTest
-DB_NAME=dbidding_test ./gradlew test --tests com.dbidding.auth.AuthenticationRepositoryTest
+./gradlew test --tests com.dbidding.user.UserRepositoryTest
+./gradlew test --tests com.dbidding.auth.AuthenticationRepositoryTest
 ```
 
 Expected: PASS하며 Hibernate schema validation 오류가 없어야 한다.
 
-- [ ] **Step 4: 전체 테스트 및 커밋**
+- [x] **Step 4: 전체 테스트 및 커밋**
 
 ```bash
 ./gradlew clean test
