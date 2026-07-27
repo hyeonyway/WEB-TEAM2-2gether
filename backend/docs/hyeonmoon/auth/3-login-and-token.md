@@ -79,7 +79,7 @@ Expected: 설정 바인딩 오류 없이 실행된다.
 - Test: `backend/src/test/java/com/dbidding/auth/JwtTokenProviderTest.java`
 
 **Interfaces:**
-- Produces: `IssuedTokens JwtTokenProvider.issue(Integer userId, String role, Instant now)`
+- Produces: `IssuedTokens JwtTokenProvider.issue(Integer userId, UserAccountRole role, Instant now)`
 - Produces: `TokenClaims JwtTokenProvider.parseRefresh(String token)`
 - Produces: `String RefreshTokenHasher.hash(String token)`
 
@@ -88,7 +88,7 @@ Expected: 설정 바인딩 오류 없이 실행된다.
 ```java
 @Test
 void access와_refresh에_서로_다른_type과_만료시간을_넣는다() {
-    IssuedTokens tokens = provider.issue(1, "USER", now);
+    IssuedTokens tokens = provider.issue(1, UserAccountRole.USER, now);
 
     assertThat(parse(tokens.accessToken()).get("type")).isEqualTo("access");
     assertThat(parse(tokens.refreshToken()).get("type")).isEqualTo("refresh");
@@ -103,7 +103,7 @@ void access와_refresh에_서로_다른_type과_만료시간을_넣는다() {
 ```java
 Jwts.builder()
     .subject(userId.toString())
-    .claim("role", role)
+    .claim("role", role.name())
     .claim("type", tokenType.value())
     .issuedAt(Date.from(now))
     .expiration(Date.from(expiresAt))
@@ -121,9 +121,9 @@ Jwts.parser()
     .getPayload();
 ```
 
-- [ ] **Step 3: 잘못된 서명·만료·type 테스트**
+- [ ] **Step 3: 잘못된 서명·만료·type·role 테스트**
 
-각 경우 `InvalidTokenException`, `ExpiredTokenException`, `InvalidTokenTypeException`으로 변환하고 JJWT 예외를 Controller 밖으로 노출하지 않는다.
+각 경우 `InvalidTokenException`, `ExpiredTokenException`, `InvalidTokenTypeException`, `InvalidTokenRoleException`으로 변환하고 JJWT 예외를 Controller 밖으로 노출하지 않는다. 발급 API는 `UserAccountRole`만 받아 임의 문자열을 claim에 넣지 못하게 하고, Access Token 파싱 시 서명은 유효해도 허용 집합에 없는 role claim은 거부한다.
 
 - [ ] **Step 4: Refresh SHA-256 해시 테스트**
 
@@ -159,7 +159,7 @@ void refresh_token은_64자_sha256_hex로_변환한다() {
 void 로그인하면_refresh_hash를_저장하고_access를_반환한다() {
     given(userAccountPort.findByEmail(request.email())).willReturn(Optional.of(user));
     given(passwordHasher.matches(request.password(), user.salt(), user.encryptedPassword())).willReturn(true);
-    given(jwtTokenProvider.issue(eq(1), eq("USER"), any())).willReturn(tokens);
+    given(jwtTokenProvider.issue(eq(1), eq(UserAccountRole.USER), any())).willReturn(tokens);
 
     LoginResult result = authService.login(request);
 
@@ -218,5 +218,6 @@ git commit -m "feat: 로그인과 JWT 발급 구현"
 - Refresh Token 원문은 HttpOnly 쿠키로만 전달된다.
 - DB에는 Refresh Token의 64자 SHA-256 hash만 남는다.
 - Auth는 User Entity와 UserRepository를 직접 import하지 않는다.
+- JWT 발급과 검증에서 역할은 Auth 소유 `UserAccountRole`의 허용 값만 사용한다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다

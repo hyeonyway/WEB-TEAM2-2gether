@@ -90,6 +90,7 @@ Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟
 - Create: `backend/src/main/java/com/dbidding/auth/dto/SignupRequest.java`
 - Create: `backend/src/main/java/com/dbidding/auth/dto/SignupResponse.java`
 - Create: `backend/src/main/java/com/dbidding/auth/port/UserAccount.java`
+- Create: `backend/src/main/java/com/dbidding/auth/port/UserAccountRole.java`
 - Create: `backend/src/main/java/com/dbidding/auth/port/UserAccountPort.java`
 - Create: `backend/src/main/java/com/dbidding/auth/port/WalletProvisioningPort.java`
 - Create: `backend/src/main/java/com/dbidding/user/UserAccountAdapter.java`
@@ -113,11 +114,16 @@ public record SignupRequest(
 
 public record SignupResponse(Integer id, String email, String nickname, String role, String status) {}
 
+public enum UserAccountRole {
+    USER,
+    ADMIN
+}
+
 public record UserAccount(
     Integer id,
     String email,
     String nickname,
-    String role,
+    UserAccountRole role,
     String status,
     String encryptedPassword,
     String salt
@@ -136,7 +142,7 @@ public interface WalletProvisioningPort {
 }
 ```
 
-`UserAccountAdapter`는 `user` 패키지에서 `UserRepository`를 사용해 `UserAccountPort`를 구현하고, User Entity를 auth에 노출하지 않은 채 `UserAccount`로 변환한다.
+`UserAccountAdapter`는 `user` 패키지에서 `UserRepository`를 사용해 `UserAccountPort`를 구현하고, User Entity를 auth에 노출하지 않은 채 `UserAccount`로 변환한다. `user.UserRole`은 명시적인 `switch`로 `auth.port.UserAccountRole`에 매핑하여 역할 추가 시 누락을 컴파일 단계에서 확인한다.
 
 - [ ] **Step 2: 중복 이메일 서비스 실패 테스트**
 
@@ -170,7 +176,7 @@ void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
 @Test
 void 회원가입하면_사용자와_잔액_0원_지갑을_생성한다() {
     UserAccount savedUser = new UserAccount(
-        1, request.email(), request.nickname(), "USER", "ACTIVE", hash, salt
+        1, request.email(), request.nickname(), UserAccountRole.USER, "ACTIVE", hash, salt
     );
     given(userAccountPort.existsByEmail(request.email())).willReturn(false);
     given(userAccountPort.existsByNickname(request.nickname())).willReturn(false);
