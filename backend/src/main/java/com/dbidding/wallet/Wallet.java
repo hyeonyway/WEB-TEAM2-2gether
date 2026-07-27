@@ -25,6 +25,9 @@ public class Wallet {
 	}
 
 	private Wallet(Integer userId, long point) {
+		if (userId == null) {
+			throw new IllegalArgumentException("User ID cannot be null");
+		}
 		this.userId = userId;
 		this.point = point;
 	}
