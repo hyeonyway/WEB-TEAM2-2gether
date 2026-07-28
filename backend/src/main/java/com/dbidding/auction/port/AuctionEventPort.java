@@ -3,7 +3,7 @@ package com.dbidding.auction.port;
 import java.time.LocalDateTime;
 
 public interface AuctionEventPort {
-    void record(AuctionEvent event);
+    void publish(AuctionEvent event);
 
     record AuctionEvent(
             AuctionEventType type,

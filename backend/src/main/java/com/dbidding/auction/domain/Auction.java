@@ -110,4 +110,15 @@ public class Auction {
     public Long minimumBid() {
         return currentPrice + bidPriceUnit;
     }
+
+    public void placeBid(Long bidPrice) {
+        if (status != AuctionStatus.OPEN) {
+            throw new IllegalArgumentException("진행 중인 경매에만 입찰할 수 있습니다.");
+        }
+        if (bidPrice < minimumBid()) {
+            throw new IllegalArgumentException("최소 입찰가 이상으로 입찰해야 합니다.");
+        }
+        currentPrice = bidPrice;
+        bidCount++;
+    }
 }
