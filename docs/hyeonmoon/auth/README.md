@@ -8,6 +8,7 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 2. [회원가입](2-signup.md)
 3. [로그인과 Access/Refresh 발급](3-login-and-token.md)
 4. [Refresh Rotation과 로그아웃](4-refresh-and-logout.md)
+5. [CurrentUserProvider와 SSE 티켓 인증](5-current-user-and-sse-auth.md) — 다른 도메인이 지금 바로 `@CurrentUser`를 쓸 수 있게 공통 계약과 디버그 필터를 먼저 공유
 
 ## API
 

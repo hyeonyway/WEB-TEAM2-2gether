@@ -1,12 +1,13 @@
 # Wallet 개발 계획
 
-Wallet은 사용자의 총 포인트와 경매에 묶인 금액을 관리한다. 이번 문서 범위는 Wallet 생성과 잔액 조회까지이며 충전·환불 원장과 홀드 상태 전이는 후속 계획으로 분리한다.
+Wallet은 사용자의 총 포인트와 경매에 묶인 금액을 관리한다. 충전·환불 원장은 후속 계획으로 분리한다.
 
 ## 구현 단계
 
 1. [Wallet 엔티티](1-entity.md)
 2. [회원가입 Wallet 생성 연동](2-wallet-provisioning.md)
 3. [지갑 잔액 조회](3-balance-query.md)
+4. [입찰 잔액 홀드/해제](4-bid-hold-release.md)
 
 ## 잔액 정의
 
