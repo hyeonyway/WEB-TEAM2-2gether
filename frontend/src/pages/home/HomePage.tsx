@@ -216,7 +216,7 @@ export default function HomePage(){
           :<div className="market-panel">
         <div className="metrics">
           <div><span>30일 낙찰가 총합 <Info/></span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyWinningPriceTotal} suffix="원"/></strong></div>
-          <div><span>30일 낙찰 카드</span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyEndedAuctionCount} suffix="건"/></strong></div>
+          <div><span>30일 총 낙찰</span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyEndedAuctionCount} suffix="건"/></strong></div>
           <div><span>30일 총 입찰</span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyBidCount} suffix="건"/></strong></div>
           <div><span>30일 최고 낙찰가</span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyHighestPrice} suffix="원"/></strong></div>
         </div>
