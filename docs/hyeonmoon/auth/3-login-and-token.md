@@ -11,6 +11,9 @@
 - Access Token은 기본 30분, Refresh Token은 기본 7일이다.
 - 토큰 비밀키와 만료시간은 환경변수로 덮어쓸 수 있어야 한다.
 - Access와 Refresh의 `type` claim을 반드시 검증한다.
+- 로그인은 `ACTIVE` 상태의 사용자만 허용한다.
+- 존재하지 않는 이메일, 비밀번호 불일치, 비활성 계정은 모두 동일한
+  `InvalidCredentialsException`으로 처리한다.
 - Refresh 원문은 로그와 응답 JSON에 남기지 않는다.
 
 ## 테스트와 운영 비밀키
@@ -167,9 +170,12 @@ void refresh_token은_64자_sha256_hex로_변환한다() {
 - Consumes: `PasswordHasher.matches`
 - Produces: `LoginResult AuthService.login(LoginRequest request)`
 
-- [ ] **Step 1: 존재하지 않는 이메일과 오답 비밀번호 테스트**
+- [ ] **Step 1: 존재하지 않는 이메일, 오답 비밀번호, 비활성 계정 테스트**
 
-두 경우 모두 외부 응답은 동일한 `InvalidCredentialsException`으로 처리해 계정 존재 여부를 노출하지 않는다.
+존재하지 않는 이메일, 오답 비밀번호, `SUSPENDED`, `WITHDRAWN` 상태는 모두
+동일한 `InvalidCredentialsException`으로 처리해 계정 존재 여부와 상태를
+노출하지 않는다. 비밀번호가 맞더라도 상태가 `ACTIVE`가 아니면 토큰을
+발급하거나 Authentication을 변경하지 않는다.
 
 - [ ] **Step 2: 로그인 성공 테스트**
 
@@ -233,6 +239,8 @@ git commit -m "feat: 로그인과 JWT 발급 구현"
 ## 완료 조건
 
 - 로그인 실패 응답으로 이메일 존재 여부를 추측할 수 없다.
+- `ACTIVE` 상태의 사용자만 로그인할 수 있고 비활성 계정 상태는 응답으로
+  구분되지 않는다.
 - Access Token만 JSON에 나타난다.
 - Refresh Token 원문은 HttpOnly 쿠키로만 전달된다.
 - DB에는 Refresh Token의 64자 SHA-256 hash만 남는다.
