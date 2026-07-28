@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -73,6 +74,7 @@ public class Auction {
     @Column(nullable = false)
     private Long version;
 
+    @Builder
     public Auction(
             Integer sellerId,
             Integer itemId,
