@@ -164,7 +164,7 @@ public interface UserAccountPort {
 - Consumes: `WalletProvisioningPort.createFor(Integer userId)`
 - Produces: `POST /api/auth/signup`
 
-- [ ] **Step 1: 중복 이메일·닉네임 서비스 실패 테스트**
+- [x] **Step 1: 중복 이메일·닉네임 서비스 실패 테스트**
 
 ```java
 @Test
@@ -178,7 +178,7 @@ void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
 }
 ```
 
-- [ ] **Step 2: 성공 서비스 테스트 작성**
+- [x] **Step 2: 성공 서비스 테스트 작성**
 
 ```java
 @Test
@@ -198,7 +198,7 @@ void 회원가입하면_사용자와_잔액_0원_지갑을_생성한다() {
 }
 ```
 
-- [ ] **Step 3: 최소 서비스 구현**
+- [x] **Step 3: 최소 서비스 구현**
 
 ```java
 @Transactional
@@ -221,7 +221,7 @@ public SignupResponse signup(SignupRequest request) {
 
 DB UNIQUE 위반도 동일한 409 응답으로 변환해 사전 조회와 실제 INSERT 사이의 경쟁 조건을 처리한다.
 
-- [ ] **Step 4: Controller 요청·응답 테스트**
+- [x] **Step 4: Controller 요청·응답 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/signup")
@@ -234,13 +234,13 @@ mockMvc.perform(post("/api/auth/signup")
     .andExpect(jsonPath("$.password").doesNotExist());
 ```
 
-- [ ] **Step 5: User·Wallet 트랜잭션 통합 테스트**
+- [x] **Step 5: User·Wallet 트랜잭션 통합 테스트**
 
 실제 `UserAccountAdapter`와 `WalletProvisioningAdapter`를 사용해 회원가입 성공 시
 `users`와 `wallets`에 각각 한 row가 생성되는지 확인한다. Wallet 생성이 실패하면
 같은 트랜잭션에서 User 저장도 롤백되는지 검증한다.
 
-- [ ] **Step 6: 전체 테스트와 커밋**
+- [x] **Step 6: 전체 테스트와 커밋**
 
 ```bash
 ./gradlew clean test
