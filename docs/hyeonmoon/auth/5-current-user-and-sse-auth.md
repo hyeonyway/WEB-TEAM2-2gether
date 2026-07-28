@@ -14,7 +14,7 @@
 
 - `CurrentUserProvider`/`@CurrentUser`는 `Integer userId`만 다룬다. 닉네임/권한 등 필요한 도메인은 자기 포트를 따로 정의한다(`CurrentUserPort` 참고).
 - `global.security`는 다른 도메인의 Entity나 Repository를 참조하지 않는다.
-- `X-Debug-User-Id` 헤더 기반 `TestAuthFilter`는 실제 `JwtAuthFilter`가 전역 적용되기 전까지 사용한다. 교체 시점은 `feature-api-spec.md` 5.4/7.3의 "인증 통합일" 기준이다.
+- `X-Debug-User-Id` 헤더 기반 `TestAuthFilter`는 `debug-auth` 프로필을 명시적으로 활성화한 경우에만 사용한다. 기본 프로필에서는 등록하지 않으며, 실제 `JwtAuthFilter` 전역 적용 시 제거한다.
 - `CurrentUserArgumentResolver`는 지금 등록해 `TestAuthFilter`와 함께 사용한다. `JwtAuthFilter`만 구현 후 인증 통합일까지 전역 등록을 미룬다.
 - 티켓은 JWT가 아니다 — 클레임 없는 불투명한 랜덤 문자열이며, 검증 성공 시 즉시 폐기되는 1회용이다. TTL은 30초로 고정한다.
 - 진짜 JWT(Access/Refresh Token)는 어떤 경우에도 쿼리파라미터에 실리지 않는다.
@@ -37,12 +37,14 @@
 - Test: `backend/src/test/java/com/dbidding/global/security/TestAuthFilterTest.java`
 - Test: `backend/src/test/java/com/dbidding/global/security/RequestCurrentUserProviderTest.java`
 - Test: `backend/src/test/java/com/dbidding/global/security/CurrentUserArgumentResolverTest.java`
+- Test: `backend/src/test/java/com/dbidding/global/security/CurrentUserWebMvcTest.java`
+- Test: `backend/src/test/java/com/dbidding/global/security/CurrentUserDefaultProfileWebMvcTest.java`
 
 **Interfaces:**
 - Produces: `Integer CurrentUserProvider.getCurrentUserId()` — 토큰/헤더가 없거나 무효면 `UnauthorizedException`
 - Produces: `@CurrentUser` 파라미터 어노테이션(컨트롤러에서 `Integer userId`로 주입)
 
-- [ ] **Step 1: 인터페이스와 어노테이션 작성**
+- [x] **Step 1: 인터페이스와 어노테이션 작성**
 
 ```java
 package com.dbidding.global.security;
@@ -61,11 +63,11 @@ public @interface CurrentUser {
 
 이 두 시그니처를 오늘 팀에 우선 공유한다 — B/C/D는 이것만으로 컨트롤러 파라미터에 `@CurrentUser Integer userId`를 쓰는 코드를 바로 작성할 수 있다.
 
-- [ ] **Step 2: 임시 디버그 필터 (X-Debug-User-Id)**
+- [x] **Step 2: 임시 디버그 필터 (X-Debug-User-Id)**
 
 ```java
 @Component
-@Profile("!prod")
+@Profile("debug-auth")
 public class TestAuthFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -90,7 +92,7 @@ public class TestAuthFilter extends OncePerRequestFilter {
 0 이하이면 attribute를 설정하지 않으며, 인증이 필요한 컨트롤러에서는
 `CurrentUserProvider`가 `UnauthorizedException`을 발생시킨다.
 
-- [ ] **Step 3: request attribute를 읽는 Provider와 리졸버**
+- [x] **Step 3: request attribute를 읽는 Provider와 리졸버**
 
 ```java
 @Component
@@ -125,7 +127,7 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 }
 ```
 
-- [ ] **Step 4: `UnauthorizedException` + `WebConfig` 등록**
+- [x] **Step 4: `UnauthorizedException` + `WebConfig` 등록**
 
 ```java
 @ResponseStatus(HttpStatus.UNAUTHORIZED)
@@ -150,7 +152,10 @@ public class WebConfig implements WebMvcConfigurer {
 }
 ```
 
-`TestAuthFilter`는 `!prod` 프로필에서 `@Component`로 등록해두면 Spring Boot가 자동으로 필터체인에 추가한다(별도 `FilterRegistrationBean` 불필요).
+`TestAuthFilter`는 `debug-auth` 프로필에서만 Spring Boot가 자동으로 필터체인에
+추가한다(별도 `FilterRegistrationBean` 불필요). 로컬에서 사용할 때는
+`SPRING_PROFILES_ACTIVE=debug-auth`를 명시한다. `!prod` 조건은 배포 환경에서
+`prod` 프로필 설정이 누락되면 디버그 인증이 활성화될 수 있으므로 사용하지 않는다.
 
 ### Task 2: TicketProvider 인터페이스
 
@@ -161,7 +166,7 @@ public class WebConfig implements WebMvcConfigurer {
 - Produces: `String TicketProvider.issue(Integer userId)`
 - Produces: `Integer TicketProvider.validateAndConsume(String ticket)` — 무효/만료/이미 소비된 티켓이면 `UnauthorizedException`
 
-- [ ] **Step 1: 인터페이스 작성**
+- [x] **Step 1: 인터페이스 작성**
 
 ```java
 package com.dbidding.global.security;
@@ -413,8 +418,9 @@ git commit -m "feat: 전역 CurrentUserProvider와 SSE 티켓 인증 추가"
 
 ## 완료 조건
 
-- `@CurrentUser Integer userId`만으로 로그인 유저 식별이 가능하다(디버그 필터 기준).
+- `debug-auth` 프로필에서 `@CurrentUser Integer userId`만으로 로그인 유저 식별이 가능하다.
 - `TestAuthFilter`는 `X-Debug-User-Id` 헤더가 없으면 아무 attribute도 채우지 않아, 인증이 실제로 필요한 곳에서는 여전히 `UnauthorizedException`이 발생한다.
+- 기본 프로필과 운영 환경에서는 `X-Debug-User-Id` 헤더만으로 인증할 수 없다.
 - `JwtAuthFilter`는 구현이 끝나 있으나 인증 통합일 전까지 전역 필터체인에 등록되지 않는다.
 - 발급된 티켓은 30초 후 자동 만료되고, 동일 티켓 재사용은 거절된다(1회성).
 - 진짜 JWT(Access/Refresh Token)는 어떤 요청 URL에도 노출되지 않는다.

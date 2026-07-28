@@ -1,6 +1,6 @@
 # Auth 개발 계획
 
-Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주기를 소유한다. 인증 구현이 완료되기 전까지 다른 도메인은 `X-Debug-User-Id`를 사용하므로, Auth 구현 중간 결과를 전역 필터에 연결하지 않는다.
+Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주기를 소유한다. 인증 구현이 완료되기 전까지 다른 도메인은 `debug-auth` 프로필에서만 `X-Debug-User-Id`를 사용하므로, Auth 구현 중간 결과를 전역 필터에 연결하지 않는다.
 
 ## 구현 단계
 
