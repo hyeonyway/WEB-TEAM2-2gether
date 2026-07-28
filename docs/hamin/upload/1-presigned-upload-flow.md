@@ -29,7 +29,7 @@ sequenceDiagram
     User->>FE: 이미지 선택 (최대 10장)
     FE->>BE: POST /api/uploads/images/presigned-url<br/>{ files: [{fileName, contentType}, ...] }
     BE->>BE: 개수(<=10)/contentType 화이트리스트 검증
-    BE->>BE: 파일별 S3 key 생성<br/>uploads/{yyyy}/{MM}/{dd}/{uuid}.{ext}
+    BE->>BE: 파일별 S3 key 생성<br/>upload/{yyyy}/{MM}/{dd}/{uuid}.{ext}
     BE-->>FE: { uploads: [{upload_url, upload_token, expires_in_seconds}, ...] }
 
     loop 파일별로 반복
@@ -71,13 +71,13 @@ presigned URL은 유효기간이 짧고(수 분), `contentType`처럼 실제 파
 {
   "uploads": [
     {
-      "upload_url": "https://{bucket}.s3.{region}.amazonaws.com/uploads/2026/07/28/9f2c1e....jpg?X-Amz-...",
-      "upload_token": "uploads/2026/07/28/9f2c1e....jpg",
+      "upload_url": "https://{bucket}.s3.{region}.amazonaws.com/upload/2026/07/28/9f2c1e....jpg?X-Amz-...",
+      "upload_token": "upload/2026/07/28/9f2c1e....jpg",
       "expires_in_seconds": 300
     },
     {
-      "upload_url": "https://{bucket}.s3.{region}.amazonaws.com/uploads/2026/07/28/1a7bd0....png?X-Amz-...",
-      "upload_token": "uploads/2026/07/28/1a7bd0....png",
+      "upload_url": "https://{bucket}.s3.{region}.amazonaws.com/upload/2026/07/28/1a7bd0....png?X-Amz-...",
+      "upload_token": "upload/2026/07/28/1a7bd0....png",
       "expires_in_seconds": 300
     }
   ]
