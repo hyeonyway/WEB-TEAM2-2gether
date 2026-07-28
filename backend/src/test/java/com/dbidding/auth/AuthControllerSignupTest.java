@@ -1,5 +1,6 @@
 package com.dbidding.auth;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -96,14 +97,16 @@ class AuthControllerSignupTest {
 	}
 
 	@Test
-	void 회원가입_INSERT의_무결성_위반이면_409를_반환한다() throws Exception {
+	void UNIQUE가_아닌_무결성_위반은_409로_변환하지_않는다() {
+		DataIntegrityViolationException databaseError =
+			new DataIntegrityViolationException("not a duplicate");
 		given(authService.signup(any(SignupRequest.class)))
-			.willThrow(new DataIntegrityViolationException("unique constraint violation"));
+			.willThrow(databaseError);
 
-		mockMvc.perform(post("/api/auth/signup")
+		assertThatThrownBy(() -> mockMvc.perform(post("/api/auth/signup")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(validRequest()))
-			.andExpect(status().isConflict());
+				.content(validRequest())))
+			.hasCause(databaseError);
 	}
 
 	private String validRequest() {

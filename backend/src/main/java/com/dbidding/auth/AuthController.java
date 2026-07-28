@@ -1,6 +1,5 @@
 package com.dbidding.auth;
 
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,8 +30,7 @@ public class AuthController {
 
 	@ExceptionHandler({
 		DuplicateEmailException.class,
-		DuplicateNicknameException.class,
-		DataIntegrityViolationException.class
+		DuplicateNicknameException.class
 	})
 	public ResponseEntity<Void> handleSignupConflict() {
 		return ResponseEntity.status(HttpStatus.CONFLICT).build();
