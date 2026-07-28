@@ -36,4 +36,4 @@ app:
     secret: ${JWT_SECRET}
     access-token-seconds: ${JWT_ACCESS_SECONDS:1800}
     refresh-token-seconds: ${JWT_REFRESH_SECONDS:604800}
-    secure-cookie: ${JWT_SECURE_COOKIE:false}
+    secure-cookie: ${JWT_SECURE_COOKIE:true}

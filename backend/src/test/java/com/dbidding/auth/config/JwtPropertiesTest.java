@@ -1,9 +1,15 @@
 package com.dbidding.auth.config;
 
+import java.io.IOException;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.PropertySourcesPropertyResolver;
+import org.springframework.core.io.FileSystemResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,6 +19,20 @@ class JwtPropertiesTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(JwtPropertiesTestConfiguration.class);
+
+    @Test
+    void 운영_설정에서_Secure_쿠키를_기본으로_활성화한다() throws IOException {
+        YamlPropertySourceLoader loader = new YamlPropertySourceLoader();
+        MutablePropertySources propertySources = new MutablePropertySources();
+        loader.load(
+            "application",
+            new FileSystemResource("src/main/resources/application.yml")
+        ).forEach(propertySources::addLast);
+
+        PropertySourcesPropertyResolver resolver = new PropertySourcesPropertyResolver(propertySources);
+
+        assertThat(resolver.getProperty("app.jwt.secure-cookie", Boolean.class)).isTrue();
+    }
 
     @Test
     void 환경변수에_대응하는_JWT_설정을_바인딩한다() {

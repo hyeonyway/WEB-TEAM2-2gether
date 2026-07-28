@@ -60,7 +60,7 @@ app:
     secret: ${JWT_SECRET}
     access-token-seconds: ${JWT_ACCESS_SECONDS:1800}
     refresh-token-seconds: ${JWT_REFRESH_SECONDS:604800}
-    secure-cookie: ${JWT_SECURE_COOKIE:false}
+    secure-cookie: ${JWT_SECURE_COOKIE:true}
 ```
 
 JWT secret이 없으면 운영뿐 아니라 로컬에서도 애플리케이션 시작을 실패시켜 하드코딩된 기본 키 사용을 막는다. HS256 비밀키는 최소 32바이트다.
