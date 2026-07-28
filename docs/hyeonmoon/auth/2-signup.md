@@ -27,7 +27,7 @@
 - Produces: `PasswordHash PasswordHasher.hash(String rawPassword)`
 - Produces: `boolean PasswordHasher.matches(String rawPassword, String salt, String expectedHash)`
 
-- [ ] **Step 1: 실패 테스트 작성**
+- [x] **Step 1: 실패 테스트 작성**
 
 ```java
 @Test
@@ -41,7 +41,7 @@ void 같은_비밀번호도_서로_다른_salt와_hash를_만든다() {
 }
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 ```bash
 ./gradlew test --tests com.dbidding.auth.PasswordHasherTest
@@ -49,7 +49,7 @@ void 같은_비밀번호도_서로_다른_salt와_hash를_만든다() {
 
 Expected: `PasswordHasher`가 없어 FAIL.
 
-- [ ] **Step 3: PBKDF2 구현**
+- [x] **Step 3: PBKDF2 구현**
 
 ```java
 @Component
@@ -74,7 +74,7 @@ public class PasswordHasher {
 
 `PBEKeySpec`는 사용 후 `clearPassword()`를 호출하고 `SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")`를 사용한다.
 
-- [ ] **Step 4: 정답·오답 테스트 통과 및 실행시간 기록**
+- [x] **Step 4: 정답·오답 테스트 통과 및 실행시간 기록**
 
 ```bash
 ./gradlew test --tests com.dbidding.auth.PasswordHasherTest
