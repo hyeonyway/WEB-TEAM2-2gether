@@ -31,6 +31,9 @@ private.key
 localhost.pem
 localhost-key.pem
 
+# Local DB snapshots (sync-local-db-schema.sh)
+backend/db-snapshots/
+
 # Logs and runtime artifacts
 logs/
 *.log

@@ -4,11 +4,14 @@ import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
 import com.dbidding.card.domain.ItemStatistic;
+import com.dbidding.card.domain.ItemDailyStatistic;
 import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.card.repository.ItemStatisticRepository;
+import com.dbidding.card.repository.ItemDailyStatisticRepository;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -22,6 +25,7 @@ class CardPriceServiceTest {
     @Autowired CardPriceService cardPriceService;
     @Autowired CardMetadataRepository cardRepository;
     @Autowired ItemStatisticRepository statisticRepository;
+    @Autowired ItemDailyStatisticRepository dailyStatisticRepository;
     @Autowired EntityManager entityManager;
 
     @Test
@@ -32,11 +36,8 @@ class CardPriceServiceTest {
                 set, "피카츄 프로모", "JP", "10", "gold", "/pikachu.png"));
         cardRepository.save(new CardMetadata(
                 set, "리자몽 프로모", "JP", "9", "multi", "/charizard.png"));
-        statisticRepository.save(new ItemStatistic(pikachu, LocalDateTime.now().minusDays(1),
-                120_000L, 115_000L, 110_000L, 125_000L, 7, 1, 10,
-                new BigDecimal("1.20"), new BigDecimal("2.30"), new BigDecimal("4.50")));
-        statisticRepository.save(new ItemStatistic(pikachu, LocalDateTime.now(),
-                138_000L, 130_000L, 124_000L, 149_000L, 12, 2, 20,
+        statisticRepository.save(new ItemStatistic(pikachu, LocalDate.now().minusDays(1),
+                138_000L, 130_000L, 110_000L, 149_000L, 12, 2, 2, 20,
                 new BigDecimal("2.70"), new BigDecimal("5.10"), new BigDecimal("12.10")));
 
         var response = cardPriceService.getCards("피카츄", "10", CardSort.PRICE, 0, 20);
@@ -45,6 +46,8 @@ class CardPriceServiceTest {
         assertThat(response.content()).singleElement().satisfies(card -> {
             assertThat(card.name()).isEqualTo("피카츄 프로모");
             assertThat(card.marketPrice()).isEqualTo(138_000L);
+            assertThat(card.lowPrice()).isEqualTo(110_000L);
+            assertThat(card.highPrice()).isEqualTo(149_000L);
             assertThat(card.changeRate()).isEqualByComparingTo("2.70");
             assertThat(card.bidCount()).isEqualTo(12);
         });
@@ -56,18 +59,31 @@ class CardPriceServiceTest {
         entityManager.persist(set);
         CardMetadata card = cardRepository.save(new CardMetadata(
                 set, "피카츄 AR", "JPN", "10", "rainbow", null));
-        statisticRepository.save(new ItemStatistic(card, LocalDateTime.now(),
-                138_000L, 136_500L, 124_000L, 149_000L, 20, 3, 30,
+        LocalDate yesterday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+        statisticRepository.save(new ItemStatistic(card, yesterday,
+                138_000L, 127_250L, 105_000L, 155_000L, 32, 2, 3, 30,
                 new BigDecimal("2.70"), new BigDecimal("8.20"), new BigDecimal("12.10")));
+        dailyStatisticRepository.save(new ItemDailyStatistic(
+                card, yesterday.minusDays(10), 120_000L, 118_000L,
+                115_000L, 120_000L, 12, 1));
+        dailyStatisticRepository.save(new ItemDailyStatistic(
+                card, yesterday, 138_000L, 138_000L,
+                138_000L, 138_000L, 20, 1));
 
         var response = cardPriceService.getCard(card.getId(), 30);
 
         assertThat(response.marketPrice()).isEqualTo(138_000L);
-        assertThat(response.lowPrice()).isEqualTo(124_000L);
+        assertThat(response.lowPrice()).isEqualTo(105_000L);
+        assertThat(response.highPrice()).isEqualTo(155_000L);
+        assertThat(response.averagePrice()).isEqualTo(127_250L);
+        assertThat(response.bidCount()).isEqualTo(32);
+        assertThat(response.endedAuctionCount()).isEqualTo(2);
         assertThat(response.activeAuctionCount()).isEqualTo(3);
-        assertThat(response.history()).singleElement()
-                .extracting("averagePrice")
-                .isEqualTo(136_500L);
+        assertThat(response.history()).hasSize(30);
+        assertThat(response.history().getLast().date().toLocalDate()).isEqualTo(yesterday);
+        assertThat(response.history().getFirst().bidCount()).isZero();
+        assertThat(response.history().getLast().averagePrice()).isEqualTo(138_000L);
+        assertThat(response.history().getLast().bidCount()).isEqualTo(20);
     }
 
     @Test
@@ -76,8 +92,8 @@ class CardPriceServiceTest {
         entityManager.persist(set);
         CardMetadata card = cardRepository.save(new CardMetadata(
                 set, "피카츄 프로모", "JP", "10", "gold", null));
-        statisticRepository.save(new ItemStatistic(card, LocalDateTime.now(),
-                null, null, null, null, 0, 0, 0,
+        statisticRepository.save(new ItemStatistic(card, LocalDate.now().minusDays(1),
+                null, null, null, null, 0, 0, 0, 0,
                 null, null, null));
 
         var response = cardPriceService.getCard(card.getId(), 30);
@@ -96,11 +112,11 @@ class CardPriceServiceTest {
                 set, "고가 카드", "JP", "10", "gold", null));
         CardMetadata popular = cardRepository.save(new CardMetadata(
                 set, "인기 카드", "JP", "10", "gold", null));
-        statisticRepository.save(new ItemStatistic(expensive, LocalDateTime.now(),
-                500_000L, 500_000L, 480_000L, 520_000L, 1, 0, 1,
+        statisticRepository.save(new ItemStatistic(expensive, LocalDate.now().minusDays(1),
+                500_000L, 500_000L, 480_000L, 520_000L, 1, 1, 0, 1,
                 null, null, null));
-        statisticRepository.save(new ItemStatistic(popular, LocalDateTime.now(),
-                100_000L, 100_000L, 90_000L, 110_000L, 1, 0, 100,
+        statisticRepository.save(new ItemStatistic(popular, LocalDate.now().minusDays(1),
+                100_000L, 100_000L, 90_000L, 110_000L, 1, 1, 0, 100,
                 null, null, null));
         entityManager.flush();
         entityManager.clear();

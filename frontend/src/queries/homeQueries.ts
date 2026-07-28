@@ -1,15 +1,27 @@
 import {queryOptions} from '@tanstack/react-query';
-import {fetchHomeOverview} from '../api/homeApi';
+import {fetchHomeInsights,fetchHomeMarket,fetchHomeTopGainers} from '../api/homeApi';
 
 export const homeQueryKeys={
   all:['home'] as const,
-  overview:()=>[...homeQueryKeys.all,'overview'] as const,
+  insights:()=>[...homeQueryKeys.all,'insights'] as const,
+  market:(days:number)=>[...homeQueryKeys.all,'market',days] as const,
+  topGainers:(limit:number)=>[...homeQueryKeys.all,'top-gainers',limit] as const,
 };
 
 export const homeQueries={
-  overview:()=>queryOptions({
-    queryKey:homeQueryKeys.overview(),
-    queryFn:fetchHomeOverview,
+  insights:()=>queryOptions({
+    queryKey:homeQueryKeys.insights(),
+    queryFn:fetchHomeInsights,
+    staleTime:30_000,
+  }),
+  market:(days=30)=>queryOptions({
+    queryKey:homeQueryKeys.market(days),
+    queryFn:()=>fetchHomeMarket(days),
+    staleTime:30_000,
+  }),
+  topGainers:(limit=5)=>queryOptions({
+    queryKey:homeQueryKeys.topGainers(limit),
+    queryFn:()=>fetchHomeTopGainers(limit),
     staleTime:30_000,
   }),
 };

@@ -15,24 +15,29 @@ export type HomeMarketPointDto={
 
 export type HomeRankingDto={
   cardId:number;
-  auctionId:number;
   name:string;
   price:number;
   changeRate:number;
   theme:string;
   bidCount:number;
+  imageUrl:string|null;
+  priceHistory:Array<{
+    date:string;
+    price:number;
+  }>;
 };
 
-export type HomeOverviewDto={
-  insights:HomeInsightDto[];
+export type HomeMarketDto={
   marketSummary:{
-    currentPriceAverage:number;
-    dailyChangeRate:number;
-    weeklyChangeRate:number;
-    monthlyChangeRate:number;
+    monthlyWinningPriceTotal:number;
+    monthlyEndedAuctionCount:number;
     monthlyBidCount:number;
+    monthlyHighestPrice:number;
   };
   marketHistory:HomeMarketPointDto[];
+};
+
+export type HomeTopGainersDto={
   topGainersTitle:string;
   topGainers:HomeRankingDto[];
 };

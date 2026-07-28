@@ -96,25 +96,73 @@ CREATE TABLE card_metadata
 
 CREATE TABLE item_statistics
 (
-    id                   INT           NOT NULL AUTO_INCREMENT,
     item_id              INT           NOT NULL,
-    statistics_date      TIMESTAMP(6)  NOT NULL,
+    as_of_date           DATE          NOT NULL,
     latest_price         BIGINT        NULL,
-    avg_price            BIGINT        NULL,
-    lowest_price         BIGINT        NULL,
-    highest_price        BIGINT        NULL,
-    bid_count            INT           NULL DEFAULT 0,
-    active_auction_count INT           NULL DEFAULT 0,
+    average_price_30d     BIGINT        NULL,
+    lowest_price_30d      BIGINT        NULL,
+    highest_price_30d     BIGINT        NULL,
+    bid_count_30d         INT           NOT NULL DEFAULT 0,
+    ended_auction_count_30d INT         NOT NULL DEFAULT 0,
+    active_auction_count INT           NOT NULL DEFAULT 0,
     wishlist_count       INT           NOT NULL DEFAULT 0,
     daily_change_rate    DECIMAL(8, 2) NULL,
     weekly_change_rate   DECIMAL(8, 2) NULL,
     monthly_change_rate  DECIMAL(8, 2) NULL,
-    CONSTRAINT pk_item_statistics PRIMARY KEY (id),
-    CONSTRAINT uk_item_statistics_item_date UNIQUE (item_id, statistics_date),
+    updated_at            TIMESTAMP(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_item_statistics PRIMARY KEY (item_id),
     CONSTRAINT fk_item_statistics_item
         FOREIGN KEY (item_id) REFERENCES card_metadata (id),
 
-    INDEX idx_item_statistics_date (statistics_date)
+    INDEX idx_item_statistics_latest_price (latest_price),
+    INDEX idx_item_statistics_daily_change_rate (daily_change_rate)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE item_daily_statistics
+(
+    id                    BIGINT       NOT NULL AUTO_INCREMENT,
+    item_id               INT          NOT NULL,
+    statistics_date       DATE         NOT NULL,
+    latest_price          BIGINT       NULL,
+    average_price         BIGINT       NULL,
+    lowest_price          BIGINT       NULL,
+    highest_price         BIGINT       NULL,
+    bid_count             INT          NOT NULL DEFAULT 0,
+    ended_auction_count   INT          NOT NULL DEFAULT 0,
+    created_at             TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at             TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_item_daily_statistics PRIMARY KEY (id),
+    CONSTRAINT uk_item_daily_statistics_item_date UNIQUE (item_id, statistics_date),
+    CONSTRAINT fk_item_daily_statistics_item
+        FOREIGN KEY (item_id) REFERENCES card_metadata (id),
+
+    INDEX idx_item_daily_statistics_date_item (statistics_date, item_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE market_daily_statistics
+(
+    statistics_date       DATE         NOT NULL,
+    average_price         BIGINT       NULL,
+    lowest_price          BIGINT       NULL,
+    highest_price         BIGINT       NULL,
+    winning_price_total_30d BIGINT     NOT NULL DEFAULT 0,
+    highest_price_30d     BIGINT       NOT NULL DEFAULT 0,
+    bid_count_30d         INT          NOT NULL DEFAULT 0,
+    ended_auction_count_30d INT        NOT NULL DEFAULT 0,
+    bid_count             INT          NOT NULL DEFAULT 0,
+    ended_auction_count   INT          NOT NULL DEFAULT 0,
+    created_at             TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at             TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_market_daily_statistics PRIMARY KEY (statistics_date)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -138,6 +186,7 @@ CREATE TABLE auctions
     bid_count            INT          NOT NULL,
     bid_price_unit       BIGINT       NOT NULL,
     is_hyped             BOOLEAN      NOT NULL,
+    version              BIGINT       NOT NULL DEFAULT 1,
 
     CONSTRAINT pk_auctions PRIMARY KEY (id),
     CONSTRAINT fk_auctions_user
@@ -148,7 +197,9 @@ CREATE TABLE auctions
     INDEX idx_auctions_user_id (user_id),
     INDEX idx_auctions_item_id (item_id),
     INDEX idx_auctions_status (status),
-    INDEX idx_auctions_item_status (item_id, status)
+    INDEX idx_auctions_item_status (item_id, status),
+    INDEX idx_auctions_status_close_time (status, close_time),
+    INDEX idx_auctions_status_current_price (status, current_price)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

@@ -2,37 +2,38 @@ package com.dbidding.card.domain;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "item_statistics",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"item_id", "statistics_date"}))
+@Table(name = "item_statistics")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ItemStatistic {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "item_id", nullable = false)
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @MapsId
+    @JoinColumn(name = "item_id")
     private CardMetadata item;
 
-    @Column(name = "statistics_date", nullable = false)
-    private LocalDateTime statisticsDate;
+    @Column(name = "as_of_date", nullable = false)
+    private LocalDate asOfDate;
     @Column(name = "latest_price")
     private Long latestPrice;
-    @Column(name = "avg_price")
-    private Long avgPrice;
-    @Column(name = "lowest_price")
-    private Long lowestPrice;
-    @Column(name = "highest_price")
-    private Long highestPrice;
-    @Column(name = "bid_count")
-    private Integer bidCount;
+    @Column(name = "average_price_30d")
+    private Long averagePrice30d;
+    @Column(name = "lowest_price_30d")
+    private Long lowestPrice30d;
+    @Column(name = "highest_price_30d")
+    private Long highestPrice30d;
+    @Column(name = "bid_count_30d", nullable = false)
+    private Integer bidCount30d;
+    @Column(name = "ended_auction_count_30d", nullable = false)
+    private Integer endedAuctionCount30d;
     @Column(name = "active_auction_count")
     private Integer activeAuctionCount;
     @Column(name = "wishlist_count", nullable = false)
@@ -44,17 +45,19 @@ public class ItemStatistic {
     @Column(name = "monthly_change_rate", precision = 8, scale = 2)
     private BigDecimal monthlyChangeRate;
 
-    public ItemStatistic(CardMetadata item, LocalDateTime statisticsDate, Long latestPrice, Long avgPrice,
-                         Long lowestPrice, Long highestPrice, Integer bidCount,
+    public ItemStatistic(CardMetadata item, LocalDate asOfDate, Long latestPrice, Long averagePrice30d,
+                         Long lowestPrice30d, Long highestPrice30d, Integer bidCount30d,
+                         Integer endedAuctionCount30d,
                          Integer activeAuctionCount, Integer wishlistCount, BigDecimal dailyChangeRate,
                          BigDecimal weeklyChangeRate, BigDecimal monthlyChangeRate) {
         this.item = item;
-        this.statisticsDate = statisticsDate;
+        this.asOfDate = asOfDate;
         this.latestPrice = latestPrice;
-        this.avgPrice = avgPrice;
-        this.lowestPrice = lowestPrice;
-        this.highestPrice = highestPrice;
-        this.bidCount = bidCount;
+        this.averagePrice30d = averagePrice30d;
+        this.lowestPrice30d = lowestPrice30d;
+        this.highestPrice30d = highestPrice30d;
+        this.bidCount30d = bidCount30d;
+        this.endedAuctionCount30d = endedAuctionCount30d;
         this.activeAuctionCount = activeAuctionCount;
         this.wishlistCount = wishlistCount;
         this.dailyChangeRate = dailyChangeRate;

@@ -14,16 +14,11 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Inte
                     from card_metadata c
                     left join item_statistics s
                       on s.item_id = c.id
-                     and s.statistics_date = (
-                         select max(latest.statistics_date)
-                         from item_statistics latest
-                         where latest.item_id = c.id
-                     )
                     where (:keyword = '' or lower(c.name) like lower(concat('%', :keyword, '%')))
                       and (:psaGrade is null or c.psa_grade = :psaGrade)
                     order by
                       case when :sort = 'PRICE'
-                           then coalesce(s.latest_price, s.avg_price, 0)
+                           then coalesce(s.latest_price, s.average_price_30d, 0)
                       end desc,
                       case when :sort = 'FAVORITE'
                            then coalesce(s.wishlist_count, 0)
