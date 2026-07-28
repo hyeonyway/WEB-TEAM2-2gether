@@ -81,7 +81,7 @@ Expected: 설정 바인딩 오류 없이 실행된다.
 - Produces: `TokenClaims JwtTokenProvider.parseRefresh(String token)`
 - Produces: `String RefreshTokenHasher.hash(String token)`
 
-- [ ] **Step 1: 토큰 claim 실패 테스트 작성**
+- [x] **Step 1: 토큰 claim 실패 테스트 작성**
 
 ```java
 @Test
@@ -94,7 +94,7 @@ void access와_refresh에_서로_다른_type과_만료시간을_넣는다() {
 }
 ```
 
-- [ ] **Step 2: JJWT 0.13 API로 발급 구현**
+- [x] **Step 2: JJWT 0.13 API로 발급 구현**
 
 Access Token에는 최소 claim만 포함한다.
 
@@ -122,11 +122,11 @@ Jwts.parser()
     .getPayload();
 ```
 
-- [ ] **Step 3: 잘못된 서명·만료·type·role 테스트**
+- [x] **Step 3: 잘못된 서명·만료·type·role 테스트**
 
 각 경우 `InvalidTokenException`, `ExpiredTokenException`, `InvalidTokenTypeException`, `InvalidTokenRoleException`으로 변환하고 JJWT 예외를 Controller 밖으로 노출하지 않는다. 발급 API는 `UserAccountRole`만 받아 임의 문자열을 claim에 넣지 못하게 하고, Access Token 파싱 시 서명은 유효해도 허용 집합에 없는 role claim은 거부한다.
 
-- [ ] **Step 4: Refresh SHA-256 해시 테스트**
+- [x] **Step 4: Refresh SHA-256 해시 테스트**
 
 ```java
 @Test
