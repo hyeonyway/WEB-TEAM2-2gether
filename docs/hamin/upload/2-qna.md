@@ -33,6 +33,28 @@
 - 이 버킷은 퍼블릭 액세스 전체 차단 상태이고, 버킷 정책은 CloudFront 서비스 프린시펄에게 `s3:GetObject`만 허용한다. EC2 Role은 이 정책과 별개로, **동일 계정이라 버킷 정책 수정 없이 IAM Role의 identity-based policy만으로 `upload/*`에 대한 `s3:PutObject`를 허용**할 수 있었다 (계정이 다를 때만 버킷 정책 쪽에도 별도 허용이 필요함).
 - presigned PUT은 서명된 요청이라 Block Public Access, CORS 미설정 여부와 무관하게 동작하지만, 브라우저에서 직접 PUT하려면 별도로 버킷 CORS에 `PUT` 메서드와 프론트 origin(`https://dbidding.shop`, 로컬 개발 origin)을 허용해야 한다 — 이 프로젝트의 API 자체도 이미 `WebConfig`에서 `http://localhost:*`를 허용하고 있어, 로컬 개발 origin을 CORS에 추가하는 것도 그보다 좁은 범위라 별도 위험이 없다고 판단했다.
 
+## 4-1. EC2 IAM Role/정책 실제 구성
+
+백엔드가 배포되는 EC2 인스턴스가 presigned URL을 발급할 때 쓸 자격 증명 경로를 실제로 만들었다.
+
+- **Role**: `2gether-ec2-s3-uploader` — 신뢰 주체(trust policy)는 `ec2.amazonaws.com` (EC2 서비스만 이 Role을 assume 가능).
+- **연결 방식**: 이 Role을 인스턴스 프로파일로 만들어 백엔드 EC2 인스턴스에 직접 연결 (콘솔 → EC2 → 인스턴스 → 보안 → IAM 역할 수정).
+- **첨부한 정책**: `dbidding-upload-put-policy` (최소 권한, `upload/*`로 한정):
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": ["s3:PutObject"],
+        "Resource": "arn:aws:s3:::2gether-cloudfront-bucket-869652444193-ap-northeast-2-an/upload/*"
+      }
+    ]
+  }
+  ```
+- `s3:ListBucket`, `s3:GetObject`, `s3:DeleteObject`는 의도적으로 부여하지 않았다 — presigned URL 발급 API는 PutObject만 필요하고, 나머지 권한을 열어주는 건 불필요하게 공격 표면을 넓히는 것이라 판단했다 (실제로 검증 중 `ListObjectsV2` 호출이 `AccessDenied`로 막힌 것도 이 설계가 의도대로 동작한 것).
+- 버킷 정책(`PolicyForCloudFrontPrivateContent`)은 건드리지 않았다 — EC2와 버킷이 같은 AWS 계정이라, Role의 identity-based policy만으로 충분했다 ([4](#4-aws-자격-증명--버킷-구성) 참고).
+
 ## 5. 코드 관련 Q&A
 
 - **`@Configuration`과 `@EnableConfigurationProperties`는 서로 의존하는 어노테이션인가?** 아니다. `@Configuration`은 `@Bean` 메서드를 정의하기 위한 것이고, `@EnableConfigurationProperties`는 `@ConfigurationProperties` 클래스(`S3UploadProperties`)를 빈으로 등록하기 위한 것으로 서로 독립적이다. 같은 클래스(`S3Config`)에 같이 붙인 건 편의상일 뿐, 어디에 붙여도 무방하다.
