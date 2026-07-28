@@ -13,6 +13,24 @@
 - Access와 Refresh의 `type` claim을 반드시 검증한다.
 - Refresh 원문은 로그와 응답 JSON에 남기지 않는다.
 
+## 테스트와 운영 비밀키
+
+- 테스트는 `backend/src/test/resources/application.yml`의 공개 가능한 테스트 전용
+  비밀키를 사용한다. 이 값은 운영에 사용하지 않는다.
+- 운영 `JWT_SECRET`은 `openssl rand -hex 32`처럼 암호학적으로 안전한 난수로
+  생성하고 EC2의 `.env` 등 저장소 밖에 보관한다.
+- 배포할 때마다 비밀키를 새로 만들지 않는다. 값을 바꾸면 기존 Access/Refresh
+  Token이 모두 무효화된다.
+- GitHub Actions의 Docker 이미지 빌드에는 `JWT_SECRET`을 전달하지 않는다.
+  EC2의 Compose가 backend 컨테이너 실행 시 환경변수로 주입한다.
+- 운영 Compose의 backend 서비스에는 최소 다음 설정이 필요하다.
+
+```yaml
+environment:
+  JWT_SECRET: ${JWT_SECRET}
+  JWT_SECURE_COOKIE: "true"
+```
+
 ---
 
 ### Task 1: JJWT와 인증 설정
