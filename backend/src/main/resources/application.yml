@@ -24,3 +24,10 @@ springdoc:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
+
+cloud:
+  aws:
+    region: ${AWS_REGION:ap-northeast-2}
+    s3:
+      bucket: ${AUCTION_IMAGE_BUCKET:}
+      presign-duration-seconds: ${AUCTION_IMAGE_PRESIGN_DURATION_SECONDS:300}
