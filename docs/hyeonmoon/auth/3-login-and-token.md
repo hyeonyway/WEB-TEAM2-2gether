@@ -210,7 +210,7 @@ MySQL `INSERT ... ON DUPLICATE KEY UPDATE` 한 문장으로 첫 로그인은 새
 - Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
 - Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerLoginTest.java`
 
-- [ ] **Step 1: 쿠키 속성 테스트**
+- [x] **Step 1: 쿠키 속성 테스트**
 
 ```java
 assertThat(cookie.isHttpOnly()).isTrue();
@@ -219,8 +219,12 @@ assertThat(cookie.getSameSite()).isEqualTo("Strict");
 ```
 
 운영에서는 `Secure=true`, 로컬에서는 설정값에 따라 `false`를 허용한다.
+`Domain`은 지정하지 않아 응답을 발급한 host에서만 사용하는 host-only 쿠키로
+만든다. `dbidding.shop/api` reverse proxy와 `api.dbidding.shop` 직접 호출
+모두 이 설정을 유지하며, 직접 호출을 사용하는 프론트 요청은
+`credentials: "include"`를 별도 프론트 연동 작업에서 적용한다.
 
-- [ ] **Step 2: 로그인 응답 테스트**
+- [x] **Step 2: 로그인 응답 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/login")
@@ -231,7 +235,7 @@ mockMvc.perform(post("/api/auth/login")
     .andExpect(cookie().httpOnly("refreshToken", true));
 ```
 
-- [ ] **Step 3: 전체 테스트 및 커밋**
+- [x] **Step 3: 전체 테스트 및 커밋**
 
 ```bash
 JWT_SECRET='local-development-secret-at-least-32-bytes' ./gradlew clean test

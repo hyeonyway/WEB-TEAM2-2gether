@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.dbidding.auth.cookie.RefreshCookieFactory;
 import com.dbidding.auth.dto.SignupRequest;
 import com.dbidding.auth.dto.SignupResponse;
 import com.dbidding.auth.exception.DuplicateEmailException;
@@ -29,6 +30,9 @@ class AuthControllerSignupTest {
 
 	@MockitoBean
 	private AuthService authService;
+
+	@MockitoBean
+	private RefreshCookieFactory refreshCookieFactory;
 
 	@Test
 	void 회원가입하면_201과_공개된_사용자_정보만_반환한다() throws Exception {
