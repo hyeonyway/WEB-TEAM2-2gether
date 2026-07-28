@@ -1090,10 +1090,9 @@ PSA 등급과 Population은 인증 응답으로만 입력하며 경매 등록 �
 HomePage
 → homeQueries.overview()
 → fetchHomeOverview()
-→ `VITE_USE_MOCK_API=true`: `mockup-data.json.home`
-→ `VITE_USE_MOCK_API=false`: 실제 홈 API
-→ 환경변수가 없을 때만 `localStorage.USE_MOCK_API === "true"`를 목 모드로 사용
-→ `localStorage.USE_MOCK_API === "false"`: `GET /api/home`
+→ `localStorage.USE_MOCK_API === "true"`: `mockup-data.json.home`
+→ `localStorage.USE_MOCK_API !== "true"`: 실제 홈 API
+→ 실제 API 모드: `GET /api/home`
 ```
 
 홈 컴포넌트는 인사이트 수치·문구·정렬 값, 시장 요약, 차트, Top 5 데이터를 직접 하드코딩하지 않는다.
