@@ -1,10 +1,7 @@
 package com.dbidding.card.service;
 
 import com.dbidding.card.repository.CardMetadataRepository;
-import com.dbidding.card.domain.ItemStatistic;
 import com.dbidding.card.repository.ItemStatisticRepository;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,20 +14,19 @@ public class ItemStatisticCommandService {
 
     public ItemStatisticCommandService(
             CardMetadataRepository cardRepository,
-            ItemStatisticRepository statisticRepository
-    ) {
+            ItemStatisticRepository statisticRepository) {
         this.cardRepository = cardRepository;
         this.statisticRepository = statisticRepository;
     }
 
     public void recordBid(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
-        statisticRepository.incrementBidCount(itemId, date);
+        // 입찰량은 종료된 날짜의 일간 배치에서 실제 bids 행을 집계한다.
     }
 
     public void recordAuctionOpened(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
-        statisticRepository.refreshActiveAuctionCount(itemId, date);
+        statisticRepository.refreshActiveAuctionCount(itemId);
     }
 
     public void recordAuctionCompleted(Integer itemId, long winningPrice, LocalDateTime date) {
@@ -38,46 +34,12 @@ public class ItemStatisticCommandService {
         if (winningPrice <= 0) {
             throw new IllegalArgumentException("낙찰가는 0보다 커야 합니다.");
         }
-        statisticRepository.recordCompletedAuction(itemId, date, winningPrice);
-        statisticRepository.refreshActiveAuctionCount(itemId, date);
-        updateChangeRates(itemId, date);
+        statisticRepository.refreshActiveAuctionCount(itemId);
     }
 
     public void recordAuctionClosedWithoutTrade(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
-        statisticRepository.refreshActiveAuctionCount(itemId, date);
-    }
-
-    private void updateChangeRates(Integer itemId, LocalDateTime date) {
-        ItemStatistic current = statisticRepository.findByItemIdAndStatisticsDate(itemId, date)
-                .orElseThrow(() -> new IllegalStateException("생성된 통계 행을 찾을 수 없습니다."));
-        current.updateChangeRates(
-                changeRate(current, previous(itemId, date.minusDays(1))),
-                changeRate(current, previous(itemId, date.minusDays(7))),
-                changeRate(current, previous(itemId, date.minusDays(30)))
-        );
-    }
-
-    private ItemStatistic previous(Integer itemId, LocalDateTime date) {
-        return statisticRepository
-                .findFirstByItemIdAndStatisticsDateLessThanEqualOrderByStatisticsDateDesc(itemId, date)
-                .orElse(null);
-    }
-
-    private BigDecimal changeRate(ItemStatistic current, ItemStatistic previous) {
-        if (previous == null || price(previous) <= 0) {
-            return BigDecimal.ZERO.setScale(2);
-        }
-        return BigDecimal.valueOf(price(current) - price(previous))
-                .multiply(BigDecimal.valueOf(100))
-                .divide(BigDecimal.valueOf(price(previous)), 2, RoundingMode.HALF_UP);
-    }
-
-    private long price(ItemStatistic statistic) {
-        if (statistic.getLatestPrice() != null) {
-            return statistic.getLatestPrice();
-        }
-        return statistic.getAvgPrice() == null ? 0 : statistic.getAvgPrice();
+        statisticRepository.refreshActiveAuctionCount(itemId);
     }
 
     private void validateItem(Integer itemId) {
