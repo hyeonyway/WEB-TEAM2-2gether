@@ -23,7 +23,7 @@
 - Modify: `backend/src/main/java/com/dbidding/DbiddingApplication.java`
 - Create: `backend/src/main/java/com/dbidding/auth/JwtProperties.java`
 
-- [ ] **Step 1: JJWT 의존성 추가**
+- [x] **Step 1: JJWT 의존성 추가**
 
 ```gradle
 implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
@@ -31,7 +31,7 @@ runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
 runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
 ```
 
-- [ ] **Step 2: 환경변수 기반 설정 추가**
+- [x] **Step 2: 환경변수 기반 설정 추가**
 
 ```yaml
 app:
@@ -44,7 +44,7 @@ app:
 
 JWT secret이 없으면 운영뿐 아니라 로컬에서도 애플리케이션 시작을 실패시켜 하드코딩된 기본 키 사용을 막는다. HS256 비밀키는 최소 32바이트다.
 
-- [ ] **Step 3: 설정 바인딩 등록**
+- [x] **Step 3: 설정 바인딩 등록**
 
 ```java
 @ConfigurationProperties(prefix = "app.jwt")
@@ -58,7 +58,7 @@ public record JwtProperties(
 
 `DbiddingApplication`에 `@ConfigurationPropertiesScan`을 추가한다.
 
-- [ ] **Step 4: 설정 바인딩 테스트**
+- [x] **Step 4: 설정 바인딩 테스트**
 
 ```bash
 JWT_SECRET='local-development-secret-at-least-32-bytes' ./gradlew test
