@@ -33,17 +33,50 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
     @Modifying
     @Query(value = """
             insert into market_daily_statistics (
-                statistics_date, average_price, lowest_price, highest_price,
-                bid_count, ended_auction_count
+                statistics_date, average_price, lowest_price, highest_price, winning_price_total_30d,
+                average_price_30d, highest_price_30d, bid_count_30d,
+                ended_auction_count_30d, bid_count, ended_auction_count
             )
-            select :date, round(avg(a.current_price)), min(a.current_price), max(a.current_price),
-                   sum((select count(*) from bids b where b.auction_id = a.id)), count(*)
-            from auctions a
-            where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to
-            having count(*) > 0
+            select :date,
+                   (select round(avg(a.current_price)) from auctions a
+                    where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to),
+                   (select min(a.current_price) from auctions a
+                    where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to),
+                   (select max(a.current_price) from auctions a
+                    where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to),
+                   (select coalesce(sum(a.current_price), 0) from auctions a
+                    where a.status = 'ENDED'
+                      and a.close_time >= date_sub(:from, interval 29 day)
+                      and a.close_time < :to),
+                   (select coalesce(round(avg(a.current_price)), 0) from auctions a
+                    where a.status = 'ENDED'
+                      and a.close_time >= date_sub(:from, interval 29 day)
+                      and a.close_time < :to),
+                   (select coalesce(max(a.current_price), 0) from auctions a
+                    where a.status = 'ENDED'
+                      and a.close_time >= date_sub(:from, interval 29 day)
+                      and a.close_time < :to),
+                   (select count(*) from bids b join auctions a on a.id = b.auction_id
+                    where a.status = 'ENDED'
+                      and a.close_time >= date_sub(:from, interval 29 day)
+                      and a.close_time < :to),
+                   (select count(*) from auctions a
+                    where a.status = 'ENDED'
+                      and a.close_time >= date_sub(:from, interval 29 day)
+                      and a.close_time < :to),
+                   (select count(*) from bids b join auctions a on a.id = b.auction_id
+                    where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to),
+                   (select count(*) from auctions a
+                    where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to)
             on duplicate key update
                 average_price = values(average_price), lowest_price = values(lowest_price),
-                highest_price = values(highest_price), bid_count = values(bid_count),
+                highest_price = values(highest_price),
+                winning_price_total_30d = values(winning_price_total_30d),
+                average_price_30d = values(average_price_30d),
+                highest_price_30d = values(highest_price_30d),
+                bid_count_30d = values(bid_count_30d),
+                ended_auction_count_30d = values(ended_auction_count_30d),
+                bid_count = values(bid_count),
                 ended_auction_count = values(ended_auction_count)
             """, nativeQuery = true)
     void aggregateMarket(@Param("date") LocalDate date,

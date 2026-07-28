@@ -34,9 +34,6 @@ const mockRankingHistory=(price:number,changeRate:number,cardId:number)=>{
   });
 };
 
-const changeRate=(current:number,previous:number)=>
-  previous<=0?0:Number(((current-previous)/previous*100).toFixed(2));
-
 const mockMarket=(days:number):HomeMarketDto=>{
   const seoulParts=new Intl.DateTimeFormat('en-CA',{
     timeZone:'Asia/Seoul',
@@ -59,16 +56,21 @@ const mockMarket=(days:number):HomeMarketDto=>{
       )),
     };
   });
-  const current=marketHistory.at(-1)?.averagePrice??0;
-  const dailyBase=marketHistory.at(-2)?.averagePrice??prices[0];
-  const weeklyBase=marketHistory.at(-8)?.averagePrice??prices[0];
+  const monthlyWinningPriceTotal=marketHistory.reduce(
+    (sum,point)=>sum+(point.averagePrice*Math.max(1,Math.round(point.bidCount/4))),
+    0,
+  );
+  const monthlyEndedAuctionCount=marketHistory.reduce(
+    (sum,point)=>sum+Math.max(1,Math.round(point.bidCount/4)),
+    0,
+  );
+  const monthlyBidCount=marketHistory.reduce((sum,point)=>sum+point.bidCount,0);
   return {
     marketSummary:{
-      currentPriceAverage:current,
-      dailyChangeRate:changeRate(current,dailyBase),
-      weeklyChangeRate:changeRate(current,weeklyBase),
-      monthlyChangeRate:changeRate(current,prices[0]),
-      monthlyBidCount:marketHistory.reduce((sum,point)=>sum+point.bidCount,0),
+      monthlyWinningPriceTotal,
+      monthlyEndedAuctionCount,
+      monthlyBidCount,
+      monthlyHighestPrice:Math.max(...marketHistory.map(point=>point.averagePrice)),
     },
     marketHistory,
   };

@@ -61,12 +61,12 @@ class HomeServiceTest {
     void 오늘을_제외한_종료_경매를_30일간_집계하고_무거래일에는_가격을_이월한다() {
         LocalDate from = LocalDate.of(2026, 6, 28);
         LocalDate to = LocalDate.of(2026, 7, 28);
-        var dayBefore = daily(LocalDate.of(2026, 7, 26), 90_000L, 2);
-        var yesterday = daily(LocalDate.of(2026, 7, 27), 100_000L, 3);
+        var dayBefore = daily(LocalDate.of(2026, 7, 26), 90_000L, 2, 180_000L);
+        var yesterday = daily(LocalDate.of(2026, 7, 27), 100_000L, 3, 480_000L);
         given(marketStatisticRepository
                 .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(from, to))
                 .willReturn(List.of(dayBefore, yesterday));
-        var previous = daily(LocalDate.of(2026, 6, 27), 80_000L, 1);
+        var previous = daily(LocalDate.of(2026, 6, 27), 80_000L, 1, 80_000L);
         given(marketStatisticRepository
                 .findFirstByStatisticsDateLessThanOrderByStatisticsDateDesc(from))
                 .willReturn(java.util.Optional.of(previous));
@@ -81,10 +81,10 @@ class HomeServiceTest {
         assertThat(market.marketHistory().get(28).averagePrice()).isEqualTo(90_000L);
         assertThat(market.marketHistory().getLast().averagePrice()).isEqualTo(100_000L);
         assertThat(market.marketHistory().getLast().date()).isEqualTo("07/27");
+        assertThat(market.marketSummary().monthlyWinningPriceTotal()).isEqualTo(480_000L);
         assertThat(market.marketSummary().monthlyBidCount()).isEqualTo(5L);
-        assertThat(market.marketSummary().dailyChangeRate()).isEqualByComparingTo("11.11");
-        assertThat(market.marketSummary().weeklyChangeRate()).isEqualByComparingTo("25.00");
-        assertThat(market.marketSummary().monthlyChangeRate()).isEqualByComparingTo("25.00");
+        assertThat(market.marketSummary().monthlyEndedAuctionCount()).isEqualTo(5L);
+        assertThat(market.marketSummary().monthlyHighestPrice()).isEqualTo(100_000L);
     }
 
     @Test
@@ -101,11 +101,16 @@ class HomeServiceTest {
         assertThat(result.topGainers()).isEmpty();
     }
 
-    private MarketDailyStatistic daily(LocalDate date, Long price, Integer bids) {
+    private MarketDailyStatistic daily(
+            LocalDate date, Long price, Integer bids, Long winningPriceTotal) {
         var daily = mock(MarketDailyStatistic.class);
         given(daily.getStatisticsDate()).willReturn(date);
         given(daily.getAveragePrice()).willReturn(price);
         given(daily.getBidCount()).willReturn(bids);
+        given(daily.getWinningPriceTotal30d()).willReturn(winningPriceTotal);
+        given(daily.getBidCount30d()).willReturn(5);
+        given(daily.getEndedAuctionCount30d()).willReturn(5);
+        given(daily.getHighestPrice30d()).willReturn(price);
         return daily;
     }
 }

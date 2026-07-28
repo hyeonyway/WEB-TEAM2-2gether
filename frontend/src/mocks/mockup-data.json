@@ -26,11 +26,10 @@
       {"id":"ACTIVE","title":"프리미엄 경매","value":3,"changeRate":null,"note":"현재 경매가가 높은 카드부터 확인하세요.","sort":"PRICE_HIGH"}
     ],
     "marketSummary": {
-      "currentPriceAverage": 248875,
-      "dailyChangeRate": 3.7,
-      "weeklyChangeRate": 12.1,
-      "monthlyChangeRate": 30.2,
-      "monthlyBidCount": 942
+      "monthlyWinningPriceTotal": 7466250,
+      "monthlyEndedAuctionCount": 241,
+      "monthlyBidCount": 942,
+      "monthlyHighestPrice": 248875
     },
     "marketHistory": [
       {"date":"06/19","averagePrice":151000,"bidCount":112},

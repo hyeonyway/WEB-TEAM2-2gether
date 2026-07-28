@@ -481,24 +481,57 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO `market_daily_statistics`
   (`statistics_date`, `average_price`, `lowest_price`, `highest_price`,
+   `winning_price_total_30d`,
+   `highest_price_30d`, `bid_count_30d`,
+   `ended_auction_count_30d`,
    `bid_count`, `ended_auction_count`)
 SELECT
-  DATE(`auction`.`close_time`),
-  ROUND(AVG(`auction`.`current_price`)),
-  MIN(`auction`.`current_price`),
-  MAX(`auction`.`current_price`),
-  SUM((SELECT COUNT(*) FROM `bids` AS `daily_bid`
-       WHERE `daily_bid`.`auction_id` = `auction`.`id`)),
-  COUNT(*)
-FROM `auctions` AS `auction`
-WHERE `auction`.`id` BETWEEN 1000100 AND 1080431
-  AND `auction`.`status` = 'ENDED'
-  AND `auction`.`close_time` < CURDATE()
-GROUP BY DATE(`auction`.`close_time`)
+  `daily`.`statistics_date`,
+  `daily`.`average_price`,
+  `daily`.`lowest_price`,
+  `daily`.`highest_price`,
+  SUM(`daily`.`daily_winning_price_total`) OVER (
+    ORDER BY `daily`.`statistics_date`
+    ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+  ),
+  MAX(`daily`.`highest_price`) OVER (
+    ORDER BY `daily`.`statistics_date`
+    ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+  ),
+  SUM(`daily`.`bid_count`) OVER (
+    ORDER BY `daily`.`statistics_date`
+    ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+  ),
+  SUM(`daily`.`ended_auction_count`) OVER (
+    ORDER BY `daily`.`statistics_date`
+    ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+  ),
+  `daily`.`bid_count`,
+  `daily`.`ended_auction_count`
+FROM (
+  SELECT
+    DATE(`auction`.`close_time`) AS `statistics_date`,
+    ROUND(AVG(`auction`.`current_price`)) AS `average_price`,
+    MIN(`auction`.`current_price`) AS `lowest_price`,
+    MAX(`auction`.`current_price`) AS `highest_price`,
+    SUM(`auction`.`current_price`) AS `daily_winning_price_total`,
+    SUM((SELECT COUNT(*) FROM `bids` AS `daily_bid`
+         WHERE `daily_bid`.`auction_id` = `auction`.`id`)) AS `bid_count`,
+    COUNT(*) AS `ended_auction_count`
+  FROM `auctions` AS `auction`
+  WHERE `auction`.`id` BETWEEN 1000100 AND 1080431
+    AND `auction`.`status` = 'ENDED'
+    AND `auction`.`close_time` < CURDATE()
+  GROUP BY DATE(`auction`.`close_time`)
+) AS `daily`
 ON DUPLICATE KEY UPDATE
   `average_price` = VALUES(`average_price`),
   `lowest_price` = VALUES(`lowest_price`),
   `highest_price` = VALUES(`highest_price`),
+  `winning_price_total_30d` = VALUES(`winning_price_total_30d`),
+  `highest_price_30d` = VALUES(`highest_price_30d`),
+  `bid_count_30d` = VALUES(`bid_count_30d`),
+  `ended_auction_count_30d` = VALUES(`ended_auction_count_30d`),
   `bid_count` = VALUES(`bid_count`),
   `ended_auction_count` = VALUES(`ended_auction_count`);
 

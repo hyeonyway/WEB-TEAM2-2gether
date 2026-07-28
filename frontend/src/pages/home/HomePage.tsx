@@ -1,18 +1,80 @@
 import {useQuery} from '@tanstack/react-query';
 import {CalendarDays,Diamond,Flame,Info,TrendingUp} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {Area,Bar,CartesianGrid,ComposedChart,Legend,Line,XAxis,YAxis} from 'recharts';
 import {Header} from '../../components';
 import {ChartContainer,ChartTooltip,ChartTooltipContent} from '../../components/ui/chart';
 import type {HomeInsightDto,HomeMarketPointDto,HomeRankingDto} from '../../dto/homeDto';
 import {homeQueries} from '../../queries/homeQueries';
 
+function AnimatedNumber({value,suffix}:{value:number;suffix:'원'|'건'}){
+  const[displayValue,setDisplayValue]=useState(0);
+
+  useEffect(()=>{
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      setDisplayValue(value);
+      return;
+    }
+
+    let animationFrame=0;
+    const duration=1100;
+    const startedAt=performance.now();
+    const animate=(now:number)=>{
+      const progress=Math.min((now-startedAt)/duration,1);
+      const eased=1-Math.pow(1-progress,3);
+      setDisplayValue(Math.round(value*eased));
+      if(progress<1)animationFrame=requestAnimationFrame(animate);
+    };
+    animationFrame=requestAnimationFrame(animate);
+    return()=>cancelAnimationFrame(animationFrame);
+  },[value]);
+
+  return <>{displayValue.toLocaleString()}<small>{suffix}</small></>;
+}
+
+function InsightsSkeleton(){
+  return <section className="insights home-skeleton" aria-label="경매 인사이트를 불러오는 중" aria-busy="true">
+    {Array.from({length:3},(_,index)=><article className="insight home-insight-skeleton" key={index}>
+      <div className="home-skeleton-heading"><i className="skeleton-pulse"/><span className="skeleton-pulse"/></div>
+      <b className="skeleton-pulse"/>
+      <small className="skeleton-pulse"/>
+    </article>)}
+  </section>;
+}
+
+function MarketSkeleton(){
+  return <div className="market-panel home-market-skeleton home-skeleton" aria-label="경매 통계를 불러오는 중" aria-busy="true">
+    <div className="home-market-skeleton-metrics">
+      {Array.from({length:4},(_,index)=><div key={index}>
+        <i className="skeleton-pulse"/>
+        <b className="skeleton-pulse"/>
+      </div>)}
+    </div>
+    <div className="home-chart-skeleton">
+      <i className="home-chart-grid-line"/><i className="home-chart-grid-line"/><i className="home-chart-grid-line"/>
+      <div>{Array.from({length:18},(_,index)=><span className="skeleton-pulse" style={{height:`${22+(index*17)%58}%`}} key={index}/>)}</div>
+    </div>
+  </div>;
+}
+
+function RankingSkeleton(){
+  return <aside className="home-skeleton"><h2>전일 상승 Top 5</h2>
+    <div className="ranking home-ranking-skeleton" aria-label="상승 순위를 불러오는 중" aria-busy="true">
+      {Array.from({length:5},(_,index)=><div className="home-rank-skeleton" key={index}>
+        <i className="skeleton-pulse"/><span className="skeleton-pulse"/>
+        <div><b className="skeleton-pulse"/><small className="skeleton-pulse"/></div>
+        <em className="skeleton-pulse"/>
+      </div>)}
+    </div>
+  </aside>;
+}
+
 function Insight({insight}:{insight:HomeInsightDto}){
   const Icon=insight.id==='RISING'?Flame:insight.id==='NEW_BIDS'?TrendingUp:Diamond;
   const openAuctions=()=>{window.location.href=`/auction?sort=${insight.sort}`};
   return <article className={`insight ${insight.id==='NEW_BIDS'?'rise':insight.id==='ACTIVE'?'volume':'fire'} insight-action`} role="link" tabIndex={0} onClick={openAuctions} onKeyDown={event=>(event.key==='Enter'||event.key===' ')&&openAuctions()}>
     <div className="insight-title"><span><Icon/></span><b>{insight.title}</b></div>
-    <div className="insight-value"><strong>{insight.value}<small>건</small></strong>{insight.changeRate!==null&&<em>+{insight.changeRate.toFixed(1)}%</em>}</div>
+    <div className="insight-value"><strong><AnimatedNumber value={insight.value} suffix="건"/></strong>{insight.changeRate!==null&&<em>+{insight.changeRate.toFixed(1)}%</em>}</div>
     <p>{insight.note}</p>
   </article>;
 }
@@ -145,23 +207,22 @@ export default function HomePage(){
   return <><Header/><main>
     <div className="home-overview-row"><div><p className="intro">현재 진행 중인 카드 경매의 실시간 입찰 현황입니다.</p><div className="date"><CalendarDays/> 실시간 경매 기준</div></div></div>
     <div className="section-title-row"><h2 className="section-title">경매 인사이트</h2></div>
-    {insightsQuery.isPending?<p className="catalog-count">경매 인사이트를 불러오는 중…</p>
+    {insightsQuery.isPending?<InsightsSkeleton/>
       :insightsQuery.error||!insightsQuery.data?<p className="form-error">경매 인사이트를 불러오지 못했습니다.</p>
         :<section className="insights">{insightsQuery.data.map(insight=><Insight key={insight.id} insight={insight}/>)}</section>}
     <section className="dashboard"><div className="market"><h2>30일 경매가 · 입찰량</h2>
-      {marketQuery.isPending?<p className="catalog-count">경매 통계를 불러오는 중…</p>
+      {marketQuery.isPending?<MarketSkeleton/>
         :marketQuery.error||!marketQuery.data?<p className="form-error">경매 통계를 불러오지 못했습니다.</p>
           :<div className="market-panel">
         <div className="metrics">
-          <div><span>전일 경매가 평균 <Info/></span><strong>{marketQuery.data.marketSummary.currentPriceAverage.toLocaleString()}원</strong></div>
-          <div><span>1일 상승</span><b>{marketQuery.data.marketSummary.dailyChangeRate>0?'+':''}{marketQuery.data.marketSummary.dailyChangeRate.toFixed(1)}%</b></div>
-          <div><span>7일 상승</span><b>{marketQuery.data.marketSummary.weeklyChangeRate>0?'+':''}{marketQuery.data.marketSummary.weeklyChangeRate.toFixed(1)}%</b></div>
-          <div><span>30일 상승</span><b>{marketQuery.data.marketSummary.monthlyChangeRate>0?'+':''}{marketQuery.data.marketSummary.monthlyChangeRate.toFixed(1)}%</b></div>
-          <div><span>30일 총 입찰</span><strong>{marketQuery.data.marketSummary.monthlyBidCount.toLocaleString()}건</strong></div>
+          <div><span>30일 낙찰가 총합 <Info/></span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyWinningPriceTotal} suffix="원"/></strong></div>
+          <div><span>30일 낙찰 카드</span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyEndedAuctionCount} suffix="건"/></strong></div>
+          <div><span>30일 총 입찰</span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyBidCount} suffix="건"/></strong></div>
+          <div><span>30일 최고 낙찰가</span><strong><AnimatedNumber value={marketQuery.data.marketSummary.monthlyHighestPrice} suffix="원"/></strong></div>
         </div>
         <Chart history={marketQuery.data.marketHistory}/>
       </div>}</div>
-      {topGainersQuery.isPending?<aside><h2>전일 상승 Top 5</h2><p className="catalog-count">순위를 불러오는 중…</p></aside>
+      {topGainersQuery.isPending?<RankingSkeleton/>
         :topGainersQuery.error||!topGainersQuery.data?<aside><h2>전일 상승 Top 5</h2><p className="form-error">순위를 불러오지 못했습니다.</p></aside>
           :<Ranking title={topGainersQuery.data.topGainersTitle} items={topGainersQuery.data.topGainers}/>}
     </section>

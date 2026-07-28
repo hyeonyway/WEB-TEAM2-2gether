@@ -29,11 +29,10 @@ export type HomeRankingDto={
 
 export type HomeMarketDto={
   marketSummary:{
-    currentPriceAverage:number;
-    dailyChangeRate:number;
-    weeklyChangeRate:number;
-    monthlyChangeRate:number;
+    monthlyWinningPriceTotal:number;
+    monthlyEndedAuctionCount:number;
     monthlyBidCount:number;
+    monthlyHighestPrice:number;
   };
   marketHistory:HomeMarketPointDto[];
 };

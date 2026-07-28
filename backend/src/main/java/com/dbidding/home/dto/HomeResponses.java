@@ -24,11 +24,10 @@ public final class HomeResponses {
     }
 
     public record MarketSummary(
-            long currentPriceAverage,
-            BigDecimal dailyChangeRate,
-            BigDecimal weeklyChangeRate,
-            BigDecimal monthlyChangeRate,
-            long monthlyBidCount
+            long monthlyWinningPriceTotal,
+            long monthlyEndedAuctionCount,
+            long monthlyBidCount,
+            long monthlyHighestPrice
     ) {
     }
 

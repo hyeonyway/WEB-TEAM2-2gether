@@ -639,11 +639,10 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
 ```json
 {
   "marketSummary": {
-    "currentPriceAverage": 248875,
-    "dailyChangeRate": 3.7,
-    "weeklyChangeRate": 12.1,
-    "monthlyChangeRate": 30.2,
-    "monthlyBidCount": 942
+    "monthlyWinningPriceTotal": 7466250,
+    "monthlyEndedAuctionCount": 241,
+    "monthlyBidCount": 942,
+    "monthlyHighestPrice": 248875
   },
   "marketHistory": [
     {
@@ -1091,7 +1090,9 @@ PSA 등급과 Population은 인증 응답으로만 입력하며 경매 등록 �
 HomePage
 → homeQueries.overview()
 → fetchHomeOverview()
-→ 키가 없거나 `localStorage.USE_MOCK_API !== "false"`: `mockup-data.json.home`
+→ `VITE_USE_MOCK_API=true`: `mockup-data.json.home`
+→ `VITE_USE_MOCK_API=false`: 실제 홈 API
+→ 환경변수가 없을 때만 `localStorage.USE_MOCK_API === "true"`를 목 모드로 사용
 → `localStorage.USE_MOCK_API === "false"`: `GET /api/home`
 ```
 

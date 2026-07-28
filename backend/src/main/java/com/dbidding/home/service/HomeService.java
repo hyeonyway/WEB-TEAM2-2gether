@@ -73,7 +73,15 @@ public class HomeService {
                 .filter(java.util.Objects::nonNull)
                 .orElse(0L);
         long carriedPrice = previousPrice;
-        long monthlyBidCount = 0;
+        MarketDailyStatistic yesterdaySummary = aggregates.get(today.minusDays(1));
+        long monthlyWinningPriceTotal = yesterdaySummary == null
+                ? 0 : value(yesterdaySummary.getWinningPriceTotal30d());
+        long monthlyEndedAuctionCount = yesterdaySummary == null
+                ? 0 : value(yesterdaySummary.getEndedAuctionCount30d());
+        long monthlyBidCount = yesterdaySummary == null
+                ? 0 : value(yesterdaySummary.getBidCount30d());
+        long monthlyHighestPrice = yesterdaySummary == null
+                ? 0 : value(yesterdaySummary.getHighestPrice30d());
         List<HomeResponses.MarketPoint> history = new ArrayList<>(days);
 
         for (int index = 0; index < days; index++) {
@@ -83,25 +91,16 @@ public class HomeService {
             if (daily != null && daily.getAveragePrice() != null) {
                 carriedPrice = daily.getAveragePrice();
             }
-            monthlyBidCount += bids;
             history.add(new HomeResponses.MarketPoint(
                     date.format(MONTH_DAY), carriedPrice, bids));
         }
 
-        long current = history.getLast().averagePrice();
-        long dailyBase = history.size() > 1
-                ? history.get(history.size() - 2).averagePrice()
-                : previousPrice;
-        long weeklyBase = history.size() > 7
-                ? history.get(history.size() - 8).averagePrice()
-                : previousPrice;
         return new HomeResponses.Market(
                 new HomeResponses.MarketSummary(
-                        current,
-                        changeRate(current, dailyBase),
-                        changeRate(current, weeklyBase),
-                        changeRate(current, previousPrice),
-                        monthlyBidCount
+                        monthlyWinningPriceTotal,
+                        monthlyEndedAuctionCount,
+                        monthlyBidCount,
+                        monthlyHighestPrice
                 ),
                 history
         );
