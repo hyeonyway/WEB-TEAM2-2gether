@@ -28,7 +28,7 @@ class UploadControllerTest {
         given(uploadService.createPresignedUrls(org.mockito.ArgumentMatchers.any())).willReturn(
                 new ImageUploadResponses.PresignedUrlResponse(
                         List.of(new ImageUploadResponses.PresignedUpload(
-                                "https://example.com/signed", "uploads/2026/07/28/uuid.jpg", 300))
+                                "https://example.com/signed", "upload/2026/07/28/uuid.jpg", 300))
                 )
         );
 
@@ -38,7 +38,7 @@ class UploadControllerTest {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.uploads.length()").value(1))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.uploads[0].upload_url").value("https://example.com/signed"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.uploads[0].upload_token").value("uploads/2026/07/28/uuid.jpg"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.uploads[0].upload_token").value("upload/2026/07/28/uuid.jpg"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.uploads[0].expires_in_seconds").value(300));
     }
 

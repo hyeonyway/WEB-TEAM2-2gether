@@ -41,7 +41,7 @@ class UploadServiceTest {
         response.uploads().forEach(upload -> {
             assertThat(upload.uploadUrl()).isEqualTo("https://example.com/signed");
             assertThat(upload.expiresInSeconds()).isEqualTo(300);
-            assertThat(upload.uploadToken()).startsWith("uploads/");
+            assertThat(upload.uploadToken()).startsWith("upload/");
         });
         assertThat(response.uploads().get(0).uploadToken()).endsWith(".jpg");
         assertThat(response.uploads().get(1).uploadToken()).endsWith(".png");

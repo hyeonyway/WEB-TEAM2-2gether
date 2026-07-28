@@ -49,6 +49,6 @@ public class UploadService {
 
     private String generateKey(String extension) {
         String datePath = LocalDate.now().format(DATE_PATH_FORMATTER);
-        return "uploads/%s/%s.%s".formatted(datePath, UUID.randomUUID(), extension);
+        return "upload/%s/%s.%s".formatted(datePath, UUID.randomUUID(), extension);
     }
 }
