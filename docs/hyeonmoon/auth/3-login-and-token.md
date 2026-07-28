@@ -170,14 +170,15 @@ void refresh_token은_64자_sha256_hex로_변환한다() {
 - Consumes: `PasswordHasher.matches`
 - Produces: `LoginResult AuthService.login(LoginRequest request)`
 
-- [ ] **Step 1: 존재하지 않는 이메일, 오답 비밀번호, 비활성 계정 테스트**
+- [x] **Step 1: 존재하지 않는 이메일, 오답 비밀번호, 비활성 계정 테스트**
 
 존재하지 않는 이메일, 오답 비밀번호, `SUSPENDED`, `WITHDRAWN` 상태는 모두
 동일한 `InvalidCredentialsException`으로 처리해 계정 존재 여부와 상태를
 노출하지 않는다. 비밀번호가 맞더라도 상태가 `ACTIVE`가 아니면 토큰을
-발급하거나 Authentication을 변경하지 않는다.
+발급하거나 Authentication을 변경하지 않는다. 존재하지 않는 이메일도 고정된
+테스트용 salt와 hash로 PBKDF2 검증을 한 번 수행해 응답 시간 차이를 줄인다.
 
-- [ ] **Step 2: 로그인 성공 테스트**
+- [x] **Step 2: 로그인 성공 테스트**
 
 ```java
 @Test
@@ -189,15 +190,18 @@ void 로그인하면_refresh_hash를_저장하고_access를_반환한다() {
     LoginResult result = authService.login(request);
 
     assertThat(result.response().accessToken()).isEqualTo(tokens.accessToken());
-    then(authenticationRepository).should().save(argThat(auth ->
-        auth.getRefreshTokenHash().equals(refreshTokenHasher.hash(tokens.refreshToken()))
-    ));
+    then(authenticationRepository).should().upsertRefreshTokenHash(
+        user.id(),
+        refreshTokenHasher.hash(tokens.refreshToken())
+    );
 }
 ```
 
-- [ ] **Step 3: 기존 Authentication은 새 hash로 교체**
+- [x] **Step 3: Authentication hash를 원자적으로 저장·교체**
 
-첫 로그인은 새 row를 저장하고 이후 로그인은 같은 `user_id` row의 hash를 rotate한다. 사용자당 활성 Refresh는 하나만 유지한다.
+MySQL `INSERT ... ON DUPLICATE KEY UPDATE` 한 문장으로 첫 로그인은 새 row를
+저장하고 이후 로그인은 같은 `user_id` row의 hash를 교체한다. 동시 최초
+로그인도 UNIQUE 충돌로 실패하지 않고 한 row만 유지한다.
 
 ### Task 4: 로그인 Controller와 쿠키
 

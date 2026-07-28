@@ -1,17 +1,26 @@
 package com.dbidding.auth.service;
 
+import java.time.Instant;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dbidding.auth.dto.LoginRequest;
+import com.dbidding.auth.dto.LoginResponse;
 import com.dbidding.auth.dto.SignupRequest;
 import com.dbidding.auth.dto.SignupResponse;
 import com.dbidding.auth.exception.DuplicateEmailException;
 import com.dbidding.auth.exception.DuplicateNicknameException;
+import com.dbidding.auth.exception.InvalidCredentialsException;
 import com.dbidding.auth.password.PasswordHash;
 import com.dbidding.auth.password.PasswordHasher;
 import com.dbidding.auth.port.UserAccount;
 import com.dbidding.auth.port.UserAccountPort;
 import com.dbidding.auth.port.WalletProvisioningPort;
+import com.dbidding.auth.repository.AuthenticationRepository;
+import com.dbidding.auth.token.IssuedTokens;
+import com.dbidding.auth.token.JwtTokenProvider;
+import com.dbidding.auth.token.RefreshTokenHasher;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,9 +28,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AuthService {
 
+	private static final String DUMMY_PASSWORD_HASH = "0".repeat(64);
+	private static final String DUMMY_PASSWORD_SALT = "0".repeat(32);
+
 	private final UserAccountPort userAccountPort;
 	private final WalletProvisioningPort walletProvisioningPort;
 	private final PasswordHasher passwordHasher;
+	private final AuthenticationRepository authenticationRepository;
+	private final JwtTokenProvider jwtTokenProvider;
+	private final RefreshTokenHasher refreshTokenHasher;
 
 	@Transactional
 	public SignupResponse signup(SignupRequest request) {
@@ -42,5 +57,36 @@ public class AuthService {
 		walletProvisioningPort.createFor(user.id());
 
 		return SignupResponse.from(user);
+	}
+
+	@Transactional
+	public LoginResult login(LoginRequest request) {
+		UserAccount user = userAccountPort.findByEmail(request.email()).orElse(null);
+		if (user == null) {
+			passwordHasher.matches(
+				request.password(),
+				DUMMY_PASSWORD_SALT,
+				DUMMY_PASSWORD_HASH
+			);
+			throw new InvalidCredentialsException();
+		}
+
+		boolean passwordMatches = passwordHasher.matches(
+			request.password(),
+			user.salt(),
+			user.encryptedPassword()
+		);
+		if (!passwordMatches || !"ACTIVE".equals(user.status())) {
+			throw new InvalidCredentialsException();
+		}
+
+		IssuedTokens tokens = jwtTokenProvider.issue(user.id(), user.role(), Instant.now());
+		String refreshTokenHash = refreshTokenHasher.hash(tokens.refreshToken());
+		authenticationRepository.upsertRefreshTokenHash(user.id(), refreshTokenHash);
+
+		return new LoginResult(
+			new LoginResponse(tokens.accessToken()),
+			tokens.refreshToken()
+		);
 	}
 }

@@ -23,6 +23,9 @@ import com.dbidding.auth.port.UserAccount;
 import com.dbidding.auth.port.UserAccountPort;
 import com.dbidding.auth.port.UserAccountRole;
 import com.dbidding.auth.port.WalletProvisioningPort;
+import com.dbidding.auth.repository.AuthenticationRepository;
+import com.dbidding.auth.token.JwtTokenProvider;
+import com.dbidding.auth.token.RefreshTokenHasher;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceSignupTest {
@@ -42,11 +45,27 @@ class AuthServiceSignupTest {
 	@Mock
 	private PasswordHasher passwordHasher;
 
+	@Mock
+	private AuthenticationRepository authenticationRepository;
+
+	@Mock
+	private JwtTokenProvider jwtTokenProvider;
+
+	@Mock
+	private RefreshTokenHasher refreshTokenHasher;
+
 	private AuthService authService;
 
 	@BeforeEach
 	void setUp() {
-		authService = new AuthService(userAccountPort, walletProvisioningPort, passwordHasher);
+		authService = new AuthService(
+			userAccountPort,
+			walletProvisioningPort,
+			passwordHasher,
+			authenticationRepository,
+			jwtTokenProvider,
+			refreshTokenHasher
+		);
 	}
 
 	@Test
