@@ -1,6 +1,6 @@
 # Auth 개발 계획
 
-Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주기를 소유한다. 인증 구현이 완료되기 전까지 다른 도메인은 `X-Debug-User-Id`를 사용하므로, Auth 구현 중간 결과를 전역 필터에 연결하지 않는다.
+Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주기를 소유한다. 인증 구현이 완료되기 전까지 다른 도메인은 `debug-auth` 프로필에서만 `X-Debug-User-Id`를 사용하므로, Auth 구현 중간 결과를 전역 필터에 연결하지 않는다.
 
 ## 구현 단계
 
@@ -8,6 +8,7 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 2. [회원가입](2-signup.md)
 3. [로그인과 Access/Refresh 발급](3-login-and-token.md)
 4. [Refresh Rotation과 로그아웃](4-refresh-and-logout.md)
+5. [CurrentUserProvider와 SSE 티켓 인증](5-current-user-and-sse-auth.md) — 다른 도메인이 지금 바로 `@CurrentUser`를 쓸 수 있게 공통 계약과 디버그 필터를 먼저 공유
 
 ## API
 
