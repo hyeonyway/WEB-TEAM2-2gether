@@ -22,6 +22,17 @@ public interface ItemStatisticRepository extends JpaRepository<ItemStatistic, In
 
     @Query("""
             select s from ItemStatistic s
+            join fetch s.item
+            where s.statisticsDate = (
+                select max(latest.statisticsDate) from ItemStatistic latest
+                where latest.item.id = s.item.id
+                  and latest.statisticsDate < :cutoff
+            )
+            """)
+    List<ItemStatistic> findLatestForEveryItemBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+            select s from ItemStatistic s
             where s.item.id in :itemIds
               and s.statisticsDate = (
                 select max(latest.statisticsDate) from ItemStatistic latest

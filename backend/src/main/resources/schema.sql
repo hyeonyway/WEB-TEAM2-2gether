@@ -149,7 +149,9 @@ CREATE TABLE auctions
     INDEX idx_auctions_user_id (user_id),
     INDEX idx_auctions_item_id (item_id),
     INDEX idx_auctions_status (status),
-    INDEX idx_auctions_item_status (item_id, status)
+    INDEX idx_auctions_item_status (item_id, status),
+    INDEX idx_auctions_status_close_time (status, close_time),
+    INDEX idx_auctions_status_current_price (status, current_price)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

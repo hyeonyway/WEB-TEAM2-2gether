@@ -616,38 +616,28 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
 
 ### 홈 개요
 
-`GET /home`
+`GET /home/insights`
 
-홈 화면의 경매 인사이트, 30일 경매 요약·차트, 전일 상승 Top 5를 한 번에 반환한다.
+현재 진행 중인 경매의 상승·입찰·프리미엄 인사이트를 반환한다. 인사이트 수치는 카드 종이 아닌 경매 건수다.
+
+`GET /home/market?days=30`
+
+종료 경매의 일별 평균 낙찰가와 입찰 수, 기간 요약을 반환한다.
+
+`GET /home/top-gainers?limit=5`
+
+전일 대비 시세가 상승한 카드를 반환한다. 순위 항목은 `auctionId` 없이 `cardId`를 사용해 카드 상세로 이동한다.
+
+```json
+[
+  {"id":"RISING","title":"경매가 상승","value":8,"changeRate":9.4,"note":"시작가 대비 상승률이 높은 경매부터 확인하세요.","sort":"CHANGE_HIGH"},
+  {"id":"NEW_BIDS","title":"신규 입찰","value":8,"changeRate":null,"note":"입찰 수가 많은 경매부터 확인하세요.","sort":"BID_COUNT"},
+  {"id":"ACTIVE","title":"프리미엄 경매","value":3,"changeRate":null,"note":"현재 경매가가 높은 경매부터 확인하세요.","sort":"PRICE_HIGH"}
+]
+```
 
 ```json
 {
-  "insights": [
-    {
-      "id": "RISING",
-      "title": "경매가 상승",
-      "value": 8,
-      "changeRate": 9.4,
-      "note": "상승률이 높은 경매부터 확인하세요.",
-      "sort": "CHANGE_HIGH"
-    },
-    {
-      "id": "NEW_BIDS",
-      "title": "신규 입찰",
-      "value": 8,
-      "changeRate": 10.2,
-      "note": "입찰 수가 많은 경매부터 확인하세요.",
-      "sort": "BID_COUNT"
-    },
-    {
-      "id": "ACTIVE",
-      "title": "프리미엄 경매",
-      "value": 3,
-      "changeRate": null,
-      "note": "현재 경매가가 높은 카드부터 확인하세요.",
-      "sort": "PRICE_HIGH"
-    }
-  ],
   "marketSummary": {
     "currentPriceAverage": 248875,
     "dailyChangeRate": 3.7,
@@ -666,12 +656,16 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
       "averagePrice": 248875,
       "bidCount": 392
     }
-  ],
+  ]
+}
+```
+
+```json
+{
   "topGainersTitle": "전일 상승 Top 5",
   "topGainers": [
     {
-      "cardId": "card_02",
-      "auctionId": "auc_02",
+      "cardId": 2,
       "name": "피카츄 P 스칼렛&바이올렛 프로모 카드",
       "price": 135000,
       "changeRate": 8.9,
@@ -689,9 +683,9 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
 | 경매가 상승 | `/auction?sort=CHANGE_HIGH` | 상승률 높은순 |
 | 신규 입찰 | `/auction?sort=BID_COUNT` | 입찰 수 높은순 |
 | 프리미엄 경매 | `/auction?sort=PRICE_HIGH` | 경매가 높은순 |
-| 전일 상승 카드 | `/auction/{auctionId}` | 해당 경매 상세 |
+| 전일 상승 카드 | `/cards/{cardId}` | 해당 카드 상세 |
 
-`topGainers`는 카드 상세가 아닌 경매 상세로 이동하므로 `cardId`와 `auctionId`를 모두 제공해야 한다. 진행 중인 연결 경매가 없는 카드는 홈 Top 5 응답에서 제외한다.
+`topGainers`는 진행 경매 존재 여부와 관계없이 전일 시세를 비교하며 `cardId`로 카드 상세에 이동한다.
 
 ## 4.2 카드 시세
 

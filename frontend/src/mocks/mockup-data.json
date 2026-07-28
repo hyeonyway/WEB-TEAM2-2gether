@@ -21,8 +21,8 @@
   ],
   "home": {
     "insights": [
-      {"id":"RISING","title":"경매가 상승","value":8,"changeRate":9.4,"note":"상승률이 높은 경매부터 확인하세요.","sort":"CHANGE_HIGH"},
-      {"id":"NEW_BIDS","title":"신규 입찰","value":8,"changeRate":10.2,"note":"입찰 수가 많은 경매부터 확인하세요.","sort":"BID_COUNT"},
+      {"id":"RISING","title":"경매가 상승","value":8,"changeRate":9.4,"note":"시작가 대비 상승률이 높은 경매부터 확인하세요.","sort":"CHANGE_HIGH"},
+      {"id":"NEW_BIDS","title":"신규 입찰","value":8,"changeRate":null,"note":"입찰 수가 많은 경매부터 확인하세요.","sort":"BID_COUNT"},
       {"id":"ACTIVE","title":"프리미엄 경매","value":3,"changeRate":null,"note":"현재 경매가가 높은 카드부터 확인하세요.","sort":"PRICE_HIGH"}
     ],
     "marketSummary": {
@@ -43,11 +43,11 @@
     ],
     "topGainersTitle": "전일 상승 Top 5",
     "topGainers": [
-      {"cardId":2,"auctionId":2,"name":"피카츄 P 스칼렛&바이올렛 프로모 카드","price":135000,"changeRate":8.9,"theme":"gold","bidCount":105},
-      {"cardId":8,"auctionId":8,"name":"리자몽 ex 스페셜 아트 카드","price":289000,"changeRate":6.2,"theme":"multi","bidCount":54},
-      {"cardId":4,"auctionId":4,"name":"피카츄 AR 포켓몬 카드 151","price":171000,"changeRate":5.0,"theme":"multi","bidCount":97},
-      {"cardId":7,"auctionId":7,"name":"고라파덕 AR 메가 드림 ex","price":157000,"changeRate":4.7,"theme":"water","bidCount":62},
-      {"cardId":1,"auctionId":1,"name":"피카츄 P 메가 에볼루션 프로모카드","price":138000,"changeRate":2.7,"theme":"gold","bidCount":368}
+      {"cardId":2,"name":"피카츄 P 스칼렛&바이올렛 프로모 카드","price":135000,"changeRate":8.9,"theme":"gold","bidCount":105},
+      {"cardId":8,"name":"리자몽 ex 스페셜 아트 카드","price":289000,"changeRate":6.2,"theme":"multi","bidCount":54},
+      {"cardId":4,"name":"피카츄 AR 포켓몬 카드 151","price":171000,"changeRate":5.0,"theme":"multi","bidCount":97},
+      {"cardId":7,"name":"고라파덕 AR 메가 드림 ex","price":157000,"changeRate":4.7,"theme":"water","bidCount":62},
+      {"cardId":1,"name":"피카츄 P 메가 에볼루션 프로모카드","price":138000,"changeRate":2.7,"theme":"gold","bidCount":368}
     ]
   },
   "card_recognition": {

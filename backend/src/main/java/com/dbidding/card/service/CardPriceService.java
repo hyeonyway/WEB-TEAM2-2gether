@@ -2,6 +2,7 @@ package com.dbidding.card.service;
 
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSort;
+import com.dbidding.card.domain.CardTheme;
 import com.dbidding.card.domain.ItemStatistic;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.repository.CardMetadataRepository;
@@ -96,18 +97,9 @@ public class CardPriceService {
         long lowPrice = stat == null ? price : firstPrice(stat.getLowestPrice(), price);
         long highPrice = stat == null ? price : firstPrice(stat.getHighestPrice(), price);
         return new CardResponses.CardSummary(card.getId(), card.getName(), price, lowPrice, highPrice,
-                rate(stat == null ? null : stat.getDailyChangeRate()), theme(card),
+                rate(stat == null ? null : stat.getDailyChangeRate()), CardTheme.from(card),
                 stat == null ? 0 : value(stat.getBidCount()), card.getPsaGrade(),
                 normalizeLanguage(card.getLanguage()), card.getImagePath());
-    }
-
-    private String theme(CardMetadata card) {
-        String rarity = card.getRarity() == null ? "" : card.getRarity().toLowerCase();
-        if (rarity.contains("water")) return "water";
-        if (rarity.contains("dark")) return "dark";
-        if (rarity.contains("sketch")) return "sketch";
-        if (rarity.contains("multi") || rarity.contains("rainbow")) return "multi";
-        return "gold";
     }
 
     private String normalizeLanguage(String language) {

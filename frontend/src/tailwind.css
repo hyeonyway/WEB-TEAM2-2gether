@@ -176,3 +176,19 @@ strong, b { font-weight: 600 !important; }
 .detail-line{stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 .detail-point{fill:#fff;stroke:#16ad64;stroke-width:3;vector-effect:non-scaling-stroke}
 .shadcn-area-chart{width:100%;margin-top:18px;user-select:none}.shadcn-area-chart svg,.shadcn-area-chart *{outline:none}.shadcn-chart-canvas{height:235px;position:relative}.chart-empty{position:absolute;inset:0;display:grid;place-items:center;color:#999;font-size:11px;pointer-events:none}.chart-tooltip{min-width:150px;padding:10px 12px;border:1px solid #e3e7e5;border-radius:9px;background:#fffffff2;box-shadow:0 8px 24px #00000014;display:grid;gap:3px}.chart-tooltip span{font-size:10px;color:#8b928e}.chart-tooltip strong{font-size:14px;color:#0ba660}.chart-tooltip small{font-size:10px;color:#555}
+.metrics{grid-template-columns:1.65fr repeat(4,1fr)}
+.shadcn-chart{width:100%;min-width:0}
+.home-market-chart{height:350px;margin-top:20px;user-select:none}
+.home-market-chart svg,.home-market-chart *{outline:none}
+.shadcn-chart-tooltip{min-width:165px;padding:10px 12px;border:1px solid #e3e7e5;border-radius:10px;background:#fffffff5;box-shadow:0 10px 28px #00000018}
+.shadcn-chart-tooltip>strong{display:block;margin-bottom:7px;color:#6f7672;font-size:10px;font-weight:600}
+.shadcn-chart-tooltip>div{display:grid;grid-template-columns:8px 1fr auto;align-items:center;gap:7px;margin-top:5px;font-size:11px}
+.shadcn-chart-tooltip i{width:7px;height:7px;border-radius:2px}
+.shadcn-chart-tooltip span{color:#7e8581}
+.shadcn-chart-tooltip b{color:#222;font-variant-numeric:tabular-nums}
+.home-chart-legend{height:30px;display:flex;align-items:flex-end;justify-content:center;gap:22px;color:#8d918f;font-size:10px}
+.home-chart-legend span{display:flex;align-items:center;gap:7px}
+.home-chart-legend i{display:inline-block;flex:0 0 auto}
+.home-chart-legend .price-line{width:22px;height:3px;border-radius:2px;background:#ff584d}
+.home-chart-legend .bid-square{width:9px;height:9px;border-radius:2px;background:#d5d5d5}
+@media(max-width:760px){.metrics{grid-template-columns:repeat(3,1fr)}.home-market-chart{height:275px;margin-top:8px}.shadcn-chart-tooltip{min-width:145px}}
