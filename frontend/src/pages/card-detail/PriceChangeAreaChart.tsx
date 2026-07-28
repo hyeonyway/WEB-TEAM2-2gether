@@ -1,132 +1,120 @@
 import {useMemo} from 'react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import {Area,Bar,CartesianGrid,ComposedChart,Legend,Line,XAxis,YAxis} from 'recharts';
+import {ChartContainer,ChartTooltip,ChartTooltipContent} from '../../components/ui/chart';
 import type {CardPricePointResponseDto} from '../../dto/auctionDto';
 
 type Props={
   history:CardPricePointResponseDto[];
 };
 
-const money=(value:number)=>`${value.toLocaleString()}원`;
-const dateLabel=(value:number)=>new Date(value).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'}).replaceAll('.','/').replaceAll(' ','').replace(/\/$/,'');
+const dateLabel=(value:string)=>{
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return value;
+  return date.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})
+    .replaceAll('.','/')
+    .replaceAll(' ','')
+    .replace(/\/$/,'');
+};
 
 export default function PriceChangeAreaChart({history}:Props){
-  const chart=useMemo(()=>{
-    const end=new Date();
-    end.setHours(23,59,59,999);
-    const start=new Date(end);
-    start.setDate(start.getDate()-29);
-    start.setHours(0,0,0,0);
-    const observations=history
-      .map(point=>{
-        const date=new Date(point.date);
-        date.setHours(0,0,0,0);
-        return {
-          timestamp:date.getTime(),
-          price:point.average_price,
-          dailyRate:point.change_rate,
-          weeklyRate:point.weekly_change_rate,
-          monthlyRate:point.monthly_change_rate,
-        };
-      })
-      .filter(point=>point.timestamp>=start.getTime()&&point.timestamp<=end.getTime())
-      .sort((a,b)=>a.timestamp-b.timestamp)
-      .filter((point,index,points)=>points[index+1]?.timestamp!==point.timestamp);
-    const day=24*60*60*1000;
-    const data=observations.length?Array.from({length:30},(_,index)=>{
-      const timestamp=start.getTime()+index*day;
-      const nextIndex=observations.findIndex(point=>point.timestamp>=timestamp);
-      if(nextIndex===-1){
-        return {...observations[observations.length-1],timestamp};
-      }
-      if(nextIndex<=0){
-        const point=observations[Math.max(0,nextIndex)];
-        return {...point,timestamp};
-      }
-      const previous=observations[nextIndex-1];
-      const next=observations[nextIndex];
-      const ratio=(timestamp-previous.timestamp)/(next.timestamp-previous.timestamp);
-      return {
-        timestamp,
-        price:Math.round(previous.price+(next.price-previous.price)*ratio),
-        dailyRate:Number((previous.dailyRate+(next.dailyRate-previous.dailyRate)*ratio).toFixed(2)),
-        weeklyRate:Number((previous.weeklyRate+(next.weeklyRate-previous.weeklyRate)*ratio).toFixed(2)),
-        monthlyRate:Number((previous.monthlyRate+(next.monthlyRate-previous.monthlyRate)*ratio).toFixed(2)),
-      };
-    }):[];
-    return {
-      data,
-      start:start.getTime(),
-      end:end.getTime(),
-      ticks:[start.getTime(),start.getTime()+7*day,start.getTime()+14*day,start.getTime()+21*day,end.getTime()],
-    };
-  },[history]);
+  const data=useMemo(()=>history
+    .map(point=>({
+      date:point.date,
+      timestamp:new Date(point.date).getTime(),
+      averagePrice:point.average_price,
+      bidCount:point.bid_count,
+    }))
+    .filter(point=>Number.isFinite(point.timestamp)&&point.averagePrice>0)
+    .sort((a,b)=>a.timestamp-b.timestamp)
+    .filter((point,index,points)=>points[index+1]?.timestamp!==point.timestamp),
+  [history]);
+  const config={
+    averagePrice:{label:'30일 평균 시세',color:'#16ad64'},
+    bidCount:{label:'30일 누적 입찰량',color:'#e2e2e2'},
+  };
+  const tickInterval=Math.max(Math.ceil(data.length/5)-1,0);
 
-  return <div className="shadcn-area-chart" onMouseDown={event=>event.preventDefault()}>
-    <div className="shadcn-chart-canvas">
-    <ResponsiveContainer width="100%" height="100%">
-      <AreaChart
-        data={chart.data}
-        margin={{top:12,right:12,left:-8,bottom:0}}
-        accessibilityLayer={false}
-      >
+  return <div
+    className="detail-market-chart-wrap"
+    onMouseDown={event=>event.preventDefault()}
+  >
+    <ChartContainer config={config} className="detail-market-chart">
+      <ComposedChart data={data} margin={{top:14,right:8,bottom:2,left:8}}>
         <defs>
-          <linearGradient id="price-change-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#16ad64" stopOpacity={0.32}/>
-            <stop offset="95%" stopColor="#16ad64" stopOpacity={0.02}/>
+          <linearGradient id="detail-price-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--color-averagePrice)" stopOpacity={0.3}/>
+            <stop offset="95%" stopColor="var(--color-averagePrice)" stopOpacity={0.02}/>
           </linearGradient>
         </defs>
         <CartesianGrid vertical={false} stroke="#e8ecea" strokeDasharray="3 3"/>
         <XAxis
-          dataKey="timestamp"
-          type="number"
-          scale="time"
-          domain={[chart.start,chart.end]}
-          ticks={chart.ticks}
-          allowDataOverflow
+          dataKey="date"
+          interval={tickInterval}
           axisLine={false}
           tickLine={false}
           tick={{fill:'#8b928e',fontSize:10}}
           tickFormatter={dateLabel}
         />
         <YAxis
+          yAxisId="price"
+          dataKey="averagePrice"
+          domain={['auto','auto']}
           axisLine={false}
           tickLine={false}
           tick={{fill:'#8b928e',fontSize:10}}
-          tickFormatter={value=>`${Number(value)>0?'+':''}${value}%`}
-          width={48}
+          tickFormatter={value=>`${Math.round(Number(value)/10000)}만`}
+          width={42}
         />
-        <Tooltip
-          cursor={{stroke:'#16ad64',strokeDasharray:'3 3'}}
-          content={({active,payload})=>{
-            const point=payload?.[0]?.payload as typeof chart.data[number]|undefined;
-            if(!active||!point)return null;
-            return <div className="chart-tooltip">
-              <span>{dateLabel(point.timestamp)}</span>
-              <strong>{point.dailyRate>=0?'+':''}{point.dailyRate.toFixed(2)}%</strong>
-              <small>평균 {money(point.price)}</small>
-            </div>;
-          }}
+        <YAxis
+          yAxisId="bids"
+          orientation="right"
+          axisLine={false}
+          tickLine={false}
+          tick={{fill:'#8b928e',fontSize:10}}
+          tickFormatter={value=>`${value}건`}
+          width={42}
+        />
+        <ChartTooltip
+          cursor={{stroke:'#cfd5d1',strokeDasharray:'3 3'}}
+          content={<ChartTooltipContent labelFormatter={dateLabel}/>}
+        />
+        <Legend
+          verticalAlign="bottom"
+          content={()=><div className="home-chart-legend detail-chart-legend">
+            <span><i className="price-line"/>30일 평균 시세</span>
+            <span><i className="bid-square"/>30일 누적 입찰량</span>
+          </div>}
+        />
+        <Bar
+          yAxisId="bids"
+          dataKey="bidCount"
+          fill="var(--color-bidCount)"
+          radius={[4,4,0,0]}
+          maxBarSize={10}
         />
         <Area
+          yAxisId="price"
           type="monotone"
-          dataKey="dailyRate"
-          stroke="#16ad64"
-          strokeWidth={2.5}
-          fill="url(#price-change-fill)"
-          activeDot={{r:5,fill:'#fff',stroke:'#16ad64',strokeWidth:3}}
+          dataKey="averagePrice"
+          stroke="none"
+          fill="url(#detail-price-fill)"
           dot={false}
+          activeDot={false}
         />
-      </AreaChart>
-    </ResponsiveContainer>
-    {!chart.data.length&&<div className="chart-empty">최근 30일 시세 데이터가 없습니다.</div>}
-    </div>
+        <Line
+          yAxisId="price"
+          type="monotone"
+          dataKey="averagePrice"
+          stroke="var(--color-averagePrice)"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+          dot={false}
+          activeDot={false}
+        />
+      </ComposedChart>
+    </ChartContainer>
+    {!data.length&&<div className="chart-empty">최근 30일 시세 데이터가 없습니다.</div>}
   </div>;
 }

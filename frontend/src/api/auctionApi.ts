@@ -10,6 +10,28 @@ const params=(query:{keyword:string;psaGrade:string|null;sort?:string})=>new URL
   ...(query.sort?{sort:query.sort}:{}),
 });
 
+const mockPriceHistory=(marketPrice:number,monthlyChangeRate:number)=>{
+  const today=new Date();
+  const startPrice=Math.max(1,Math.round(marketPrice/(1+monthlyChangeRate/100)));
+  return Array.from({length:30},(_,index)=>{
+    const date=new Date(today);
+    date.setDate(today.getDate()-(30-index));
+    const progress=index/29;
+    const wave=Math.sin(index*.75)*marketPrice*.018;
+    const averagePrice=Math.max(1,Math.round(startPrice+(marketPrice-startPrice)*progress+wave));
+    return {
+      date:date.toISOString(),
+      average_price:averagePrice,
+      bid_count:Math.max(0,Math.round(
+        260+Math.sin(index*.68)*72+Math.cos(index*.31)*38+(index%5)*7,
+      )),
+      change_rate:index===0?0:Number(((averagePrice-startPrice)/startPrice*100).toFixed(2)),
+      weekly_change_rate:0,
+      monthly_change_rate:Number(((averagePrice-startPrice)/startPrice*100).toFixed(2)),
+    };
+  });
+};
+
 export async function fetchCards(query:CardListRequestDto):Promise<CardDto[]>{
   if(isMockApiEnabled())return fetchMockCards(query);
   const response=await request<PageResponseDto<CardResponseDto>>(`/api/cards?${params(query)}`);
@@ -43,14 +65,20 @@ export async function fetchCardDetail(cardId:number):Promise<CardDetailResponseD
   if(isMockApiEnabled()){
     const card=(await fetchMockCards({keyword:'',psaGrade:null})).find(item=>item.id===cardId);
     if(!card)throw new Error('카드를 찾을 수 없습니다.');
+    const history=mockPriceHistory(card.marketPrice,card.changeRate*3.4);
+    const averagePrice=Math.round(
+      history.reduce((sum,point)=>sum+point.average_price,0)/history.length,
+    );
     return {
       id:card.id,name:card.name,set_name:'Pokemon Trading Card Game',rarity:null,
-      market_price:card.marketPrice,low_price:Math.round(card.marketPrice*.9/1000)*1000,
-      high_price:Math.round(card.marketPrice*1.08/1000)*1000,average_price:card.marketPrice,
+      market_price:card.marketPrice,low_price:card.lowPrice,
+      high_price:card.highPrice,average_price:averagePrice,
       change_rate:card.changeRate,weekly_change_rate:card.changeRate*1.8,
       monthly_change_rate:card.changeRate*3.4,bid_count:card.bidCount,
+      ended_auction_count:Math.max(1,Math.round(card.bidCount/4)),
       active_auction_count:1,wishlist_count:0,psa_grade:card.psaGrade,language:card.language,
-      image_url:'/assets/pikachu-promo-card.png',history:[],
+      image_url:'/assets/pikachu-promo-card.png',
+      history,
     };
   }
   const response=await request<CardDetailResponseDto>(`/api/cards/${cardId}`);

@@ -3,9 +3,12 @@ package com.dbidding.home.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
-import com.dbidding.card.repository.ItemStatisticRepository;
+import com.dbidding.card.repository.ItemDailyStatisticRepository;
+import com.dbidding.home.domain.MarketDailyStatistic;
 import com.dbidding.home.repository.HomeAuctionRepository;
+import com.dbidding.home.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -17,7 +20,10 @@ import org.junit.jupiter.api.Test;
 
 class HomeServiceTest {
     private final HomeAuctionRepository auctionRepository = mock(HomeAuctionRepository.class);
-    private final ItemStatisticRepository statisticRepository = mock(ItemStatisticRepository.class);
+    private final ItemDailyStatisticRepository dailyStatisticRepository =
+            mock(ItemDailyStatisticRepository.class);
+    private final MarketDailyStatisticRepository marketStatisticRepository =
+            mock(MarketDailyStatisticRepository.class);
     private final Clock clock = Clock.fixed(
             Instant.parse("2026-07-28T03:00:00Z"),
             ZoneId.of("Asia/Seoul")
@@ -26,7 +32,8 @@ class HomeServiceTest {
 
     @BeforeEach
     void setUp() {
-        homeService = new HomeService(auctionRepository, statisticRepository, clock);
+        homeService = new HomeService(
+                auctionRepository, dailyStatisticRepository, marketStatisticRepository, clock);
     }
 
     @Test
@@ -51,31 +58,52 @@ class HomeServiceTest {
     }
 
     @Test
-    void 종료_경매를_일별로_집계하고_무거래일에는_가격을_이월한다() {
-        LocalDateTime from = LocalDate.of(2026, 6, 29).atStartOfDay();
-        LocalDateTime to = LocalDate.of(2026, 7, 29).atStartOfDay();
-        var yesterday = daily(LocalDate.of(2026, 7, 27), 100_000.0, 3L);
-        var today = daily(LocalDate.of(2026, 7, 28), 120_000.0, 2L);
-        given(auctionRepository.aggregateDailyMarket(from, to))
-                .willReturn(List.of(yesterday, today));
-        given(auctionRepository.findPreviousDailyAverage(from)).willReturn(java.util.Optional.of(80_000.0));
+    void 오늘을_제외한_종료_경매를_30일간_집계하고_무거래일에는_가격을_이월한다() {
+        LocalDate from = LocalDate.of(2026, 6, 28);
+        LocalDate to = LocalDate.of(2026, 7, 28);
+        var dayBefore = daily(LocalDate.of(2026, 7, 26), 90_000L, 2);
+        var yesterday = daily(LocalDate.of(2026, 7, 27), 100_000L, 3);
+        given(marketStatisticRepository
+                .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(from, to))
+                .willReturn(List.of(dayBefore, yesterday));
+        var previous = daily(LocalDate.of(2026, 6, 27), 80_000L, 1);
+        given(marketStatisticRepository
+                .findFirstByStatisticsDateLessThanOrderByStatisticsDateDesc(from))
+                .willReturn(java.util.Optional.of(previous));
 
         var market = homeService.getMarket(30);
 
+        verify(marketStatisticRepository)
+                .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(from, to);
         assertThat(market.marketHistory()).hasSize(30);
         assertThat(market.marketHistory().getFirst().averagePrice()).isEqualTo(80_000L);
-        assertThat(market.marketHistory().get(28).averagePrice()).isEqualTo(100_000L);
-        assertThat(market.marketHistory().getLast().averagePrice()).isEqualTo(120_000L);
+        assertThat(market.marketHistory().getFirst().date()).isEqualTo("06/28");
+        assertThat(market.marketHistory().get(28).averagePrice()).isEqualTo(90_000L);
+        assertThat(market.marketHistory().getLast().averagePrice()).isEqualTo(100_000L);
+        assertThat(market.marketHistory().getLast().date()).isEqualTo("07/27");
         assertThat(market.marketSummary().monthlyBidCount()).isEqualTo(5L);
-        assertThat(market.marketSummary().dailyChangeRate()).isEqualByComparingTo("20.00");
-        assertThat(market.marketSummary().weeklyChangeRate()).isEqualByComparingTo("50.00");
-        assertThat(market.marketSummary().monthlyChangeRate()).isEqualByComparingTo("50.00");
+        assertThat(market.marketSummary().dailyChangeRate()).isEqualByComparingTo("11.11");
+        assertThat(market.marketSummary().weeklyChangeRate()).isEqualByComparingTo("25.00");
+        assertThat(market.marketSummary().monthlyChangeRate()).isEqualByComparingTo("25.00");
     }
 
-    private HomeAuctionRepository.DailyMarketAggregate daily(
-            LocalDate date, Double price, Long bids) {
-        var daily = mock(HomeAuctionRepository.DailyMarketAggregate.class);
-        given(daily.getAuctionDate()).willReturn(date);
+    @Test
+    void 상승_TOP5는_오늘_자정_이전의_어제와_그제_통계만_조회한다() {
+        LocalDate yesterday = LocalDate.of(2026, 7, 27);
+        LocalDate dayBefore = LocalDate.of(2026, 7, 26);
+        given(dailyStatisticRepository.findAllWithItemByStatisticsDate(yesterday)).willReturn(List.of());
+        given(dailyStatisticRepository.findAllWithItemByStatisticsDate(dayBefore)).willReturn(List.of());
+
+        var result = homeService.getTopGainers(5);
+
+        verify(dailyStatisticRepository).findAllWithItemByStatisticsDate(yesterday);
+        verify(dailyStatisticRepository).findAllWithItemByStatisticsDate(dayBefore);
+        assertThat(result.topGainers()).isEmpty();
+    }
+
+    private MarketDailyStatistic daily(LocalDate date, Long price, Integer bids) {
+        var daily = mock(MarketDailyStatistic.class);
+        given(daily.getStatisticsDate()).willReturn(date);
         given(daily.getAveragePrice()).willReturn(price);
         given(daily.getBidCount()).willReturn(bids);
         return daily;

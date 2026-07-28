@@ -1,15 +1,16 @@
 package com.dbidding.home.service;
 
 import com.dbidding.card.domain.CardTheme;
-import com.dbidding.card.domain.ItemStatistic;
-import com.dbidding.card.repository.ItemStatisticRepository;
+import com.dbidding.card.domain.ItemDailyStatistic;
+import com.dbidding.card.repository.ItemDailyStatisticRepository;
+import com.dbidding.home.domain.MarketDailyStatistic;
 import com.dbidding.home.dto.HomeResponses;
 import com.dbidding.home.repository.HomeAuctionRepository;
+import com.dbidding.home.repository.MarketDailyStatisticRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -29,7 +30,8 @@ public class HomeService {
     private static final BigDecimal ZERO_RATE = BigDecimal.ZERO.setScale(2);
 
     private final HomeAuctionRepository auctionRepository;
-    private final ItemStatisticRepository statisticRepository;
+    private final ItemDailyStatisticRepository dailyStatisticRepository;
+    private final MarketDailyStatisticRepository marketStatisticRepository;
     private final Clock clock;
 
     public List<HomeResponses.Insight> getInsights() {
@@ -55,19 +57,20 @@ public class HomeService {
 
     public HomeResponses.Market getMarket(int days) {
         LocalDate today = LocalDate.now(clock);
-        LocalDate fromDate = today.minusDays(days - 1L);
-        LocalDateTime from = fromDate.atStartOfDay();
-        LocalDateTime to = today.plusDays(1).atStartOfDay();
-
-        Map<LocalDate, HomeAuctionRepository.DailyMarketAggregate> aggregates =
-                auctionRepository.aggregateDailyMarket(from, to).stream()
+        LocalDate fromDate = today.minusDays(days);
+        Map<LocalDate, MarketDailyStatistic> aggregates =
+                marketStatisticRepository
+                        .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
+                                fromDate, today).stream()
                         .collect(Collectors.toMap(
-                                HomeAuctionRepository.DailyMarketAggregate::getAuctionDate,
+                                MarketDailyStatistic::getStatisticsDate,
                                 Function.identity()
                         ));
 
-        long previousPrice = auctionRepository.findPreviousDailyAverage(from)
-                .map(this::rounded)
+        long previousPrice = marketStatisticRepository
+                .findFirstByStatisticsDateLessThanOrderByStatisticsDateDesc(fromDate)
+                .map(MarketDailyStatistic::getAveragePrice)
+                .filter(java.util.Objects::nonNull)
                 .orElse(0L);
         long carriedPrice = previousPrice;
         long monthlyBidCount = 0;
@@ -78,7 +81,7 @@ public class HomeService {
             var daily = aggregates.get(date);
             long bids = daily == null ? 0 : value(daily.getBidCount());
             if (daily != null && daily.getAveragePrice() != null) {
-                carriedPrice = rounded(daily.getAveragePrice());
+                carriedPrice = daily.getAveragePrice();
             }
             monthlyBidCount += bids;
             history.add(new HomeResponses.MarketPoint(
@@ -106,11 +109,11 @@ public class HomeService {
 
     public HomeResponses.TopGainers getTopGainers(int limit) {
         LocalDate today = LocalDate.now(clock);
-        LocalDateTime yesterdayEnd = today.atStartOfDay();
-        LocalDateTime dayBeforeEnd = today.minusDays(1).atStartOfDay();
+        LocalDate yesterdayDate = today.minusDays(1);
+        LocalDate dayBeforeDate = today.minusDays(2);
 
-        Map<Integer, ItemStatistic> yesterday = snapshotsBefore(yesterdayEnd);
-        Map<Integer, ItemStatistic> dayBefore = snapshotsBefore(dayBeforeEnd);
+        Map<Integer, ItemDailyStatistic> yesterday = snapshots(yesterdayDate);
+        Map<Integer, ItemDailyStatistic> dayBefore = snapshots(dayBeforeDate);
 
         List<HomeResponses.Ranking> rankings = yesterday.entrySet().stream()
                 .map(entry -> ranking(entry.getValue(), dayBefore.get(entry.getKey())))
@@ -121,15 +124,33 @@ public class HomeService {
                 .limit(limit)
                 .toList();
 
-        return new HomeResponses.TopGainers("전일 상승 Top 5", rankings);
+        if (rankings.isEmpty()) {
+            return new HomeResponses.TopGainers("전일 상승 Top 5", rankings);
+        }
+        List<Integer> itemIds = rankings.stream().map(HomeResponses.Ranking::cardId).toList();
+        Map<Integer, List<HomeResponses.RankingPricePoint>> histories =
+                dailyStatisticRepository.findHistory(itemIds, today.minusDays(30), today).stream()
+                        .collect(Collectors.groupingBy(
+                                stat -> stat.getItem().getId(),
+                                Collectors.collectingAndThen(Collectors.toList(), this::priceHistory)
+                        ));
+        List<HomeResponses.Ranking> rankingsWithHistory = rankings.stream()
+                .map(ranking -> new HomeResponses.Ranking(
+                        ranking.cardId(), ranking.name(), ranking.price(), ranking.changeRate(),
+                        ranking.theme(), ranking.bidCount(), ranking.imageUrl(),
+                        histories.getOrDefault(ranking.cardId(), List.of())
+                ))
+                .toList();
+
+        return new HomeResponses.TopGainers("전일 상승 Top 5", rankingsWithHistory);
     }
 
-    private Map<Integer, ItemStatistic> snapshotsBefore(LocalDateTime cutoff) {
-        return statisticRepository.findLatestForEveryItemBefore(cutoff).stream()
+    private Map<Integer, ItemDailyStatistic> snapshots(LocalDate date) {
+        return dailyStatisticRepository.findAllWithItemByStatisticsDate(date).stream()
                 .collect(Collectors.toMap(stat -> stat.getItem().getId(), Function.identity()));
     }
 
-    private HomeResponses.Ranking ranking(ItemStatistic current, ItemStatistic previous) {
+    private HomeResponses.Ranking ranking(ItemDailyStatistic current, ItemDailyStatistic previous) {
         long currentPrice = price(current);
         long previousPrice = price(previous);
         if (currentPrice <= 0 || previousPrice <= 0 || currentPrice <= previousPrice) {
@@ -141,14 +162,27 @@ public class HomeService {
                 currentPrice,
                 changeRate(currentPrice, previousPrice),
                 CardTheme.from(current.getItem()),
-                current.getBidCount() == null ? 0 : current.getBidCount()
+                current.getBidCount() == null ? 0 : current.getBidCount(),
+                current.getItem().getImagePath(),
+                List.of()
         );
     }
 
-    private long price(ItemStatistic statistic) {
+    private List<HomeResponses.RankingPricePoint> priceHistory(List<ItemDailyStatistic> statistics) {
+        return statistics.stream()
+                .sorted(Comparator.comparing(ItemDailyStatistic::getStatisticsDate))
+                .map(stat -> new HomeResponses.RankingPricePoint(
+                        stat.getStatisticsDate().format(MONTH_DAY),
+                        price(stat)
+                ))
+                .filter(point -> point.price() > 0)
+                .toList();
+    }
+
+    private long price(ItemDailyStatistic statistic) {
         if (statistic == null) return 0;
         if (statistic.getLatestPrice() != null) return statistic.getLatestPrice();
-        return statistic.getAvgPrice() == null ? 0 : statistic.getAvgPrice();
+        return statistic.getAveragePrice() == null ? 0 : statistic.getAveragePrice();
     }
 
     private BigDecimal changeRate(long current, long previous) {
@@ -164,11 +198,11 @@ public class HomeService {
                 : BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private long rounded(Double value) {
-        return Math.round(value);
-    }
-
     private long value(Long value) {
         return value == null ? 0 : value;
+    }
+
+    private long value(Integer value) {
+        return value == null ? 0 : value.longValue();
     }
 }

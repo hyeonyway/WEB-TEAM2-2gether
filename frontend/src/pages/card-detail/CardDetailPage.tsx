@@ -16,9 +16,7 @@ export default function CardPriceDetailPage(){
 
   const image=card.image_url||'/assets/pikachu-promo-card.png';
   const saved=favoriteCardIds.includes(card.id);
-  const priceRange=card.low_price===card.high_price
-    ?money(card.low_price)
-    :`${money(card.low_price)} - ${money(card.high_price)}`;
+  const priceRange=`${money(card.low_price)} - ${money(card.high_price)}`;
   return <div className="detail-page price-detail-page">
     <Header/>
     <div className="detail-layout">
@@ -40,12 +38,12 @@ export default function CardPriceDetailPage(){
           <a className="buy detail-bid-button" href={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</a>
         </div>
         <section className="detail-price-summary">
-          <div><span>최근 시세</span><strong>{money(card.market_price)}</strong><em>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</em></div>
-          <div><span>과거 입찰 건수</span><strong>{card.bid_count}건</strong></div>
-          <div><span>현재 경매 수</span><strong>{card.active_auction_count}개</strong></div>
+          <div className="detail-price-range"><span>최근 시세 범위</span><strong>{priceRange}</strong><em>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</em></div>
+          <div><span>최근 30일 경매 건수</span><strong>{card.ended_auction_count.toLocaleString()}건</strong></div>
+          <div><span>최근 30일 입찰 건수</span><strong>{card.bid_count.toLocaleString()}건</strong></div>
         </section>
         <section className="price-trend">
-          <div className="price-trend-head"><div><h2>시세 변화 추이</h2><p>최근 30일 카드 평균 가격과 변화율입니다.</p></div><span>30일</span></div>
+          <div className="price-trend-head"><div><h2>시세 변화 추이</h2><p>날짜별 30일 평균 시세와 누적 입찰량입니다.</p></div><span>30일</span></div>
           <PriceChangeAreaChart history={card.history}/>
           <div className="trend-stats">
             <span>1일 변화<b>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</b></span>

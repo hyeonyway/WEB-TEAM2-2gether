@@ -20,6 +20,11 @@ export type HomeRankingDto={
   changeRate:number;
   theme:string;
   bidCount:number;
+  imageUrl:string|null;
+  priceHistory:Array<{
+    date:string;
+    price:number;
+  }>;
 };
 
 export type HomeMarketDto={

@@ -1,6 +1,7 @@
 import {useQuery} from '@tanstack/react-query';
 import {CalendarDays,Diamond,Flame,Info,TrendingUp} from 'lucide-react';
-import {Area,Bar,CartesianGrid,ComposedChart,Legend,XAxis,YAxis} from 'recharts';
+import {useState} from 'react';
+import {Area,Bar,CartesianGrid,ComposedChart,Legend,Line,XAxis,YAxis} from 'recharts';
 import {Header} from '../../components';
 import {ChartContainer,ChartTooltip,ChartTooltipContent} from '../../components/ui/chart';
 import type {HomeInsightDto,HomeMarketPointDto,HomeRankingDto} from '../../dto/homeDto';
@@ -72,9 +73,20 @@ function Chart({history}:{history:HomeMarketPointDto[]}){
         yAxisId="price"
         type="monotone"
         dataKey="averagePrice"
+        stroke="none"
+        fill="url(#home-price-fill)"
+        dot={false}
+        activeDot={false}
+      />
+      <Line
+        yAxisId="price"
+        type="monotone"
+        dataKey="averagePrice"
         stroke="var(--color-averagePrice)"
         strokeWidth={2.8}
-        fill="url(#home-price-fill)"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
         dot={false}
         activeDot={{r:5,fill:'#fff',stroke:'var(--color-averagePrice)',strokeWidth:3}}
       />
@@ -86,11 +98,42 @@ function CardArt({theme}:{theme:string}){
   return <div className={`mini-card ${theme}`}><i>HP 70</i><span>●</span><small>POKÉMON</small></div>;
 }
 
+function CardThumbnail({item}:{item:HomeRankingDto}){
+  const[failed,setFailed]=useState(false);
+  if(!item.imageUrl||failed)return <CardArt theme={item.theme}/>;
+  return <img
+    className="rank-card-image"
+    src={item.imageUrl}
+    alt=""
+    loading="lazy"
+    onError={()=>setFailed(true)}
+  />;
+}
+
+function PriceSparkline({history}:{history:HomeRankingDto['priceHistory']}){
+  if(!history.length)return <svg viewBox="0 0 60 42" aria-label="시세 이력 없음"/>;
+  const prices=history.map(point=>point.price);
+  const min=Math.min(...prices);
+  const max=Math.max(...prices);
+  const range=Math.max(max-min,1);
+  const points=history.map((point,index)=>{
+    const x=history.length===1?30:2+index/(history.length-1)*56;
+    const y=37-(point.price-min)/range*30;
+    return `${x.toFixed(1)} ${y.toFixed(1)}`;
+  });
+  const path=points.map((point,index)=>`${index?'L':'M'}${point}`).join(' ');
+  const first=history[0];
+  const last=history[history.length-1];
+  return <svg viewBox="0 0 60 42" role="img" aria-label={`${first.date}부터 ${last.date}까지 실제 시세 추이`}>
+    <path d={path}/>
+  </svg>;
+}
+
 function Ranking({title,items}:{title:string;items:HomeRankingDto[]}){
   return <aside><h2>{title}</h2><div className="ranking">{items.map((item,index)=><a className="rank rank-action" key={item.cardId} href={`/cards/${item.cardId}`}>
-    <b className="number">{index+1}</b><CardArt theme={item.theme}/>
-    <div className="rank-info"><p>{item.name}</p><strong>{item.price.toLocaleString()}원 <em>+{item.changeRate.toFixed(1)}%</em></strong><small>입찰 {item.bidCount.toLocaleString()}건</small></div>
-    <svg viewBox="0 0 60 42" preserveAspectRatio="none" aria-hidden="true"><path d="M2 37 L12 32 L22 34 L32 23 L42 18 L58 7"/></svg>
+    <b className="number">{index+1}</b><CardThumbnail item={item}/>
+    <div className="rank-info"><p>{item.name}</p><strong>{item.price.toLocaleString()}원 <em>+{item.changeRate.toFixed(1)}%</em></strong><small>어제 입찰 {item.bidCount.toLocaleString()}건</small></div>
+    <PriceSparkline history={item.priceHistory}/>
   </a>)}</div></aside>;
 }
 
@@ -110,7 +153,7 @@ export default function HomePage(){
         :marketQuery.error||!marketQuery.data?<p className="form-error">경매 통계를 불러오지 못했습니다.</p>
           :<div className="market-panel">
         <div className="metrics">
-          <div><span>현재 경매가 평균 <Info/></span><strong>{marketQuery.data.marketSummary.currentPriceAverage.toLocaleString()}원</strong></div>
+          <div><span>전일 경매가 평균 <Info/></span><strong>{marketQuery.data.marketSummary.currentPriceAverage.toLocaleString()}원</strong></div>
           <div><span>1일 상승</span><b>{marketQuery.data.marketSummary.dailyChangeRate>0?'+':''}{marketQuery.data.marketSummary.dailyChangeRate.toFixed(1)}%</b></div>
           <div><span>7일 상승</span><b>{marketQuery.data.marketSummary.weeklyChangeRate>0?'+':''}{marketQuery.data.marketSummary.weeklyChangeRate.toFixed(1)}%</b></div>
           <div><span>30일 상승</span><b>{marketQuery.data.marketSummary.monthlyChangeRate>0?'+':''}{marketQuery.data.marketSummary.monthlyChangeRate.toFixed(1)}%</b></div>

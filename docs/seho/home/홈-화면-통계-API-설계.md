@@ -1,8 +1,8 @@
-# Home 통계 API 설계
+# 홈 화면 통계 API 설계
 
 **목표:** 홈 화면에서 경매 인사이트, 최근 30일 경매가·입찰량, 전일 상승 카드 TOP5를 각각 조회한다.
 
-**Architecture:** 진행 경매 인사이트와 종료 경매 통계는 `auctions`에서 집계하고, 카드 시세 등락은 `item_statistics`의 기준 시점별 최신 데이터를 비교한다. 조회 전용 서비스가 집계 결과를 프론트 응답 형태로 조립한다.
+**Architecture:** 진행 경매 인사이트만 `auctions`에서 실시간 집계한다. 완료된 시장과 카드 시세는 일간 확정 통계와 최신 30일 요약 통계로 분리하고, 화면 API는 통계 테이블만 조회한다.
 
 **Tech Stack:** Java 21, Spring Boot, Spring Data JPA, MySQL, React Query, JUnit 5, Mockito, MockMvc
 
@@ -45,9 +45,9 @@
 
 `GET /api/home/market?days=30`
 
-- 오늘을 포함한 최근 30일을 조회한다.
+- 오늘을 제외하고 `오늘-30일`부터 어제까지 조회한다.
 - 일별 평균 경매가는 해당 날짜에 종료된 경매의 `current_price` 평균이다.
-- 일별 입찰량은 해당 날짜에 종료된 경매의 `bid_count` 합계다.
+- 일별 입찰량은 해당 날짜에 종료된 경매에 연결된 실제 `bids` 행의 합계다.
 - 무거래일 가격은 직전 거래일 가격을 유지하고 입찰량은 0으로 반환한다.
 - 기간 첫날 이전에도 거래가 없으면 가격을 0으로 시작한다.
 - 누락된 날짜 없이 요청한 일수만큼의 포인트를 반환한다.
@@ -58,27 +58,37 @@
 
 `GET /api/home/top-gainers?limit=5`
 
-1. 어제 종료 시점 이전의 카드별 최신 통계를 조회한다.
-2. 그제 종료 시점 이전의 카드별 최신 통계를 조회한다.
-3. 가격은 `latest_price`, 값이 없으면 `avg_price`를 사용한다.
+1. `item_daily_statistics`에서 어제와 그제의 카드별 확정 통계를 조회한다.
+2. 가격은 `latest_price`, 값이 없으면 `average_price`를 사용한다.
 4. 두 가격이 모두 양수이고 전일 가격이 상승한 카드만 남긴다.
 5. 상승률, 전일 가격 내림차순과 카드 ID 오름차순으로 정렬한다.
 
 진행 경매 존재 여부는 순위 조건에 포함하지 않는다. 응답은 `auctionId` 없이 `cardId`를 제공하며 프론트는 `/cards/{cardId}`로 이동한다.
 
-## 구현 구조
+## 통계 스키마와 구현 구조
+
+- `item_daily_statistics`: 카드별 날짜의 가격·입찰량·종료 경매 수
+- `item_statistics`: 카드당 한 행인 최신 30일 평균·최저·최고·입찰 누계
+- `market_daily_statistics`: 홈 시장 그래프용 전체 종료 경매 일간 통계
+
+카드 목록과 상세 요약은 `item_statistics`, 카드 상세 그래프와 TOP5는
+`item_daily_statistics`, 홈 시장 그래프는 `market_daily_statistics`를 조회한다.
+거래가 없는 그래프 날짜는 서비스에서 가격을 이월하고 입찰량을 0으로 채운다.
 
 ```text
 home
 ├── controller/HomeController
 ├── service/HomeService
 ├── repository/HomeAuctionRepository
+├── repository/MarketDailyStatisticRepository
 └── dto/HomeResponses
 ```
 
 - Controller는 요청 파라미터 범위만 검증한다.
 - Service는 `@Transactional(readOnly = true)`로 날짜 계산과 응답 조립을 담당한다.
-- Repository는 projection 기반 `COUNT`, `AVG`, `SUM` 쿼리로 전체 엔티티 로딩을 피한다.
+- 매일 서울 시간 00:10에 전날의 종료 경매와 실제 입찰을 일간 통계로
+  upsert하고, 카드별 30일 요약과 변화율을 갱신한다.
+- 동일 날짜 집계를 재실행해도 행이 증가하지 않는다.
 - `Clock`을 주입해 시간에 의존하는 로직을 고정된 시각으로 테스트한다.
 - 카드 테마 계산은 카드 목록과 홈 TOP5가 같은 `CardTheme` 규칙을 사용한다.
 
@@ -91,8 +101,8 @@ INDEX idx_auctions_status_close_time (status, close_time);
 INDEX idx_auctions_status_current_price (status, current_price);
 ```
 
-카드별 기준 시점 통계 조회에는 기존의
-`item_statistics(item_id, statistics_date)` 유니크 인덱스를 사용한다.
+카드 일간 통계에는 `UNIQUE(item_id, statistics_date)`와
+`INDEX(statistics_date, item_id)`를 사용한다. 최신 요약은 `item_id`가 기본 키다.
 
 ## 테스트
 

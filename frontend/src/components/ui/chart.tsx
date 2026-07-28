@@ -47,10 +47,13 @@ export function ChartTooltipContent({
 }){
   const config=useContext(ChartContext);
   if(!active||!payload?.length)return null;
+  const uniquePayload=payload.filter((item,index,items)=>
+    items.findIndex(candidate=>candidate.dataKey===item.dataKey)===index,
+  );
 
   return <div className="shadcn-chart-tooltip">
     <strong>{labelFormatter?labelFormatter(String(label)):label}</strong>
-    {payload.map(item=>{
+    {uniquePayload.map(item=>{
       const key=String(item.dataKey);
       const definition=config[key];
       return <div key={key}>

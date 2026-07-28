@@ -51,7 +51,15 @@ public final class HomeResponses {
             long price,
             BigDecimal changeRate,
             String theme,
-            int bidCount
+            int bidCount,
+            String imageUrl,
+            List<RankingPricePoint> priceHistory
+    ) {
+    }
+
+    public record RankingPricePoint(
+            String date,
+            long price
     ) {
     }
 }

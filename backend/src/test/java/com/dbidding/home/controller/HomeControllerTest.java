@@ -50,12 +50,17 @@ class HomeControllerTest {
                 "전일 상승 Top 5",
                 List.of(new HomeResponses.Ranking(
                         10, "피카츄", 120_000, new BigDecimal("20.00"),
-                        "gold", 4))
+                        "gold", 4, "pokemon-cards/pikachu.webp", List.of(
+                                new HomeResponses.RankingPricePoint("07/26", 100_000),
+                                new HomeResponses.RankingPricePoint("07/27", 120_000)
+                        )))
         ));
 
         mockMvc.perform(get("/api/home/top-gainers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topGainers[0].cardId").value(10))
+                .andExpect(jsonPath("$.topGainers[0].imageUrl").value("pokemon-cards/pikachu.webp"))
+                .andExpect(jsonPath("$.topGainers[0].priceHistory[1].price").value(120000))
                 .andExpect(jsonPath("$.topGainers[0].auctionId").doesNotExist());
     }
 }

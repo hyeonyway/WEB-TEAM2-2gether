@@ -112,9 +112,9 @@ mysql -u root -p dbidding < src/main/resources/schema.sql
 
 ```text
 src/main/resources/required-data/
-├── 001-pokemon-cards.sql
-├── 002-required-users.sql
-└── 003-other-data.sql
+├── 001-pokemon-card.sql
+├── 002-user.sql
+└── 003-auction-bid-item-statistics.sql
 ```
 
 DB 초기화 시 비어 있지 않은 `.sql` 파일만 정렬된 순서대로 실행한다. 하나라도
