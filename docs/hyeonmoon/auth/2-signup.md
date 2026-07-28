@@ -94,6 +94,8 @@ Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟
 - Create: `backend/src/main/java/com/dbidding/user/UserAccountAdapter.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateEmailException.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateNicknameException.java`
+- Test: `backend/src/test/java/com/dbidding/auth/dto/SignupRequestValidationTest.java`
+- Test: `backend/src/test/java/com/dbidding/user/UserAccountAdapterTest.java`
 
 **Interfaces:**
 - Consumes: `UserAccountPort`, `WalletProvisioningPort`, `PasswordHasher`
@@ -101,7 +103,7 @@ Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟
 - Produces: `void WalletProvisioningPort.createFor(Integer userId)`
 - Produces: `SignupResponse AuthService.signup(SignupRequest request)`
 
-- [ ] **Step 1: DTO와 port 작성**
+- [x] **Step 1: DTO와 port 작성**
 
 ```java
 public record SignupRequest(
@@ -142,19 +144,12 @@ public interface UserAccountPort {
 `WalletProvisioningPort`는 선행 Wallet 생성 연동 작업에서 Auth가 소유하도록
 정의한다. 회원가입 작업은 이미 등록된 Port와 Wallet 구현체를 소비한다.
 
-- [ ] **Step 2: 중복 이메일 서비스 실패 테스트**
+- [x] **Step 2: DTO 검증과 UserAccountAdapter 테스트**
 
-```java
-@Test
-void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
-    given(userAccountPort.existsByEmail("collector@example.com")).willReturn(true);
-
-    assertThatThrownBy(() -> authService.signup(request))
-        .isInstanceOf(DuplicateEmailException.class);
-    then(userAccountPort).should(never()).create(any(), any(), any(), any());
-    then(walletProvisioningPort).shouldHaveNoInteractions();
-}
-```
+유효한 회원가입 요청과 이메일·비밀번호·닉네임 형식 오류를 Bean Validation으로
+검증한다. `UserAccountAdapter`는 User 생성·조회 결과를 Auth 소유
+`UserAccount`로 변환하고 `user.UserRole`을 `UserAccountRole`로 명시적으로
+매핑하는지 확인한다.
 
 ### Task 3: 회원가입 서비스와 Controller
 
@@ -169,7 +164,21 @@ void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
 - Consumes: `WalletProvisioningPort.createFor(Integer userId)`
 - Produces: `POST /api/auth/signup`
 
-- [ ] **Step 1: 성공 서비스 테스트 작성**
+- [ ] **Step 1: 중복 이메일·닉네임 서비스 실패 테스트**
+
+```java
+@Test
+void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
+    given(userAccountPort.existsByEmail("collector@example.com")).willReturn(true);
+
+    assertThatThrownBy(() -> authService.signup(request))
+        .isInstanceOf(DuplicateEmailException.class);
+    then(userAccountPort).should(never()).create(any(), any(), any(), any());
+    then(walletProvisioningPort).shouldHaveNoInteractions();
+}
+```
+
+- [ ] **Step 2: 성공 서비스 테스트 작성**
 
 ```java
 @Test
@@ -189,7 +198,7 @@ void 회원가입하면_사용자와_잔액_0원_지갑을_생성한다() {
 }
 ```
 
-- [ ] **Step 2: 최소 서비스 구현**
+- [ ] **Step 3: 최소 서비스 구현**
 
 ```java
 @Transactional
@@ -212,7 +221,7 @@ public SignupResponse signup(SignupRequest request) {
 
 DB UNIQUE 위반도 동일한 409 응답으로 변환해 사전 조회와 실제 INSERT 사이의 경쟁 조건을 처리한다.
 
-- [ ] **Step 3: Controller 요청·응답 테스트**
+- [ ] **Step 4: Controller 요청·응답 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/signup")
@@ -225,13 +234,13 @@ mockMvc.perform(post("/api/auth/signup")
     .andExpect(jsonPath("$.password").doesNotExist());
 ```
 
-- [ ] **Step 4: User·Wallet 트랜잭션 통합 테스트**
+- [ ] **Step 5: User·Wallet 트랜잭션 통합 테스트**
 
 실제 `UserAccountAdapter`와 `WalletProvisioningAdapter`를 사용해 회원가입 성공 시
 `users`와 `wallets`에 각각 한 row가 생성되는지 확인한다. Wallet 생성이 실패하면
 같은 트랜잭션에서 User 저장도 롤백되는지 검증한다.
 
-- [ ] **Step 5: 전체 테스트와 커밋**
+- [ ] **Step 6: 전체 테스트와 커밋**
 
 ```bash
 ./gradlew clean test
