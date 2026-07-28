@@ -39,7 +39,7 @@ environment:
 - Modify: `backend/build.gradle`
 - Modify: `backend/src/main/resources/application.yml`
 - Modify: `backend/src/main/java/com/dbidding/DbiddingApplication.java`
-- Create: `backend/src/main/java/com/dbidding/auth/JwtProperties.java`
+- Create: `backend/src/main/java/com/dbidding/auth/config/JwtProperties.java`
 
 - [x] **Step 1: JJWT 의존성 추가**
 
@@ -87,12 +87,12 @@ Expected: 설정 바인딩 오류 없이 실행된다.
 ### Task 2: JwtTokenProvider
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/auth/JwtTokenProvider.java`
-- Create: `backend/src/main/java/com/dbidding/auth/IssuedTokens.java`
-- Create: `backend/src/main/java/com/dbidding/auth/TokenClaims.java`
-- Create: `backend/src/main/java/com/dbidding/auth/TokenType.java`
-- Create: `backend/src/main/java/com/dbidding/auth/RefreshTokenHasher.java`
-- Test: `backend/src/test/java/com/dbidding/auth/JwtTokenProviderTest.java`
+- Create: `backend/src/main/java/com/dbidding/auth/token/JwtTokenProvider.java`
+- Create: `backend/src/main/java/com/dbidding/auth/token/IssuedTokens.java`
+- Create: `backend/src/main/java/com/dbidding/auth/token/TokenClaims.java`
+- Create: `backend/src/main/java/com/dbidding/auth/token/TokenType.java`
+- Create: `backend/src/main/java/com/dbidding/auth/token/RefreshTokenHasher.java`
+- Test: `backend/src/test/java/com/dbidding/auth/token/JwtTokenProviderTest.java`
 
 **Interfaces:**
 - Produces: `IssuedTokens JwtTokenProvider.issue(Integer userId, UserAccountRole role, Instant now)`
@@ -158,9 +158,9 @@ void refresh_token은_64자_sha256_hex로_변환한다() {
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/auth/dto/LoginRequest.java`
 - Create: `backend/src/main/java/com/dbidding/auth/dto/LoginResponse.java`
-- Create: `backend/src/main/java/com/dbidding/auth/LoginResult.java`
-- Modify: `backend/src/main/java/com/dbidding/auth/AuthService.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthServiceLoginTest.java`
+- Create: `backend/src/main/java/com/dbidding/auth/service/LoginResult.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceLoginTest.java`
 
 **Interfaces:**
 - Consumes: `UserAccountPort.findByEmail`
@@ -196,9 +196,9 @@ void 로그인하면_refresh_hash를_저장하고_access를_반환한다() {
 ### Task 4: 로그인 Controller와 쿠키
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/auth/RefreshCookieFactory.java`
-- Modify: `backend/src/main/java/com/dbidding/auth/AuthController.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthControllerLoginTest.java`
+- Create: `backend/src/main/java/com/dbidding/auth/cookie/RefreshCookieFactory.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
+- Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerLoginTest.java`
 
 - [ ] **Step 1: 쿠키 속성 테스트**
 

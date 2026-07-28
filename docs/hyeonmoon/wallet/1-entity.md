@@ -20,8 +20,8 @@
 ### Task 1: Wallet 엔티티
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/wallet/Wallet.java`
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletTest.java`
+- Create: `backend/src/main/java/com/dbidding/wallet/domain/Wallet.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/domain/WalletTest.java`
 
 **Interfaces:**
 - Produces: `Wallet.open(Integer userId)`
@@ -42,7 +42,7 @@ void 신규_지갑은_잔액_0으로_생성된다() {
 - [x] **Step 2: 테스트 실패 확인**
 
 ```bash
-./gradlew test --tests com.dbidding.wallet.WalletTest
+./gradlew test --tests com.dbidding.wallet.domain.WalletTest
 ```
 
 Expected: Wallet 클래스가 없어 FAIL.
@@ -84,7 +84,7 @@ public class Wallet {
 - [x] **Step 4: 테스트 통과 확인**
 
 ```bash
-./gradlew test --tests com.dbidding.wallet.WalletTest
+./gradlew test --tests com.dbidding.wallet.domain.WalletTest
 ```
 
 Expected: PASS.
@@ -92,8 +92,8 @@ Expected: PASS.
 ### Task 2: WalletRepository
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/wallet/WalletRepository.java`
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletRepositoryTest.java`
+- Create: `backend/src/main/java/com/dbidding/wallet/repository/WalletRepository.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/repository/WalletRepositoryTest.java`
 
 **Interfaces:**
 - Produces: `Optional<Wallet> findByUserId(Integer userId)`

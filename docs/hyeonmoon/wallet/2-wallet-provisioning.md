@@ -21,9 +21,9 @@
 
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/auth/port/WalletProvisioningPort.java`
-- Create: `backend/src/main/java/com/dbidding/wallet/WalletProvisioningAdapter.java`
+- Create: `backend/src/main/java/com/dbidding/wallet/adapter/WalletProvisioningAdapter.java`
 - Create: `backend/src/main/java/com/dbidding/wallet/exception/WalletAlreadyExistsException.java`
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletProvisioningAdapterTest.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/adapter/WalletProvisioningAdapterTest.java`
 
 **Interfaces:**
 - Produces: `void WalletProvisioningPort.createFor(Integer userId)`
@@ -92,12 +92,12 @@ Hibernate `ConstraintViolationException`의 제약조건명이
 ### Task 2: 단위 테스트와 커밋
 
 **Files:**
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletProvisioningAdapterTest.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/adapter/WalletProvisioningAdapterTest.java`
 
 - [x] **Step 1: 테스트 실행**
 
 ```bash
-./gradlew test --tests com.dbidding.wallet.WalletProvisioningAdapterTest
+./gradlew test --tests com.dbidding.wallet.adapter.WalletProvisioningAdapterTest
 ```
 
 Expected: 생성 성공과 중복 생성 거절 시나리오 PASS.

@@ -21,9 +21,9 @@
 
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/bid/port/WalletGateway.java`
-- Create: `backend/src/main/java/com/dbidding/wallet/WalletGatewayImpl.java`
+- Create: `backend/src/main/java/com/dbidding/wallet/adapter/WalletGatewayImpl.java`
 - Create: `backend/src/main/java/com/dbidding/wallet/exception/InsufficientBalanceException.java`
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletGatewayImplTest.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/adapter/WalletGatewayImplTest.java`
 
 **Interfaces:**
 - Produces: `void WalletGateway.hold(Integer userId, Integer auctionId, long amount)` — 잔액 부족 시 `InsufficientBalanceException`
@@ -135,7 +135,7 @@ void outbid로_가격검증_실패시_홀드를_해제한다() {
 ### Task 3: 단위 테스트와 커밋
 
 ```bash
-./gradlew test --tests com.dbidding.wallet.WalletGatewayImplTest
+./gradlew test --tests com.dbidding.wallet.adapter.WalletGatewayImplTest
 git add backend/src/main/java/com/dbidding/bid/port/WalletGateway.java \
   backend/src/main/java/com/dbidding/wallet backend/src/test/java/com/dbidding/wallet
 git commit -m "feat: 입찰 잔액 홀드/해제 연동"

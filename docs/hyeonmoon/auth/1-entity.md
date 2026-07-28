@@ -30,10 +30,10 @@
 ### Task 1: User 엔티티
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/user/User.java`
-- Create: `backend/src/main/java/com/dbidding/user/UserRole.java`
-- Create: `backend/src/main/java/com/dbidding/user/UserStatus.java`
-- Test: `backend/src/test/java/com/dbidding/user/UserTest.java`
+- Create: `backend/src/main/java/com/dbidding/user/domain/User.java`
+- Create: `backend/src/main/java/com/dbidding/user/domain/UserRole.java`
+- Create: `backend/src/main/java/com/dbidding/user/domain/UserStatus.java`
+- Test: `backend/src/test/java/com/dbidding/user/domain/UserTest.java`
 
 **Interfaces:**
 - Produces: `User.create(String email, String nickname, String encryptedPassword, String salt)`
@@ -55,7 +55,7 @@ void 신규_사용자는_USER_ACTIVE_상태로_생성된다() {
 
 ```bash
 cd backend
-./gradlew test --tests com.dbidding.user.UserTest
+./gradlew test --tests com.dbidding.user.domain.UserTest
 ```
 
 Expected: `User`, `UserRole`, `UserStatus`를 찾지 못해 FAIL.
@@ -106,7 +106,7 @@ enum의 최초 값은 `USER`, `ADMIN`과 `ACTIVE`, `SUSPENDED`, `WITHDRAWN`만 �
 - [x] **Step 4: User 단위 테스트 통과 확인**
 
 ```bash
-./gradlew test --tests com.dbidding.user.UserTest
+./gradlew test --tests com.dbidding.user.domain.UserTest
 ```
 
 Expected: PASS.
@@ -114,8 +114,8 @@ Expected: PASS.
 ### Task 2: Authentication 엔티티
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/auth/Authentication.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthenticationTest.java`
+- Create: `backend/src/main/java/com/dbidding/auth/domain/Authentication.java`
+- Test: `backend/src/test/java/com/dbidding/auth/domain/AuthenticationTest.java`
 
 **Interfaces:**
 - Produces: `Authentication.issue(Integer userId, String refreshTokenHash)`
@@ -165,7 +165,7 @@ public class Authentication {
 - [x] **Step 3: 테스트 통과 확인**
 
 ```bash
-./gradlew test --tests com.dbidding.auth.AuthenticationTest
+./gradlew test --tests com.dbidding.auth.domain.AuthenticationTest
 ```
 
 Expected: PASS.
@@ -173,10 +173,10 @@ Expected: PASS.
 ### Task 3: Repository
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/user/UserRepository.java`
-- Create: `backend/src/main/java/com/dbidding/auth/AuthenticationRepository.java`
-- Test: `backend/src/test/java/com/dbidding/user/UserRepositoryTest.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthenticationRepositoryTest.java`
+- Create: `backend/src/main/java/com/dbidding/user/repository/UserRepository.java`
+- Create: `backend/src/main/java/com/dbidding/auth/repository/AuthenticationRepository.java`
+- Test: `backend/src/test/java/com/dbidding/user/repository/UserRepositoryTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/repository/AuthenticationRepositoryTest.java`
 
 **Interfaces:**
 - Produces: `boolean UserRepository.existsByEmail(String email)`
@@ -224,8 +224,8 @@ class UserRepositoryTest {
 ```
 
 ```bash
-./gradlew test --tests com.dbidding.user.UserRepositoryTest
-./gradlew test --tests com.dbidding.auth.AuthenticationRepositoryTest
+./gradlew test --tests com.dbidding.user.repository.UserRepositoryTest
+./gradlew test --tests com.dbidding.auth.repository.AuthenticationRepositoryTest
 ```
 
 Expected: PASS하며 Hibernate schema validation 오류가 없어야 한다.

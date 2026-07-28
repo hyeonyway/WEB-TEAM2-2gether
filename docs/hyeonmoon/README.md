@@ -31,23 +31,47 @@
 
 ```text
 auth
-├── Authentication
-├── 회원가입·로그인·토큰
-└── auth.port.UserAccountPort, WalletProvisioningPort
+├── controller
+├── service
+├── domain
+├── repository
+├── dto
+├── port
+├── token
+├── config
+├── cookie
+├── password
+└── exception
 
 user
-├── User
-├── UserRepository
-├── UserAccountPort 구현
-└── Address CRUD
+├── domain
+├── repository
+├── adapter
+├── controller
+├── service
+└── dto
 
 wallet
-├── Wallet
-├── WalletProvisioningPort 구현
-└── 잔액 조회
+├── domain
+├── repository
+├── adapter
+├── controller
+├── service
+├── dto
+└── exception
 ```
 
-`User`와 `UserRepository`는 계정 정보를 소유하는 `user` 패키지에 둔다. `auth`는 사용자 조회·등록에 필요한 `auth.port.UserAccountPort`를 소유하고 해당 Port만 의존한다. `user`는 `UserRepository`를 사용해 이 Port를 구현하며, `auth`는 `user`의 Entity나 Repository를 직접 import하지 않는다.
+엔티티는 `domain`, Spring Data 인터페이스는 `repository`, 다른 도메인이 소유한
+Port의 구현체는 `adapter`에 둔다. 유스케이스와 HTTP 진입점은 각각 `service`,
+`controller`에 두고 요청·응답 모델은 `dto`에 둔다. Auth의 JWT 구현은 `token`,
+JWT 설정은 `config`, Refresh 쿠키 생성은 `cookie`, 비밀번호 해시는
+`password`가 소유한다.
+
+`User`와 `UserRepository`는 계정 정보를 소유하는 `user.domain`과
+`user.repository`에 둔다. `auth`는 사용자 조회·등록에 필요한
+`auth.port.UserAccountPort`를 소유하고 해당 Port만 의존한다. `user.adapter`는
+`UserRepository`를 사용해 이 Port를 구현하며, `auth`는 `user`의 Entity나
+Repository를 직접 import하지 않는다.
 
 ## 실행 순서
 
