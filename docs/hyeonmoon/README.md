@@ -1,6 +1,8 @@
 # A 도메인 개발 계획
 
-김현문 담당 영역인 Auth, User, Wallet의 구현 계획을 실행 순서대로 정리한다. 이 문서는 전체 진행 순서를 안내하고, 구체적인 파일과 테스트 절차는 각 도메인 문서에서 다룬다.
+김현문 담당 영역인 Account와 Wallet의 구현 계획을 실행 순서대로 정리한다.
+이 문서는 전체 진행 순서를 안내하고, 구체적인 파일과 테스트 절차는 각 도메인
+문서에서 다룬다.
 
 ## 목표
 
@@ -84,12 +86,15 @@ DTO를 두지 않는다. 외부 API와 DB FK에서는 기존 계약인 `userId`�
 | 10 | 완료 | [Current User와 SSE 인증](auth/5-current-user-and-sse-auth.md) | 실제 JWT 필터 전환과 SSE 티켓 인증 |
 | 11 | 완료 | [Account 도메인 통합](account/1-account-domain-refactor.md) | Auth·User 계정 책임과 패키지 통합 |
 | 12 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
-| 13 | **다음** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
+| 13 | **다음 백엔드** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
 
 문서 번호는 도메인 안의 책임 순서를 나타낸다. 도메인 사이의 실제 구현은
 Auth 1 → Wallet 1·2 → Auth 2·3·4·5 → Wallet 3·4·5 → Account 통합까지
-완료됐다. 다음 백엔드 작업은 Account가 소유하는 배송지 CRUD다. 기존
-`auth`, `user` 경로의 문서는 구현 당시 판단을 남긴 역사적 문서로 유지한다.
+완료됐다. 프론트는 로그인·회원가입·로그아웃 모달 연동까지 구현했으며, 다음
+작업은 SPA 내부 이동과 앱 시작 Refresh를 포함한 인증 세션 완성이다.
+배송지 CRUD는 Account가 소유하는 다음 백엔드 작업이며, 현재 계획의 가장
+마지막에 구현한다. 기존 `auth`, `user` 경로의 문서는 구현 당시 판단을 남긴
+역사적 문서로 유지한다.
 
 ## 공통 테스트 규칙
 
@@ -105,6 +110,16 @@ cd backend
 ```
 
 현재 테스트 소스가 없는 경우 `NO-SOURCE`를 성공한 테스트처럼 보고하지 않는다.
+
+## 프론트 연동 계획
+
+Account와 Wallet 백엔드 구현을 화면에 연결하는 전체 순서와 담당 경계는
+[Frontend Account·Wallet 개발 계획](../../frontend/docs/hyeonmoon/README.md)에서
+관리한다.
+구체적인 작업은 인증 UI, 인증 세션, Wallet 잔액, 충전·환불, Auction Wallet
+접점, Account·배송지 순서로 분리한다. 다른 담당자의 화면은 공통 hook과 Query
+계약을 전달하는 범위로 제한하고, 배송지는 백엔드 API 구현 뒤 가장 마지막에
+연결한다.
 
 ## Wallet 원장 제약
 
