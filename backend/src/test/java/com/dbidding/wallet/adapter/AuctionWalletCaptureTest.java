@@ -94,6 +94,7 @@ class AuctionWalletCaptureTest {
 		assertThat(wallet.getPoint()).isEqualTo(4_000L);
 		assertThat(result.availableBalance()).isEqualTo(4_000L);
 		assertThat(result.frozenBalance()).isZero();
+		assertThat(captured.getStatus()).isEqualTo(HoldStatus.CAPTURED);
 		then(pointRecordRepository).should(never()).save(
 			org.mockito.ArgumentMatchers.any()
 		);
@@ -134,6 +135,7 @@ class AuctionWalletCaptureTest {
 		assertThatThrownBy(() -> adapter.confirmWinningBid(1, 20, 16_000L))
 			.isInstanceOf(InvalidWalletHoldStateException.class);
 		assertThat(wallet.getPoint()).isEqualTo(20_000L);
+		assertThat(released.getStatus()).isEqualTo(HoldStatus.RELEASED);
 		then(pointRecordRepository).should(never()).save(
 			org.mockito.ArgumentMatchers.any()
 		);
