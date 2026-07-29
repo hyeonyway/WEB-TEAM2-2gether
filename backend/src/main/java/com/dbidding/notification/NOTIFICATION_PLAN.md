@@ -57,7 +57,7 @@ CREATE TABLE notification (
 @Component
 public class NotificationEventListener {
 
-    private final WishlistService wishlistService;
+    private final WishlistUserFinder wishlistUserFinder; // notification 소유 Port, 아래 "wishlist 의존성" 참고
     private final CardService cardService; // card 패키지, 아래 "카드 이름 의존성" 참고
     private final NotificationService notificationService;
 
@@ -65,7 +65,7 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleAuctionCreated(AuctionCreatedEvent event) {
         String cardName = cardService.getName(event.cardId());
-        List<Integer> userIds = wishlistService.findUserIdsByCardId(event.cardId());
+        List<Integer> userIds = wishlistUserFinder.findUserIdsByCardId(event.cardId());
         String message = cardName + " 카드의 경매가 등록되었습니다.";
         for (Integer userId : userIds) {
             notificationService.save(userId, event.auctionId(), message);
@@ -91,6 +91,8 @@ public class NotificationEventListener {
 ### 열려있는 의존성 2: `wishlistService.findUserIdsByCardId(cardId)`
 
 같은 담당자(D) 소관이라 지금 바로 만들 수 있다 — `WishlistRepository`에 `findByCardId(Integer cardId)`를 derived query로 추가하고 userId만 뽑아 반환한다. 이번 라운드에 포함.
+
+**구현 시 변경**: 같은 담당자 소관이라도 `NotificationEventListener`가 `WishlistService`를 직접 참조하면 도메인 간 결합이 생긴다(코드리뷰 지적 반영). 그래서 notification이 소유하는 `notification/port/WishlistUserFinder` 인터페이스를 두고, `notification/adapter/WishlistUserFinderAdapter`가 `WishlistService`를 감싸서 구현하는 방식으로 바꿨다. 리스너는 Port와 ID만 참조한다.
 
 이번 라운드는 auction/card 쪽 서비스가 아직 없어 `NotificationEventListener`와 실제 이벤트 클래스는 만들지 않고, 위 구조 결정만 문서화해둔다. auction이 `AuctionCreatedEvent`를 실제로 발행하기 시작하고 card가 `getName(cardId)`를 열어주면, 그때 리스너를 실제로 구현한다.
 

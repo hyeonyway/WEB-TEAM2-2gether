@@ -3,7 +3,7 @@ package com.dbidding.notification;
 import com.dbidding.notification.event.AuctionClosedEvent;
 import com.dbidding.notification.event.AuctionCreatedEvent;
 import com.dbidding.notification.event.BidOutbidEvent;
-import com.dbidding.wishlist.WishlistService;
+import com.dbidding.notification.port.WishlistUserFinder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -14,14 +14,14 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class NotificationEventListener {
 
-    private final WishlistService wishlistService;
+    private final WishlistUserFinder wishlistUserFinder;
     private final NotificationService notificationService;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleAuctionCreated(AuctionCreatedEvent event) {
         String message = event.cardName() + " 카드의 경매가 등록되었습니다.";
-        wishlistService.findUserIdsByCardId(event.cardId())
+        wishlistUserFinder.findUserIdsByCardId(event.cardId())
                 .forEach(userId -> notificationService.save(userId, event.auctionId(), message));
     }
 

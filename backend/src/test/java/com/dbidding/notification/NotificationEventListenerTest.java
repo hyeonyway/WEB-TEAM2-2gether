@@ -1,17 +1,14 @@
 package com.dbidding.notification;
 
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.dbidding.notification.event.AuctionClosedEvent;
 import com.dbidding.notification.event.AuctionCreatedEvent;
 import com.dbidding.notification.event.BidOutbidEvent;
-import com.dbidding.wishlist.WishlistService;
+import com.dbidding.notification.port.WishlistUserFinder;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class NotificationEventListenerTest {
 
     @Mock
-    private WishlistService wishlistService;
+    private WishlistUserFinder wishlistUserFinder;
 
     @Mock
     private NotificationService notificationService;
@@ -31,20 +28,21 @@ class NotificationEventListenerTest {
 
     @Test
     void 경매가_등록되면_찜한_유저_전원에게_알림을_보낸다() {
-        listener = new NotificationEventListener(wishlistService, notificationService);
-        given(wishlistService.findUserIdsByCardId(10)).willReturn(List.of(1, 2, 3));
+        listener = new NotificationEventListener(wishlistUserFinder, notificationService);
+        given(wishlistUserFinder.findUserIdsByCardId(10)).willReturn(List.of(1, 2, 3));
 
         listener.handleAuctionCreated(new AuctionCreatedEvent(100, 10, "리자몽 EX", 9));
 
         verify(notificationService).save(1, 100, "리자몽 EX 카드의 경매가 등록되었습니다.");
         verify(notificationService).save(2, 100, "리자몽 EX 카드의 경매가 등록되었습니다.");
         verify(notificationService).save(3, 100, "리자몽 EX 카드의 경매가 등록되었습니다.");
+        verifyNoMoreInteractions(notificationService);
     }
 
     @Test
     void 찜한_유저가_없으면_알림을_보내지_않는다() {
-        listener = new NotificationEventListener(wishlistService, notificationService);
-        given(wishlistService.findUserIdsByCardId(10)).willReturn(List.of());
+        listener = new NotificationEventListener(wishlistUserFinder, notificationService);
+        given(wishlistUserFinder.findUserIdsByCardId(10)).willReturn(List.of());
 
         listener.handleAuctionCreated(new AuctionCreatedEvent(100, 10, "리자몽 EX", 9));
 
@@ -53,7 +51,7 @@ class NotificationEventListenerTest {
 
     @Test
     void 상회_입찰이_발생하면_이전_최고_입찰자에게_알림을_보낸다() {
-        listener = new NotificationEventListener(wishlistService, notificationService);
+        listener = new NotificationEventListener(wishlistUserFinder, notificationService);
 
         listener.handleBidOutbid(new BidOutbidEvent(100, 10, "리자몽 EX", 5));
 
@@ -62,7 +60,7 @@ class NotificationEventListenerTest {
 
     @Test
     void 낙찰되면_낙찰자와_판매자_모두에게_알림을_보낸다() {
-        listener = new NotificationEventListener(wishlistService, notificationService);
+        listener = new NotificationEventListener(wishlistUserFinder, notificationService);
 
         listener.handleAuctionClosed(new AuctionClosedEvent(100, 10, "리자몽 EX", 7, 9, 50000L));
 
@@ -72,11 +70,11 @@ class NotificationEventListenerTest {
 
     @Test
     void 유찰되면_판매자에게만_알림을_보낸다() {
-        listener = new NotificationEventListener(wishlistService, notificationService);
+        listener = new NotificationEventListener(wishlistUserFinder, notificationService);
 
         listener.handleAuctionClosed(new AuctionClosedEvent(100, 10, "리자몽 EX", null, 9, null));
 
         verify(notificationService).save(9, 100, "리자몽 EX 카드 경매가 유찰되었습니다.");
-        verify(notificationService, never()).save(eq(7), anyInt(), anyString());
+        verifyNoMoreInteractions(notificationService);
     }
 }
