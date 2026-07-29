@@ -3,6 +3,7 @@ package com.dbidding.home.service;
 import com.dbidding.card.domain.CardTheme;
 import com.dbidding.card.domain.ItemDailyStatistic;
 import com.dbidding.card.repository.ItemDailyStatisticRepository;
+import com.dbidding.card.repository.PriceMovementCandidate;
 import com.dbidding.home.domain.MarketDailyStatistic;
 import com.dbidding.home.dto.HomeResponses;
 import com.dbidding.home.repository.HomeAuctionRepository;
@@ -107,64 +108,83 @@ public class HomeService {
     }
 
     public HomeResponses.TopGainers getTopGainers(int limit) {
+        return new HomeResponses.TopGainers(
+                "이전 가격 대비 상승 Top 5",
+                getPriceMovers(limit).gainers()
+        );
+    }
+
+    public HomeResponses.PriceMovers getPriceMovers(int limit) {
         LocalDate today = LocalDate.now(clock);
-        LocalDate yesterdayDate = today.minusDays(1);
-        LocalDate dayBeforeDate = today.minusDays(2);
-
-        Map<Integer, ItemDailyStatistic> yesterday = snapshots(yesterdayDate);
-        Map<Integer, ItemDailyStatistic> dayBefore = snapshots(dayBeforeDate);
-
-        List<HomeResponses.Ranking> rankings = yesterday.entrySet().stream()
-                .map(entry -> ranking(entry.getValue(), dayBefore.get(entry.getKey())))
+        LocalDate from = today.minusDays(30);
+        List<HomeResponses.Ranking> candidates = dailyStatisticRepository
+                .findPriceMovementCandidates(from, today).stream()
+                .map(this::ranking)
                 .filter(java.util.Objects::nonNull)
+                .toList();
+        List<HomeResponses.Ranking> gainers = candidates.stream()
+                .filter(ranking -> ranking.changeRate().signum() > 0)
                 .sorted(Comparator.comparing(HomeResponses.Ranking::changeRate).reversed()
                         .thenComparing(HomeResponses.Ranking::price, Comparator.reverseOrder())
                         .thenComparing(HomeResponses.Ranking::cardId))
                 .limit(limit)
                 .toList();
-
-        if (rankings.isEmpty()) {
-            return new HomeResponses.TopGainers("전일 상승 Top 5", rankings);
-        }
-        List<Integer> itemIds = rankings.stream().map(HomeResponses.Ranking::cardId).toList();
+        List<HomeResponses.Ranking> losers = candidates.stream()
+                .filter(ranking -> ranking.changeRate().signum() < 0)
+                .sorted(Comparator.comparing(HomeResponses.Ranking::changeRate)
+                        .thenComparing(HomeResponses.Ranking::price, Comparator.reverseOrder())
+                        .thenComparing(HomeResponses.Ranking::cardId))
+                .limit(limit)
+                .toList();
+        List<Integer> itemIds = java.util.stream.Stream.concat(gainers.stream(), losers.stream())
+                .map(HomeResponses.Ranking::cardId)
+                .distinct()
+                .toList();
         Map<Integer, List<HomeResponses.RankingPricePoint>> histories =
-                dailyStatisticRepository.findHistory(itemIds, today.minusDays(30), today).stream()
+                itemIds.isEmpty() ? Map.of() : dailyStatisticRepository.findHistory(itemIds, from, today).stream()
                         .collect(Collectors.groupingBy(
                                 stat -> stat.getItem().getId(),
                                 Collectors.collectingAndThen(Collectors.toList(), this::priceHistory)
                         ));
-        List<HomeResponses.Ranking> rankingsWithHistory = rankings.stream()
-                .map(ranking -> new HomeResponses.Ranking(
-                        ranking.cardId(), ranking.name(), ranking.price(), ranking.changeRate(),
-                        ranking.theme(), ranking.bidCount(), ranking.imageUrl(),
-                        histories.getOrDefault(ranking.cardId(), List.of())
-                ))
-                .toList();
-
-        return new HomeResponses.TopGainers("전일 상승 Top 5", rankingsWithHistory);
+        return new HomeResponses.PriceMovers(
+                30,
+                withHistory(gainers, histories),
+                withHistory(losers, histories)
+        );
     }
 
-    private Map<Integer, ItemDailyStatistic> snapshots(LocalDate date) {
-        return dailyStatisticRepository.findAllWithItemByStatisticsDate(date).stream()
-                .collect(Collectors.toMap(stat -> stat.getItem().getId(), Function.identity()));
-    }
-
-    private HomeResponses.Ranking ranking(ItemDailyStatistic current, ItemDailyStatistic previous) {
-        long currentPrice = price(current);
-        long previousPrice = price(previous);
-        if (currentPrice <= 0 || previousPrice <= 0 || currentPrice <= previousPrice) {
+    private HomeResponses.Ranking ranking(PriceMovementCandidate candidate) {
+        long currentPrice = value(candidate.getCurrentPrice());
+        long previousPrice = value(candidate.getPreviousPrice());
+        if (currentPrice <= 0 || previousPrice <= 0 || currentPrice == previousPrice) {
             return null;
         }
         return new HomeResponses.Ranking(
-                current.getItem().getId(),
-                current.getItem().getName(),
+                candidate.getCardId(),
+                candidate.getName(),
                 currentPrice,
                 changeRate(currentPrice, previousPrice),
-                CardTheme.from(current.getItem()),
-                current.getBidCount() == null ? 0 : current.getBidCount(),
-                current.getItem().getImagePath(),
+                CardTheme.fromRarity(candidate.getRarity()),
+                candidate.getBidCount() == null ? 0 : candidate.getBidCount(),
+                candidate.getImageUrl(),
+                candidate.getCurrentDate(),
+                candidate.getPreviousDate(),
                 List.of()
         );
+    }
+
+    private List<HomeResponses.Ranking> withHistory(
+            List<HomeResponses.Ranking> rankings,
+            Map<Integer, List<HomeResponses.RankingPricePoint>> histories
+    ) {
+        return rankings.stream()
+                .map(ranking -> new HomeResponses.Ranking(
+                        ranking.cardId(), ranking.name(), ranking.price(), ranking.changeRate(),
+                        ranking.theme(), ranking.bidCount(), ranking.imageUrl(),
+                        ranking.currentDate(), ranking.previousDate(),
+                        histories.getOrDefault(ranking.cardId(), List.of())
+                ))
+                .toList();
     }
 
     private List<HomeResponses.RankingPricePoint> priceHistory(List<ItemDailyStatistic> statistics) {

@@ -34,7 +34,7 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
     @Query(value = """
             insert into market_daily_statistics (
                 statistics_date, average_price, lowest_price, highest_price, winning_price_total_30d,
-                average_price_30d, highest_price_30d, bid_count_30d,
+                highest_price_30d, bid_count_30d,
                 ended_auction_count_30d, bid_count, ended_auction_count
             )
             select :date,
@@ -45,10 +45,6 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
                    (select max(a.current_price) from auctions a
                     where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to),
                    (select coalesce(sum(a.current_price), 0) from auctions a
-                    where a.status = 'ENDED'
-                      and a.close_time >= date_sub(:from, interval 29 day)
-                      and a.close_time < :to),
-                   (select coalesce(round(avg(a.current_price)), 0) from auctions a
                     where a.status = 'ENDED'
                       and a.close_time >= date_sub(:from, interval 29 day)
                       and a.close_time < :to),
@@ -72,7 +68,6 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
                 average_price = values(average_price), lowest_price = values(lowest_price),
                 highest_price = values(highest_price),
                 winning_price_total_30d = values(winning_price_total_30d),
-                average_price_30d = values(average_price_30d),
                 highest_price_30d = values(highest_price_30d),
                 bid_count_30d = values(bid_count_30d),
                 ended_auction_count_30d = values(ended_auction_count_30d),

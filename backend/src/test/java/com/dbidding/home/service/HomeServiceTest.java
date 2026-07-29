@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.card.repository.ItemDailyStatisticRepository;
+import com.dbidding.card.repository.PriceMovementCandidate;
 import com.dbidding.home.domain.MarketDailyStatistic;
 import com.dbidding.home.repository.HomeAuctionRepository;
 import com.dbidding.home.repository.MarketDailyStatisticRepository;
@@ -88,17 +89,53 @@ class HomeServiceTest {
     }
 
     @Test
-    void 상승_TOP5는_오늘_자정_이전의_어제와_그제_통계만_조회한다() {
-        LocalDate yesterday = LocalDate.of(2026, 7, 27);
-        LocalDate dayBefore = LocalDate.of(2026, 7, 26);
-        given(dailyStatisticRepository.findAllWithItemByStatisticsDate(yesterday)).willReturn(List.of());
-        given(dailyStatisticRepository.findAllWithItemByStatisticsDate(dayBefore)).willReturn(List.of());
+    void 가격_변동_TOP5는_오늘을_제외한_30일_범위의_최근_두_거래를_조회한다() {
+        LocalDate from = LocalDate.of(2026, 6, 28);
+        LocalDate today = LocalDate.of(2026, 7, 28);
+        given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
+                .willReturn(List.of());
 
-        var result = homeService.getTopGainers(5);
+        var result = homeService.getPriceMovers(5);
 
-        verify(dailyStatisticRepository).findAllWithItemByStatisticsDate(yesterday);
-        verify(dailyStatisticRepository).findAllWithItemByStatisticsDate(dayBefore);
-        assertThat(result.topGainers()).isEmpty();
+        verify(dailyStatisticRepository).findPriceMovementCandidates(from, today);
+        assertThat(result.gainers()).isEmpty();
+        assertThat(result.losers()).isEmpty();
+    }
+
+    @Test
+    void 가격_변동은_상승과_하락을_각각_정렬한다() {
+        LocalDate from = LocalDate.of(2026, 6, 28);
+        LocalDate today = LocalDate.of(2026, 7, 28);
+        List<PriceMovementCandidate> candidates = List.of(
+                candidate(1, 120_000L, 100_000L),
+                candidate(2, 80_000L, 100_000L),
+                candidate(3, 150_000L, 100_000L),
+                candidate(4, 60_000L, 100_000L)
+        );
+        given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
+                .willReturn(candidates);
+        given(dailyStatisticRepository.findHistory(
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(from),
+                org.mockito.ArgumentMatchers.eq(today)
+        )).willReturn(List.of());
+
+        var result = homeService.getPriceMovers(5);
+
+        assertThat(result.gainers()).extracting("cardId").containsExactly(3, 1);
+        assertThat(result.losers()).extracting("cardId").containsExactly(4, 2);
+    }
+
+    private PriceMovementCandidate candidate(Integer id, Long current, Long previous) {
+        var candidate = mock(PriceMovementCandidate.class);
+        given(candidate.getCardId()).willReturn(id);
+        given(candidate.getName()).willReturn("카드 " + id);
+        given(candidate.getCurrentPrice()).willReturn(current);
+        given(candidate.getPreviousPrice()).willReturn(previous);
+        given(candidate.getCurrentDate()).willReturn(LocalDate.of(2026, 7, 27));
+        given(candidate.getPreviousDate()).willReturn(LocalDate.of(2026, 7, 25));
+        given(candidate.getBidCount()).willReturn(3);
+        return candidate;
     }
 
     private MarketDailyStatistic daily(
