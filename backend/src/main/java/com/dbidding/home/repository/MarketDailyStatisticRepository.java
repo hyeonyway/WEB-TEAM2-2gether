@@ -13,4 +13,6 @@ public interface MarketDailyStatisticRepository
 
     Optional<MarketDailyStatistic> findFirstByStatisticsDateLessThanOrderByStatisticsDateDesc(
             LocalDate before);
+
+    Optional<MarketDailyStatistic> findFirstByOrderByStatisticsDateDesc();
 }

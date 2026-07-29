@@ -58,7 +58,7 @@ function MarketSkeleton(){
 }
 
 function RankingSkeleton(){
-  return <aside className="home-skeleton"><h2>전일 상승 Top 5</h2>
+  return <aside className="home-skeleton"><h2>이전 가격 대비</h2>
     <div className="ranking home-ranking-skeleton" aria-label="상승 순위를 불러오는 중" aria-busy="true">
       {Array.from({length:5},(_,index)=><div className="home-rank-skeleton" key={index}>
         <i className="skeleton-pulse"/><span className="skeleton-pulse"/>
@@ -172,7 +172,7 @@ function CardThumbnail({item}:{item:HomeRankingDto}){
   />;
 }
 
-function PriceSparkline({history}:{history:HomeRankingDto['priceHistory']}){
+function PriceSparkline({history,direction}:{history:HomeRankingDto['priceHistory'];direction:'gain'|'loss'}){
   if(!history.length)return <svg viewBox="0 0 60 42" aria-label="시세 이력 없음"/>;
   const prices=history.map(point=>point.price);
   const min=Math.min(...prices);
@@ -186,23 +186,30 @@ function PriceSparkline({history}:{history:HomeRankingDto['priceHistory']}){
   const path=points.map((point,index)=>`${index?'L':'M'}${point}`).join(' ');
   const first=history[0];
   const last=history[history.length-1];
-  return <svg viewBox="0 0 60 42" role="img" aria-label={`${first.date}부터 ${last.date}까지 실제 시세 추이`}>
+  return <svg className={direction} viewBox="0 0 60 42" role="img" aria-label={`${first.date}부터 ${last.date}까지 실제 시세 추이`}>
     <path d={path}/>
   </svg>;
 }
 
-function Ranking({title,items}:{title:string;items:HomeRankingDto[]}){
-  return <aside><h2>{title}</h2><div className="ranking">{items.map((item,index)=><a className="rank rank-action" key={item.cardId} href={`/cards/${item.cardId}`}>
+function Ranking({gainers,losers}:{gainers:HomeRankingDto[];losers:HomeRankingDto[]}){
+  const[tab,setTab]=useState<'gain'|'loss'>('gain');
+  const items=tab==='gain'?gainers:losers;
+  return <aside><div className="mover-heading"><h2>이전 가격 대비</h2><div className="mover-tabs" role="tablist" aria-label="가격 변동 순위">
+    <button className={tab==='gain'?'active':''} role="tab" aria-selected={tab==='gain'} onClick={()=>setTab('gain')}>상승 TOP5</button>
+    <button className={tab==='loss'?'active loss':''} role="tab" aria-selected={tab==='loss'} onClick={()=>setTab('loss')}>하락 TOP5</button>
+  </div></div>
+  {items.length===0?<div className="ranking ranking-empty">최근 30일 내 비교 가능한 {tab==='gain'?'상승':'하락'} 카드가 없습니다.</div>
+    :<div className="ranking">{items.map((item,index)=><a className={`rank rank-action ${tab}`} key={item.cardId} href={`/cards/${item.cardId}`}>
     <b className="number">{index+1}</b><CardThumbnail item={item}/>
-    <div className="rank-info"><p>{item.name}</p><strong>{item.price.toLocaleString()}원 <em>+{item.changeRate.toFixed(1)}%</em></strong><small>어제 입찰 {item.bidCount.toLocaleString()}건</small></div>
-    <PriceSparkline history={item.priceHistory}/>
-  </a>)}</div></aside>;
+    <div className="rank-info"><p>{item.name}</p><strong>{item.price.toLocaleString()}원 <em>{item.changeRate>0?'+':''}{item.changeRate.toFixed(1)}%</em></strong><small>최근 거래일 입찰 {item.bidCount.toLocaleString()}건</small></div>
+    <PriceSparkline history={item.priceHistory} direction={tab}/>
+  </a>)}</div>}</aside>;
 }
 
 export default function HomePage(){
   const insightsQuery=useQuery(homeQueries.insights());
   const marketQuery=useQuery(homeQueries.market(30));
-  const topGainersQuery=useQuery(homeQueries.topGainers(5));
+  const priceMoversQuery=useQuery(homeQueries.priceMovers(5));
 
   return <><Header/><main>
     <div className="home-overview-row"><div><p className="intro">현재 진행 중인 카드 경매의 실시간 입찰 현황입니다.</p><div className="date"><CalendarDays/> 실시간 경매 기준</div></div></div>
@@ -222,9 +229,9 @@ export default function HomePage(){
         </div>
         <Chart history={marketQuery.data.marketHistory}/>
       </div>}</div>
-      {topGainersQuery.isPending?<RankingSkeleton/>
-        :topGainersQuery.error||!topGainersQuery.data?<aside><h2>전일 상승 Top 5</h2><p className="form-error">순위를 불러오지 못했습니다.</p></aside>
-          :<Ranking title={topGainersQuery.data.topGainersTitle} items={topGainersQuery.data.topGainers}/>}
+      {priceMoversQuery.isPending?<RankingSkeleton/>
+        :priceMoversQuery.error||!priceMoversQuery.data?<aside><h2>이전 가격 대비</h2><p className="form-error">순위를 불러오지 못했습니다.</p></aside>
+          :<Ranking gainers={priceMoversQuery.data.gainers} losers={priceMoversQuery.data.losers}/>}
     </section>
   </main><footer/></>;
 }

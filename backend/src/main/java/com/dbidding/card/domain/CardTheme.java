@@ -5,7 +5,11 @@ public final class CardTheme {
     }
 
     public static String from(CardMetadata card) {
-        String rarity = card.getRarity() == null ? "" : card.getRarity().toLowerCase();
+        return fromRarity(card.getRarity());
+    }
+
+    public static String fromRarity(String rarityValue) {
+        String rarity = rarityValue == null ? "" : rarityValue.toLowerCase();
         if (rarity.contains("water")) return "water";
         if (rarity.contains("dark")) return "dark";
         if (rarity.contains("sketch")) return "sketch";

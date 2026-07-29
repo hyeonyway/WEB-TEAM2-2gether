@@ -1,6 +1,7 @@
 package com.dbidding.home.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public final class HomeResponses {
@@ -44,6 +45,13 @@ public final class HomeResponses {
     ) {
     }
 
+    public record PriceMovers(
+            int periodDays,
+            List<Ranking> gainers,
+            List<Ranking> losers
+    ) {
+    }
+
     public record Ranking(
             Integer cardId,
             String name,
@@ -52,6 +60,8 @@ public final class HomeResponses {
             String theme,
             int bidCount,
             String imageUrl,
+            LocalDate currentDate,
+            LocalDate previousDate,
             List<RankingPricePoint> priceHistory
     ) {
     }

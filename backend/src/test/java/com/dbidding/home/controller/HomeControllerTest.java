@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.dbidding.home.dto.HomeResponses;
 import com.dbidding.home.service.HomeService;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +51,8 @@ class HomeControllerTest {
                 "전일 상승 Top 5",
                 List.of(new HomeResponses.Ranking(
                         10, "피카츄", 120_000, new BigDecimal("20.00"),
-                        "gold", 4, "pokemon-cards/pikachu.webp", List.of(
+                        "gold", 4, "pokemon-cards/pikachu.webp",
+                        LocalDate.of(2026, 7, 27), LocalDate.of(2026, 7, 26), List.of(
                                 new HomeResponses.RankingPricePoint("07/26", 100_000),
                                 new HomeResponses.RankingPricePoint("07/27", 120_000)
                         )))
@@ -62,5 +64,17 @@ class HomeControllerTest {
                 .andExpect(jsonPath("$.topGainers[0].imageUrl").value("pokemon-cards/pikachu.webp"))
                 .andExpect(jsonPath("$.topGainers[0].priceHistory[1].price").value(120000))
                 .andExpect(jsonPath("$.topGainers[0].auctionId").doesNotExist());
+    }
+
+    @Test
+    void 상승과_하락_TOP5를_한_응답으로_반환한다() throws Exception {
+        given(homeService.getPriceMovers(5)).willReturn(
+                new HomeResponses.PriceMovers(30, List.of(), List.of()));
+
+        mockMvc.perform(get("/api/home/price-movers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.periodDays").value(30))
+                .andExpect(jsonPath("$.gainers").isArray())
+                .andExpect(jsonPath("$.losers").isArray());
     }
 }

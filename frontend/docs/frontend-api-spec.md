@@ -661,19 +661,28 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
 
 ```json
 {
-  "topGainersTitle": "전일 상승 Top 5",
-  "topGainers": [
+  "periodDays": 30,
+  "gainers": [
     {
       "cardId": 2,
       "name": "피카츄 P 스칼렛&바이올렛 프로모 카드",
       "price": 135000,
       "changeRate": 8.9,
       "theme": "gold",
-      "bidCount": 105
+      "bidCount": 105,
+      "currentDate": "2026-07-27",
+      "previousDate": "2026-07-25",
+      "imageUrl": "pokemon-cards/card.webp",
+      "priceHistory": [{"date": "07/27", "price": 135000}]
     }
-  ]
+  ],
+  "losers": []
 }
 ```
+
+가격 변동 API는 `GET /api/home/price-movers?limit=5`이며 오늘을 제외한 최근
+30일 내 각 카드의 최근 두 유효 거래를 비교한다. 상승과 하락 목록을 한 번에
+받으므로 탭 전환 시 추가 요청하지 않는다.
 
 홈 이동 규칙:
 
@@ -682,9 +691,10 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
 | 경매가 상승 | `/auction?sort=CHANGE_HIGH` | 상승률 높은순 |
 | 신규 입찰 | `/auction?sort=BID_COUNT` | 입찰 수 높은순 |
 | 프리미엄 경매 | `/auction?sort=PRICE_HIGH` | 경매가 높은순 |
-| 전일 상승 카드 | `/cards/{cardId}` | 해당 카드 상세 |
+| 가격 변동 카드 | `/cards/{cardId}` | 해당 카드 상세 |
 
-`topGainers`는 진행 경매 존재 여부와 관계없이 전일 시세를 비교하며 `cardId`로 카드 상세에 이동한다.
+가격 변동 순위는 진행 경매 존재 여부와 관계없이 확정 통계의 최근 두 거래를
+비교하며 `cardId`로 카드 상세에 이동한다.
 
 ## 4.2 카드 시세
 

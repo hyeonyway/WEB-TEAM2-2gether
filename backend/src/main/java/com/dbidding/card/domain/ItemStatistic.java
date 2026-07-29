@@ -34,8 +34,6 @@ public class ItemStatistic {
     private Integer bidCount30d;
     @Column(name = "ended_auction_count_30d", nullable = false)
     private Integer endedAuctionCount30d;
-    @Column(name = "active_auction_count")
-    private Integer activeAuctionCount;
     @Column(name = "wishlist_count", nullable = false)
     private Integer wishlistCount;
     @Column(name = "daily_change_rate", precision = 8, scale = 2)
@@ -48,7 +46,7 @@ public class ItemStatistic {
     public ItemStatistic(CardMetadata item, LocalDate asOfDate, Long latestPrice, Long averagePrice30d,
                          Long lowestPrice30d, Long highestPrice30d, Integer bidCount30d,
                          Integer endedAuctionCount30d,
-                         Integer activeAuctionCount, Integer wishlistCount, BigDecimal dailyChangeRate,
+                         Integer wishlistCount, BigDecimal dailyChangeRate,
                          BigDecimal weeklyChangeRate, BigDecimal monthlyChangeRate) {
         this.item = item;
         this.asOfDate = asOfDate;
@@ -58,7 +56,6 @@ public class ItemStatistic {
         this.highestPrice30d = highestPrice30d;
         this.bidCount30d = bidCount30d;
         this.endedAuctionCount30d = endedAuctionCount30d;
-        this.activeAuctionCount = activeAuctionCount;
         this.wishlistCount = wishlistCount;
         this.dailyChangeRate = dailyChangeRate;
         this.weeklyChangeRate = weeklyChangeRate;
