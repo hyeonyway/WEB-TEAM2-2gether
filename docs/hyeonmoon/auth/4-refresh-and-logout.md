@@ -137,22 +137,32 @@ mockMvc.perform(post("/api/auth/refresh")
 **Files:**
 - Modify: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
 - Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/cookie/RefreshCookieFactory.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/repository/AuthenticationRepository.java`
+- Test: `backend/src/test/java/com/dbidding/auth/repository/AuthenticationRepositoryTest.java`
 - Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceLogoutTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceLogoutIntegrationTest.java`
 - Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerLogoutTest.java`
 
 **Interfaces:**
 - Produces: `void AuthService.logout(String refreshToken)`
 - Produces: `POST /api/auth/logout`
 
-- [ ] **Step 1: 서비스 멱등성 테스트**
+- [x] **Step 1: 서비스 멱등성 테스트**
 
-제출된 Refresh Token을 SHA-256으로 해싱하고 `findByRefreshTokenHash(hash)`로 Authentication을 찾아 삭제한다. 이 방식은 JWT가 만료됐어도 서버에 남은 동일 hash를 제거할 수 있다. DB row가 없거나 토큰 형식이 잘못돼도 로그아웃은 성공 처리하고 민감한 상태를 노출하지 않는다.
+제출된 Refresh Token을 JWT로 파싱하지 않고 SHA-256으로 해싱한 뒤
+`DELETE ... WHERE refresh_token = :hash` 조건부 삭제를 한 문장으로 실행한다.
+조회 후 사용자 ID로 삭제하면 그사이 로그인이나 Rotation이 저장한 새 토큰까지
+지울 수 있으므로 사용하지 않는다. DB row가 없거나 토큰 형식이 잘못돼도
+로그아웃은 성공 처리하고 민감한 상태를 노출하지 않는다.
 
-- [ ] **Step 2: 쓰기 트랜잭션 서비스 구현**
+- [x] **Step 2: 쓰기 트랜잭션 서비스 구현**
 
-로그아웃 서비스 메서드에 `@Transactional`을 적용한다. `AuthenticationRepository.deleteByUserId(...)` 같은 직접 선언 삭제 메서드는 Repository 테스트의 트랜잭션에 기대지 않고 반드시 이 서비스 트랜잭션 안에서 호출한다.
+로그아웃 서비스 메서드에 `@Transactional`을 적용한다.
+`AuthenticationRepository.deleteByRefreshTokenHash(...)`는 반드시 이 서비스
+트랜잭션 안에서 호출한다.
 
-- [ ] **Step 3: 만료 쿠키 생성**
+- [x] **Step 3: 만료 쿠키 생성**
 
 ```http
 Set-Cookie: refreshToken=; Max-Age=0; HttpOnly; Path=/api/auth; SameSite=Strict
@@ -160,7 +170,7 @@ Set-Cookie: refreshToken=; Max-Age=0; HttpOnly; Path=/api/auth; SameSite=Strict
 
 발급 쿠키와 삭제 쿠키의 이름, path, secure, same-site 속성을 동일하게 유지한다.
 
-- [ ] **Step 4: Controller 204 테스트**
+- [x] **Step 4: Controller 204 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/logout")
@@ -169,12 +179,12 @@ mockMvc.perform(post("/api/auth/logout")
     .andExpect(cookie().maxAge("refreshToken", 0));
 ```
 
-- [ ] **Step 5: 전체 테스트 및 커밋**
+- [x] **Step 5: 전체 테스트 및 커밋**
 
 ```bash
 JWT_SECRET='local-development-secret-at-least-32-bytes' ./gradlew clean test
 git add backend/src/main/java/com/dbidding/auth backend/src/test/java/com/dbidding/auth
-git commit -m "feat: Refresh Rotation과 로그아웃 구현"
+git commit -m "feat: 로그아웃 API 구현"
 ```
 
 ## 완료 조건

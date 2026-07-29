@@ -18,6 +18,10 @@ public interface AuthenticationRepository extends JpaRepository<Authentication, 
 
 	Optional<Authentication> findByRefreshTokenHash(String refreshTokenHash);
 
+	@Modifying
+	@Query("delete from Authentication authentication where authentication.refreshTokenHash = :refreshTokenHash")
+	int deleteByRefreshTokenHash(@Param("refreshTokenHash") String refreshTokenHash);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select authentication from Authentication authentication where authentication.userId = :userId")
 	Optional<Authentication> findByUserIdForUpdate(@Param("userId") Integer userId);

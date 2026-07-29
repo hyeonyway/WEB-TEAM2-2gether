@@ -41,4 +41,22 @@ class RefreshCookieFactoryTest {
 
 		assertThat(cookie.isSecure()).isFalse();
 	}
+
+	@Test
+	void refresh_cookie를_동일한_속성으로_즉시_만료시킨다() {
+		RefreshCookieFactory factory = new RefreshCookieFactory(
+			new JwtProperties(SECRET, 1800, 604800, true)
+		);
+
+		ResponseCookie cookie = factory.expire();
+
+		assertThat(cookie.getName()).isEqualTo("refreshToken");
+		assertThat(cookie.getValue()).isEmpty();
+		assertThat(cookie.isHttpOnly()).isTrue();
+		assertThat(cookie.isSecure()).isTrue();
+		assertThat(cookie.getSameSite()).isEqualTo("Strict");
+		assertThat(cookie.getPath()).isEqualTo("/api/auth");
+		assertThat(cookie.getDomain()).isNull();
+		assertThat(cookie.getMaxAge()).isEqualTo(Duration.ZERO);
+	}
 }

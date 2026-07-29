@@ -119,6 +119,16 @@ public class AuthService {
 		);
 	}
 
+	@Transactional
+	public void logout(String refreshToken) {
+		if (refreshToken == null || refreshToken.isBlank()) {
+			return;
+		}
+
+		String refreshTokenHash = refreshTokenHasher.hash(refreshToken);
+		authenticationRepository.deleteByRefreshTokenHash(refreshTokenHash);
+	}
+
 	private boolean hashesMatch(String presentedHash, String storedHash) {
 		return MessageDigest.isEqual(
 			presentedHash.getBytes(StandardCharsets.US_ASCII),

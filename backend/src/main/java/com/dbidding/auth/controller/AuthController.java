@@ -69,6 +69,18 @@ public class AuthController {
 			.body(result.response());
 	}
 
+	@PostMapping("/logout")
+	public ResponseEntity<Void> logout(
+		@CookieValue(name = "refreshToken", required = false) String refreshToken
+	) {
+		authService.logout(refreshToken);
+		ResponseCookie expiredRefreshCookie = refreshCookieFactory.expire();
+
+		return ResponseEntity.noContent()
+			.header(HttpHeaders.SET_COOKIE, expiredRefreshCookie.toString())
+			.build();
+	}
+
 	@ExceptionHandler({
 		DuplicateEmailException.class,
 		DuplicateNicknameException.class
