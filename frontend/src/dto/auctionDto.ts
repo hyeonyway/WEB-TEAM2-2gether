@@ -1,5 +1,5 @@
 export type CardTheme='gold'|'water'|'dark'|'multi'|'sketch';
-export type AuctionStatus='OPEN'|'ENDED';
+export type AuctionStatus='SCHEDULED'|'OPEN'|'ENDING'|'ENDED'|'CANCELLED'|'FAILED';
 export type MyBidStatus='LEADING'|'OUTBID'|'NONE';
 export type AuctionSort='BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
 export type CardSort='PRICE'|'FAVORITE'|'REGISTERED';
@@ -70,6 +70,7 @@ export type AuctionResponseDto={
   status:AuctionStatus;
   my_bid_status?:MyBidStatus;
   my_bid_amount?:number|null;
+  version?:number;
 };
 
 export type MockAuctionResponseDto=Omit<AuctionResponseDto,'card'>&{
@@ -109,4 +110,5 @@ export type AuctionDto={
   status:AuctionStatus;
   myBidStatus:MyBidStatus;
   myBidAmount:number|null;
+  version:number;
 };
