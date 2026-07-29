@@ -315,8 +315,12 @@ CREATE TABLE point_records
     created_at       TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     balance          BIGINT       NOT NULL,
     transaction_type VARCHAR(32)  NOT NULL,
+    idempotency_key  VARCHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
 
     CONSTRAINT pk_point_records PRIMARY KEY (id),
+    CONSTRAINT uk_point_records_wallet_idempotency
+        UNIQUE (wallet_id, idempotency_key),
     CONSTRAINT fk_point_records_wallet
         FOREIGN KEY (wallet_id) REFERENCES wallets (id),
     CONSTRAINT fk_point_records_auction
