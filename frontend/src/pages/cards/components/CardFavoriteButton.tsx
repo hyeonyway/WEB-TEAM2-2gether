@@ -1,8 +1,8 @@
 import {Bookmark} from 'lucide-react';
-import {useCardFavorites} from '../../../hooks/useCardFavorites';
+import {useWishlist} from '../../../hooks/useWishlist';
 
 export default function CardFavoriteButton({cardId}:{cardId:number}){
-  const{favoriteCardIds,toggleFavorite}=useCardFavorites();
+  const{favoriteCardIds,toggleFavorite}=useWishlist();
   const active=favoriteCardIds.includes(cardId);
 
   return <button

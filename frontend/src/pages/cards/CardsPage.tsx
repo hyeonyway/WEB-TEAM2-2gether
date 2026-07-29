@@ -6,14 +6,14 @@ import {cardQueries} from '../../queries/auctionQueries';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import type {CardSort} from '../../dto/auctionDto';
-import {useCardFavorites} from '../../hooks/useCardFavorites';
+import {useWishlist} from '../../hooks/useWishlist';
 
 export default function CardsPage(){
   const[query,setQuery]=useState('');
   const[grade,setGrade]=useState('');
   const[sort,setSort]=useState<CardSort>('REGISTERED');
   const[favoriteOnly,setFavoriteOnly]=useState(false);
-  const{favoriteCardIds}=useCardFavorites();
+  const{favoriteCardIds}=useWishlist();
   const debouncedQuery=useDebouncedValue(query);
   const loadMoreRef=useRef<HTMLDivElement>(null);
   const cardQuery=cardQueries.infiniteList({keyword:debouncedQuery,psaGrade:grade||null,sort});
