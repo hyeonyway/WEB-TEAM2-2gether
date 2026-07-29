@@ -33,7 +33,7 @@
 - Consumes: `WalletNotFoundException` from `3-charge-and-refund.md`
 - Produces: `WalletBalanceResponse getBalance(Integer userId)`
 
-- [ ] **Step 1: 정상 계산 테스트를 작성한다**
+- [x] **Step 1: 정상 계산 테스트를 작성한다**
 
 ```java
 @Test
@@ -52,7 +52,7 @@ void 총잔액에서_활성_hold를_빼서_가용액을_계산한다() {
 }
 ```
 
-- [ ] **Step 2: Wallet 없음과 불변식 위반 테스트를 작성한다**
+- [x] **Step 2: Wallet 없음과 불변식 위반 테스트를 작성한다**
 
 ```java
 @Test
@@ -76,7 +76,7 @@ void 동결액이_총잔액보다_크면_손상된_잔액으로_거절한다() {
 }
 ```
 
-- [ ] **Step 3: 실패 테스트를 실행한다**
+- [x] **Step 3: 실패 테스트를 실행한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.service.WalletBalanceServiceTest
@@ -84,7 +84,7 @@ void 동결액이_총잔액보다_크면_손상된_잔액으로_거절한다() {
 
 Expected: Service, Response, 예외가 없어 컴파일 실패.
 
-- [ ] **Step 4: read-only 서비스를 구현한다**
+- [x] **Step 4: read-only 서비스를 구현한다**
 
 ```java
 @Transactional(readOnly = true)
@@ -100,7 +100,7 @@ public WalletBalanceResponse getBalance(Integer userId) {
 }
 ```
 
-- [ ] **Step 5: 서비스 테스트를 다시 실행하고 커밋한다**
+- [x] **Step 5: 서비스 테스트를 다시 실행하고 커밋한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.service.WalletBalanceServiceTest
@@ -121,7 +121,7 @@ git commit -m "feat: Wallet 잔액 조회 서비스 구현"
 - Consumes: `@CurrentUser Integer userId`
 - Produces: `GET /api/wallet`
 
-- [ ] **Step 1: 응답 테스트를 작성한다**
+- [x] **Step 1: 응답 테스트를 작성한다**
 
 ```java
 @Test
@@ -137,7 +137,7 @@ void 로그인_사용자의_총액_동결액_가용액을_조회한다() throws 
 }
 ```
 
-- [ ] **Step 2: 실패 테스트를 실행한다**
+- [x] **Step 2: 실패 테스트를 실행한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.controller.WalletControllerTest
@@ -145,7 +145,7 @@ void 로그인_사용자의_총액_동결액_가용액을_조회한다() throws 
 
 Expected: Controller가 없어 404 또는 컴파일 실패.
 
-- [ ] **Step 3: Controller를 구현한다**
+- [x] **Step 3: Controller를 구현한다**
 
 ```java
 @RestController
@@ -161,7 +161,7 @@ public class WalletController {
 }
 ```
 
-- [ ] **Step 4: Controller와 전체 테스트를 실행한다**
+- [x] **Step 4: Controller와 전체 테스트를 실행한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.controller.WalletControllerTest
@@ -170,7 +170,7 @@ DB_PORT=3306 env -u JWT_SECRET ./gradlew clean test
 
 Expected: 전체 테스트 실패 0건.
 
-- [ ] **Step 5: API를 커밋한다**
+- [x] **Step 5: API를 커밋한다**
 
 ```bash
 git add backend/src/main/java/com/dbidding/wallet/controller \
