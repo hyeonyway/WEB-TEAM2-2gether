@@ -9,11 +9,15 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dbidding.auction.port.WalletPort;
+import com.dbidding.wallet.domain.HoldStatus;
+import com.dbidding.wallet.domain.PointRecord;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.domain.WalletHold;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletBalanceException;
+import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
+import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 
@@ -26,6 +30,7 @@ public class AuctionWalletAdapter implements WalletPort {
 
 	private final WalletRepository walletRepository;
 	private final WalletHoldRepository walletHoldRepository;
+	private final PointRecordRepository pointRecordRepository;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -79,12 +84,38 @@ public class AuctionWalletAdapter implements WalletPort {
 	}
 
 	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletSnapshot confirmWinningBid(
 		Integer userId,
 		Integer auctionId,
 		long amount
 	) {
-		throw new UnsupportedOperationException("낙찰 확정 차감은 아직 구현되지 않았습니다.");
+		Wallet wallet = lockWallet(userId);
+		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
+		WalletHold hold = latestHold(wallet.getId(), auctionId)
+			.orElseThrow(InvalidWalletHoldStateException::new);
+		if (hold.getStatus() == HoldStatus.CAPTURED) {
+			if (hold.getAmount() != amount) {
+				throw new InvalidWalletHoldStateException();
+			}
+			return snapshot(wallet, frozenBefore);
+		}
+		if (!hold.isHeld() || hold.getAmount() != amount || frozenBefore < amount) {
+			throw new InvalidWalletHoldStateException();
+		}
+		availableBalance(wallet, frozenBefore);
+
+		wallet.debit(amount);
+		hold.capture(Instant.now());
+		pointRecordRepository.save(
+			PointRecord.auctionCapture(
+				wallet.getId(),
+				auctionId,
+				amount,
+				wallet.getPoint()
+			)
+		);
+		return snapshot(wallet, frozenBefore - amount);
 	}
 
 	private Wallet lockWallet(Integer userId) {

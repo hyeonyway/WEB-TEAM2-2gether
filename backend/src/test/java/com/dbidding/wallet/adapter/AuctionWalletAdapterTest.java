@@ -22,6 +22,7 @@ import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.domain.WalletHold;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
+import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 
@@ -34,11 +35,18 @@ class AuctionWalletAdapterTest {
 	@Mock
 	private WalletHoldRepository walletHoldRepository;
 
+	@Mock
+	private PointRecordRepository pointRecordRepository;
+
 	private AuctionWalletAdapter adapter;
 
 	@BeforeEach
 	void setUp() {
-		adapter = new AuctionWalletAdapter(walletRepository, walletHoldRepository);
+		adapter = new AuctionWalletAdapter(
+			walletRepository,
+			walletHoldRepository,
+			pointRecordRepository
+		);
 	}
 
 	@Test
