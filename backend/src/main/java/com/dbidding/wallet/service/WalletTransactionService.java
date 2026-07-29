@@ -11,6 +11,7 @@ import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
 import com.dbidding.wallet.exception.IdempotencyConflictException;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
+import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
@@ -105,7 +106,7 @@ public class WalletTransactionService {
 		if (idempotencyKey == null
 			|| idempotencyKey.isBlank()
 			|| idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
-			throw new IllegalArgumentException("Idempotency-Key는 1자 이상 64자 이하여야 합니다.");
+			throw new InvalidIdempotencyKeyException();
 		}
 	}
 }

@@ -23,6 +23,7 @@ import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
 import com.dbidding.wallet.exception.IdempotencyConflictException;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
+import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
@@ -134,9 +135,9 @@ class WalletTransactionServiceTest {
 	@Test
 	void idempotency_key는_비어_있지_않은_64자_이하여야_한다() {
 		assertThatThrownBy(() -> service.charge(1, 1_000L, " "))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(InvalidIdempotencyKeyException.class);
 		assertThatThrownBy(() -> service.refund(1, 1_000L, "a".repeat(65)))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOf(InvalidIdempotencyKeyException.class);
 
 		then(walletRepository).shouldHaveNoInteractions();
 	}

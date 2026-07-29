@@ -6,15 +6,26 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.stream.Stream;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.dbidding.global.security.CurrentUserProvider;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
+import com.dbidding.wallet.exception.IdempotencyConflictException;
+import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
+import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
+import com.dbidding.wallet.exception.InvalidWalletAmountException;
+import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.service.WalletTransactionService;
 
 @WebMvcTest(WalletTransactionController.class)
@@ -106,5 +117,34 @@ class WalletTransactionControllerTest {
 				.contentType(APPLICATION_JSON)
 				.content("{\"amount\":0}"))
 			.andExpect(status().isBadRequest());
+	}
+
+	@ParameterizedTest
+	@MethodSource("domainExceptionMappings")
+	void Wallet_도메인_예외를_약속한_HTTP_상태로_반환한다(
+		RuntimeException exception,
+		HttpStatus expectedStatus
+	) throws Exception {
+		given(walletTransactionService.charge(1, 10_000L, "charge-key"))
+			.willThrow(exception);
+
+		mockMvc.perform(post("/api/wallet/charges")
+				.header("Idempotency-Key", "charge-key")
+				.contentType(APPLICATION_JSON)
+				.content("{\"amount\":10000}"))
+			.andExpect(status().is(expectedStatus.value()));
+	}
+
+	private static Stream<Arguments> domainExceptionMappings() {
+		return Stream.of(
+			Arguments.of(new InvalidIdempotencyKeyException(), HttpStatus.BAD_REQUEST),
+			Arguments.of(
+				new InvalidWalletAmountException("유효하지 않은 금액입니다."),
+				HttpStatus.BAD_REQUEST
+			),
+			Arguments.of(new WalletNotFoundException(), HttpStatus.NOT_FOUND),
+			Arguments.of(new InsufficientAvailableBalanceException(), HttpStatus.CONFLICT),
+			Arguments.of(new IdempotencyConflictException(), HttpStatus.CONFLICT)
+		);
 	}
 }
