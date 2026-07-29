@@ -36,7 +36,7 @@ export const wishlistMutations={
       return {previous:optimisticToggle(queryClient,userId,cardId,true)};
     },
     onError:(_error,_cardId,context)=>{
-      queryClient.setQueryData(wishlistQueryKeys.list(userId),context?.previous);
+      queryClient.setQueryData(wishlistQueryKeys.list(userId),context?.previous??[]);
     },
     onSettled:()=>settleWishlist(queryClient,userId),
   }),
@@ -48,7 +48,7 @@ export const wishlistMutations={
       return {previous:optimisticToggle(queryClient,userId,cardId,false)};
     },
     onError:(_error,_cardId,context)=>{
-      queryClient.setQueryData(wishlistQueryKeys.list(userId),context?.previous);
+      queryClient.setQueryData(wishlistQueryKeys.list(userId),context?.previous??[]);
     },
     onSettled:()=>settleWishlist(queryClient,userId),
   }),
