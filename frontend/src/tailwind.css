@@ -176,6 +176,7 @@ strong, b { font-weight: 600 !important; }
 .price-buy-row{grid-template-columns:38px 38px 1fr}
 @media(max-width:760px){.price-detail-page .price-buy-row{grid-template-columns:38px 38px 1fr}}
 .ranking a.rank{color:inherit;text-decoration:none}
+.mover-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.mover-tabs{display:flex;padding:3px;border:1px solid #eceeed;border-radius:9px;background:#f7f8f7}.mover-tabs button{height:27px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#999;font-size:10px;font-weight:700;cursor:pointer}.mover-tabs button.active{background:#fff;color:var(--red);box-shadow:0 1px 4px #00000012}.mover-tabs button.active.loss{color:#3978dc}.ranking-empty{display:grid;place-items:center;height:477px;color:#aaa;font-size:12px}.rank.loss .rank-info em{color:#3978dc}.rank>svg.loss path{stroke:#3978dc}
 .detail-grid-line{stroke:#e8ecea;stroke-width:1;vector-effect:non-scaling-stroke}
 .detail-line{stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 .detail-point{fill:#fff;stroke:#16ad64;stroke-width:3;vector-effect:non-scaling-stroke}

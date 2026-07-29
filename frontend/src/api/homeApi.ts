@@ -1,4 +1,4 @@
-import type {HomeInsightDto,HomeMarketDto,HomeTopGainersDto} from '../dto/homeDto';
+import type {HomeInsightDto,HomeMarketDto,HomePriceMoversDto,HomeTopGainersDto} from '../dto/homeDto';
 import mockupData from '../mocks/mockup-data.json';
 import {request} from './httpClient';
 import {resolveImageUrl} from './auctionMapper';
@@ -87,10 +87,16 @@ export async function fetchHomeMarket(days=30):Promise<HomeMarketDto>{
 }
 
 export async function fetchHomeTopGainers(limit=5):Promise<HomeTopGainersDto>{
+  const yesterday=new Date();
+  yesterday.setDate(yesterday.getDate()-1);
+  const previous=new Date(yesterday);
+  previous.setDate(previous.getDate()-1);
   const response:HomeTopGainersDto=isMockApiEnabled()?{
     topGainersTitle:mockupData.home.topGainersTitle,
     topGainers:mockupData.home.topGainers.map(item=>({
       ...item,
+      currentDate:yesterday.toISOString().slice(0,10),
+      previousDate:previous.toISOString().slice(0,10),
       priceHistory:mockRankingHistory(item.price,item.changeRate,item.cardId),
     })),
   }:await request<HomeTopGainersDto>(`/api/home/top-gainers?limit=${limit}`);
@@ -101,4 +107,41 @@ export async function fetchHomeTopGainers(limit=5):Promise<HomeTopGainersDto>{
       imageUrl:resolveImageUrl(item.imageUrl),
     })),
   };
+}
+
+export async function fetchHomePriceMovers(limit=5):Promise<HomePriceMoversDto>{
+  const yesterday=new Date();
+  yesterday.setDate(yesterday.getDate()-1);
+  const previous=new Date(yesterday);
+  previous.setDate(previous.getDate()-1);
+  const isoDate=(date:Date)=>date.toISOString().slice(0,10);
+  const source=mockupData.home.topGainers.slice(0,limit);
+  const response:HomePriceMoversDto=isMockApiEnabled()?{
+    periodDays:30,
+    gainers:source.map(item=>({
+      ...item,
+      currentDate:isoDate(yesterday),
+      previousDate:isoDate(previous),
+      priceHistory:mockRankingHistory(item.price,item.changeRate,item.cardId),
+    })),
+    losers:source.map((item,index)=>{
+      const changeRate=-(2.4+index*1.3);
+      const price=Math.round(item.price*(.92-index*.015));
+      return {
+        ...item,
+        cardId:item.cardId+100,
+        name:`${item.name} 하락 매물`,
+        price,
+        changeRate,
+        currentDate:isoDate(yesterday),
+        previousDate:isoDate(previous),
+        priceHistory:mockRankingHistory(price,changeRate,item.cardId+100),
+      };
+    }),
+  }:await request<HomePriceMoversDto>(`/api/home/price-movers?limit=${limit}`);
+  const resolveItems=(items:HomePriceMoversDto['gainers'])=>items.map(item=>({
+    ...item,
+    imageUrl:resolveImageUrl(item.imageUrl),
+  }));
+  return {...response,gainers:resolveItems(response.gainers),losers:resolveItems(response.losers)};
 }

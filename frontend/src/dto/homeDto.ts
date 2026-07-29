@@ -21,6 +21,8 @@ export type HomeRankingDto={
   theme:string;
   bidCount:number;
   imageUrl:string|null;
+  currentDate:string;
+  previousDate:string;
   priceHistory:Array<{
     date:string;
     price:number;
@@ -40,4 +42,10 @@ export type HomeMarketDto={
 export type HomeTopGainersDto={
   topGainersTitle:string;
   topGainers:HomeRankingDto[];
+};
+
+export type HomePriceMoversDto={
+  periodDays:number;
+  gainers:HomeRankingDto[];
+  losers:HomeRankingDto[];
 };
