@@ -19,9 +19,9 @@
 
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/auth/dto/RefreshResponse.java`
-- Create: `backend/src/main/java/com/dbidding/auth/RefreshResult.java`
-- Modify: `backend/src/main/java/com/dbidding/auth/AuthService.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthServiceRefreshTest.java`
+- Create: `backend/src/main/java/com/dbidding/auth/service/RefreshResult.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceRefreshTest.java`
 
 **Interfaces:**
 - Consumes: `JwtTokenProvider.parseRefresh(String token)`
@@ -85,8 +85,8 @@ Optional<Authentication> findByUserIdForUpdate(Integer userId);
 ### Task 2: Refresh Controller
 
 **Files:**
-- Modify: `backend/src/main/java/com/dbidding/auth/AuthController.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthControllerRefreshTest.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
+- Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerRefreshTest.java`
 
 - [ ] **Step 1: 쿠키 누락 테스트**
 
@@ -106,10 +106,10 @@ mockMvc.perform(post("/api/auth/refresh")
 ### Task 3: 로그아웃
 
 **Files:**
-- Modify: `backend/src/main/java/com/dbidding/auth/AuthService.java`
-- Modify: `backend/src/main/java/com/dbidding/auth/AuthController.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthServiceLogoutTest.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthControllerLogoutTest.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceLogoutTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerLogoutTest.java`
 
 **Interfaces:**
 - Produces: `void AuthService.logout(String refreshToken)`

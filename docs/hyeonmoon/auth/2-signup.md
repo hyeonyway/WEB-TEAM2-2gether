@@ -19,9 +19,9 @@
 ### Task 1: PasswordHasher
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/auth/PasswordHasher.java`
-- Create: `backend/src/main/java/com/dbidding/auth/PasswordHash.java`
-- Test: `backend/src/test/java/com/dbidding/auth/PasswordHasherTest.java`
+- Create: `backend/src/main/java/com/dbidding/auth/password/PasswordHasher.java`
+- Create: `backend/src/main/java/com/dbidding/auth/password/PasswordHash.java`
+- Test: `backend/src/test/java/com/dbidding/auth/password/PasswordHasherTest.java`
 
 **Interfaces:**
 - Produces: `PasswordHash PasswordHasher.hash(String rawPassword)`
@@ -44,7 +44,7 @@ void 같은_비밀번호도_서로_다른_salt와_hash를_만든다() {
 - [x] **Step 2: 실패 확인**
 
 ```bash
-./gradlew test --tests com.dbidding.auth.PasswordHasherTest
+./gradlew test --tests com.dbidding.auth.password.PasswordHasherTest
 ```
 
 Expected: `PasswordHasher`가 없어 FAIL.
@@ -77,7 +77,7 @@ public class PasswordHasher {
 - [x] **Step 4: 정답·오답 테스트 통과 및 실행시간 기록**
 
 ```bash
-./gradlew test --tests com.dbidding.auth.PasswordHasherTest
+./gradlew test --tests com.dbidding.auth.password.PasswordHasherTest
 ```
 
 Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟수를 임의로 낮추지 말고 팀에 측정값을 공유한다.
@@ -91,11 +91,11 @@ Expected: PASS. 로컬 1회 검증 시간이 1초를 크게 넘으면 반복 횟
 - Create: `backend/src/main/java/com/dbidding/auth/port/UserAccountRole.java`
 - Create: `backend/src/main/java/com/dbidding/auth/port/UserAccountPort.java`
 - Consumes: `backend/src/main/java/com/dbidding/auth/port/WalletProvisioningPort.java`
-- Create: `backend/src/main/java/com/dbidding/user/UserAccountAdapter.java`
+- Create: `backend/src/main/java/com/dbidding/user/adapter/UserAccountAdapter.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateEmailException.java`
 - Create: `backend/src/main/java/com/dbidding/auth/exception/DuplicateNicknameException.java`
 - Test: `backend/src/test/java/com/dbidding/auth/dto/SignupRequestValidationTest.java`
-- Test: `backend/src/test/java/com/dbidding/user/UserAccountAdapterTest.java`
+- Test: `backend/src/test/java/com/dbidding/user/adapter/UserAccountAdapterTest.java`
 
 **Interfaces:**
 - Consumes: `UserAccountPort`, `WalletProvisioningPort`, `PasswordHasher`
@@ -154,11 +154,11 @@ public interface UserAccountPort {
 ### Task 3: 회원가입 서비스와 Controller
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/auth/AuthService.java`
-- Create: `backend/src/main/java/com/dbidding/auth/AuthController.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthServiceSignupTest.java`
-- Test: `backend/src/test/java/com/dbidding/auth/AuthControllerSignupTest.java`
-- Test: `backend/src/test/java/com/dbidding/auth/SignupTransactionTest.java`
+- Create: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
+- Create: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceSignupTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerSignupTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/integration/SignupTransactionTest.java`
 
 **Interfaces:**
 - Consumes: `WalletProvisioningPort.createFor(Integer userId)`

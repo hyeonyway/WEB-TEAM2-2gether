@@ -18,8 +18,8 @@
 ### Task 1: 활성 hold 합계 query
 
 **Files:**
-- Modify: `backend/src/main/java/com/dbidding/wallet/WalletRepository.java`
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletBalanceQueryTest.java`
+- Modify: `backend/src/main/java/com/dbidding/wallet/repository/WalletRepository.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/repository/WalletBalanceQueryTest.java`
 
 **Interfaces:**
 - Produces: `long WalletRepository.sumHeldAmount(Integer walletId)`
@@ -49,11 +49,11 @@ HELD fixture의 `released_at`은 null로 두며, 잔액 판정은 `released_at`�
 ### Task 2: WalletBalanceService
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/wallet/WalletBalanceService.java`
+- Create: `backend/src/main/java/com/dbidding/wallet/service/WalletBalanceService.java`
 - Create: `backend/src/main/java/com/dbidding/wallet/dto/WalletBalanceResponse.java`
 - Create: `backend/src/main/java/com/dbidding/wallet/exception/WalletNotFoundException.java`
 - Create: `backend/src/main/java/com/dbidding/wallet/exception/InvalidWalletBalanceException.java`
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletBalanceServiceTest.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/service/WalletBalanceServiceTest.java`
 
 **Interfaces:**
 - Produces: `WalletBalanceResponse getBalance(Integer userId)`
@@ -101,8 +101,8 @@ public WalletBalanceResponse getBalance(Integer userId) {
 ### Task 3: WalletController
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/wallet/WalletController.java`
-- Test: `backend/src/test/java/com/dbidding/wallet/WalletControllerTest.java`
+- Create: `backend/src/main/java/com/dbidding/wallet/controller/WalletController.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/controller/WalletControllerTest.java`
 
 **Interfaces:**
 - Consumes: `@CurrentUser Integer userId`

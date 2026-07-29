@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+JWT_SECRET="${JWT_SECRET:?JWT_SECRET 환경변수가 필요합니다.}"
 DB_HOST="${DB_HOST:?DB_HOST 환경변수가 필요합니다.}"
 DB_PORT="${DB_PORT:?DB_PORT 환경변수가 필요합니다.}"
 DB_NAME="${DB_NAME:?DB_NAME 환경변수가 필요합니다.}"
