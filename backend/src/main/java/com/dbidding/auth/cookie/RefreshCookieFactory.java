@@ -28,4 +28,14 @@ public class RefreshCookieFactory {
 			.maxAge(Duration.ofSeconds(properties.refreshTokenSeconds()))
 			.build();
 	}
+
+	public ResponseCookie expire() {
+		return ResponseCookie.from(COOKIE_NAME, "")
+			.httpOnly(true)
+			.secure(properties.secureCookie())
+			.sameSite(SAME_SITE)
+			.path(COOKIE_PATH)
+			.maxAge(Duration.ZERO)
+			.build();
+	}
 }

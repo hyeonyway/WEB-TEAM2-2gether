@@ -54,6 +54,16 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    void 동일한_시각에도_Refresh_Token은_서로_다르게_발급한다() {
+        IssuedTokens first = provider.issue(42, UserAccountRole.USER, NOW);
+        IssuedTokens second = provider.issue(42, UserAccountRole.USER, NOW);
+
+        assertThat(first.refreshToken()).isNotEqualTo(second.refreshToken());
+        assertThat(parse(first.refreshToken()).getId()).isNotBlank();
+        assertThat(parse(second.refreshToken()).getId()).isNotBlank();
+    }
+
+    @Test
     void Access_Token을_검증해_사용자_ID와_타입을_반환한다() {
         IssuedTokens tokens = provider.issue(42, UserAccountRole.USER, Instant.now());
 

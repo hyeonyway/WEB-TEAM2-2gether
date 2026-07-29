@@ -3,6 +3,7 @@ package com.dbidding.auth.token;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -46,6 +47,7 @@ public class JwtTokenProvider {
             .compact();
 
         String refreshToken = Jwts.builder()
+            .id(UUID.randomUUID().toString())
             .subject(userId.toString())
             .claim("type", TokenType.REFRESH.claimValue())
             .issuedAt(Date.from(now))

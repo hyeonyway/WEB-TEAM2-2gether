@@ -19,9 +19,16 @@
 
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/auth/dto/RefreshResponse.java`
+- Create: `backend/src/main/java/com/dbidding/auth/exception/InvalidRefreshTokenException.java`
 - Create: `backend/src/main/java/com/dbidding/auth/service/RefreshResult.java`
 - Modify: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/repository/AuthenticationRepository.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/token/JwtTokenProvider.java`
 - Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceRefreshTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceRefreshConcurrencyTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/RefreshResultTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/repository/AuthenticationLockConcurrencyTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/token/JwtTokenProviderTest.java`
 
 **Interfaces:**
 - Consumes: `JwtTokenProvider.parseRefresh(String token)`
@@ -29,7 +36,7 @@
 - Consumes: `UserAccountPort.findById(Integer userId)`
 - Produces: `RefreshResult AuthService.refresh(String refreshToken)`
 
-- [ ] **Step 1: 저장 hash 불일치 실패 테스트**
+- [x] **Step 1: 저장 hash 불일치 실패 테스트**
 
 ```java
 @Test
@@ -42,11 +49,11 @@ void 이미_회전된_refresh_token은_거절한다() {
 }
 ```
 
-- [ ] **Step 2: 성공 Rotation 테스트**
+- [x] **Step 2: 성공 Rotation 테스트**
 
 새 토큰 발급 후 `Authentication.rotate(newHash)`가 호출되고 응답에는 새 Access만 포함되는지 검증한다.
 
-- [ ] **Step 3: 트랜잭션 서비스 구현**
+- [x] **Step 3: 트랜잭션 서비스 구현**
 
 ```java
 @Transactional
@@ -63,14 +70,15 @@ public RefreshResult refresh(String refreshToken) {
     }
 
     UserAccount user = userAccountPort.findById(claims.userId())
+        .filter(account -> "ACTIVE".equals(account.status()))
         .orElseThrow(InvalidRefreshTokenException::new);
-    IssuedTokens next = jwtTokenProvider.issue(user.id(), user.role(), clock.instant());
+    IssuedTokens next = jwtTokenProvider.issue(user.id(), user.role(), Instant.now());
     authentication.rotate(refreshTokenHasher.hash(next.refreshToken()));
     return RefreshResult.of(next);
 }
 ```
 
-- [ ] **Step 4: 두 동시 Refresh 요청 테스트 계획**
+- [x] **Step 4: 두 동시 Refresh 요청 검증**
 
 동일 토큰으로 두 트랜잭션이 동시에 들어오면 일반 조회로는 둘 다 기존 hash 검증을 통과할 수 있다. `AuthenticationRepository.findByUserIdForUpdate()`에 `PESSIMISTIC_WRITE`를 적용하고 위 서비스 흐름에서도 반드시 이 메서드를 사용해 Rotation을 직렬화한다.
 
@@ -81,6 +89,20 @@ Optional<Authentication> findByUserIdForUpdate(Integer userId);
 ```
 
 두 번째 요청은 첫 번째 커밋 후 hash 불일치로 401이어야 한다.
+별도의 Repository 동시성 테스트에서는 첫 번째 트랜잭션이 잠금을 보유한 동안
+두 번째 `findByUserIdForUpdate()`가 대기하고, 커밋 뒤 회전된 hash를 읽는지도
+직접 검증한다.
+
+- [x] **Step 5: 동일 시각 Refresh Token 고유성 보장**
+
+같은 사용자에게 같은 시각으로 토큰을 발급해도 Refresh Token이 같아지지 않도록
+고유한 `jti`를 넣는다. 그렇지 않으면 Rotation이 같은 hash로 끝나 이전 토큰이
+계속 유효할 수 있다.
+
+- [x] **Step 6: 토큰 로그 노출 방지**
+
+`RefreshResponse`와 내부 `RefreshResult`의 문자열 표현에는 원문 Access Token과
+Refresh Token을 포함하지 않는다.
 
 ### Task 2: Refresh Controller
 
@@ -88,11 +110,12 @@ Optional<Authentication> findByUserIdForUpdate(Integer userId);
 - Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
 - Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerRefreshTest.java`
 
-- [ ] **Step 1: 쿠키 누락 테스트**
+- [x] **Step 1: 쿠키 누락 테스트**
 
-`refreshToken` 쿠키가 없으면 `401 REFRESH_TOKEN_MISSING`을 반환한다.
+`refreshToken` 쿠키가 없거나 값이 비어 있으면 `401`과
+`{"code":"REFRESH_TOKEN_MISSING"}`을 반환하고 서비스를 호출하지 않는다.
 
-- [ ] **Step 2: 성공 응답 테스트**
+- [x] **Step 2: 성공 응답 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/refresh")
@@ -103,27 +126,43 @@ mockMvc.perform(post("/api/auth/refresh")
     .andExpect(cookie().httpOnly("refreshToken", true));
 ```
 
+- [x] **Step 3: 유효하지 않은 토큰 응답 테스트**
+
+토큰 파싱 실패, 만료, 타입 불일치, 이미 회전된 토큰처럼
+`InvalidTokenException` 계열의 실패는 `401`을 반환하며 새 Refresh 쿠키를
+발급하지 않는다.
+
 ### Task 3: 로그아웃
 
 **Files:**
 - Modify: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
 - Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/cookie/RefreshCookieFactory.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/repository/AuthenticationRepository.java`
+- Test: `backend/src/test/java/com/dbidding/auth/repository/AuthenticationRepositoryTest.java`
 - Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceLogoutTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceLogoutIntegrationTest.java`
 - Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerLogoutTest.java`
 
 **Interfaces:**
 - Produces: `void AuthService.logout(String refreshToken)`
 - Produces: `POST /api/auth/logout`
 
-- [ ] **Step 1: 서비스 멱등성 테스트**
+- [x] **Step 1: 서비스 멱등성 테스트**
 
-제출된 Refresh Token을 SHA-256으로 해싱하고 `findByRefreshTokenHash(hash)`로 Authentication을 찾아 삭제한다. 이 방식은 JWT가 만료됐어도 서버에 남은 동일 hash를 제거할 수 있다. DB row가 없거나 토큰 형식이 잘못돼도 로그아웃은 성공 처리하고 민감한 상태를 노출하지 않는다.
+제출된 Refresh Token을 JWT로 파싱하지 않고 SHA-256으로 해싱한 뒤
+`DELETE ... WHERE refresh_token = :hash` 조건부 삭제를 한 문장으로 실행한다.
+조회 후 사용자 ID로 삭제하면 그사이 로그인이나 Rotation이 저장한 새 토큰까지
+지울 수 있으므로 사용하지 않는다. DB row가 없거나 토큰 형식이 잘못돼도
+로그아웃은 성공 처리하고 민감한 상태를 노출하지 않는다.
 
-- [ ] **Step 2: 쓰기 트랜잭션 서비스 구현**
+- [x] **Step 2: 쓰기 트랜잭션 서비스 구현**
 
-로그아웃 서비스 메서드에 `@Transactional`을 적용한다. `AuthenticationRepository.deleteByUserId(...)` 같은 직접 선언 삭제 메서드는 Repository 테스트의 트랜잭션에 기대지 않고 반드시 이 서비스 트랜잭션 안에서 호출한다.
+로그아웃 서비스 메서드에 `@Transactional`을 적용한다.
+`AuthenticationRepository.deleteByRefreshTokenHash(...)`는 반드시 이 서비스
+트랜잭션 안에서 호출한다.
 
-- [ ] **Step 3: 만료 쿠키 생성**
+- [x] **Step 3: 만료 쿠키 생성**
 
 ```http
 Set-Cookie: refreshToken=; Max-Age=0; HttpOnly; Path=/api/auth; SameSite=Strict
@@ -131,7 +170,7 @@ Set-Cookie: refreshToken=; Max-Age=0; HttpOnly; Path=/api/auth; SameSite=Strict
 
 발급 쿠키와 삭제 쿠키의 이름, path, secure, same-site 속성을 동일하게 유지한다.
 
-- [ ] **Step 4: Controller 204 테스트**
+- [x] **Step 4: Controller 204 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/logout")
@@ -140,12 +179,12 @@ mockMvc.perform(post("/api/auth/logout")
     .andExpect(cookie().maxAge("refreshToken", 0));
 ```
 
-- [ ] **Step 5: 전체 테스트 및 커밋**
+- [x] **Step 5: 전체 테스트 및 커밋**
 
 ```bash
 JWT_SECRET='local-development-secret-at-least-32-bytes' ./gradlew clean test
 git add backend/src/main/java/com/dbidding/auth backend/src/test/java/com/dbidding/auth
-git commit -m "feat: Refresh Rotation과 로그아웃 구현"
+git commit -m "feat: 로그아웃 API 구현"
 ```
 
 ## 완료 조건

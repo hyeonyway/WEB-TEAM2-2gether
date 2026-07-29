@@ -56,4 +56,22 @@ class AuthenticationRepositoryTest {
 
 		assertThat(authenticationRepository.findByUserId(userId)).isEmpty();
 	}
+
+	@Test
+	void 일치하는_refresh_token_hash로만_인증_정보를_삭제한다() {
+		int deleted = authenticationRepository.deleteByRefreshTokenHash("c".repeat(64));
+		authenticationRepository.flush();
+
+		assertThat(deleted).isEqualTo(1);
+		assertThat(authenticationRepository.findByUserId(userId)).isEmpty();
+	}
+
+	@Test
+	void refresh_token_hash가_다르면_인증_정보를_삭제하지_않는다() {
+		int deleted = authenticationRepository.deleteByRefreshTokenHash("d".repeat(64));
+		authenticationRepository.flush();
+
+		assertThat(deleted).isZero();
+		assertThat(authenticationRepository.findByUserId(userId)).isPresent();
+	}
 }
