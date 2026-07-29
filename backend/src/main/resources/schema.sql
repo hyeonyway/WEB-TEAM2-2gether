@@ -104,7 +104,6 @@ CREATE TABLE item_statistics
     highest_price_30d     BIGINT        NULL,
     bid_count_30d         INT           NOT NULL DEFAULT 0,
     ended_auction_count_30d INT         NOT NULL DEFAULT 0,
-    active_auction_count INT           NOT NULL DEFAULT 0,
     wishlist_count       INT           NOT NULL DEFAULT 0,
     daily_change_rate    DECIMAL(8, 2) NULL,
     weekly_change_rate   DECIMAL(8, 2) NULL,

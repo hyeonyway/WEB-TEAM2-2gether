@@ -3,6 +3,8 @@ package com.dbidding.card.service;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 import com.dbidding.card.domain.*;
+import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.card.repository.ItemDailyStatisticRepository;
@@ -29,6 +31,7 @@ public class CardPriceService {
     private final CardMetadataRepository cardRepository;
     private final ItemStatisticRepository statisticRepository;
     private final ItemDailyStatisticRepository dailyStatisticRepository;
+    private final AuctionRepository auctionRepository;
 
     public CardResponses.Page<CardResponses.CardSummary> getCards(
             String keyword, String psaGrade, CardSort sort, int page, int size) {
@@ -69,7 +72,8 @@ public class CardPriceService {
                 rate(summary == null ? null : summary.getMonthlyChangeRate()),
                 value(summary == null ? null : summary.getBidCount30d()),
                 value(summary == null ? null : summary.getEndedAuctionCount30d()),
-                value(summary == null ? null : summary.getActiveAuctionCount()),
+                Math.toIntExact(auctionRepository.countByItemIdAndStatusIn(
+                        cardId, List.of(AuctionStatus.OPEN, AuctionStatus.ENDING))),
                 value(summary == null ? null : summary.getWishlistCount()),
                 card.getPsaGrade(), normalizeLanguage(card.getLanguage()),
                 card.getImagePath(), history);

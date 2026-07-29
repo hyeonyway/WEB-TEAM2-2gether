@@ -83,7 +83,7 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
             insert into item_statistics (
                 item_id, as_of_date, latest_price, average_price_30d,
                 lowest_price_30d, highest_price_30d, bid_count_30d,
-                ended_auction_count_30d, active_auction_count, wishlist_count,
+                ended_auction_count_30d, wishlist_count,
                 daily_change_rate, weekly_change_rate, monthly_change_rate
             )
             select c.id, :asOf,
@@ -107,8 +107,6 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
                    (select coalesce(sum(d.ended_auction_count), 0) from item_daily_statistics d
                     where d.item_id = c.id and d.statistics_date >= :from
                       and d.statistics_date <= :asOf),
-                   (select count(*) from auctions a where a.item_id = c.id
-                    and a.status in ('OPEN', 'ENDING')),
                    coalesce((select old.wishlist_count from item_statistics old
                              where old.item_id = c.id), 0),
                    0.00, 0.00, 0.00
@@ -119,8 +117,7 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
                 lowest_price_30d = values(lowest_price_30d),
                 highest_price_30d = values(highest_price_30d),
                 bid_count_30d = values(bid_count_30d),
-                ended_auction_count_30d = values(ended_auction_count_30d),
-                active_auction_count = values(active_auction_count)
+                ended_auction_count_30d = values(ended_auction_count_30d)
             """, nativeQuery = true)
     void refreshRollingSnapshots(@Param("from") LocalDate from, @Param("asOf") LocalDate asOf);
 

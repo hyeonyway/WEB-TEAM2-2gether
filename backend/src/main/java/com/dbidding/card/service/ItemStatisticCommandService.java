@@ -1,7 +1,6 @@
 package com.dbidding.card.service;
 
 import com.dbidding.card.repository.CardMetadataRepository;
-import com.dbidding.card.repository.ItemStatisticRepository;
 import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,13 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ItemStatisticCommandService {
     private final CardMetadataRepository cardRepository;
-    private final ItemStatisticRepository statisticRepository;
 
-    public ItemStatisticCommandService(
-            CardMetadataRepository cardRepository,
-            ItemStatisticRepository statisticRepository) {
+    public ItemStatisticCommandService(CardMetadataRepository cardRepository) {
         this.cardRepository = cardRepository;
-        this.statisticRepository = statisticRepository;
     }
 
     public void recordBid(Integer itemId, LocalDateTime date) {
@@ -26,7 +21,6 @@ public class ItemStatisticCommandService {
 
     public void recordAuctionOpened(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
-        statisticRepository.refreshActiveAuctionCount(itemId);
     }
 
     public void recordAuctionCompleted(Integer itemId, long winningPrice, LocalDateTime date) {
@@ -34,12 +28,10 @@ public class ItemStatisticCommandService {
         if (winningPrice <= 0) {
             throw new IllegalArgumentException("낙찰가는 0보다 커야 합니다.");
         }
-        statisticRepository.refreshActiveAuctionCount(itemId);
     }
 
     public void recordAuctionClosedWithoutTrade(Integer itemId, LocalDateTime date) {
         validateItem(itemId);
-        statisticRepository.refreshActiveAuctionCount(itemId);
     }
 
     private void validateItem(Integer itemId) {

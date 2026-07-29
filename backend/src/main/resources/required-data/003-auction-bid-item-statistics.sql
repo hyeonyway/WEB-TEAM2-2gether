@@ -366,7 +366,7 @@ ALTER TABLE `_seed_daily_statistics`
 INSERT INTO `item_statistics`
   (`item_id`, `as_of_date`, `latest_price`, `average_price_30d`,
    `lowest_price_30d`, `highest_price_30d`, `bid_count_30d`,
-   `ended_auction_count_30d`, `active_auction_count`, `wishlist_count`,
+   `ended_auction_count_30d`, `wishlist_count`,
    `daily_change_rate`, `weekly_change_rate`, `monthly_change_rate`)
 SELECT
   `calculated`.`item_id`,
@@ -377,9 +377,6 @@ SELECT
   `calculated`.`rolling_highest_price`,
   `calculated`.`rolling_bid_count`,
   `calculated`.`rolling_ended_auction_count`,
-  (SELECT COUNT(*) FROM `auctions` AS `active`
-   WHERE `active`.`item_id` = `calculated`.`item_id`
-     AND `active`.`status` IN ('OPEN', 'ENDING')),
   MOD(`calculated`.`item_id` * 13, 250),
   CASE
     WHEN `calculated`.`previous_daily_price` IS NULL
@@ -457,7 +454,6 @@ ON DUPLICATE KEY UPDATE
   `highest_price_30d` = VALUES(`highest_price_30d`),
   `bid_count_30d` = VALUES(`bid_count_30d`),
   `ended_auction_count_30d` = VALUES(`ended_auction_count_30d`),
-  `active_auction_count` = VALUES(`active_auction_count`),
   `wishlist_count` = VALUES(`wishlist_count`),
   `daily_change_rate` = VALUES(`daily_change_rate`),
   `weekly_change_rate` = VALUES(`weekly_change_rate`),
