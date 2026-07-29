@@ -66,7 +66,7 @@
 | 후보 | 이유 |
 |---|---|
 | Kafka(auctionId 파티션 키) | 파티션당 단일 컨슈머로 순차 처리해 락 대기를 없앰. 처리량은 가장 좋으나 신규 인프라 도입 비용 큼 |
-| Redis + Lua(ZSET) | Lua 스크립트는 Redis 싱글스레드 실행으로 원자적 처리 가능(현재가 체크+갱신을 한 번에). 이미 쓰는 Redis 재사용이라 Kafka보다 이 팀 스택에 맞음. 단, (a) Redis가 DB에 flush되기 전 죽으면 유실 위험이 있어 Streams(consumer group)로 최소 1회 보장이 필요하고, (b) 지갑 검증은 Lua 안에 넣을 수 없으므로 [../wallet/4-bid-hold-release.md](../wallet/4-bid-hold-release.md)의 "지갑 먼저" 순서를 그대로 유지해야 함 |
+| Redis + Lua(ZSET) | Lua 스크립트는 Redis 싱글스레드 실행으로 원자적 처리 가능(현재가 체크+갱신을 한 번에). 이미 쓰는 Redis 재사용이라 Kafka보다 이 팀 스택에 맞음. 단, (a) Redis가 DB에 flush되기 전 죽으면 유실 위험이 있어 Streams(consumer group)로 최소 1회 보장이 필요하고, (b) Wallet 검증과 홀드는 Lua 안에 넣을 수 없으므로 [../wallet/5-auction-wallet-integration.md](../wallet/5-auction-wallet-integration.md)의 동기 `WalletPort` 트랜잭션을 별도로 유지해야 함 |
 
 ## 미정 항목 (팀 논의 필요)
 

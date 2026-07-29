@@ -2,7 +2,7 @@
 
 경매 목록/상세, 대시보드/랭킹, 나의 대시보드, 웹 알림이 폴링 대신 실시간으로 갱신되도록 SSE(Server-Sent Events)를 도입한다. 웹소켓·Polling·Redis Pub/Sub·Redis Streams는 팀 회의에서 검토 후 채택하지 않았으며, 이유는 [1-sse-architecture.md](1-sse-architecture.md)에 정리했다.
 
-이 디렉토리는 실시간성 관련 설계만 다룬다. 경매/입찰 자체의 동시성 제어(DB 비관적 락)는 기존 `auction`/`bid` 담당(이은기) 문서를, 지갑 홀드/해제는 [../wallet/4-bid-hold-release.md](../wallet/4-bid-hold-release.md)를 참고한다.
+이 디렉토리는 실시간성 관련 설계만 다룬다. 경매/입찰 자체의 동시성 제어(DB 비관적 락)는 기존 `auction`/`bid` 담당(이은기) 문서를, 지갑 홀드·해제·낙찰 차감은 [../wallet/5-auction-wallet-integration.md](../wallet/5-auction-wallet-integration.md)를 참고한다.
 
 ## 구현 단계
 

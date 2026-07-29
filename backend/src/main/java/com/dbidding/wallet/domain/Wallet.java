@@ -38,4 +38,22 @@ public class Wallet {
 		return new Wallet(userId, 0L);
 	}
 
+	public void credit(long amount) {
+		validatePositive(amount);
+		point = Math.addExact(point, amount);
+	}
+
+	public void debit(long amount) {
+		validatePositive(amount);
+		if (point < amount) {
+			throw new IllegalStateException("Insufficient wallet balance");
+		}
+		point -= amount;
+	}
+
+	private void validatePositive(long amount) {
+		if (amount <= 0) {
+			throw new IllegalArgumentException("Amount must be positive");
+		}
+	}
 }
