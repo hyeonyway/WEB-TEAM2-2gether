@@ -110,11 +110,12 @@ Refresh Token을 포함하지 않는다.
 - Modify: `backend/src/main/java/com/dbidding/auth/controller/AuthController.java`
 - Test: `backend/src/test/java/com/dbidding/auth/controller/AuthControllerRefreshTest.java`
 
-- [ ] **Step 1: 쿠키 누락 테스트**
+- [x] **Step 1: 쿠키 누락 테스트**
 
-`refreshToken` 쿠키가 없으면 `401 REFRESH_TOKEN_MISSING`을 반환한다.
+`refreshToken` 쿠키가 없거나 값이 비어 있으면 `401`과
+`{"code":"REFRESH_TOKEN_MISSING"}`을 반환하고 서비스를 호출하지 않는다.
 
-- [ ] **Step 2: 성공 응답 테스트**
+- [x] **Step 2: 성공 응답 테스트**
 
 ```java
 mockMvc.perform(post("/api/auth/refresh")
@@ -124,6 +125,12 @@ mockMvc.perform(post("/api/auth/refresh")
     .andExpect(cookie().value("refreshToken", newRefreshToken))
     .andExpect(cookie().httpOnly("refreshToken", true));
 ```
+
+- [x] **Step 3: 유효하지 않은 토큰 응답 테스트**
+
+토큰 파싱 실패, 만료, 타입 불일치, 이미 회전된 토큰처럼
+`InvalidTokenException` 계열의 실패는 `401`을 반환하며 새 Refresh 쿠키를
+발급하지 않는다.
 
 ### Task 3: 로그아웃
 

@@ -1,9 +1,12 @@
 package com.dbidding.auth.controller;
 
+import java.util.Map;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,8 +21,10 @@ import com.dbidding.auth.dto.SignupResponse;
 import com.dbidding.auth.exception.DuplicateEmailException;
 import com.dbidding.auth.exception.DuplicateNicknameException;
 import com.dbidding.auth.exception.InvalidCredentialsException;
+import com.dbidding.auth.exception.InvalidTokenException;
 import com.dbidding.auth.service.AuthService;
 import com.dbidding.auth.service.LoginResult;
+import com.dbidding.auth.service.RefreshResult;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +52,23 @@ public class AuthController {
 			.body(result.response());
 	}
 
+	@PostMapping("/refresh")
+	public ResponseEntity<?> refresh(
+		@CookieValue(name = "refreshToken", required = false) String refreshToken
+	) {
+		if (refreshToken == null || refreshToken.isBlank()) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+				.body(Map.of("code", "REFRESH_TOKEN_MISSING"));
+		}
+
+		RefreshResult result = authService.refresh(refreshToken);
+		ResponseCookie refreshCookie = refreshCookieFactory.create(result.refreshToken());
+
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+			.body(result.response());
+	}
+
 	@ExceptionHandler({
 		DuplicateEmailException.class,
 		DuplicateNicknameException.class
@@ -57,6 +79,11 @@ public class AuthController {
 
 	@ExceptionHandler(InvalidCredentialsException.class)
 	public ResponseEntity<Void> handleInvalidCredentials() {
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+	}
+
+	@ExceptionHandler(InvalidTokenException.class)
+	public ResponseEntity<Void> handleInvalidToken() {
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 	}
 }
