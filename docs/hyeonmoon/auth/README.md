@@ -26,7 +26,8 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 - Authentication row는 회원가입 시 만들지 않고 첫 로그인 성공 시 생성한다.
 - 사용자당 Authentication row가 하나이므로 MVP는 한 사용자의 활성 Refresh Token을 하나만 허용한다.
 - Access Token에는 `sub=userId`, `role`, `type=access`, `iat`, `exp`만 넣는다.
-- Refresh Token에는 `sub=userId`, `type=refresh`, `iat`, `exp`만 넣는다.
+- Refresh Token에는 `sub=userId`, `type=refresh`, `iat`, `exp`, 고유한 `jti`를
+  넣어 같은 시각의 Rotation에서도 새 토큰이 기존 토큰과 달라지게 한다.
 - JWT 비밀키와 만료시간은 환경변수로 받는다.
 
 ## 완료 기준

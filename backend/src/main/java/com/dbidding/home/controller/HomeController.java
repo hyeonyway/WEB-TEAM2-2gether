@@ -33,4 +33,10 @@ public class HomeController {
             @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
         return homeService.getTopGainers(limit);
     }
+
+    @GetMapping("/price-movers")
+    public HomeResponses.PriceMovers getPriceMovers(
+            @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
+        return homeService.getPriceMovers(limit);
+    }
 }

@@ -338,7 +338,7 @@ void 유효한_티켓으로_SSE_요청하면_현재유저로_인증된다() {
 ### Task 6: `auction.CurrentUserPort` 실제 어댑터로 교체
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/user/CurrentUserPortAdapter.java` (또는 `auth` 패키지 — User 조회가 필요하므로 `user` 소유가 자연스러움)
+- Create: `backend/src/main/java/com/dbidding/user/adapter/CurrentUserPortAdapter.java` (또는 `auth` 패키지 — User 조회가 필요하므로 `user` 소유가 자연스러움)
 - Modify: `backend/src/main/java/com/dbidding/auction/adapter/MockCurrentUserAdapter.java` — `@Profile("auction-mock")`을 유지하되 실제 어댑터에 `@Profile("!auction-mock")` 부여로 전환
 
 - [ ] **Step 1: `CurrentUserProvider` + `UserRepository` 조합 테스트**

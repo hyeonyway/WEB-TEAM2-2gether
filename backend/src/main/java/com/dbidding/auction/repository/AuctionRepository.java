@@ -3,6 +3,7 @@ package com.dbidding.auction.repository;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import java.util.Optional;
+import java.util.Collection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,4 +33,6 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
     );
 
     Optional<Auction> findByIdAndStatusNot(Integer id, AuctionStatus status);
+
+    long countByItemIdAndStatusIn(Integer itemId, Collection<AuctionStatus> statuses);
 }

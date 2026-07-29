@@ -22,9 +22,9 @@
 ### Task 1: Address 엔티티와 Repository
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/user/Address.java`
-- Create: `backend/src/main/java/com/dbidding/user/AddressRepository.java`
-- Test: `backend/src/test/java/com/dbidding/user/AddressTest.java`
+- Create: `backend/src/main/java/com/dbidding/user/domain/Address.java`
+- Create: `backend/src/main/java/com/dbidding/user/repository/AddressRepository.java`
+- Test: `backend/src/test/java/com/dbidding/user/domain/AddressTest.java`
 
 **Interfaces:**
 - Produces: `Address.create(Integer userId, String addressName, String address, String detailedAddress, String postalCode, boolean defaultAddress)`
@@ -94,7 +94,7 @@ public interface AddressRepository extends JpaRepository<Address, Integer> {
 - [ ] **Step 4: 단위 테스트 통과**
 
 ```bash
-./gradlew test --tests com.dbidding.user.AddressTest
+./gradlew test --tests com.dbidding.user.domain.AddressTest
 ```
 
 Expected: PASS.
@@ -124,9 +124,9 @@ public record AddressRequest(
 ### Task 3: AddressService
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/user/AddressService.java`
+- Create: `backend/src/main/java/com/dbidding/user/service/AddressService.java`
 - Create: `backend/src/main/java/com/dbidding/user/exception/AddressNotFoundException.java`
-- Test: `backend/src/test/java/com/dbidding/user/AddressServiceTest.java`
+- Test: `backend/src/test/java/com/dbidding/user/service/AddressServiceTest.java`
 
 **Interfaces:**
 - Produces: `List<AddressResponse> getAll(Integer userId)`
@@ -156,7 +156,7 @@ assertThatThrownBy(() -> addressService.update(1, 10, request))
 - [ ] **Step 4: 서비스 테스트 실행**
 
 ```bash
-./gradlew test --tests com.dbidding.user.AddressServiceTest
+./gradlew test --tests com.dbidding.user.service.AddressServiceTest
 ```
 
 Expected: CRUD, 소유권, 기본 배송지 테스트 PASS.
@@ -164,8 +164,8 @@ Expected: CRUD, 소유권, 기본 배송지 테스트 PASS.
 ### Task 4: Controller
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/user/AddressController.java`
-- Test: `backend/src/test/java/com/dbidding/user/AddressControllerTest.java`
+- Create: `backend/src/main/java/com/dbidding/user/controller/AddressController.java`
+- Test: `backend/src/test/java/com/dbidding/user/controller/AddressControllerTest.java`
 
 **Interfaces:**
 - Consumes: `@CurrentUser Integer userId`

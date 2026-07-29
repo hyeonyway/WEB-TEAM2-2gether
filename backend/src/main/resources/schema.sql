@@ -104,7 +104,6 @@ CREATE TABLE item_statistics
     highest_price_30d     BIGINT        NULL,
     bid_count_30d         INT           NOT NULL DEFAULT 0,
     ended_auction_count_30d INT         NOT NULL DEFAULT 0,
-    active_auction_count INT           NOT NULL DEFAULT 0,
     wishlist_count       INT           NOT NULL DEFAULT 0,
     daily_change_rate    DECIMAL(8, 2) NULL,
     weekly_change_rate   DECIMAL(8, 2) NULL,
@@ -316,8 +315,12 @@ CREATE TABLE point_records
     created_at       TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     balance          BIGINT       NOT NULL,
     transaction_type VARCHAR(32)  NOT NULL,
+    idempotency_key  VARCHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
 
     CONSTRAINT pk_point_records PRIMARY KEY (id),
+    CONSTRAINT uk_point_records_wallet_idempotency
+        UNIQUE (wallet_id, idempotency_key),
     CONSTRAINT fk_point_records_wallet
         FOREIGN KEY (wallet_id) REFERENCES wallets (id),
     CONSTRAINT fk_point_records_auction

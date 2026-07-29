@@ -8,6 +8,21 @@ START TRANSACTION;
 INSERT INTO `users`
   (`id`, `email`, `nickname`, `created_at`, `role`, `status`,
    `encrypted_password`, `salt`)
+VALUES
+  (1, 'debug-user@dbidding.local', '디버그사용자', NOW(6), 'USER', 'ACTIVE',
+   SHA2('dbidding-debug-password', 256),
+   LEFT(SHA2('dbidding-debug-salt', 256), 32))
+ON DUPLICATE KEY UPDATE
+  `email` = VALUES(`email`),
+  `nickname` = VALUES(`nickname`),
+  `role` = VALUES(`role`),
+  `status` = VALUES(`status`),
+  `encrypted_password` = VALUES(`encrypted_password`),
+  `salt` = VALUES(`salt`);
+
+INSERT INTO `users`
+  (`id`, `email`, `nickname`, `created_at`, `role`, `status`,
+   `encrypted_password`, `salt`)
 WITH RECURSIVE `numbers` (`number`) AS (
   SELECT 1
   UNION ALL
