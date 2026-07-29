@@ -21,6 +21,7 @@ import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.domain.WalletHold;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
+import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
@@ -105,6 +106,23 @@ class AuctionWalletAdapterTest {
 
 		assertThatThrownBy(() -> adapter.holdBidAmount(1, 20, 13_000L))
 			.isInstanceOf(InsufficientAvailableBalanceException.class);
+		assertThat(hold.getAmount()).isEqualTo(11_000L);
+		then(walletHoldRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	void 기존_hold보다_낮은_재입찰_금액은_상태_예외로_거절한다() {
+		Wallet wallet = walletWithPoint(20_000L);
+		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
+		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(11_000L);
+		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
+			wallet.getId(),
+			20
+		)).willReturn(Optional.of(hold));
+
+		assertThatThrownBy(() -> adapter.holdBidAmount(1, 20, 10_000L))
+			.isInstanceOf(InvalidWalletHoldStateException.class);
 		assertThat(hold.getAmount()).isEqualTo(11_000L);
 		then(walletHoldRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
 	}

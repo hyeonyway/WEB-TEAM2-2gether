@@ -53,9 +53,12 @@ public class AuctionWalletAdapter implements WalletPort {
 		long currentAmount = latest.filter(WalletHold::isHeld)
 			.map(WalletHold::getAmount)
 			.orElse(0L);
+		if (totalAmount < currentAmount) {
+			throw new InvalidWalletHoldStateException();
+		}
 		long additionalAmount = Math.subtractExact(totalAmount, currentAmount);
 		long availableBefore = availableBalance(wallet, frozenBefore);
-		if (additionalAmount < 0 || availableBefore < additionalAmount) {
+		if (availableBefore < additionalAmount) {
 			throw new InsufficientAvailableBalanceException();
 		}
 
