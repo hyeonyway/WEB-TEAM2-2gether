@@ -48,7 +48,7 @@
   - `WishlistDto { id: number; cardId: number }` (내부 사용, 다른 도메인의 `*ResponseDto`/`*Dto` 분리 패턴과 동일)
 - `api/wishlistApi.ts` — `sellApi.ts`와 동일하게 `isMockApiEnabled()`로 분기
   - mock: 기존 `favorite-card-ids` localStorage 배열을 읽고 써서 흉내
-  - real: `getDebugUserId()`로 얻은 userId를 경로에 넣어 `request()`로 GET/POST/DELETE 호출. userId가 없으면 에러를 던져 상위(훅)에서 토스트로 처리
+  - real: 호출하는 쪽이 넘겨준 userId를 경로에 넣어 `request()`로 GET/POST/DELETE 호출. userId 존재 여부 판단은 이 계층의 책임이 아니라 상위(`useWishlist` 훅)에서 미리 걸러서 넘긴다
 - `queries/wishlistQueries.ts` — `wishlistQueries.list(userId)` (`queryOptions`, `queryKey`는 `['wishlists', userId]`)
 - `queries/wishlistMutations.ts` — 찜 추가/해제 mutation
   - 성공 시 위시리스트 목록 캐시를 낙관적으로 갱신
@@ -95,5 +95,16 @@ sequenceDiagram
 
 - mock 모드와 real 모드 전환 시 로컬스토리지 `favorite-card-ids` 데이터가 서로 공유되지 않는 점은 의도된 동작(모드별로 독립)으로 본다.
 - `CardsPage`의 "찜 많은 순"(`FAVORITE`) 정렬과 카드 상세의 `wishlist_count`는 이미 서버가 카드 목록/상세 응답에 포함해서 내려주고 있어(집계는 이 문서의 범위 밖), 프론트는 찜 토글 후 관련 쿼리를 invalidate하는 것만 신경 쓰면 된다.
+
+## 구현 중 추가로 발견한 사항
+
+- **`httpClient.ts`의 204 처리 누락**: 공용 `request()`가 항상 `response.json()`을 호출하는데, 위시리스트 삭제(`DELETE`)는 바디 없는 `204 No Content`를 반환한다. 빈 바디에 `response.json()`을 호출하면 `SyntaxError`가 나서 삭제 요청이 무조건 실패했다. 이 프로젝트에서 `DELETE`로 `request()`를 쓴 첫 사례라 지금까지 드러나지 않았던 버그이며, `response.status===204`일 때 파싱을 건너뛰도록 수정했다.
+- **wishlist API에 인가(authorization) 검증이 없음**: `WishlistController`는 `@CurrentUser`가 아니라 `@PathVariable Integer userId`를 그대로 받는다. 이 프로젝트에 `TestAuthFilter`(`X-Debug-User-Id` 헤더 기반)로 "현재 사용자"를 식별하는 임시 장치가 있지만, wishlist 컨트롤러는 이걸 전혀 쓰지 않고 URL의 `userId`를 그대로 신뢰한다. 즉 지금은 누구든 임의의 `userId`로 다른 사용자의 위시리스트를 조회·조작할 수 있다. 코드에도 `// TODO: 인증 미들웨어(JwtAuthFilter) 도입되면 @PathVariable Integer userId를 @CurrentUser Integer userId로 교체`라고 명시돼 있어, 이번 이슈 범위 밖의 알려진 제약으로 남겨둔다.
+
+## 검증 결과
+
+- 프론트 `npm run typecheck`, `npm run build`, 백엔드 `./gradlew compileJava compileTestJava` 모두 통과.
+- **Mock API 모드**: 브라우저에서 직접 클릭해 비로그인 토스트, 찜 추가/해제, 새로고침 후 상태 유지, "나의 찜" 필터, 카드 상세 페이지 토글을 확인.
+- **실제 백엔드 API 연동**: 로컬 MySQL(`dbidding` DB, 기존 시드 데이터)에 백엔드를 직접 기동해 `curl`로 `POST`(201, `card_id` snake_case 확인)/중복 `POST`(409)/`DELETE`(204) 계약을 먼저 확인한 뒤, 프론트를 `USE_MOCK_API=false`로 붙여 UI에서 찜을 토글하고 그 결과가 실제 DB에 반영되는 것을 `curl`로 대조 확인했다. 테스트로 생성한 위시리스트 레코드는 이후 정리했다.
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
