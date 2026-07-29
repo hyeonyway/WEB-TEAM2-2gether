@@ -1,10 +1,12 @@
 package com.dbidding.wishlist.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import com.dbidding.wishlist.Wishlist;
 
 public record WishlistResponse(
         Integer id,
-        Integer cardId
+        @JsonProperty("card_id") Integer cardId
 ) {
 
     public static WishlistResponse from(Wishlist wishlist) {
