@@ -19,9 +19,16 @@
 
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/auth/dto/RefreshResponse.java`
+- Create: `backend/src/main/java/com/dbidding/auth/exception/InvalidRefreshTokenException.java`
 - Create: `backend/src/main/java/com/dbidding/auth/service/RefreshResult.java`
 - Modify: `backend/src/main/java/com/dbidding/auth/service/AuthService.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/repository/AuthenticationRepository.java`
+- Modify: `backend/src/main/java/com/dbidding/auth/token/JwtTokenProvider.java`
 - Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceRefreshTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/AuthServiceRefreshConcurrencyTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/service/RefreshResultTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/repository/AuthenticationLockConcurrencyTest.java`
+- Test: `backend/src/test/java/com/dbidding/auth/token/JwtTokenProviderTest.java`
 
 **Interfaces:**
 - Consumes: `JwtTokenProvider.parseRefresh(String token)`
@@ -29,7 +36,7 @@
 - Consumes: `UserAccountPort.findById(Integer userId)`
 - Produces: `RefreshResult AuthService.refresh(String refreshToken)`
 
-- [ ] **Step 1: 저장 hash 불일치 실패 테스트**
+- [x] **Step 1: 저장 hash 불일치 실패 테스트**
 
 ```java
 @Test
@@ -42,11 +49,11 @@ void 이미_회전된_refresh_token은_거절한다() {
 }
 ```
 
-- [ ] **Step 2: 성공 Rotation 테스트**
+- [x] **Step 2: 성공 Rotation 테스트**
 
 새 토큰 발급 후 `Authentication.rotate(newHash)`가 호출되고 응답에는 새 Access만 포함되는지 검증한다.
 
-- [ ] **Step 3: 트랜잭션 서비스 구현**
+- [x] **Step 3: 트랜잭션 서비스 구현**
 
 ```java
 @Transactional
@@ -63,14 +70,15 @@ public RefreshResult refresh(String refreshToken) {
     }
 
     UserAccount user = userAccountPort.findById(claims.userId())
+        .filter(account -> "ACTIVE".equals(account.status()))
         .orElseThrow(InvalidRefreshTokenException::new);
-    IssuedTokens next = jwtTokenProvider.issue(user.id(), user.role(), clock.instant());
+    IssuedTokens next = jwtTokenProvider.issue(user.id(), user.role(), Instant.now());
     authentication.rotate(refreshTokenHasher.hash(next.refreshToken()));
     return RefreshResult.of(next);
 }
 ```
 
-- [ ] **Step 4: 두 동시 Refresh 요청 테스트 계획**
+- [x] **Step 4: 두 동시 Refresh 요청 검증**
 
 동일 토큰으로 두 트랜잭션이 동시에 들어오면 일반 조회로는 둘 다 기존 hash 검증을 통과할 수 있다. `AuthenticationRepository.findByUserIdForUpdate()`에 `PESSIMISTIC_WRITE`를 적용하고 위 서비스 흐름에서도 반드시 이 메서드를 사용해 Rotation을 직렬화한다.
 
@@ -81,6 +89,20 @@ Optional<Authentication> findByUserIdForUpdate(Integer userId);
 ```
 
 두 번째 요청은 첫 번째 커밋 후 hash 불일치로 401이어야 한다.
+별도의 Repository 동시성 테스트에서는 첫 번째 트랜잭션이 잠금을 보유한 동안
+두 번째 `findByUserIdForUpdate()`가 대기하고, 커밋 뒤 회전된 hash를 읽는지도
+직접 검증한다.
+
+- [x] **Step 5: 동일 시각 Refresh Token 고유성 보장**
+
+같은 사용자에게 같은 시각으로 토큰을 발급해도 Refresh Token이 같아지지 않도록
+고유한 `jti`를 넣는다. 그렇지 않으면 Rotation이 같은 hash로 끝나 이전 토큰이
+계속 유효할 수 있다.
+
+- [x] **Step 6: 토큰 로그 노출 방지**
+
+`RefreshResponse`와 내부 `RefreshResult`의 문자열 표현에는 원문 Access Token과
+Refresh Token을 포함하지 않는다.
 
 ### Task 2: Refresh Controller
 
