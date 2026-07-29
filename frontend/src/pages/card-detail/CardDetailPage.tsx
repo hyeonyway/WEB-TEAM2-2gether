@@ -10,7 +10,7 @@ const money=(value:number)=>`${value.toLocaleString()}원`;
 export default function CardPriceDetailPage(){
   const cardId=Number(window.location.pathname.split('/').filter(Boolean).pop());
   const{data:card,isPending,error}=useQuery(cardQueries.detail(cardId));
-  const{favoriteCardIds,toggleFavorite}=useWishlist();
+  const{favoriteCardIds,toggleFavorite,isPending:wishlistPending}=useWishlist();
   if(isPending)return <div className="detail-page price-detail-page"><Header/><main><p>카드 시세를 불러오는 중…</p></main></div>;
   if(error||!card)return <div className="detail-page price-detail-page"><Header/><main><p className="form-error">카드 시세를 불러오지 못했습니다.</p></main></div>;
 
@@ -33,7 +33,7 @@ export default function CardPriceDetailPage(){
           <u>포켓몬 · 트레이딩 카드 · PSA {card.psa_grade??'-'}</u>
         </div>
         <div className="buy-row price-buy-row">
-          <button className={'icon-action '+(saved?'saved':'')} onClick={()=>toggleFavorite(card.id)} aria-label="관심 카드"><Bookmark/><small>{card.wishlist_count}</small></button>
+          <button className={'icon-action '+(saved?'saved':'')} disabled={wishlistPending} onClick={()=>toggleFavorite(card.id)} aria-label="관심 카드"><Bookmark/><small>{card.wishlist_count}</small></button>
           <button className="icon-action" aria-label="공유" onClick={()=>navigator.clipboard?.writeText(window.location.href)}><Share2/><small>공유</small></button>
           <a className="buy detail-bid-button" href={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</a>
         </div>
