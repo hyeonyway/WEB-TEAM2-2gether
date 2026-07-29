@@ -6,8 +6,8 @@ Wallet은 사용자의 총 포인트, 실제 잔액 변경 원장, 경매에 묶
 
 1. [Wallet 엔티티](1-entity.md) — 완료
 2. [회원가입 Wallet 생성 연동](2-wallet-provisioning.md) — 완료
-3. [모의 충전·환불과 포인트 원장](3-charge-and-refund.md) — 다음 작업
-4. [지갑 잔액 조회](4-balance-query.md)
+3. [모의 충전·환불과 포인트 원장](3-charge-and-refund.md) — 완료
+4. [지갑 잔액 조회](4-balance-query.md) — 다음 작업
 5. [Auction 입찰 홀드·해제·낙찰 차감 연동](5-auction-wallet-integration.md)
 
 충전·환불 원장과 Wallet 잠금을 먼저 구현해야 잔액 조회와 Auction 연동이 같은 계산식과 동시성 규칙을 재사용할 수 있다.

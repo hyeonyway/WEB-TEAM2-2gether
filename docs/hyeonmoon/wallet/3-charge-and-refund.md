@@ -43,7 +43,7 @@
 - Produces: `void Wallet.credit(long amount)`
 - Produces: `void Wallet.debit(long amount)`
 
-- [ ] **Step 1: schema에 idempotency key를 추가한다**
+- [x] **Step 1: schema에 idempotency key를 추가한다**
 
 `point_records`에 다음 컬럼과 제약을 추가한다. 기존 기록과 낙찰 차감은 key가 없으므로 null을 허용하며, MySQL UNIQUE 인덱스는 여러 null을 허용한다.
 
@@ -55,7 +55,7 @@ CONSTRAINT uk_point_records_wallet_idempotency
     UNIQUE (wallet_id, idempotency_key)
 ```
 
-- [ ] **Step 2: 원장의 금액 부호와 잔액 변경 테스트를 작성한다**
+- [x] **Step 2: 원장의 금액 부호와 잔액 변경 테스트를 작성한다**
 
 ```java
 @Test
@@ -82,7 +82,7 @@ void 지갑은_양수_금액만_증감할_수_있고_잔액은_음수가_될_수
 }
 ```
 
-- [ ] **Step 3: 실패 테스트를 실행한다**
+- [x] **Step 3: 실패 테스트를 실행한다**
 
 ```bash
 cd backend
@@ -93,11 +93,11 @@ cd backend
 
 Expected: `PointRecord`, `PointTransactionType`, `Wallet.credit/debit`가 없어 컴파일 실패.
 
-- [ ] **Step 4: PointRecord와 Wallet 행위를 구현한다**
+- [x] **Step 4: PointRecord와 Wallet 행위를 구현한다**
 
 `PointRecord`는 setter 없이 정적 팩터리만 제공한다. 요청 금액은 양수로 받고 팩터리에서 원장 부호를 결정한다. `Wallet.credit()`는 `Math.addExact`, `Wallet.debit()`는 양수 검증과 잔액 부족 검증을 수행한다.
 
-- [ ] **Step 5: 도메인 테스트를 다시 실행한다**
+- [x] **Step 5: 도메인 테스트를 다시 실행한다**
 
 ```bash
 ./gradlew test \
@@ -107,7 +107,7 @@ Expected: `PointRecord`, `PointTransactionType`, `Wallet.credit/debit`가 없어
 
 Expected: PASS.
 
-- [ ] **Step 6: 첫 구현 단위를 커밋한다**
+- [x] **Step 6: 첫 구현 단위를 커밋한다**
 
 ```bash
 git add backend/src/main/resources/schema.sql \
@@ -128,7 +128,7 @@ git commit -m "feat: Wallet 포인트 원장 모델 추가"
 - Produces: `long WalletRepository.sumHeldAmount(Integer walletId)`
 - Produces: `Optional<PointRecord> PointRecordRepository.findByWalletIdAndIdempotencyKey(Integer walletId, String idempotencyKey)`
 
-- [ ] **Step 1: 실제 MySQL Repository 테스트를 작성한다**
+- [x] **Step 1: 실제 MySQL Repository 테스트를 작성한다**
 
 ```java
 @Test
@@ -149,7 +149,7 @@ void HELD_금액만_합산하고_idempotency_key로_원장을_조회한다() {
 }
 ```
 
-- [ ] **Step 2: 실패 테스트를 실행한다**
+- [x] **Step 2: 실패 테스트를 실행한다**
 
 ```bash
 DB_PORT=3306 ./gradlew test \
@@ -158,7 +158,7 @@ DB_PORT=3306 ./gradlew test \
 
 Expected: Repository 메서드가 없어 컴파일 실패.
 
-- [ ] **Step 3: 잠금 조회와 합계 query를 구현한다**
+- [x] **Step 3: 잠금 조회와 합계 query를 구현한다**
 
 ```java
 @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -176,7 +176,7 @@ long sumHeldAmount(@Param("walletId") Integer walletId);
 
 `PointRecordRepository`는 `JpaRepository<PointRecord, Long>`를 확장한다.
 
-- [ ] **Step 4: Repository 테스트를 다시 실행한다**
+- [x] **Step 4: Repository 테스트를 다시 실행한다**
 
 ```bash
 DB_PORT=3306 ./gradlew test \
@@ -185,7 +185,7 @@ DB_PORT=3306 ./gradlew test \
 
 Expected: PASS.
 
-- [ ] **Step 5: Repository 구현을 커밋한다**
+- [x] **Step 5: Repository 구현을 커밋한다**
 
 ```bash
 git add backend/src/main/java/com/dbidding/wallet/repository \
@@ -235,7 +235,7 @@ public record WalletTransactionResponse(
 }
 ```
 
-- [ ] **Step 1: 충전 성공과 최소 금액 테스트를 작성한다**
+- [x] **Step 1: 충전 성공과 최소 금액 테스트를 작성한다**
 
 ```java
 @Test
@@ -263,7 +263,7 @@ void 충전_금액이_1000원_미만이면_거절한다() {
 }
 ```
 
-- [ ] **Step 2: 환불의 가용 잔액 검증 테스트를 작성한다**
+- [x] **Step 2: 환불의 가용 잔액 검증 테스트를 작성한다**
 
 ```java
 @Test
@@ -283,7 +283,7 @@ void 환불은_활성_hold를_제외한_가용_잔액까지만_허용한다() {
 }
 ```
 
-- [ ] **Step 3: Idempotency-Key 재사용 테스트를 작성한다**
+- [x] **Step 3: Idempotency-Key 재사용 테스트를 작성한다**
 
 ```java
 @Test
@@ -333,7 +333,7 @@ private Wallet walletWithPoint(long point) {
 }
 ```
 
-- [ ] **Step 4: 서비스 테스트가 실패하는지 확인한다**
+- [x] **Step 4: 서비스 테스트가 실패하는지 확인한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.service.WalletTransactionServiceTest
@@ -341,7 +341,7 @@ private Wallet walletWithPoint(long point) {
 
 Expected: 서비스와 DTO·예외가 없어 컴파일 실패.
 
-- [ ] **Step 5: 트랜잭션 서비스를 최소 구현한다**
+- [x] **Step 5: 트랜잭션 서비스를 최소 구현한다**
 
 두 메서드 모두 `@Transactional`을 사용한다. 처리 순서는 입력 검증 → wallet row 잠금 → 기존 idempotency 원장 확인 → 환불이면 HELD 합계 확인 → Wallet 변경 → PointRecord 저장이다.
 `WalletNotFoundException`은 404, `InvalidWalletAmountException`은 400,
@@ -374,7 +374,7 @@ public WalletTransactionResponse refund(
 }
 ```
 
-- [ ] **Step 6: 서비스 테스트를 다시 실행한다**
+- [x] **Step 6: 서비스 테스트를 다시 실행한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.service.WalletTransactionServiceTest
@@ -382,7 +382,7 @@ public WalletTransactionResponse refund(
 
 Expected: PASS.
 
-- [ ] **Step 7: 서비스를 커밋한다**
+- [x] **Step 7: 서비스를 커밋한다**
 
 ```bash
 git add backend/src/main/java/com/dbidding/wallet/service \
@@ -404,7 +404,7 @@ git commit -m "feat: 모의 Wallet 충전과 환불 구현"
 - Produces: `POST /api/wallet/charges`
 - Produces: `POST /api/wallet/refunds`
 
-- [ ] **Step 1: 충전·환불 MockMvc 테스트를 작성한다**
+- [x] **Step 1: 충전·환불 MockMvc 테스트를 작성한다**
 
 ```java
 @Test
@@ -433,7 +433,7 @@ void idempotency_key가_없으면_400이다() throws Exception {
 }
 ```
 
-- [ ] **Step 2: 실패 테스트를 실행한다**
+- [x] **Step 2: 실패 테스트를 실행한다**
 
 ```bash
 ./gradlew test \
@@ -442,7 +442,7 @@ void idempotency_key가_없으면_400이다() throws Exception {
 
 Expected: Controller가 없어 404 또는 컴파일 실패.
 
-- [ ] **Step 3: Controller를 구현한다**
+- [x] **Step 3: Controller를 구현한다**
 
 ```java
 @RestController
@@ -479,7 +479,7 @@ public class WalletTransactionController {
 
 헤더의 빈 문자열은 Controller 또는 서비스 검증에서 400으로 변환한다. 실제 PG가 없다는 사실은 API 문서와 프론트 문구에 명시하되 응답 모델에는 가짜 결제수단 정보를 추가하지 않는다.
 
-- [ ] **Step 4: Controller 테스트를 다시 실행한다**
+- [x] **Step 4: Controller 테스트를 다시 실행한다**
 
 ```bash
 ./gradlew test \
@@ -488,7 +488,7 @@ public class WalletTransactionController {
 
 Expected: PASS.
 
-- [ ] **Step 5: API를 커밋한다**
+- [x] **Step 5: API를 커밋한다**
 
 ```bash
 git add backend/src/main/java/com/dbidding/wallet/controller \
@@ -506,11 +506,11 @@ git commit -m "feat: Wallet 충전과 환불 API 추가"
 - Verifies: 동일 `Idempotency-Key` 동시 요청은 원장과 잔액을 한 번만 변경한다.
 - Verifies: 활성 hold와 환불이 동시에 실행돼도 가용 잔액이 음수가 되지 않는다.
 
-- [ ] **Step 1: 실제 MySQL 동시 요청 테스트를 작성한다**
+- [x] **Step 1: 실제 MySQL 동시 요청 테스트를 작성한다**
 
 두 스레드가 같은 Wallet과 같은 `Idempotency-Key`로 10,000원 충전을 동시에 요청한다. 두 응답은 같은 거래 ID와 잔액을 반환하고, DB에는 `CHARGE` 한 건과 총잔액 10,000원만 남아야 한다.
 
-- [ ] **Step 2: 테스트가 잠금 제거 시 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 잠금 제거 시 실패하는지 확인한다**
 
 ```bash
 DB_PORT=3306 ./gradlew test \
@@ -519,7 +519,7 @@ DB_PORT=3306 ./gradlew test \
 
 먼저 `@Lock(PESSIMISTIC_WRITE)`를 잠시 제거했을 때 중복 원장 UNIQUE 충돌 또는 잘못된 잔액으로 실패하는지 확인하고 즉시 복구한다.
 
-- [ ] **Step 3: 전체 테스트를 실행한다**
+- [x] **Step 3: 전체 테스트를 실행한다**
 
 ```bash
 DB_PORT=3306 env -u JWT_SECRET ./gradlew clean test
@@ -527,7 +527,7 @@ DB_PORT=3306 env -u JWT_SECRET ./gradlew clean test
 
 Expected: 테스트 소스 수와 실패 0건을 함께 보고한다.
 
-- [ ] **Step 4: 구현 계획의 완료 항목을 갱신하고 커밋한다**
+- [x] **Step 4: 구현 계획의 완료 항목을 갱신하고 커밋한다**
 
 ```bash
 git add backend/src/test/java/com/dbidding/wallet \

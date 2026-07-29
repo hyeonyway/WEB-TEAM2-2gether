@@ -85,17 +85,17 @@ Repository를 직접 import하지 않는다.
 | 4 | 완료 | [회원가입](auth/2-signup.md) | User와 Wallet의 원자적 생성 |
 | 5 | 완료 | [로그인과 토큰](auth/3-login-and-token.md) | 로그인, Access/Refresh 발급 |
 | 6 | 완료 | [Refresh와 로그아웃](auth/4-refresh-and-logout.md) | Rotation, 재발급 API, 로그아웃 |
-| 7 | **다음** | [모의 충전·환불](wallet/3-charge-and-refund.md) | Wallet 잠금, PointRecord 원장, 멱등 충전·환불 |
-| 8 | 대기 | [지갑 잔액 조회](wallet/4-balance-query.md) | 총액·동결액·가용액 조회 |
+| 7 | 완료 | [모의 충전·환불](wallet/3-charge-and-refund.md) | Wallet 잠금, PointRecord 원장, 멱등 충전·환불 |
+| 8 | **다음** | [지갑 잔액 조회](wallet/4-balance-query.md) | 총액·동결액·가용액 조회 |
 | 9 | 대기 | [Auction Wallet 연동](wallet/5-auction-wallet-integration.md) | 입찰 홀드·해제와 낙찰 차감 |
 | 10 | 일부 완료 | [Current User와 SSE 인증](auth/5-current-user-and-sse-auth.md) | 실제 JWT 필터 전환과 SSE 티켓 인증 |
 | 11 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
 | 12 | 마지막 | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
 
 문서 번호는 도메인 안의 책임 순서를 나타낸다. 도메인 사이의 실제 구현은
-Auth 1 → Wallet 1·2 → Auth 2·3·4까지 완료됐다. 다음 작업은
-Wallet 3 모의 충전·환불이며, 이후 Wallet 4 잔액 조회와 Wallet 5 Auction 연동을
-순서대로 진행한다. 배송지 CRUD는 현재 계획의 가장 마지막 작업이다.
+Auth 1 → Wallet 1·2 → Auth 2·3·4 → Wallet 3까지 완료됐다. 다음 작업은
+Wallet 4 잔액 조회이며, 이후 Wallet 5 Auction 연동을 진행한다. 배송지 CRUD는
+현재 계획의 가장 마지막 작업이다.
 
 ## 공통 테스트 규칙
 
