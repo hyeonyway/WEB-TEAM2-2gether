@@ -9,6 +9,7 @@ import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.dashboard.dto.DashboardResponse;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +37,8 @@ public class DashboardService {
         Map<Integer, Bid> latestBids = latestBidsByAuction(userId);
         List<Bid> participating = latestBids.values().stream()
                 .filter(bid -> PARTICIPATING_STATUSES.contains(bid.getAuction().getStatus()))
+                .filter(bid -> bid.getAuction().getEstimatedCloseTime()
+                        .isAfter(LocalDateTime.now()))
                 .sorted(participatingComparator(sort))
                 .toList();
         return snapshots(participating);
