@@ -27,10 +27,11 @@ import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
+import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 
 @ExtendWith(MockitoExtension.class)
-class WalletTransactionServiceTest {
+class WalletServiceTransactionTest {
 
 	@Mock
 	private WalletRepository walletRepository;
@@ -38,11 +39,14 @@ class WalletTransactionServiceTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
-	private WalletTransactionService service;
+	@Mock
+	private WalletHoldRepository walletHoldRepository;
+
+	private WalletService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new WalletTransactionService(walletRepository, pointRecordRepository);
+		service = new WalletService(walletRepository, pointRecordRepository, walletHoldRepository);
 	}
 
 	@Test

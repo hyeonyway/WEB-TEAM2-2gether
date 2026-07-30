@@ -1,4 +1,4 @@
-package com.dbidding.wallet.adapter;
+package com.dbidding.wallet.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -16,18 +16,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.dbidding.auction.port.WalletPort.WalletSnapshot;
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointTransactionType;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.domain.WalletHold;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AuctionWalletCaptureTest {
+class WalletServiceCaptureTest {
 
 	@Mock
 	private WalletRepository walletRepository;
@@ -38,14 +39,14 @@ class AuctionWalletCaptureTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
-	private AuctionWalletAdapter adapter;
+	private WalletService service;
 
 	@BeforeEach
 	void setUp() {
-		adapter = new AuctionWalletAdapter(
+		service = new WalletService(
 			walletRepository,
-			walletHoldRepository,
-			pointRecordRepository
+			pointRecordRepository,
+			walletHoldRepository
 		);
 	}
 
@@ -60,7 +61,7 @@ class AuctionWalletCaptureTest {
 			20
 		)).willReturn(Optional.of(hold));
 
-		WalletSnapshot result = adapter.confirmWinningBid(1, 20, 16_000L);
+		WalletBalanceResponse result = service.capture(1, 20, 16_000L);
 
 		assertThat(wallet.getPoint()).isEqualTo(4_000L);
 		assertThat(hold.getStatus()).isEqualTo(HoldStatus.CAPTURED);
@@ -89,7 +90,7 @@ class AuctionWalletCaptureTest {
 			20
 		)).willReturn(Optional.of(captured));
 
-		WalletSnapshot result = adapter.confirmWinningBid(1, 20, 16_000L);
+		WalletBalanceResponse result = service.capture(1, 20, 16_000L);
 
 		assertThat(wallet.getPoint()).isEqualTo(4_000L);
 		assertThat(result.availableBalance()).isEqualTo(4_000L);
@@ -111,7 +112,7 @@ class AuctionWalletCaptureTest {
 			20
 		)).willReturn(Optional.of(hold));
 
-		assertThatThrownBy(() -> adapter.confirmWinningBid(1, 20, 15_000L))
+		assertThatThrownBy(() -> service.capture(1, 20, 15_000L))
 			.isInstanceOf(InvalidWalletHoldStateException.class);
 		assertThat(wallet.getPoint()).isEqualTo(20_000L);
 		assertThat(hold.getStatus()).isEqualTo(HoldStatus.HELD);
@@ -132,10 +133,31 @@ class AuctionWalletCaptureTest {
 			20
 		)).willReturn(Optional.of(released));
 
-		assertThatThrownBy(() -> adapter.confirmWinningBid(1, 20, 16_000L))
+		assertThatThrownBy(() -> service.capture(1, 20, 16_000L))
 			.isInstanceOf(InvalidWalletHoldStateException.class);
 		assertThat(wallet.getPoint()).isEqualTo(20_000L);
 		assertThat(released.getStatus()).isEqualTo(HoldStatus.RELEASED);
+		then(pointRecordRepository).should(never()).save(
+			org.mockito.ArgumentMatchers.any()
+		);
+	}
+
+	@Test
+	void 동결액이_총잔액보다_크면_차감하기_전에_손상된_잔액으로_거절한다() {
+		Wallet wallet = walletWithPoint(20_000L);
+		WalletHold hold = WalletHold.held(wallet.getId(), 20, 16_000L);
+		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(21_000L);
+		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
+			wallet.getId(),
+			20
+		)).willReturn(Optional.of(hold));
+
+		assertThatThrownBy(() -> service.capture(1, 20, 16_000L))
+			.isInstanceOf(InvalidWalletBalanceException.class);
+
+		assertThat(wallet.getPoint()).isEqualTo(20_000L);
+		assertThat(hold.getStatus()).isEqualTo(HoldStatus.HELD);
 		then(pointRecordRepository).should(never()).save(
 			org.mockito.ArgumentMatchers.any()
 		);

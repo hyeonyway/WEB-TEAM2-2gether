@@ -15,7 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.dbidding.global.security.CurrentUserProvider;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.exception.InvalidWalletBalanceException;
-import com.dbidding.wallet.service.WalletBalanceService;
+import com.dbidding.wallet.service.WalletService;
 
 @WebMvcTest(WalletController.class)
 class WalletControllerTest {
@@ -24,7 +24,7 @@ class WalletControllerTest {
 	private MockMvc mockMvc;
 
 	@MockitoBean
-	private WalletBalanceService walletBalanceService;
+	private WalletService walletService;
 
 	@MockitoBean
 	private CurrentUserProvider currentUserProvider;
@@ -36,7 +36,7 @@ class WalletControllerTest {
 
 	@Test
 	void 로그인_사용자의_총액_동결액_가용액을_조회한다() throws Exception {
-		given(walletBalanceService.getBalance(1))
+		given(walletService.getBalance(1))
 			.willReturn(new WalletBalanceResponse(100_000L, 30_000L, 70_000L));
 
 		mockMvc.perform(get("/api/wallet"))
@@ -48,7 +48,7 @@ class WalletControllerTest {
 
 	@Test
 	void 손상된_잔액_상태는_500으로_반환한다() throws Exception {
-		given(walletBalanceService.getBalance(1))
+		given(walletService.getBalance(1))
 			.willThrow(new InvalidWalletBalanceException());
 
 		mockMvc.perform(get("/api/wallet"))
