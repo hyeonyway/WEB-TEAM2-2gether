@@ -270,9 +270,10 @@ k6 run \
 
 `sse-load-test` 프로필은
 `POST /api/auctions/stream/test-events/random-bid`를 활성화한다. 이 API는
-DB에서 `OPEN` 또는 `ENDING` 경매를 무작위로 읽고, 경매별 메모리 상태에서
-가격·입찰 수·버전을 증가시킨 `BID_PLACED` payload를 발행한다. DB 데이터는
-변경하지 않는다. k6는 SSE 연결 부하와 이 API의 일정 속도 호출을 함께 수행한다.
+DB에서 디버그 사용자 ID `1`이 입찰한 `OPEN` 또는 `ENDING` 경매 중 종료
+시각이 남은 경매를 무작위로 읽고, 경매별 메모리 상태에서 가격·입찰 수·버전을
+증가시킨 `BID_PLACED` payload를 발행한다. DB 데이터는 변경하지 않는다.
+k6는 SSE 연결 부하와 이 API의 일정 속도 호출을 함께 수행한다.
 
 ## 8. 테스트 및 완료 기준
 

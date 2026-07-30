@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class AuctionSseTestAuctionReader {
 
+    private static final int TEST_USER_ID = 1;
+
     private final JdbcClient jdbcClient;
 
     Optional<Snapshot> findRandomActiveAuction() {
@@ -45,9 +47,17 @@ class AuctionSseTestAuctionReader {
                           FROM auctions a
                           JOIN card_metadata c ON c.id = a.item_id
                          WHERE a.status IN ('OPEN', 'ENDING')
+                           AND a.estimated_close_time > NOW(6)
+                           AND EXISTS (
+                               SELECT 1
+                                 FROM bids participating_bid
+                                WHERE participating_bid.auction_id = a.id
+                                  AND participating_bid.user_id = :testUserId
+                           )
                          ORDER BY RAND()
                          LIMIT 1
                         """)
+                .param("testUserId", TEST_USER_ID)
                 .query((resultSet, rowNum) -> new Snapshot(
                         resultSet.getInt("id"),
                         resultSet.getInt("item_id"),

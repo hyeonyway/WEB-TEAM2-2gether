@@ -15,18 +15,32 @@ const remainingTime=(endsAt:string,now:number)=>{
 
 function AnimatedAuctionPrice({price}:{price:number}){
   const previousPrice=useRef(price);
+  const priceElement=useRef<HTMLSpanElement>(null);
   const[pulse,setPulse]=useState(0);
 
   useEffect(()=>{
-    if(price>previousPrice.current)setPulse(value=>value+1);
+    if(price>previousPrice.current){
+      setPulse(value=>value+1);
+      if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        priceElement.current?.closest<HTMLElement>('.card-tile')?.animate([
+          {backgroundColor:'#ffffff',boxShadow:'0 2px 3px #00000008'},
+          {backgroundColor:'#fff0c9',boxShadow:'0 8px 28px #f0a42935',offset:.35},
+          {backgroundColor:'#ffe0db',boxShadow:'0 8px 30px #f0524935',offset:.62},
+          {backgroundColor:'#ffffff',boxShadow:'0 2px 3px #00000008'},
+        ],{
+          duration:950,
+          easing:'cubic-bezier(.2,.8,.2,1)',
+        });
+      }
+    }
     previousPrice.current=price;
   },[price]);
 
-  return <strong
-    key={pulse}
-    className={pulse>0?'auction-price-rise':undefined}
-    aria-live="polite"
-  >{price.toLocaleString()}원</strong>;
+  return <strong aria-live="polite">
+    <span ref={priceElement} key={pulse} className={pulse>0?'auction-price-rise':undefined}>
+      {price.toLocaleString()}원
+    </span>
+  </strong>;
 }
 
 export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
