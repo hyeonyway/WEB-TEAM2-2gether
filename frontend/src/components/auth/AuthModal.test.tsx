@@ -475,6 +475,9 @@ describe('Header 로그아웃', () => {
     setAccessToken('access-token');
     const {queryClient} = renderHeader();
     queryClient.setQueryData(['auth', 'me'], {id: 1});
+    queryClient.setQueryData(['account', 'profile'], {id: 1});
+    queryClient.setQueryData(['wallet', 'balance'], {totalBalance: 10_000});
+    queryClient.setQueryData(['auction', 'catalog'], [{id: 1}]);
     const user = userEvent.setup();
 
     const logoutButton = screen.getByRole('button', {name: '로그아웃'});
@@ -493,6 +496,9 @@ describe('Header 로그아웃', () => {
     );
     expect(getAccessToken()).toBeNull();
     expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
+    expect(queryClient.getQueryData(['account', 'profile'])).toBeUndefined();
+    expect(queryClient.getQueryData(['wallet', 'balance'])).toBeUndefined();
+    expect(queryClient.getQueryData(['auction', 'catalog'])).toEqual([{id: 1}]);
     expect(screen.getByTestId('router-path')).toHaveTextContent('/');
     expect(screen.getByRole('button', {name: '로그인'})).toBeInTheDocument();
   });
