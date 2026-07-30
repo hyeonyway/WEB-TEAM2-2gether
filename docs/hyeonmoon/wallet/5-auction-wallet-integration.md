@@ -37,10 +37,11 @@
 - `hold(userId, auctionId, amount)`: 입찰 자금 신규 hold 또는 재입찰 증액
 - `release(userId, auctionId)`: 활성 hold 해제
 - `capture(userId, auctionId, amount)`: 낙찰 금액 실제 차감, hold 확정과 원장 기록
+- `provision(userId)`: 회원가입 사용자의 0원 지갑 생성과 중복 생성 방지
 
 현재 `WalletBalanceService`와 `WalletTransactionService`의 기능은 `WalletService`로 통합한다. 기능이 커져 서비스가 비대해질 때 조회·거래·hold 서비스로 다시 분리할 수 있지만, 외부 adapter가 Wallet 규칙을 직접 구현하지 않는 원칙은 그대로 유지한다.
 
-트랜잭션 정책도 Wallet 유스케이스가 소유한다. 독립 API인 조회·충전·환불은 각각 `readOnly` 또는 기본 `REQUIRED` 트랜잭션을 사용한다. 입찰과 함께 원자적으로 처리해야 하는 hold·해제·낙찰 차감은 `MANDATORY`로 선언하여 Auction이 연 트랜잭션 없이 단독 실행되는 것을 막는다.
+트랜잭션 정책도 Wallet 유스케이스가 소유한다. 독립 API인 조회·충전·환불은 각각 `readOnly` 또는 기본 `REQUIRED` 트랜잭션을 사용한다. 입찰과 함께 원자적으로 처리해야 하는 hold·해제·낙찰 차감은 `MANDATORY`로 선언하여 Auction이 연 트랜잭션 없이 단독 실행되는 것을 막는다. 지갑 생성도 회원 생성과 반드시 함께 커밋되거나 롤백돼야 하므로 Auth 회원가입 트랜잭션 참여를 `MANDATORY`로 강제한다.
 
 ```text
 AuctionService
@@ -403,12 +404,68 @@ git add backend/src/main/java/com/dbidding/auction \
 git commit -m "feat: Auction과 Wallet 자금 흐름 연동"
 ```
 
+### Task 5: 회원가입 지갑 생성 유스케이스 이전
+
+**Files:**
+- Modify: `backend/src/main/java/com/dbidding/wallet/service/WalletService.java`
+- Modify: `backend/src/main/java/com/dbidding/wallet/adapter/WalletProvisioningAdapter.java`
+- Move and Modify: `backend/src/test/java/com/dbidding/wallet/adapter/WalletProvisioningAdapterTest.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/service/WalletServiceProvisioningTest.java`
+- Test: `backend/src/test/java/com/dbidding/wallet/adapter/WalletProvisioningAdapterTest.java`
+
+**Interfaces:**
+- Consumes: `auth.port.WalletProvisioningPort`
+- Produces: `void WalletService.provision(Integer userId)`
+- Adapts: `WalletProvisioningPort.createFor()` to `WalletService.provision()`
+
+- [ ] **Step 1: 지갑 생성 규칙 테스트를 WalletService 테스트로 이전한다**
+
+0원 지갑 생성, 이미 지갑이 존재하는 경우의 거절, 동시 생성으로 `uk_wallets_user_id` UNIQUE 제약이 충돌한 경우의 `WalletAlreadyExistsException` 변환, 관련 없는 무결성 예외의 원본 전파를 검증한다.
+
+- [ ] **Step 2: 실패 테스트를 실행한다**
+
+```bash
+./gradlew test \
+  --tests com.dbidding.wallet.service.WalletServiceProvisioningTest
+```
+
+Expected: `WalletService.provision()`이 없어 컴파일 실패.
+
+- [ ] **Step 3: 지갑 생성 유스케이스를 구현한다**
+
+`WalletService.provision()`은 기존 지갑 확인, `Wallet.open(userId)` 저장, UNIQUE 제약 충돌 변환을 한 번의 호출로 끝낸다. `Propagation.MANDATORY`를 사용해 Auth 회원가입 트랜잭션 없이 단독 실행되는 것을 막는다.
+
+- [ ] **Step 4: WalletProvisioningAdapter를 위임 전용으로 축소한다**
+
+adapter는 `WalletService`만 주입받고 `createFor(userId)`에서 `walletService.provision(userId)`을 호출한다. Repository 접근, Wallet 생성과 저장 제약 해석은 adapter에 두지 않는다.
+
+- [ ] **Step 5: 서비스 규칙과 adapter 위임 테스트를 실행한다**
+
+```bash
+./gradlew test \
+  --tests com.dbidding.wallet.service.WalletServiceProvisioningTest \
+  --tests com.dbidding.wallet.adapter.WalletProvisioningAdapterTest \
+  --tests com.dbidding.auth.integration.SignupTransactionTest
+```
+
+Expected: 서비스 규칙, Port 위임과 회원·지갑 원자성 테스트가 모두 통과한다.
+
+- [ ] **Step 6: 커밋한다**
+
+```bash
+git add backend/src/main/java/com/dbidding/wallet \
+  backend/src/test/java/com/dbidding/wallet
+git commit -m "refactor: Wallet 생성 로직 서비스 이전"
+```
+
 ## 완료 조건
 
 - Auction은 현재 소유한 `WalletPort`만 의존하고 Wallet 내부 Repository를 알지 못한다.
 - `AuctionWalletAdapter`는 `WalletService`에 요청을 위임하고 Wallet Repository나 비즈니스 규칙을 직접 다루지 않는다.
-- 조회·충전·환불·hold·해제·낙찰 차감은 Wallet이 소유한 `WalletService`의 완결된 유스케이스로 제공된다.
+- `WalletProvisioningAdapter`는 `WalletService`에 지갑 생성을 위임하고 Wallet Repository나 생성 규칙을 직접 다루지 않는다.
+- 조회·충전·환불·hold·해제·낙찰 차감·지갑 생성은 Wallet이 소유한 `WalletService`의 완결된 유스케이스로 제공된다.
 - WalletService의 hold·해제·낙찰 차감 메서드는 Auction 트랜잭션 안에서 실행된다.
+- WalletService의 지갑 생성 메서드는 Auth 회원가입 트랜잭션 안에서 실행된다.
 - Port 바깥으로 DB 락 획득 메서드를 노출하지 않는다.
 - 입찰가와 배송비 전체를 hold하고 낙찰 시 같은 금액을 차감한다.
 - 재입찰은 증가분만 추가 검증하며 상회 입찰은 이전 HELD를 RELEASED로 바꾼다.
