@@ -1,9 +1,10 @@
 import {useState} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {AuctionCatalog} from './components';
 import type {AuctionListRequestDto} from '../../dto/auctionDto';
-import {auctionQueries} from '../../queries/auctionQueries';
+import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
+import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 
@@ -11,6 +12,12 @@ const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
   ['입찰 수 높은순','BID_COUNT'],['경매가 높은순','PRICE_HIGH'],['경매가 낮은순','PRICE_LOW'],['상승률 높은순','CHANGE_HIGH'],
 ];
 export default function AuctionPage(){
+  const queryClient=useQueryClient();
+  useAuctionStream({
+    onAuctionUpdated:()=>void queryClient.invalidateQueries({
+      queryKey:auctionQueryKeys.all,
+    }),
+  });
   const requestedSort=new URLSearchParams(window.location.search).get('sort');
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
   const[query,setQuery]=useState('');

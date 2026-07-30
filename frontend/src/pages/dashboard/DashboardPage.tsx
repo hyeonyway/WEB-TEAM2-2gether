@@ -1,9 +1,10 @@
-import {useQuery} from '@tanstack/react-query';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Search} from 'lucide-react';
 import {useState} from 'react';
 import {Header} from '../../components';
 import type {ParticipatingAuctionSort,RecentWinSort} from '../../api/dashboardApi';
-import {dashboardQueries} from '../../queries/dashboardQueries';
+import {dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries';
+import {useAuctionStream} from '../../hooks/useAuctionStream';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
 
 const sections=[
@@ -17,6 +18,13 @@ export default function DashboardPage(){
   const[query,setQuery]=useState('');
   const[participatingSort,setParticipatingSort]=useState<ParticipatingAuctionSort>('ENDING_SOON');
   const[recentWinSort,setRecentWinSort]=useState<RecentWinSort>('LATEST');
+  const queryClient=useQueryClient();
+  useAuctionStream({
+    enabled:active==='participating',
+    onAuctionUpdated:()=>void queryClient.invalidateQueries({
+      queryKey:[...dashboardQueryKey,'participating-auctions'],
+    }),
+  });
   const dashboard=useQuery(
     active==='participating'
       ? dashboardQueries.participating(participatingSort)
