@@ -358,7 +358,7 @@ CREATE TABLE notification
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    INT          NOT NULL,
     auction_id INT          NOT NULL,
-    message    VARCHAR(255) NOT NULL,
+    message    VARCHAR(300) NOT NULL,
     is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 

@@ -28,7 +28,7 @@ public class Notification {
     @Column(name = "auction_id", nullable = false)
     private Integer auctionId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 300)
     private String message;
 
     @Column(name = "is_read", nullable = false)
