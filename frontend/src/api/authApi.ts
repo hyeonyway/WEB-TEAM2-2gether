@@ -1,6 +1,7 @@
 import type {
   LoginRequestDto,
   LoginResponseDto,
+  RefreshResponseDto,
   SignupRequestDto,
   SignupResponseDto,
 } from '../dto/authDto';
@@ -27,6 +28,20 @@ export async function login(loginRequest: LoginRequestDto) {
   });
   setAccessToken(response.accessToken);
   return response;
+}
+
+export async function refreshAccessToken() {
+  try {
+    const response = await request<RefreshResponseDto>('/api/auth/refresh', {
+      ...authRequestOptions,
+      method: 'POST',
+    });
+    setAccessToken(response.accessToken);
+    return response;
+  } catch (error) {
+    clearAccessToken();
+    throw error;
+  }
 }
 
 export async function logout() {
