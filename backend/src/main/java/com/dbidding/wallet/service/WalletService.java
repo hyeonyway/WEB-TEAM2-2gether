@@ -3,6 +3,8 @@ package com.dbidding.wallet.service;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
+import com.dbidding.wallet.exception.WalletAlreadyExistsException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
@@ -33,6 +36,7 @@ public class WalletService {
 
 	private static final long MINIMUM_CHARGE_AMOUNT = 1_000L;
 	private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 64;
+	private static final String USER_ID_UNIQUE_CONSTRAINT = "uk_wallets_user_id";
 
 	private final WalletRepository walletRepository;
 	private final PointRecordRepository pointRecordRepository;
@@ -43,6 +47,21 @@ public class WalletService {
 		Wallet wallet = walletRepository.findByUserId(userId)
 			.orElseThrow(WalletNotFoundException::new);
 		return balance(wallet, walletRepository.sumHeldAmount(wallet.getId()));
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void provision(Integer userId) {
+		if (walletRepository.existsByUserId(userId)) {
+			throw new WalletAlreadyExistsException();
+		}
+		try {
+			walletRepository.saveAndFlush(Wallet.open(userId));
+		} catch (DataIntegrityViolationException exception) {
+			if (isUserIdUniqueConstraintViolation(exception)) {
+				throw new WalletAlreadyExistsException(exception);
+			}
+			throw exception;
+		}
 	}
 
 	@Transactional
@@ -170,6 +189,23 @@ public class WalletService {
 			wallet.getId(),
 			idempotencyKey
 		);
+	}
+
+	private boolean isUserIdUniqueConstraintViolation(Throwable exception) {
+		Throwable cause = exception;
+		while (cause != null) {
+			if (cause instanceof ConstraintViolationException constraintViolation) {
+				String constraintName = constraintViolation.getConstraintName();
+				if (constraintName == null) {
+					return false;
+				}
+				String normalizedName = constraintName.replace("`", "");
+				String unqualifiedName = normalizedName.substring(normalizedName.lastIndexOf('.') + 1);
+				return unqualifiedName.equalsIgnoreCase(USER_ID_UNIQUE_CONSTRAINT);
+			}
+			cause = cause.getCause();
+		}
+		return false;
 	}
 
 	private WalletTransactionResponse replayOrThrow(
