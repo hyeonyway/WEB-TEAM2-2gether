@@ -178,7 +178,7 @@ class AuctionServiceTest {
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
 
-        var response = auctionService.participate(1, new BidCreateRequest(11_000L));
+        var response = auctionService.participate(1, new BidCreateRequest(11_000L), "bid-key");
 
         assertThat(auction.getCurrentPrice()).isEqualTo(11_000L);
         assertThat(auction.getBidCount()).isEqualTo(1);
@@ -191,6 +191,54 @@ class AuctionServiceTest {
     }
 
     @Test
+    void 같은_사용자의_같은_입찰_요청은_idempotency_cache를_재사용한다() {
+        Auction auction = auction(10_000L, 1_000L);
+        when(currentUserPort.currentUser()).thenReturn(user(1), user(1));
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
+                .thenReturn(Optional.empty());
+
+        var first = auctionService.participate(1, new BidCreateRequest(11_000L), "same-bid-key");
+        var second = auctionService.participate(1, new BidCreateRequest(11_000L), "same-bid-key");
+
+        assertThat(second).isEqualTo(first);
+        assertThat(auction.getCurrentPrice()).isEqualTo(11_000L);
+        assertThat(auction.getBidCount()).isEqualTo(1);
+        verify(auctionRepository, times(1)).findByIdForUpdate(1);
+        verify(walletPort, times(1)).holdBidAmount(1, 1, 11_000L);
+        verify(bidRepository, times(1)).save(any(Bid.class));
+        verify(auctionEventPort, times(1)).publish(any());
+    }
+
+    @Test
+    void 같은_사용자가_같은_입찰_key로_다른_금액을_보내면_충돌한다() {
+        Auction auction = auction(10_000L, 1_000L);
+        when(currentUserPort.currentUser()).thenReturn(user(1), user(1));
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
+                .thenReturn(Optional.empty());
+        auctionService.participate(1, new BidCreateRequest(11_000L), "same-bid-key");
+
+        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(12_000L), "same-bid-key"))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
+                .isEqualTo(409);
+        assertThat(auction.getBidCount()).isEqualTo(1);
+        verify(bidRepository, times(1)).save(any(Bid.class));
+    }
+
+    @Test
+    void 입찰_idempotency_key가_비어_있으면_입찰하지_않는다() {
+        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(11_000L), " "))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
+                .isEqualTo(400);
+        verify(currentUserPort, never()).currentUser();
+        verify(auctionRepository, never()).findByIdForUpdate(any());
+        verify(bidRepository, never()).save(any(Bid.class));
+    }
+
+    @Test
     void 새_입찰이_들어오면_이전_최고_입찰은_상회입찰_상태가_되고_동결금액이_해제된다() {
         Auction auction = auction(11_000L, 1_000L);
         Bid previousLeadingBid = Bid.leading(2, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
@@ -199,7 +247,7 @@ class AuctionServiceTest {
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.of(previousLeadingBid));
 
-        auctionService.participate(1, new BidCreateRequest(12_000L));
+        auctionService.participate(1, new BidCreateRequest(12_000L), "bid-key");
 
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         verify(walletPort).holdBidAmount(1, 1, 12_000L);
@@ -216,7 +264,7 @@ class AuctionServiceTest {
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.of(previousLeadingBid));
 
-        auctionService.participate(1, new BidCreateRequest(12_000L));
+        auctionService.participate(1, new BidCreateRequest(12_000L), "bid-key");
 
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         verify(walletPort).holdBidAmount(1, 1, 12_000L);
@@ -231,7 +279,7 @@ class AuctionServiceTest {
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(10_500L)))
+        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(10_500L), "bid-key"))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(400);
