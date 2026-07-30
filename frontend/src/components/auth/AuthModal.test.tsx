@@ -1,7 +1,12 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+} from '../../api/accessTokenStore';
 import {HttpError} from '../../api/httpClient';
 import Header from '../Header';
 
@@ -27,11 +32,14 @@ function renderHeader() {
     },
   });
 
-  return render(
+  return {
+    queryClient,
+    ...render(
     <QueryClientProvider client={queryClient}>
       <Header/>
     </QueryClientProvider>,
-  );
+    ),
+  };
 }
 
 async function openSignupForm() {
@@ -48,6 +56,11 @@ async function fillValidSignup(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText('비밀번호 확인'), 'Password123!');
   await user.type(screen.getByLabelText('닉네임'), '포켓컬렉터');
 }
+
+afterEach(() => {
+  clearAccessToken();
+  vi.restoreAllMocks();
+});
 
 describe('AuthModal 회원가입', () => {
   beforeEach(() => {
@@ -238,5 +251,55 @@ describe('AuthModal 로그인', () => {
 
     expect(submit).toBeDisabled();
     expect(loginMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Header 로그아웃', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/auction');
+  });
+
+  it('서버에 한 번 요청하고 토큰과 인증 cache를 정리한 뒤 홈으로 이동한다', async () => {
+    let resolveLogout!: (response: Response) => void;
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockReturnValue(new Promise(resolve => {
+        resolveLogout = resolve;
+      }));
+    setAccessToken('access-token');
+    const {queryClient} = renderHeader();
+    queryClient.setQueryData(['auth', 'me'], {id: 1});
+    const user = userEvent.setup();
+
+    const logoutButton = screen.getByRole('button', {name: '로그아웃'});
+    await user.click(logoutButton);
+    await user.click(logoutButton);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveLogout(new Response(null, {status: 204}));
+    await waitFor(() => expect(getAccessToken()).toBeNull());
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/logout',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+      }),
+    );
+    expect(getAccessToken()).toBeNull();
+    expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
+    expect(window.location.pathname).toBe('/');
+    expect(screen.getByRole('button', {name: '로그인'})).toBeInTheDocument();
+  });
+
+  it('서버 요청이 실패해도 토큰과 인증 cache를 정리한다', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('network error'));
+    setAccessToken('access-token');
+    const {queryClient} = renderHeader();
+    queryClient.setQueryData(['auth', 'me'], {id: 1});
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', {name: '로그아웃'}));
+
+    await waitFor(() => expect(getAccessToken()).toBeNull());
+    expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
   });
 });
