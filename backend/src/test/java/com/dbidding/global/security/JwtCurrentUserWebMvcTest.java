@@ -12,10 +12,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.dbidding.auth.exception.InvalidTokenException;
-import com.dbidding.auth.token.JwtTokenProvider;
-import com.dbidding.auth.token.TokenClaims;
-import com.dbidding.auth.token.TokenType;
+import com.dbidding.account.exception.InvalidTokenException;
+import com.dbidding.account.token.JwtTokenProvider;
+import com.dbidding.account.token.TokenClaims;
+import com.dbidding.account.token.TokenType;
 import com.dbidding.global.config.WebConfig;
 
 @WebMvcTest(CurrentUserTestController.class)

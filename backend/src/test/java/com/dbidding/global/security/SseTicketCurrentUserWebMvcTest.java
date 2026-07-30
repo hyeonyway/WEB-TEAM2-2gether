@@ -14,9 +14,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.dbidding.auth.token.JwtTokenProvider;
-import com.dbidding.auth.token.TokenClaims;
-import com.dbidding.auth.token.TokenType;
+import com.dbidding.account.token.JwtTokenProvider;
+import com.dbidding.account.token.TokenClaims;
+import com.dbidding.account.token.TokenType;
 import com.dbidding.global.config.WebConfig;
 import com.dbidding.global.exception.UnauthorizedException;
 

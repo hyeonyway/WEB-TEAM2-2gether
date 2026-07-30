@@ -1,6 +1,10 @@
 # User 개발 계획
 
-`user` 패키지는 User 엔티티와 UserRepository, 배송지 Address를 소유한다. 배송지 API에서는 요청으로 임의의 사용자 ID를 받지 않고, 로그인 사용자 ID인 `Integer userId`를 사용한다.
+> User 계정 모델과 저장소는 `account`로 통합됐다. 이 문서는 아직 구현하지 않은
+> 배송지 계획의 기존 경로를 유지하기 위한 문서다.
+
+배송지 Address는 계정과 함께 `account`가 소유한다. 배송지 API에서는 요청으로
+임의의 사용자 ID를 받지 않고, 로그인 사용자 ID인 `Integer userId`를 사용한다.
 
 ## 구현 단계
 
