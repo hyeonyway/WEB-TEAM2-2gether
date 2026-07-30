@@ -36,7 +36,7 @@ class AuthServiceRefreshConcurrencyTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private AccountRepository userRepository;
+	private AccountRepository accountRepository;
 
 	@Autowired
 	private JwtTokenProvider jwtTokenProvider;
@@ -49,13 +49,13 @@ class AuthServiceRefreshConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		Account user = userRepository.saveAndFlush(Account.create(
+		Account account = accountRepository.saveAndFlush(Account.create(
 			"concurrent-refresh@example.com",
 			"concurrent-refresh",
 			"a".repeat(64),
 			"b".repeat(32)
 		));
-		userId = user.getId();
+		userId = account.getId();
 
 		IssuedTokens tokens = jwtTokenProvider.issue(userId, AccountRole.USER, Instant.now());
 		presentedToken = tokens.refreshToken();
@@ -68,7 +68,7 @@ class AuthServiceRefreshConcurrencyTest {
 	@AfterEach
 	void cleanUp() {
 		authenticationRepository.deleteAll();
-		userRepository.deleteAll();
+		accountRepository.deleteAll();
 	}
 
 	@Test

@@ -20,19 +20,19 @@ class AuthenticationRepositoryTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private AccountRepository userRepository;
+	private AccountRepository accountRepository;
 
 	private Integer userId;
 
 	@BeforeEach
 	void setUp() {
-		Account user = userRepository.saveAndFlush(Account.create(
+		Account account = accountRepository.saveAndFlush(Account.create(
 			"auth@example.com",
 			"auth-user",
 			"a".repeat(64),
 			"b".repeat(32)
 		));
-		userId = user.getId();
+		userId = account.getId();
 
 		authenticationRepository.saveAndFlush(Authentication.issue(userId, "c".repeat(64)));
 	}

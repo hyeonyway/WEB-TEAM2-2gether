@@ -27,7 +27,7 @@ class AuthenticationUpsertConcurrencyTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private AccountRepository userRepository;
+	private AccountRepository accountRepository;
 
 	@Autowired
 	private TransactionTemplate transactionTemplate;
@@ -36,19 +36,19 @@ class AuthenticationUpsertConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		Account user = userRepository.saveAndFlush(Account.create(
+		Account account = accountRepository.saveAndFlush(Account.create(
 			"concurrent-login@example.com",
 			"concurrent-login",
 			"a".repeat(64),
 			"b".repeat(32)
 		));
-		userId = user.getId();
+		userId = account.getId();
 	}
 
 	@AfterEach
 	void cleanUp() {
 		authenticationRepository.deleteAll();
-		userRepository.deleteAll();
+		accountRepository.deleteAll();
 	}
 
 	@Test

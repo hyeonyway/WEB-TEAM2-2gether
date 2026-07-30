@@ -31,7 +31,7 @@ class AuthenticationLockConcurrencyTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private AccountRepository userRepository;
+	private AccountRepository accountRepository;
 
 	@Autowired
 	private TransactionTemplate transactionTemplate;
@@ -40,20 +40,20 @@ class AuthenticationLockConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		Account user = userRepository.saveAndFlush(Account.create(
+		Account account = accountRepository.saveAndFlush(Account.create(
 			"authentication-lock@example.com",
 			"authentication-lock",
 			"c".repeat(64),
 			"d".repeat(32)
 		));
-		userId = user.getId();
+		userId = account.getId();
 		authenticationRepository.saveAndFlush(Authentication.issue(userId, ORIGINAL_HASH));
 	}
 
 	@AfterEach
 	void cleanUp() {
 		authenticationRepository.deleteAll();
-		userRepository.deleteAll();
+		accountRepository.deleteAll();
 	}
 
 	@Test

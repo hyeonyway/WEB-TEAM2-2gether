@@ -31,7 +31,7 @@ class AuthServiceLogoutIntegrationTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private AccountRepository userRepository;
+	private AccountRepository accountRepository;
 
 	@Autowired
 	private JwtTokenProvider jwtTokenProvider;
@@ -43,16 +43,16 @@ class AuthServiceLogoutIntegrationTest {
 
 	@BeforeEach
 	void setUp() {
-		Account user = userRepository.saveAndFlush(Account.create(
+		Account account = accountRepository.saveAndFlush(Account.create(
 			"logout-integration@example.com",
 			"logout-integration",
 			"a".repeat(64),
 			"b".repeat(32)
 		));
-		IssuedTokens tokens = jwtTokenProvider.issue(user.getId(), AccountRole.USER, Instant.now());
+		IssuedTokens tokens = jwtTokenProvider.issue(account.getId(), AccountRole.USER, Instant.now());
 		refreshToken = tokens.refreshToken();
 		authenticationRepository.saveAndFlush(Authentication.issue(
-			user.getId(),
+			account.getId(),
 			refreshTokenHasher.hash(refreshToken)
 		));
 	}
@@ -60,7 +60,7 @@ class AuthServiceLogoutIntegrationTest {
 	@AfterEach
 	void cleanUp() {
 		authenticationRepository.deleteAll();
-		userRepository.deleteAll();
+		accountRepository.deleteAll();
 	}
 
 	@Test

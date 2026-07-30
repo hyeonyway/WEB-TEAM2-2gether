@@ -28,7 +28,7 @@ class SignupTransactionTest {
 	private AuthService authService;
 
 	@Autowired
-	private AccountRepository userRepository;
+	private AccountRepository accountRepository;
 
 	@Autowired
 	private WalletRepository walletRepository;
@@ -43,7 +43,7 @@ class SignupTransactionTest {
 	void cleanUp() {
 		authenticationRepository.deleteAll();
 		walletRepository.deleteAll();
-		userRepository.deleteAll();
+		accountRepository.deleteAll();
 	}
 
 	@Test
@@ -56,13 +56,13 @@ class SignupTransactionTest {
 
 		SignupResponse response = authService.signup(request);
 
-		Account user = userRepository.findById(response.id()).orElseThrow();
+		Account account = accountRepository.findById(response.id()).orElseThrow();
 		Wallet wallet = walletRepository.findByUserId(response.id()).orElseThrow();
-		assertThat(user.getEmail()).isEqualTo(request.email());
-		assertThat(user.getEncryptedPassword())
+		assertThat(account.getEmail()).isEqualTo(request.email());
+		assertThat(account.getEncryptedPassword())
 			.isNotEqualTo(request.password())
 			.hasSize(64);
-		assertThat(user.getSalt()).hasSize(32);
+		assertThat(account.getSalt()).hasSize(32);
 		assertThat(wallet.getPoint()).isZero();
 		assertThat(authenticationRepository.findByUserId(response.id())).isEmpty();
 	}
@@ -81,7 +81,7 @@ class SignupTransactionTest {
 		assertThatThrownBy(() -> authService.signup(request))
 			.isInstanceOf(IllegalStateException.class);
 
-		assertThat(userRepository.existsByEmail(request.email())).isFalse();
+		assertThat(accountRepository.existsByEmail(request.email())).isFalse();
 		assertThat(walletRepository.findAll()).isEmpty();
 	}
 }
