@@ -1,9 +1,13 @@
 package com.dbidding.global.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +49,44 @@ class SseTicketAuthFilterTest {
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE))
 			.isEqualTo(7);
 		assertThat(chain.getRequest()).isSameAs(request);
+	}
+
+	@Test
+	void 기존_사용자와_티켓_사용자가_같으면_개인화_SSE_요청을_통과시킨다() throws Exception {
+		MockHttpServletRequest request = get("/api/dashboard/stream");
+		request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, 7);
+		request.setParameter("ticket", "valid-ticket");
+		MockFilterChain chain = new MockFilterChain();
+		given(ticketProvider.validateAndConsume("valid-ticket")).willReturn(7);
+
+		filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE))
+			.isEqualTo(7);
+		assertThat(chain.getRequest()).isSameAs(request);
+	}
+
+	@Test
+	void 기존_사용자와_티켓_사용자가_다르면_티켓을_소비하고_401을_반환한다() throws Exception {
+		InMemoryTicketProvider realTicketProvider = new InMemoryTicketProvider(
+			Clock.fixed(Instant.parse("2026-07-30T00:00:00Z"), ZoneOffset.UTC)
+		);
+		SseTicketAuthFilter realFilter = new SseTicketAuthFilter(realTicketProvider);
+		String ticket = realTicketProvider.issue(8);
+		MockHttpServletRequest request = get("/api/dashboard/stream");
+		request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, 7);
+		request.setParameter("ticket", ticket);
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		realFilter.doFilter(request, response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE))
+			.isEqualTo(7);
+		assertThat(chain.getRequest()).isNull();
+		assertThatThrownBy(() -> realTicketProvider.validateAndConsume(ticket))
+			.isInstanceOf(UnauthorizedException.class);
 	}
 
 	@ParameterizedTest

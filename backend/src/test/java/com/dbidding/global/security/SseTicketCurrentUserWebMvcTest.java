@@ -14,6 +14,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dbidding.auth.token.JwtTokenProvider;
+import com.dbidding.auth.token.TokenClaims;
+import com.dbidding.auth.token.TokenType;
 import com.dbidding.global.config.WebConfig;
 import com.dbidding.global.exception.UnauthorizedException;
 
@@ -21,6 +24,7 @@ import com.dbidding.global.exception.UnauthorizedException;
 @Import({
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
+	JwtAuthFilter.class,
 	SseTicketAuthFilter.class
 })
 class SseTicketCurrentUserWebMvcTest {
@@ -30,6 +34,9 @@ class SseTicketCurrentUserWebMvcTest {
 
 	@MockitoBean
 	private TicketProvider ticketProvider;
+
+	@MockitoBean
+	private JwtTokenProvider jwtTokenProvider;
 
 	@Test
 	void 유효한_SSE_티켓으로_CurrentUser를_주입한다() throws Exception {
@@ -48,6 +55,31 @@ class SseTicketCurrentUserWebMvcTest {
 
 		mockMvc.perform(get("/api/dashboard/stream")
 				.param("ticket", "invalid-ticket"))
+			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void JWT와_SSE_티켓의_사용자가_같으면_CurrentUser를_주입한다() throws Exception {
+		given(jwtTokenProvider.parseAccess("access-token"))
+			.willReturn(new TokenClaims(7, TokenType.ACCESS));
+		given(ticketProvider.validateAndConsume("valid-ticket")).willReturn(7);
+
+		mockMvc.perform(get("/api/dashboard/stream")
+				.header("Authorization", "Bearer access-token")
+				.param("ticket", "valid-ticket"))
+			.andExpect(status().isOk())
+			.andExpect(content().string("7"));
+	}
+
+	@Test
+	void JWT와_SSE_티켓의_사용자가_다르면_401을_반환한다() throws Exception {
+		given(jwtTokenProvider.parseAccess("access-token"))
+			.willReturn(new TokenClaims(7, TokenType.ACCESS));
+		given(ticketProvider.validateAndConsume("other-user-ticket")).willReturn(8);
+
+		mockMvc.perform(get("/api/dashboard/stream")
+				.header("Authorization", "Bearer access-token")
+				.param("ticket", "other-user-ticket"))
 			.andExpect(status().isUnauthorized());
 	}
 }

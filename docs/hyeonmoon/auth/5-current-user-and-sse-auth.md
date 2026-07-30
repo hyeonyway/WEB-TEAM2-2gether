@@ -344,6 +344,11 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
                                      FilterChain chain) throws IOException, ServletException {
         String ticket = request.getParameter("ticket");
         Integer userId = ticketProvider.validateAndConsume(ticket);
+        Object existingUserId = request.getAttribute("userId");
+        if (existingUserId != null && !existingUserId.equals(userId)) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
         request.setAttribute("userId", userId);
         chain.doFilter(request, response);
     }
@@ -351,6 +356,10 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 ```
 
 `JwtAuthFilter`가 request attribute에 `userId`를 저장하는 것과 동일한 방식으로 저장하므로, 대시보드/알림 컨트롤러는 `@CurrentUser Integer userId`를 그대로 쓰면 된다 — `TicketProvider`를 직접 호출할 필요가 없다. 이 필터는 `/api/dashboard/stream`, `/api/users/{userId}/auctions/stream`, `/api/users/{userId}/notifications/stream`에만 등록하고 그 외 경로는 기존 `JwtAuthFilter`를 그대로 통과시킨다.
+
+`JwtAuthFilter`가 먼저 저장한 사용자 ID가 없는 일반 `EventSource` 요청은 티켓 사용자 ID를 그대로 저장한다. JWT와 티켓이 함께 전달된 요청은 두 사용자 ID가 같을 때만 통과시키며, 다르면 티켓을 소비한 뒤 401로 종료한다. 불일치 요청에서도 이미 소비한 티켓을 복구하지 않으므로 같은 티켓을 다시 사용할 수 없다.
+
+사용자별 SSE 경로에 `{userId}`가 남아 있더라도 실제 SSE Controller와 Service는 해당 PathVariable을 인증 근거로 신뢰하지 않는다. `@CurrentUser Integer userId`를 기준으로 데이터를 조회하며, PathVariable을 사용할 필요가 있다면 현재 사용자 ID와 일치하는지 검증해야 한다.
 
 - [x] **Step 3: 통합 테스트**
 
@@ -421,10 +430,14 @@ SSE 컨트롤러/서비스 코드는 변경하지 않는다. 인증 필터가 re
 - `JwtAuthFilter`는 기본 인증 흐름에 등록되고, `debug-auth` 프로필에서만
   `X-Debug-User-Id` fallback을 허용한다.
 - 발급된 티켓은 30초 후 자동 만료되고, 동일 티켓 재사용은 거절된다(1회성).
+- JWT 사용자와 SSE 티켓 사용자가 함께 전달되면 두 ID가 일치할 때만 통과하고,
+  불일치하면 티켓을 소비한 뒤 401을 반환한다.
 - 티켓은 단일 인스턴스 메모리에 저장되며, 만료된 미사용 티켓은 주기적으로
   정리된다.
 - 진짜 JWT(Access/Refresh Token)는 어떤 요청 URL에도 노출되지 않는다.
 - 대시보드/알림 컨트롤러는 `TicketProvider`를 직접 호출하지 않고 `@CurrentUser`만으로 유저를 식별한다.
+- 사용자별 SSE 경로의 `{userId}`는 인증 근거로 사용하지 않으며, 필요한 경우
+  `@CurrentUser`와 일치하는지 검증한다.
 - `global.security`는 `user`/`auction`의 Entity를 직접 참조하지 않는다.
 - `auction.CurrentUserPort` 실제 어댑터는 `seller` 계약을 조정하기 전까지
   구현하지 않는다.

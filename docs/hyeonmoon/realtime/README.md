@@ -24,6 +24,10 @@
 | GET | `/api/users/{userId}/notifications/stream` | 티켓 | 임하민 | 웹 알림 |
 | POST | `/api/sse/tickets` | JWT(기존) | 김현문 | SSE 인증용 1회용 티켓 발급 |
 
+사용자별 스트림의 `{userId}`는 라우팅 값일 뿐 인증 근거가 아니다. 실제
+컨트롤러와 서비스는 티켓 검증 결과가 주입된 `@CurrentUser Integer userId`를
+기준으로 데이터를 조회하고, PathVariable이 필요하면 두 ID의 일치를 검증한다.
+
 이은기는 위 스트림을 직접 만들지 않고 `BidPlacedEvent`/`BidOutbidEvent`/`AuctionClosedEvent` 등 도메인 이벤트 발행만 담당한다. 정세호/임하민이 각자 `@EventListener`로 구독해 자기 SSE emitter에 push한다.
 
 ## 주요 규칙 (회의 결론)
