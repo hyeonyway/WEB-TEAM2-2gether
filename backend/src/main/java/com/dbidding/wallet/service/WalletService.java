@@ -8,11 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dbidding.wallet.domain.PointRecord;
 import com.dbidding.wallet.domain.PointTransactionType;
 import com.dbidding.wallet.domain.Wallet;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
 import com.dbidding.wallet.exception.IdempotencyConflictException;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
+import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletRepository;
@@ -21,13 +23,20 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class WalletTransactionService {
+public class WalletService {
 
 	private static final long MINIMUM_CHARGE_AMOUNT = 1_000L;
 	private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 64;
 
 	private final WalletRepository walletRepository;
 	private final PointRecordRepository pointRecordRepository;
+
+	@Transactional(readOnly = true)
+	public WalletBalanceResponse getBalance(Integer userId) {
+		Wallet wallet = walletRepository.findByUserId(userId)
+			.orElseThrow(WalletNotFoundException::new);
+		return balance(wallet, walletRepository.sumHeldAmount(wallet.getId()));
+	}
 
 	@Transactional
 	public WalletTransactionResponse charge(Integer userId, long amount, String idempotencyKey) {
@@ -88,6 +97,17 @@ public class WalletTransactionService {
 			throw new IdempotencyConflictException();
 		}
 		return WalletTransactionResponse.from(record);
+	}
+
+	private WalletBalanceResponse balance(Wallet wallet, long frozenBalance) {
+		if (frozenBalance < 0 || frozenBalance > wallet.getPoint()) {
+			throw new InvalidWalletBalanceException();
+		}
+		return new WalletBalanceResponse(
+			wallet.getPoint(),
+			frozenBalance,
+			wallet.getPoint() - frozenBalance
+		);
 	}
 
 	private void validateChargeAmount(long amount) {

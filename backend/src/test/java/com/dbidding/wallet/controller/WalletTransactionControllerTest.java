@@ -26,7 +26,7 @@ import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
-import com.dbidding.wallet.service.WalletTransactionService;
+import com.dbidding.wallet.service.WalletService;
 
 @WebMvcTest(WalletTransactionController.class)
 class WalletTransactionControllerTest {
@@ -35,7 +35,7 @@ class WalletTransactionControllerTest {
 	private MockMvc mockMvc;
 
 	@MockitoBean
-	private WalletTransactionService walletTransactionService;
+	private WalletService walletService;
 
 	@MockitoBean
 	private CurrentUserProvider currentUserProvider;
@@ -47,7 +47,7 @@ class WalletTransactionControllerTest {
 
 	@Test
 	void 로그인_사용자가_idempotency_key로_포인트를_충전한다() throws Exception {
-		given(walletTransactionService.charge(1, 10_000L, "charge-key"))
+		given(walletService.charge(1, 10_000L, "charge-key"))
 			.willReturn(new WalletTransactionResponse(
 				10L,
 				"CHARGE",
@@ -68,7 +68,7 @@ class WalletTransactionControllerTest {
 
 	@Test
 	void 로그인_사용자가_idempotency_key로_포인트를_환불한다() throws Exception {
-		given(walletTransactionService.refund(1, 3_000L, "refund-key"))
+		given(walletService.refund(1, 3_000L, "refund-key"))
 			.willReturn(new WalletTransactionResponse(
 				11L,
 				"REFUND",
@@ -125,7 +125,7 @@ class WalletTransactionControllerTest {
 		RuntimeException exception,
 		HttpStatus expectedStatus
 	) throws Exception {
-		given(walletTransactionService.charge(1, 10_000L, "charge-key"))
+		given(walletService.charge(1, 10_000L, "charge-key"))
 			.willThrow(exception);
 
 		mockMvc.perform(post("/api/wallet/charges")

@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dbidding.global.security.CurrentUser;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
-import com.dbidding.wallet.service.WalletBalanceService;
+import com.dbidding.wallet.service.WalletService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -15,10 +15,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WalletController {
 
-	private final WalletBalanceService walletBalanceService;
+	private final WalletService walletService;
 
 	@GetMapping
 	public WalletBalanceResponse getBalance(@CurrentUser Integer userId) {
-		return walletBalanceService.getBalance(userId);
+		return walletService.getBalance(userId);
 	}
 }
