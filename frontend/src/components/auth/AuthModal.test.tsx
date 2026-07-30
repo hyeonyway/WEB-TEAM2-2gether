@@ -20,6 +20,13 @@ const {loginMock, refreshMock, signupMock} = vi.hoisted(() => ({
   signupMock: vi.fn(),
 }));
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {'Content-Type': 'application/json'},
+  });
+}
+
 vi.mock('../../api/authApi', async importOriginal => {
   const actual = await importOriginal<typeof import('../../api/authApi')>();
   return {
@@ -209,6 +216,57 @@ describe('Header 계정 메뉴', () => {
       .toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', {name: '홈'}))
       .not.toHaveAttribute('aria-current');
+  });
+});
+
+describe('Header Wallet 잔액', () => {
+  it('anonymous 상태에서는 전자지갑과 충전 진입점을 숨긴다', async () => {
+    renderHeader('/');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    expect(screen.queryByRole('button', {name: /전자지갑/}))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText('충전하기')).not.toBeInTheDocument();
+  });
+
+  it('인증 복구 중에는 전자지갑과 Wallet skeleton을 렌더링하지 않는다', () => {
+    refreshMock.mockReturnValue(new Promise(() => {}));
+
+    renderHeader('/');
+
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('initializing');
+    expect(screen.queryByRole('button', {name: /전자지갑/}))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
+      .not.toBeInTheDocument();
+  });
+
+  it('authenticated 상태의 Wallet 조회 중에 skeleton을 표시한다', async () => {
+    setAccessToken('access-token');
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+
+    renderHeader('/');
+
+    expect(await screen.findByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
+      .toBeInTheDocument();
+    expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
+  });
+
+  it('Wallet 조회 성공 시 서버 totalBalance와 충전 진입점을 표시한다', async () => {
+    setAccessToken('access-token');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({
+      totalBalance: 987_654,
+      frozenBalance: 120_000,
+      availableBalance: 867_654,
+    }));
+
+    renderHeader('/');
+
+    expect(await screen.findByText('987,654P')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /전자지갑.*987,654P.*충전하기/}))
+      .toBeInTheDocument();
   });
 });
 
@@ -484,9 +542,18 @@ describe('Header 로그아웃', () => {
   it('서버에 한 번 요청하고 토큰과 인증 cache를 정리한 뒤 홈으로 이동한다', async () => {
     let resolveLogout!: (response: Response) => void;
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockReturnValue(new Promise(resolve => {
-        resolveLogout = resolve;
-      }));
+      .mockImplementation(input => {
+        if (input === '/api/wallet') {
+          return Promise.resolve(jsonResponse({
+            totalBalance: 10_000,
+            frozenBalance: 0,
+            availableBalance: 10_000,
+          }));
+        }
+        return new Promise(resolve => {
+          resolveLogout = resolve;
+        });
+      });
     setAccessToken('access-token');
     const {queryClient} = renderHeader();
     queryClient.setQueryData(['auth', 'me'], {id: 1});
@@ -499,7 +566,8 @@ describe('Header 로그아웃', () => {
     await user.click(logoutButton);
     await user.click(logoutButton);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.filter(([path]) => path === '/api/auth/logout'))
+      .toHaveLength(1);
     resolveLogout(new Response(null, {status: 204}));
     await waitFor(() => expect(getAccessToken()).toBeNull());
     expect(fetchMock).toHaveBeenCalledWith(
