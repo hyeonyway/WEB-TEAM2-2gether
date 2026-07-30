@@ -3,7 +3,8 @@ import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {AuctionCatalog} from './components';
 import type {AuctionListRequestDto} from '../../dto/auctionDto';
-import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
+import {auctionQueries} from '../../queries/auctionQueries';
+import {applyAuctionEvents} from '../../queries/auctionEventCache';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
@@ -14,9 +15,7 @@ const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
 export default function AuctionPage(){
   const queryClient=useQueryClient();
   useAuctionStream({
-    onAuctionUpdated:()=>void queryClient.invalidateQueries({
-      queryKey:auctionQueryKeys.all,
-    }),
+    onAuctionUpdated:events=>applyAuctionEvents(queryClient,events),
   });
   const requestedSort=new URLSearchParams(window.location.search).get('sort');
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';

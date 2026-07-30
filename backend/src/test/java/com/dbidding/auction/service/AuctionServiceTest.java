@@ -17,6 +17,9 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.dto.BidCreateRequest;
+import com.dbidding.auction.event.AuctionCreatedEvent;
+import com.dbidding.auction.event.AuctionEvent;
+import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
@@ -37,6 +40,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -148,7 +152,14 @@ class AuctionServiceTest {
         verify(auctionRepository, times(1)).save(any(Auction.class));
         verify(auctionImageRepository, times(1)).saveAll(any());
         verify(auctionCardStatisticPort, times(1)).recordAuctionOpened(any(), any());
-        verify(auctionEventPort, times(1)).publish(any());
+        ArgumentCaptor<AuctionEvent> eventCaptor = ArgumentCaptor.forClass(AuctionEvent.class);
+        verify(auctionEventPort).publish(eventCaptor.capture());
+        assertThat(eventCaptor.getValue()).isInstanceOfSatisfying(AuctionCreatedEvent.class, event -> {
+            assertThat(event.cardName()).isEqualTo("Mock Card");
+            assertThat(event.cardThumbnailUrl()).isEqualTo("/mock/upl-1.png");
+            assertThat(event.currentPrice()).isEqualTo(42_000L);
+            assertThat(event.bidCount()).isZero();
+        });
     }
 
     @Test
@@ -237,7 +248,14 @@ class AuctionServiceTest {
         verify(walletPort).holdBidAmount(1, 1, 11_000L);
         verify(bidRepository).save(any(Bid.class));
         verify(auctionCardStatisticPort).recordBid(eq(1), any());
-        verify(auctionEventPort).publish(any());
+        ArgumentCaptor<AuctionEvent> eventCaptor = ArgumentCaptor.forClass(AuctionEvent.class);
+        verify(auctionEventPort).publish(eventCaptor.capture());
+        assertThat(eventCaptor.getValue()).isInstanceOfSatisfying(BidPlacedEvent.class, event -> {
+            assertThat(event.bidderId()).isEqualTo(1);
+            assertThat(event.previousBidderId()).isNull();
+            assertThat(event.currentPrice()).isEqualTo(11_000L);
+            assertThat(event.bidCount()).isEqualTo(1);
+        });
     }
 
     @Test
@@ -302,7 +320,13 @@ class AuctionServiceTest {
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         verify(walletPort).holdBidAmount(1, 1, 12_000L);
         verify(walletPort).releaseBidHold(2, 1);
-        verify(auctionEventPort, times(2)).publish(any());
+        ArgumentCaptor<AuctionEvent> eventCaptor = ArgumentCaptor.forClass(AuctionEvent.class);
+        verify(auctionEventPort).publish(eventCaptor.capture());
+        assertThat(eventCaptor.getValue()).isInstanceOfSatisfying(BidPlacedEvent.class, event -> {
+            assertThat(event.bidderId()).isEqualTo(1);
+            assertThat(event.previousBidderId()).isEqualTo(2);
+            assertThat(event.currentPrice()).isEqualTo(12_000L);
+        });
     }
 
     @Test

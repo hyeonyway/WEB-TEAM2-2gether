@@ -61,7 +61,7 @@
 | 경매 목록/상세 SSE 처리(연결관리, emitter) | 정세호 | 이은기가 발행하는 이벤트를 구독 |
 | 대시보드/랭킹 SSE 처리 | 정세호 | 원래 담당(캐싱+쿼리최적화)과 함께 |
 | 알림 SSE 처리 | 임하민 | 원래 담당(알림 저장/조회)과 함께 |
-| 이벤트 생성(발행) | 이은기 | `BidPlacedEvent`/`BidOutbidEvent`/`AuctionClosedEvent` 등 발행만 담당. SSE emitter/연결관리는 직접 만들지 않는다 |
+| 이벤트 생성(발행) | 이은기 | `AuctionCreatedEvent`/`BidPlacedEvent`/`AuctionClosedEvent` 발행만 담당. 상회 입찰 정보는 `BidPlacedEvent.previousBidderId`에 포함하며 SSE emitter/연결관리는 직접 만들지 않는다 |
 | SSE 티켓 발급/검증 | 김현문 | 기존 JWT/`CurrentUserProvider` 소유 연장선. 상세는 [../auth/5-current-user-and-sse-auth.md](../auth/5-current-user-and-sse-auth.md) |
 
 2절 결정(Redis Pub/Sub 미채택)에 따라 별도 `global.realtime` 공용 모듈이 필요 없어졌다 — 정세호/임하민이 각자 담당 영역 안에서 로컬 emitter만 관리하면 된다.
@@ -82,7 +82,7 @@
 - [ ] SSE 재연결 백필 정책(유실분 복구 안 함 vs 짧은 리플레이 버퍼)
 - [ ] 이번 스프린트(P0)에 경매목록/상세/대시보드/알림 SSE 중 몇 개까지 넣을지
 - [ ] CDN 적용 대상 최종 리스트
-- [ ] SSE payload 스키마(실제 JSON 필드)
+- [x] SSE payload 스키마(실제 JSON 필드) — 경매 목록과 대시보드가 REST 재조회 없이 렌더링할 수 있는 3종 스냅샷 계약
 - [ ] Redis+Lua 핫패스 전환 트리거 기준(어느 정도 트래픽/지연이면 전환할지)
 - [ ] 동시성 검증 테스트 전략
 
