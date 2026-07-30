@@ -31,6 +31,11 @@ public class InMemoryTicketProvider implements TicketProvider {
 	}
 
 	@Override
+	public long ticketTtlSeconds() {
+		return TICKET_TTL.toSeconds();
+	}
+
+	@Override
 	public Integer validateAndConsume(String ticket) {
 		if (ticket == null || ticket.isBlank()) {
 			throw new UnauthorizedException();

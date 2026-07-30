@@ -11,12 +11,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SseTicketController {
 
-	private static final long TICKET_TTL_SECONDS = 30L;
-
 	private final TicketProvider ticketProvider;
 
 	@PostMapping
 	public SseTicketResponse issue(@CurrentUser Integer userId) {
-		return new SseTicketResponse(ticketProvider.issue(userId), TICKET_TTL_SECONDS);
+		return new SseTicketResponse(
+			ticketProvider.issue(userId),
+			ticketProvider.ticketTtlSeconds()
+		);
 	}
 }

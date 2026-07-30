@@ -27,14 +27,15 @@ class SseTicketControllerTest {
 	private CurrentUserProvider currentUserProvider;
 
 	@Test
-	void 로그인_사용자에게_30초짜리_SSE_티켓을_발급한다() throws Exception {
+	void 로그인_사용자에게_Provider가_정한_만료시간의_SSE_티켓을_발급한다() throws Exception {
 		given(currentUserProvider.getCurrentUserId()).willReturn(7);
 		given(ticketProvider.issue(7)).willReturn("one-time-ticket");
+		given(ticketProvider.ticketTtlSeconds()).willReturn(45L);
 
 		mockMvc.perform(post("/api/sse/tickets"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.ticket").value("one-time-ticket"))
-			.andExpect(jsonPath("$.expiresInSeconds").value(30));
+			.andExpect(jsonPath("$.expiresInSeconds").value(45));
 
 		then(ticketProvider).should().issue(7);
 	}

@@ -172,6 +172,7 @@ public class WebConfig implements WebMvcConfigurer {
 **Interfaces:**
 - Produces: `String TicketProvider.issue(Integer userId)`
 - Produces: `Integer TicketProvider.validateAndConsume(String ticket)` — 무효/만료/이미 소비된 티켓이면 `UnauthorizedException`
+- Produces: `long TicketProvider.ticketTtlSeconds()` — 발급 응답과 실제 만료 시간이 같은 TTL 정의를 사용하도록 초 단위 값을 제공
 
 - [x] **Step 1: 인터페이스 작성**
 
@@ -181,6 +182,7 @@ package com.dbidding.global.security;
 public interface TicketProvider {
     String issue(Integer userId);
     Integer validateAndConsume(String ticket);
+    long ticketTtlSeconds();
 }
 ```
 
@@ -276,6 +278,11 @@ public class InMemoryTicketProvider implements TicketProvider {
     }
 
     @Override
+    public long ticketTtlSeconds() {
+        return TTL.toSeconds();
+    }
+
+    @Override
     public Integer validateAndConsume(String ticket) {
         TicketEntry entry = tickets.remove(ticket);
         if (entry == null || !clock.instant().isBefore(entry.expiresAt())) {
@@ -316,12 +323,15 @@ public class SseTicketController {
 
     @PostMapping("/api/sse/tickets")
     public TicketResponse issue(@CurrentUser Integer userId) {
-        return new TicketResponse(ticketProvider.issue(userId), 30);
+        return new TicketResponse(
+            ticketProvider.issue(userId),
+            ticketProvider.ticketTtlSeconds()
+        );
     }
 }
 ```
 
-기존 `JwtAuthFilter`가 이미 처리한 요청이므로 `@CurrentUser`를 그대로 쓴다 — 새 인증 로직이 필요 없다.
+기존 `JwtAuthFilter`가 이미 처리한 요청이므로 `@CurrentUser`를 그대로 쓴다 — 새 인증 로직이 필요 없다. 응답의 `expiresInSeconds`는 Provider의 실제 TTL을 사용해 두 값이 따로 변경되는 것을 막는다.
 
 - [x] **Step 2: SSE 경로용 인증 필터**
 

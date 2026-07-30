@@ -62,6 +62,13 @@ class InMemoryTicketProviderTest {
 	}
 
 	@Test
+	void 발급_응답에_사용할_티켓_TTL을_초_단위로_제공한다() {
+		InMemoryTicketProvider provider = new InMemoryTicketProvider(clock);
+
+		assertThat(provider.ticketTtlSeconds()).isEqualTo(30L);
+	}
+
+	@Test
 	void 발급_후_30초가_되면_티켓을_거절한다() {
 		given(clock.instant()).willReturn(NOW, NOW.plusSeconds(30));
 		InMemoryTicketProvider provider = new InMemoryTicketProvider(clock);
