@@ -43,11 +43,12 @@ public class AuctionController {
 
     @PostMapping("/{auctionId}/bids")
     public ResponseEntity<BidResponses.BidSummary> participate(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable @Min(1) Integer auctionId,
             @Valid @RequestBody BidCreateRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(auctionService.participate(auctionId, request));
+                .body(auctionService.participate(auctionId, request, idempotencyKey));
     }
 
     @GetMapping

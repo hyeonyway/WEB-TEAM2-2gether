@@ -62,6 +62,7 @@ public class AuctionService {
     private final AuctionCardStatisticPort auctionCardStatisticPort;
     private final AuctionEventPort auctionEventPort;
     private final Map<CreateIdempotencyKey, CachedAuctionCreate> createIdempotencyCache = new ConcurrentHashMap<>();
+    private final Map<BidIdempotencyKey, CachedBidCreate> bidIdempotencyCache = new ConcurrentHashMap<>();
 
     @Transactional
     public AuctionCreateResponse create(AuctionCreateRequest request, String idempotencyKey) {
@@ -122,8 +123,15 @@ public class AuctionService {
     }
 
     @Transactional
-    public BidResponses.BidSummary participate(Integer auctionId, BidCreateRequest request) {
+    public BidResponses.BidSummary participate(Integer auctionId, BidCreateRequest request, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
         var user = currentUserPort.currentUser();
+        BidIdempotencyKey cacheKey = new BidIdempotencyKey(user.id(), auctionId, idempotencyKey);
+        Optional<BidResponses.BidSummary> cachedResponse = findCachedBidResponse(cacheKey, request);
+        if (cachedResponse.isPresent()) {
+            return cachedResponse.get();
+        }
+
         Auction auction = auctionRepository.findByIdForUpdate(auctionId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
         Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
@@ -136,7 +144,9 @@ public class AuctionService {
         Bid currentLeadingBid = bidRepository.save(Bid.leading(user.id(), auction, request.price(), now));
         auctionCardStatisticPort.recordBid(auction.getItemId(), now);
         publishBidPlaced(auction, user.id(), request.price(), now);
-        return bidSummary(currentLeadingBid, currentLeadingBid.getId());
+        BidResponses.BidSummary response = bidSummary(currentLeadingBid, currentLeadingBid.getId());
+        bidIdempotencyCache.put(cacheKey, new CachedBidCreate(request, response));
+        return response;
     }
 
     public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(
@@ -246,6 +256,20 @@ public class AuctionService {
             AuctionCreateRequest request
     ) {
         CachedAuctionCreate cached = createIdempotencyCache.get(cacheKey);
+        if (cached == null) {
+            return Optional.empty();
+        }
+        if (!cached.request().equals(request)) {
+            throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+        }
+        return Optional.of(cached.response());
+    }
+
+    private Optional<BidResponses.BidSummary> findCachedBidResponse(
+            BidIdempotencyKey cacheKey,
+            BidCreateRequest request
+    ) {
+        CachedBidCreate cached = bidIdempotencyCache.get(cacheKey);
         if (cached == null) {
             return Optional.empty();
         }
@@ -463,6 +487,12 @@ public class AuctionService {
     }
 
     private record CachedAuctionCreate(AuctionCreateRequest request, AuctionCreateResponse response) {
+    }
+
+    private record BidIdempotencyKey(Integer userId, Integer auctionId, String idempotencyKey) {
+    }
+
+    private record CachedBidCreate(BidCreateRequest request, BidResponses.BidSummary response) {
     }
 
 }
