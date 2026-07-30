@@ -1,5 +1,6 @@
 import {Route, Routes} from 'react-router-dom';
 import {Header} from '../components';
+import {RequireAuth} from '../auth/RequireAuth';
 import AuctionDetailPage from '../pages/auction-detail';
 import AuctionPage from '../pages/auction';
 import CardDetailPage from '../pages/card-detail';
@@ -18,7 +19,7 @@ export function AppRoutes() {
       <Route path="/auction" element={<AuctionPage/>}/>
       <Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/>
       <Route path="/dashboard" element={<DashboardPage/>}/>
-      <Route path="/mypage" element={<MyPage/>}/>
+      <Route path="/mypage" element={<RequireAuth><MyPage/></RequireAuth>}/>
       <Route path="/sell" element={<SellPage Header={Header}/>}/>
       <Route path="*" element={<HomePage/>}/>
     </Routes>

@@ -8,9 +8,10 @@ type AuthMode = 'login' | 'signup';
 type AuthModalProps = {
   open: boolean;
   onClose: () => void;
+  onLoginSuccess?: () => void;
 };
 
-export default function AuthModal({open, onClose}: AuthModalProps) {
+export default function AuthModal({open, onClose, onLoginSuccess = onClose}: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [loginEmail, setLoginEmail] = useState('');
   const [notice, setNotice] = useState('');
@@ -136,7 +137,7 @@ export default function AuthModal({open, onClose}: AuthModalProps) {
           </p>
           {notice && <p className="auth-success-notice">{notice}</p>}
           {mode === 'login'
-            ? <LoginForm initialEmail={loginEmail} onSuccess={onClose}/>
+            ? <LoginForm initialEmail={loginEmail} onSuccess={onLoginSuccess}/>
             : <SignupForm onSuccess={handleSignupSuccess}/>}
           <div className="auth-mode-switch">
             <span>{mode === 'login' ? '아직 계정이 없으신가요?' : '이미 계정이 있으신가요?'}</span>
