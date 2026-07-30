@@ -186,8 +186,14 @@ CREATE TABLE auctions
     bid_price_unit       BIGINT       NOT NULL,
     is_hyped             BOOLEAN      NOT NULL,
     version              BIGINT       NOT NULL DEFAULT 1,
+    idempotency_key      VARCHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
+    idempotency_request_hash CHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
 
     CONSTRAINT pk_auctions PRIMARY KEY (id),
+    CONSTRAINT uk_auctions_user_idempotency
+        UNIQUE (user_id, idempotency_key),
     CONSTRAINT fk_auctions_user
         FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_auctions_item
@@ -228,8 +234,14 @@ CREATE TABLE bids
     bid_price  BIGINT       NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     status     VARCHAR(255) NOT NULL,
+    idempotency_key VARCHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
+    idempotency_request_hash CHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
 
     CONSTRAINT pk_bids PRIMARY KEY (id),
+    CONSTRAINT uk_bids_user_auction_idempotency
+        UNIQUE (user_id, auction_id, idempotency_key),
     CONSTRAINT fk_bids_user
         FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_bids_auction

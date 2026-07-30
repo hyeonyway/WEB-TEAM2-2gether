@@ -1,0 +1,513 @@
+package com.dbidding.auction.service;
+
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+
+import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.domain.AuctionImage;
+import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.domain.Bid;
+import com.dbidding.auction.domain.BidStatus;
+import com.dbidding.auction.dto.AuctionCloseResponse;
+import com.dbidding.auction.dto.AuctionCreateRequest;
+import com.dbidding.auction.dto.AuctionCreateResponse;
+import com.dbidding.auction.dto.BidCreateRequest;
+import com.dbidding.auction.dto.BidResponses;
+import com.dbidding.auction.port.AuctionCardPort;
+import com.dbidding.auction.port.AuctionCardStatisticPort;
+import com.dbidding.auction.port.AuctionEventPort;
+import com.dbidding.auction.port.CurrentUserPort;
+import com.dbidding.auction.port.ImageUploadPort;
+import com.dbidding.auction.port.WalletPort;
+import com.dbidding.auction.repository.AuctionImageRepository;
+import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.repository.BidRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+@Profile("auction-mock")
+@RequiredArgsConstructor
+@Slf4j
+public class AuctionCommandService {            
+    private static final int MAX_IMAGE_COUNT = 8;
+    private static final Duration BID_EXTENSION_WINDOW = Duration.ofMinutes(5);
+    private static final Duration BID_EXTENSION_DURATION = Duration.ofMinutes(5);
+
+    private final AuctionRepository auctionRepository;
+    private final AuctionImageRepository auctionImageRepository;
+    private final BidRepository bidRepository;
+    private final CurrentUserPort currentUserPort;
+    private final WalletPort walletPort;
+    private final ImageUploadPort imageUploadPort;
+    private final AuctionCardPort auctionCardPort;
+    private final AuctionCardStatisticPort auctionCardStatisticPort;
+    private final AuctionEventPort auctionEventPort;
+    private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Transactional
+    public AuctionCreateResponse create(AuctionCreateRequest request, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
+        var user = currentUserPort.currentUser();
+        validateSeller(user);
+        validateCreateRequest(request);
+
+        String requestHash = createRequestHash(request);
+        Optional<AuctionCreateResponse> idempotentResponse = findIdempotentCreateResponse(
+                user.id(),
+                idempotencyKey,
+                requestHash
+        );
+        if (idempotentResponse.isPresent()) {
+            return idempotentResponse.get();
+        }
+
+        auctionCardPort.getCardSnapshot(request.itemId());
+        List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
+        validateImages(images);
+
+        LocalDateTime now = now();
+        LocalDateTime endsAt = now.plusHours(request.durationHours());
+        Auction auction = Auction.builder()
+                .sellerId(user.id())
+                .itemId(request.itemId())
+                .auctionName(request.auctionName())
+                .description(request.description())
+                .startPrice(request.startPrice())
+                .buyNowPrice(request.buyNowPrice())
+                .deliveryFee(request.shippingFee())
+                .openTime(now)
+                .estimatedCloseTime(endsAt)
+                .closeTime(endsAt)
+                .bidPriceUnit(request.bidIncrement())
+                .hyped(false)
+                .build();
+        auction.recordCreateIdempotency(idempotencyKey, requestHash);
+        Auction savedAuction = auctionRepository.save(auction);
+        List<AuctionImage> auctionImages = images.stream()
+                .sorted(Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
+                .map(image -> new AuctionImage(savedAuction, image.imagePath()))
+                .toList();
+        auctionImageRepository.saveAll(auctionImages);
+        auctionCardStatisticPort.recordAuctionOpened(savedAuction.getItemId(), now);
+        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                AuctionEventPort.AuctionEventType.AUCTION_OPENED,
+                savedAuction.getId(),
+                user.id(),
+                request.startPrice() + request.shippingFee(),
+                now
+        ));
+
+        AuctionCreateResponse response = createResponse(savedAuction);
+        publishCloseScheduleChanged(savedAuction, "auction_created");
+        return response;
+    }
+
+    @Transactional
+    public BidResponses.BidSummary participate(Integer auctionId, BidCreateRequest request, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
+        var user = currentUserPort.currentUser();
+        String requestHash = bidRequestHash(request);
+        Optional<BidResponses.BidSummary> idempotentResponse = findIdempotentBidResponse(
+                user.id(),
+                auctionId,
+                idempotencyKey,
+                requestHash
+        );
+        if (idempotentResponse.isPresent()) {
+            return idempotentResponse.get();
+        }
+
+        Auction auction = auctionRepository.findByIdForUpdate(auctionId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
+        validateNotSellerBid(user, auction);
+        Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
+
+        LocalDateTime bidAt = now();
+        LocalDateTime previousCloseTime = auction.getCloseTime();
+        boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
+        holdBidAmount(user.id(), auction.getId(), request.price());
+        outbidPreviousLeadingBid(previousLeadingBid, user.id(), auction.getId(), bidAt);
+
+        Bid currentLeadingBid = bidRepository.save(Bid.leading(
+                user.id(),
+                auction,
+                request.price(),
+                bidAt,
+                idempotencyKey,
+                requestHash
+        ));
+        auctionCardStatisticPort.recordBid(auction.getItemId(), bidAt);
+        publishBidPlaced(auction, user.id(), request.price(), bidAt);
+        log.info(
+                "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
+                auction.getId(), user.id(), currentLeadingBid.getId(), request.price(), auction.getCurrentPrice(),
+                auction.getBidCount(), previousLeadingBid == null ? null : previousLeadingBid.getId(),
+                closeTimeExtended, previousCloseTime, auction.getCloseTime(), auction.getStatus()
+        );
+        if (closeTimeExtended) {
+            log.info(
+                    "event=auction.close_time.extended auctionId={} bidId={} bidAt={} previousCloseTime={} extendedCloseTime={} extensionWindowMinutes={} extensionDurationMinutes={}",
+                    auction.getId(), currentLeadingBid.getId(), bidAt, previousCloseTime, auction.getCloseTime(),
+                    BID_EXTENSION_WINDOW.toMinutes(), BID_EXTENSION_DURATION.toMinutes()
+            );
+            publishCloseScheduleChanged(auction, "close_time_extended");
+        }
+
+        BidResponses.BidSummary response = bidSummary(currentLeadingBid, currentLeadingBid.getId());
+        return response;
+    }
+
+    @Transactional
+    public AuctionCloseResponse closeAuction(Integer auctionId) {
+        LocalDateTime now = now();
+        Auction auction = auctionRepository.findByIdForUpdate(auctionId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
+        if (auction.getStatus() == AuctionStatus.ENDED || auction.getStatus() == AuctionStatus.FAILED) {
+            return closeResponse(auction, closedWinningBid(auction.getId()).orElse(null));
+        }
+        validateCloseDue(auction, now);
+        return closeLockedAuction(auction, now);
+    }
+
+    @Transactional
+    public List<AuctionCloseResponse> closeDueAuctions(LocalDateTime now, int limit) {
+        if (limit < 1) {
+            throw new ResponseStatusException(BAD_REQUEST, "종료 처리 개수는 1 이상이어야 합니다.");
+        }
+        log.debug("event=auction.close.batch.finding now={} limit={}", now, limit);
+        List<Auction> auctions = auctionRepository.findCloseTargetsForUpdate(
+                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
+                now,
+                PageRequest.of(0, limit)
+        );
+        if (auctions.isEmpty()) {
+            log.debug("event=auction.close.batch.empty now={} limit={}", now, limit);
+        } else {
+            log.info("event=auction.close.batch.started count={} now={} limit={}", auctions.size(), now, limit);
+        }
+        List<AuctionCloseResponse> responses = auctions.stream()
+                .map(auction -> closeLockedAuction(auction, now))
+                .toList();
+        if (!responses.isEmpty()) {
+            log.info("event=auction.close.batch.completed count={} auctionIds={}", responses.size(),
+                    responses.stream().map(AuctionCloseResponse::auctionId).toList());
+        }
+        return responses;
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Idempotency-Key 헤더가 필요합니다.");
+        }
+        if (idempotencyKey.length() > 64) {
+            throw new ResponseStatusException(BAD_REQUEST, "Idempotency-Key는 64자 이하여야 합니다.");
+        }
+    }
+
+    private void validateSeller(CurrentUserPort.CurrentUser user) {
+        if (!user.seller()) {
+            throw new ResponseStatusException(FORBIDDEN, "판매자만 경매를 등록할 수 있습니다.");
+        }
+        if (user.restricted()) {
+            throw new ResponseStatusException(FORBIDDEN, "제재된 사용자는 경매를 등록할 수 없습니다.");
+        }
+    }
+
+    private void validateNotSellerBid(CurrentUserPort.CurrentUser user, Auction auction) {
+        if (auction.getSellerId().equals(user.id())) {
+            log.warn("event=auction.bid.rejected_self_bid auctionId={} sellerId={} bidderId={}",
+                    auction.getId(), auction.getSellerId(), user.id());
+            throw new ResponseStatusException(FORBIDDEN, "판매자는 자신의 경매에 입찰할 수 없습니다.");
+        }
+    }
+
+    private void validateCreateRequest(AuctionCreateRequest request) {
+        if (request.buyNowPrice() <= request.startPrice()) {
+            throw new ResponseStatusException(BAD_REQUEST, "즉시구매가는 시작가보다 커야 합니다.");
+        }
+        if (request.imageUploadTokens().size() > MAX_IMAGE_COUNT) {
+            throw new ResponseStatusException(BAD_REQUEST, "이미지는 최대 8장까지 등록할 수 있습니다.");
+        }
+    }
+
+    private Optional<AuctionCreateResponse> findIdempotentCreateResponse(
+            Integer sellerId,
+            String idempotencyKey,
+            String requestHash
+    ) {
+        Optional<Auction> existingAuction = auctionRepository.findBySellerIdAndCreateIdempotencyKey(
+                sellerId,
+                idempotencyKey
+        );
+        if (existingAuction.isEmpty()) {
+            return Optional.empty();
+        }
+        Auction auction = existingAuction.get();
+        if (!Objects.equals(auction.getCreateIdempotencyRequestHash(), requestHash)) {
+            throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+        }
+        return Optional.of(createResponse(auction));
+    }
+
+    private Optional<BidResponses.BidSummary> findIdempotentBidResponse(
+            Integer bidderId,
+            Integer auctionId,
+            String idempotencyKey,
+            String requestHash
+    ) {
+        Optional<Bid> existingBid = bidRepository.findFirstByBidderIdAndAuctionIdAndIdempotencyKey(
+                bidderId,
+                auctionId,
+                idempotencyKey
+        );
+        if (existingBid.isEmpty()) {
+            return Optional.empty();
+        }
+        Bid bid = existingBid.get();
+        if (!Objects.equals(bid.getIdempotencyRequestHash(), requestHash)) {
+            throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+        }
+        return Optional.of(bidSummary(bid, bid.getId()));
+    }
+
+    private void validateImages(List<ImageUploadPort.ResolvedImage> images) {
+        if (images.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "이미지는 1장 이상 필요합니다.");
+        }
+        if (images.size() > MAX_IMAGE_COUNT) {
+            throw new ResponseStatusException(BAD_REQUEST, "이미지는 최대 8장까지 등록할 수 있습니다.");
+        }
+    }
+
+    private boolean placeBid(Auction auction, Long price, LocalDateTime bidAt) {
+        try {
+            return auction.placeBid(price, bidAt, BID_EXTENSION_WINDOW, BID_EXTENSION_DURATION);
+        } catch (IllegalArgumentException exception) {
+            log.warn(
+                    "event=auction.bid.rejected auctionId={} bidPrice={} currentPrice={} minimumBid={} status={} closeTime={} bidAt={} reason=\"{}\"",
+                    auction.getId(), price, auction.getCurrentPrice(), auction.minimumBid(), auction.getStatus(),
+                    auction.getCloseTime(), bidAt, exception.getMessage()
+            );
+            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+        }
+    }
+
+    private void holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
+        try {
+            walletPort.holdBidAmount(bidderId, auctionId, price);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+        }
+    }
+
+    private void outbidPreviousLeadingBid(
+            Bid previousLeadingBid,
+            Integer currentBidderId,
+            Integer auctionId,
+            LocalDateTime occurredAt
+    ) {
+        if (previousLeadingBid == null) {
+            return;
+        }
+        previousLeadingBid.markOutbid();
+        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                AuctionEventPort.AuctionEventType.BID_OUTBID,
+                auctionId,
+                previousLeadingBid.getBidderId(),
+                previousLeadingBid.getBidPrice(),
+                occurredAt
+        ));
+        if (!previousLeadingBid.getBidderId().equals(currentBidderId)) {
+            walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auctionId);
+            log.info(
+                    "event=auction.bid.previous_hold.released auctionId={} previousBidId={} previousBidderId={} previousBidPrice={} currentBidderId={}",
+                    auctionId, previousLeadingBid.getId(), previousLeadingBid.getBidderId(),
+                    previousLeadingBid.getBidPrice(), currentBidderId
+            );
+        } else {
+            log.debug("event=auction.bid.previous_hold.kept auctionId={} previousBidId={} bidderId={}",
+                    auctionId, previousLeadingBid.getId(), currentBidderId);
+        }
+    }
+
+    private void validateCloseDue(Auction auction, LocalDateTime now) {
+        if (auction.getStatus() != AuctionStatus.OPEN && auction.getStatus() != AuctionStatus.ENDING) {
+            throw new ResponseStatusException(BAD_REQUEST, "진행 중인 경매만 종료할 수 있습니다.");
+        }
+        if (auction.getCloseTime().isAfter(now)) {
+            throw new ResponseStatusException(BAD_REQUEST, "아직 종료 시각이 지나지 않은 경매입니다.");
+        }
+    }
+
+    private AuctionCloseResponse closeLockedAuction(Auction auction, LocalDateTime closedAt) {
+        Optional<Bid> winningBid = highestBid(auction.getId());
+        if (winningBid.isEmpty()) {
+            auction.closeWithoutTrade(closedAt);
+            auctionCardStatisticPort.recordAuctionClosedWithoutTrade(auction.getItemId(), closedAt);
+            auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                    AuctionEventPort.AuctionEventType.AUCTION_ENDED,
+                    auction.getId(),
+                    null,
+                    null,
+                    closedAt
+            ));
+            log.info("event=auction.closed.without_trade auctionId={} itemId={} sellerId={} closedAt={} status={} bidCount={}",
+                    auction.getId(), auction.getItemId(), auction.getSellerId(), closedAt,
+                    auction.getStatus(), auction.getBidCount());
+            return closeResponse(auction, null);
+        }
+
+        Bid winner = winningBid.get();
+        winner.markWon();
+        auction.closeWithWinningBid(winner, closedAt);
+        walletPort.confirmWinningBid(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        auctionCardStatisticPort.recordAuctionCompleted(auction.getItemId(), winner.getBidPrice(), closedAt);
+        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                AuctionEventPort.AuctionEventType.AUCTION_ENDED,
+                auction.getId(),
+                winner.getBidderId(),
+                winner.getBidPrice(),
+                closedAt
+        ));
+        log.info(
+                "event=auction.closed.with_winner auctionId={} itemId={} sellerId={} winnerId={} winningBidId={} winningPrice={} closedAt={} status={} bidCount={}",
+                auction.getId(), auction.getItemId(), auction.getSellerId(), winner.getBidderId(), winner.getId(),
+                winner.getBidPrice(), closedAt, auction.getStatus(), auction.getBidCount()
+        );
+        return closeResponse(auction, winner);
+    }
+
+    private void publishBidPlaced(Auction auction, Integer bidderId, Long bidPrice, LocalDateTime occurredAt) {
+        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                AuctionEventPort.AuctionEventType.BID_PLACED,
+                auction.getId(),
+                bidderId,
+                bidPrice,
+                occurredAt
+        ));
+    }
+
+    private Optional<Bid> highestBid(Integer auctionId) {
+        return bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auctionId, BidStatus.LEADING);
+    }
+
+    private Optional<Bid> closedWinningBid(Integer auctionId) {
+        return bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auctionId, BidStatus.WON);
+    }
+
+    private AuctionCloseResponse closeResponse(Auction auction, Bid winningBid) {
+        return new AuctionCloseResponse(
+                auction.getId(),
+                auction.getStatus(),
+                winningBid == null ? null : winningBid.getBidderId(),
+                winningBid == null ? null : winningBid.getId(),
+                winningBid == null ? null : winningBid.getBidPrice(),
+                auction.getCloseTime(),
+                auction.getVersion()
+        );
+    }
+
+    private AuctionCreateResponse createResponse(Auction auction) {
+        return AuctionCreateResponse.builder()
+                .id(auction.getId())
+                .status(auction.getStatus())
+                .startsAt(auction.getOpenTime())
+                .endsAt(auction.getEstimatedCloseTime())
+                .version(auction.getVersion())
+                .build();
+    }
+
+    private BidResponses.BidSummary bidSummary(Bid bid, Long highestBidId) {
+        return BidResponses.BidSummary.builder()
+                .id(bid.getId())
+                .amount(bid.getBidPrice())
+                .bidderAlias(bidderAlias(bid.getBidderId()))
+                .isHighest(Objects.equals(bid.getId(), highestBidId))
+                .createdAt(bid.getCreatedAt())
+                .build();
+    }
+
+    private String bidderAlias(Integer bidderId) {
+        String value = String.valueOf(bidderId);
+        if (value.length() <= 2) {
+            return "user-" + value + "***";
+        }
+        return "user-" + value.substring(0, 2) + "***";
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock);
+    }
+
+    private void publishCloseScheduleChanged(Auction auction, String reason) {
+        eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
+                auction.getId(),
+                auction.getCloseTime(),
+                reason
+        ));
+    }
+
+    private String createRequestHash(AuctionCreateRequest request) {
+        return sha256(
+                request.itemId(),
+                request.auctionName(),
+                request.description(),
+                request.imageUploadTokens(),
+                request.startPrice(),
+                request.bidIncrement(),
+                request.buyNowPrice(),
+                request.durationHours(),
+                request.shippingFee()
+        );
+    }
+
+    private String bidRequestHash(BidCreateRequest request) {
+        return sha256(request.price());
+    }
+
+    private String sha256(Object... values) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            for (Object value : values) {
+                appendDigestValue(digest, value);
+                digest.update((byte) 0);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available.", exception);
+        }
+    }
+
+    private void appendDigestValue(MessageDigest digest, Object value) {
+        if (value instanceof List<?> list) {
+            digest.update("[list]".getBytes(StandardCharsets.UTF_8));
+            for (Object item : list) {
+                appendDigestValue(digest, item);
+                digest.update((byte) 1);
+            }
+            return;
+        }
+        digest.update(String.valueOf(value).getBytes(StandardCharsets.UTF_8));
+    }
+}

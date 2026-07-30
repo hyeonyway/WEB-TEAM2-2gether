@@ -3,8 +3,10 @@ package com.dbidding.auction.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,7 +26,11 @@ import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -55,24 +62,67 @@ class AuctionServiceTest {
     private AuctionCardStatisticPort auctionCardStatisticPort;
     @Mock
     private AuctionEventPort auctionEventPort;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
+    private final Clock clock = Clock.fixed(
+            Instant.parse("2026-07-29T01:00:00Z"),
+            ZoneId.of("Asia/Seoul")
+    );
+    private List<Auction> savedAuctions;
+    private List<Bid> savedBids;
     private AuctionService auctionService;
 
     @BeforeEach
     void setUp() {
+        savedAuctions = new ArrayList<>();
+        savedBids = new ArrayList<>();
         auctionService = new AuctionService(
-                auctionRepository,
-                auctionImageRepository,
-                bidRepository,
-                currentUserPort,
-                walletPort,
-                imageUploadPort,
-                auctionCardPort,
-                auctionCardStatisticPort,
-                auctionEventPort
+                new AuctionCommandService(
+                        auctionRepository,
+                        auctionImageRepository,
+                        bidRepository,
+                        currentUserPort,
+                        walletPort,
+                        imageUploadPort,
+                        auctionCardPort,
+                        auctionCardStatisticPort,
+                        auctionEventPort,
+                        clock,
+                        eventPublisher
+                ),
+                mock(AuctionQueryService.class)
         );
-        lenient().when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        lenient().when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> {
+            Auction auction = invocation.getArgument(0);
+            savedAuctions.add(auction);
+            return auction;
+        });
+        lenient().when(auctionRepository.findBySellerIdAndCreateIdempotencyKey(any(), anyString()))
+                .thenAnswer(invocation -> {
+                    Integer sellerId = invocation.getArgument(0);
+                    String idempotencyKey = invocation.getArgument(1);
+                    return savedAuctions.stream()
+                            .filter(auction -> auction.getSellerId().equals(sellerId))
+                            .filter(auction -> idempotencyKey.equals(auction.getCreateIdempotencyKey()))
+                            .findFirst();
+                });
+        lenient().when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
+            Bid bid = invocation.getArgument(0);
+            savedBids.add(bid);
+            return bid;
+        });
+        lenient().when(bidRepository.findFirstByBidderIdAndAuctionIdAndIdempotencyKey(any(), any(), anyString()))
+                .thenAnswer(invocation -> {
+                    Integer bidderId = invocation.getArgument(0);
+                    Integer auctionId = invocation.getArgument(1);
+                    String idempotencyKey = invocation.getArgument(2);
+                    return savedBids.stream()
+                            .filter(bid -> bid.getBidderId().equals(bidderId))
+                            .filter(bid -> bid.getAuction().getId().equals(auctionId))
+                            .filter(bid -> idempotencyKey.equals(bid.getIdempotencyKey()))
+                            .findFirst();
+                });
         lenient().when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
                 1,
                 "Mock Card",
@@ -87,7 +137,7 @@ class AuctionServiceTest {
     }
 
     @Test
-    void 같은_사용자의_같은_요청은_idempotency_cache를_재사용한다() {
+    void 같은_사용자의_같은_요청은_저장된_idempotency_결과를_재사용한다() {
         when(currentUserPort.currentUser()).thenReturn(user(1));
         AuctionCreateRequest request = request("경매 A", 42_000L);
 
@@ -191,7 +241,7 @@ class AuctionServiceTest {
     }
 
     @Test
-    void 같은_사용자의_같은_입찰_요청은_idempotency_cache를_재사용한다() {
+    void 같은_사용자의_같은_입찰_요청은_저장된_idempotency_결과를_재사용한다() {
         Auction auction = auction(10_000L, 1_000L);
         when(currentUserPort.currentUser()).thenReturn(user(1), user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));

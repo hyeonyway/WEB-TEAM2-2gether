@@ -4,6 +4,7 @@ import com.dbidding.auction.domain.AuctionSort;
 import com.dbidding.auction.domain.AuctionStatus;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.List;
 
 public record AuctionSearchRequest(
         String keyword,
@@ -23,6 +24,13 @@ public record AuctionSearchRequest(
 
     public AuctionStatus statusOrDefault() {
         return status == null ? AuctionStatus.OPEN : status;
+    }
+
+    public List<AuctionStatus> statusesOrDefault() {
+        if (status != null) {
+            return List.of(status);
+        }
+        return List.of(AuctionStatus.OPEN, AuctionStatus.ENDING);
     }
 
     public int pageOrDefault() {
