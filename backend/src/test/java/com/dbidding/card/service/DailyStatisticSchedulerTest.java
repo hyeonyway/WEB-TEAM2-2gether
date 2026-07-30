@@ -4,8 +4,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.dbidding.home.domain.MarketDailyStatistic;
-import com.dbidding.home.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistic.domain.MarketDailyStatistic;
+import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistic.service.DailyStatisticAggregationService;
+import com.dbidding.statistic.service.DailyStatisticScheduler;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;

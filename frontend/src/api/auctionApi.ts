@@ -19,12 +19,13 @@ const mockPriceHistory=(marketPrice:number,monthlyChangeRate:number)=>{
     const progress=index/29;
     const wave=Math.sin(index*.75)*marketPrice*.018;
     const averagePrice=Math.max(1,Math.round(startPrice+(marketPrice-startPrice)*progress+wave));
+    const traded=index%8!==3;
     return {
       date:date.toISOString(),
-      average_price:averagePrice,
-      bid_count:Math.max(0,Math.round(
-        260+Math.sin(index*.68)*72+Math.cos(index*.31)*38+(index%5)*7,
-      )),
+      average_price:traded?averagePrice:null,
+      ended_auction_count:traded?Math.max(1,Math.round(
+        3+Math.sin(index*.68)*2+Math.cos(index*.31),
+      )):0,
       change_rate:index===0?0:Number(((averagePrice-startPrice)/startPrice*100).toFixed(2)),
       weekly_change_rate:0,
       monthly_change_rate:Number(((averagePrice-startPrice)/startPrice*100).toFixed(2)),
@@ -66,9 +67,10 @@ export async function fetchCardDetail(cardId:number):Promise<CardDetailResponseD
     const card=(await fetchMockCards({keyword:'',psaGrade:null})).find(item=>item.id===cardId);
     if(!card)throw new Error('카드를 찾을 수 없습니다.');
     const history=mockPriceHistory(card.marketPrice,card.changeRate*3.4);
-    const averagePrice=Math.round(
-      history.reduce((sum,point)=>sum+point.average_price,0)/history.length,
-    );
+    const tradedPrices=history.flatMap(point=>point.average_price===null?[]:[point.average_price]);
+    const averagePrice=tradedPrices.length
+      ?Math.round(tradedPrices.reduce((sum,price)=>sum+price,0)/tradedPrices.length)
+      :0;
     return {
       id:card.id,name:card.name,set_name:'Pokemon Trading Card Game',rarity:null,
       market_price:card.marketPrice,low_price:card.lowPrice,

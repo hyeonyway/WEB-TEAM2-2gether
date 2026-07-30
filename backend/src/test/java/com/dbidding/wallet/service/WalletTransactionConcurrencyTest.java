@@ -33,7 +33,7 @@ import com.dbidding.wallet.repository.WalletRepository;
 
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
-	"statistics.scheduler.enabled=false",
+	"statistic.scheduler.enabled=false",
 	"spring.sql.init.mode=always",
 	"spring.jpa.hibernate.ddl-auto=validate"
 })

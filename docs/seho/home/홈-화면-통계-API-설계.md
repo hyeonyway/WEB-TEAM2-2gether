@@ -19,14 +19,13 @@
 
 | Method | Path | 기능 |
 |---|---|---|
-| GET | `/api/home/insights` | 진행 경매 인사이트 |
-| GET | `/api/home/market?days=30` | 종료 경매의 일별 가격·입찰 통계 |
-| GET | `/api/home/price-movers?limit=5` | 30일 내 최근 가격 대비 상승·하락 카드 |
-| GET | `/api/home/top-gainers?limit=5` | 상승 목록 호환 API |
+| GET | `/api/statistic/insights` | 진행 경매 인사이트 |
+| GET | `/api/statistic/market?days=30` | 종료 경매의 일별 가격·입찰 통계 |
+| GET | `/api/statistic/price-movers?limit=5` | 30일 내 최근 가격 대비 상승·하락 카드 |
 
 ### 경매 인사이트
 
-`GET /api/home/insights`
+`GET /api/statistic/insights`
 
 - 경매가 상승
   - `current_price > start_price`인 진행 경매 수다.
@@ -44,13 +43,12 @@
 
 ### 최근 30일 경매가·입찰량
 
-`GET /api/home/market?days=30`
+`GET /api/statistic/market?days=30`
 
 - 오늘을 제외하고 `오늘-30일`부터 어제까지 조회한다.
 - 일별 평균 경매가는 해당 날짜에 종료된 경매의 `current_price` 평균이다.
 - 일별 입찰량은 해당 날짜에 종료된 경매에 연결된 실제 `bids` 행의 합계다.
-- 무거래일 가격은 직전 거래일 가격을 유지하고 입찰량은 0으로 반환한다.
-- 기간 첫날 이전에도 거래가 없으면 가격을 0으로 시작한다.
+- 무거래일 평균 가격은 `null`, 입찰량은 0으로 반환한다.
 - 누락된 날짜 없이 요청한 일수만큼의 포인트를 반환한다.
 
 요약 응답은 최근 30일 낙찰가 총합, 낙찰 카드 수, 총 입찰 수와 최고 낙찰가를
@@ -59,7 +57,7 @@
 
 ### 최근 가격 변동 TOP5
 
-`GET /api/home/price-movers?limit=5`
+`GET /api/statistic/price-movers?limit=5`
 
 1. `item_daily_statistics`에서 오늘을 제외한 최근 30일의 카드별 유효 가격을 조회한다.
 2. 날짜가 가장 최근인 두 거래 가격을 비교한다.
@@ -68,7 +66,6 @@
 5. 상승은 변동률 내림차순, 하락은 변동률 오름차순으로 정렬한다.
 
 응답은 비교 날짜, 최근 거래일 입찰 수, 카드 이미지와 30일 가격 이력을 제공한다.
-기존 `/top-gainers`는 배포 호환을 위해 새 응답의 `gainers`를 기존 형태로 감싸 반환한다.
 
 ## 통계 스키마와 구현 구조
 
@@ -78,15 +75,16 @@
 
 카드 목록과 상세 요약은 `item_statistics`, 카드 상세 그래프와 TOP5는
 `item_daily_statistics`, 홈 시장 그래프는 `market_daily_statistics`를 조회한다.
-거래가 없는 그래프 날짜는 서비스에서 가격을 이월하고 입찰량을 0으로 채운다.
+거래가 없는 그래프 날짜는 평균 가격을 `null`, 입찰량을 0으로 채운다.
 
 ```text
-home
-├── controller/HomeController
-├── service/HomeService
-├── repository/HomeAuctionRepository
-├── repository/MarketDailyStatisticRepository
-└── dto/HomeResponses
+statistic
+├── controller/StatisticController
+├── dto/StatisticResponses
+├── domain/{MarketDailyStatistic,ItemDailyStatistic,ItemStatistic}
+├── port/{StatisticAuctionPort,StatisticCardPort}
+├── repository/{MarketDailyStatisticRepository,ItemDailyStatisticRepository,...}
+└── service/{StatisticQueryService,DailyStatisticAggregationService,DailyStatisticScheduler}
 ```
 
 - Controller는 요청 파라미터 범위만 검증한다.
