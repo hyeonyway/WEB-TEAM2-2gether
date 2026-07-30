@@ -12,14 +12,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dbidding.global.security.CurrentUser;
 import com.dbidding.wishlist.dto.WishlistCreateRequest;
 import com.dbidding.wishlist.dto.WishlistResponse;
 
 import jakarta.validation.Valid;
 
-// TODO: 인증 미들웨어(JwtAuthFilter) 도입되면 @PathVariable Integer userId를 @CurrentUser Integer userId로 교체
 @RestController
-@RequestMapping("/api/users/{userId}/wishlists")
+@RequestMapping("/api/wishlists")
 public class WishlistController {
 
     private final WishlistService wishlistService;
@@ -30,7 +30,7 @@ public class WishlistController {
 
     @PostMapping
     public ResponseEntity<WishlistResponse> add(
-            @PathVariable Integer userId,
+            @CurrentUser Integer userId,
             @Valid @RequestBody WishlistCreateRequest request
     ) {
         Wishlist wishlist = wishlistService.add(userId, request.cardId());
@@ -38,13 +38,13 @@ public class WishlistController {
     }
 
     @DeleteMapping("/{cardId}")
-    public ResponseEntity<Void> remove(@PathVariable Integer userId, @PathVariable Integer cardId) {
+    public ResponseEntity<Void> remove(@CurrentUser Integer userId, @PathVariable Integer cardId) {
         wishlistService.remove(userId, cardId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping
-    public List<WishlistResponse> findAll(@PathVariable Integer userId) {
+    public List<WishlistResponse> findAll(@CurrentUser Integer userId) {
         return wishlistService.findAll(userId).stream()
                 .map(WishlistResponse::from)
                 .toList();
