@@ -29,9 +29,9 @@ class WishlistControllerTest {
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/users/1/wishlists")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"card_id\":10}"))
+                        .content("{\"cardId\":10}"))
                 .andExpect(MockMvcResultMatchers.status().isCreated())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.cardId").value(10));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.card_id").value(10));
     }
 
     @Test
@@ -57,6 +57,6 @@ class WishlistControllerTest {
         mockMvc.perform(MockMvcRequestBuilders.get("/api/users/1/wishlists"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(2))
-                .andExpect(MockMvcResultMatchers.jsonPath("$[1].cardId").value(20));
+                .andExpect(MockMvcResultMatchers.jsonPath("$[1].card_id").value(20));
     }
 }
