@@ -46,4 +46,15 @@ class NotificationServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getAuctionId()).isEqualTo(10);
     }
+
+    @Test
+    void 안읽은_알림_목록을_조회한다() {
+        given(notificationRepository.findByUserIdAndIsReadFalseOrderByIdDesc(1))
+                .willReturn(List.of(Notification.of(1, 10, "메시지")));
+
+        List<Notification> result = notificationService.findUnread(1);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).isRead()).isFalse();
+    }
 }

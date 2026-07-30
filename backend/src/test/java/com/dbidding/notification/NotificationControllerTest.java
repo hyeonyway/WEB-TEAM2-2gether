@@ -54,4 +54,13 @@ class NotificationControllerTest {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(0));
     }
+
+    @Test
+    void read_false_파라미터면_안읽은_알림만_조회한다() throws Exception {
+        given(notificationService.findUnread(1)).willReturn(List.of(Notification.of(1, 10, "메시지1")));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications").param("read", "false"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1));
+    }
 }

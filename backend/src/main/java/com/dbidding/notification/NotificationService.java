@@ -23,4 +23,8 @@ public class NotificationService {
     public List<Notification> findAll(Integer userId) {
         return notificationRepository.findByUserIdOrderByIdDesc(userId);
     }
+
+    public List<Notification> findUnread(Integer userId) {
+        return notificationRepository.findByUserIdAndIsReadFalseOrderByIdDesc(userId);
+    }
 }
