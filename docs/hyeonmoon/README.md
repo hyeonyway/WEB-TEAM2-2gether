@@ -4,19 +4,19 @@
 
 ## 목표
 
-1. User, Authentication, Wallet 엔티티를 현재 MySQL 스키마와 일치시킨다.
-2. 회원가입 시 User와 초기 Wallet을 하나의 트랜잭션으로 생성한다.
+1. Account, Authentication, Wallet 엔티티를 현재 MySQL 스키마와 일치시킨다.
+2. 회원가입 시 Account와 초기 Wallet을 하나의 트랜잭션으로 생성한다.
 3. 로그인과 JWT Access/Refresh Token 발급을 구현한다.
 4. Refresh Token Rotation과 로그아웃을 구현한다.
 5. 모의 충전·환불 원장과 지갑 잔액 조회 API를 구현한다.
 6. 입찰 홀드·상회입찰 해제·낙찰 차감을 Auction과 한 트랜잭션으로 연결한다.
-7. 인증 통합과 SSE 티켓을 마무리한 뒤 배송지 CRUD를 구현한다.
+7. Auth와 User의 계정 책임을 Account로 통합한 뒤 배송지 CRUD를 구현한다.
 
 ## 확정 계약
 
 - Java 21, Spring Boot 4.1.0, MySQL 8.4를 사용한다.
 - `schema.sql`이 데이터 모델의 원본이며 JPA는 `ddl-auto=validate`로 검증만 한다.
-- User, Authentication, Wallet, Address의 ID와 관련 FK는 `Integer`다.
+- Account가 매핑하는 `users`, Authentication, Wallet, Address의 ID와 관련 FK는 `Integer`다.
 - 금액은 MySQL `BIGINT`, Java `long`으로 통일한다.
 - API 경로는 `/api/**`를 사용한다.
 - Spring Security는 사용하지 않는다.
@@ -32,10 +32,12 @@
 ## 패키지 경계
 
 ```text
-auth
+account
 ├── controller
 ├── service
 ├── domain
+│   ├── Account
+│   └── Authentication
 ├── repository
 ├── dto
 ├── port
@@ -44,14 +46,6 @@ auth
 ├── cookie
 ├── password
 └── exception
-
-user
-├── domain
-├── repository
-├── adapter
-├── controller
-├── service
-└── dto
 
 wallet
 ├── domain
@@ -69,11 +63,10 @@ Port의 구현체는 `adapter`에 둔다. 유스케이스와 HTTP 진입점은 �
 JWT 설정은 `config`, Refresh 쿠키 생성은 `cookie`, 비밀번호 해시는
 `password`가 소유한다.
 
-`User`와 `UserRepository`는 계정 정보를 소유하는 `user.domain`과
-`user.repository`에 둔다. `auth`는 사용자 조회·등록에 필요한
-`auth.port.UserAccountPort`를 소유하고 해당 Port만 의존한다. `user.adapter`는
-`UserRepository`를 사용해 이 Port를 구현하며, `auth`는 `user`의 Entity나
-Repository를 직접 import하지 않는다.
+`Account`와 `AccountRepository`, `Authentication`과 인증 유스케이스는 모두
+`account`가 소유한다. 같은 도메인 내부의 `AuthService`는
+`AccountRepository`를 직접 사용하며, 별도의 UserAccount Port·Adapter·중간
+DTO를 두지 않는다. 외부 API와 DB FK에서는 기존 계약인 `userId`를 유지한다.
 
 ## 실행 순서
 
@@ -87,14 +80,16 @@ Repository를 직접 import하지 않는다.
 | 6 | 완료 | [Refresh와 로그아웃](auth/4-refresh-and-logout.md) | Rotation, 재발급 API, 로그아웃 |
 | 7 | 완료 | [모의 충전·환불](wallet/3-charge-and-refund.md) | Wallet 잠금, PointRecord 원장, 멱등 충전·환불 |
 | 8 | 완료 | [지갑 잔액 조회](wallet/4-balance-query.md) | 총액·동결액·가용액 조회 |
-| 9 | **다음** | [Auction Wallet 연동](wallet/5-auction-wallet-integration.md) | 입찰 홀드·해제와 낙찰 차감 |
-| 10 | 일부 완료 | [Current User와 SSE 인증](auth/5-current-user-and-sse-auth.md) | 실제 JWT 필터 전환과 SSE 티켓 인증 |
-| 11 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
-| 12 | 마지막 | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
+| 9 | 완료 | [Auction Wallet 연동](wallet/5-auction-wallet-integration.md) | 입찰 홀드·해제와 낙찰 차감 |
+| 10 | 완료 | [Current User와 SSE 인증](auth/5-current-user-and-sse-auth.md) | 실제 JWT 필터 전환과 SSE 티켓 인증 |
+| 11 | 완료 | [Account 도메인 통합](account/1-account-domain-refactor.md) | Auth·User 계정 책임과 패키지 통합 |
+| 12 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
+| 13 | **다음** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
 
 문서 번호는 도메인 안의 책임 순서를 나타낸다. 도메인 사이의 실제 구현은
-Auth 1 → Wallet 1·2 → Auth 2·3·4 → Wallet 3·4까지 완료됐다. 다음 작업은
-Wallet 5 Auction 연동이다. 배송지 CRUD는 현재 계획의 가장 마지막 작업이다.
+Auth 1 → Wallet 1·2 → Auth 2·3·4·5 → Wallet 3·4·5 → Account 통합까지
+완료됐다. 다음 백엔드 작업은 Account가 소유하는 배송지 CRUD다. 기존
+`auth`, `user` 경로의 문서는 구현 당시 판단을 남긴 역사적 문서로 유지한다.
 
 ## 공통 테스트 규칙
 
