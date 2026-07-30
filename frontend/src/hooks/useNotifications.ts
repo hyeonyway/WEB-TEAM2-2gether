@@ -27,6 +27,7 @@ export function useNotifications(unreadOnly:boolean,enabled:boolean){
     notifications,
     unreadCount:unreadCountQuery.data??0,
     isLoading:listQuery.isPending,
+    isError:listQuery.isError,
     hasNextPage:listQuery.hasNextPage??false,
     isFetchingNextPage:listQuery.isFetchingNextPage,
     fetchNextPage:()=>void listQuery.fetchNextPage(),

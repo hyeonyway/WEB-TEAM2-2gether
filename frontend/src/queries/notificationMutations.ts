@@ -25,7 +25,10 @@ function updateAllLists(queryClient:QueryClient,updateItems:(items:NotificationP
   [true,false].forEach(unreadOnly=>{
     queryClient.setQueryData<InfiniteData<NotificationPageDto>>(
       notificationQueryKeys.list(unreadOnly),
-      current=>current?{...current,pages:current.pages.map(page=>({...page,items:updateItems(page.items)}))}:current,
+      current=>current?{...current,pages:current.pages.map(page=>({
+        ...page,
+        items:unreadOnly?updateItems(page.items).filter(item=>!item.isRead):updateItems(page.items),
+      }))}:current,
     );
   });
 }

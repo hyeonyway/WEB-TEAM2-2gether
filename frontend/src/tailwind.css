@@ -230,13 +230,14 @@ strong, b { font-weight: 600 !important; }
 .notification-toggle button{border:1px solid var(--border);background:#fff;color:#777;border-radius:17px;padding:6px 14px;font-size:12px;cursor:pointer}
 .notification-toggle button.active{background:#111;color:#fff;border-color:#111;font-weight:700}
 .notification-list{flex:1;overflow-y:auto;list-style:none;margin:0;padding:0 10px;border-top:1px solid var(--border)}
-.notification-item{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 8px;border-bottom:1px solid #f1f1f1;cursor:pointer}
+.notification-item{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 8px;border-bottom:1px solid #f1f1f1}
 .notification-item.unread{background:#f5f8ff}
 .notification-item.read{opacity:.55}
-.notification-item-body{min-width:0}
+.notification-item-body{flex:1;min-width:0;border:0;background:transparent;padding:0;text-align:left;font:inherit;cursor:pointer}
 .notification-item-body p{margin:0 0 5px;font-size:13px;line-height:1.4;color:#222}
 .notification-item-body span{font-size:11px;color:var(--muted)}
 .notification-item-move{flex:none;border:1px solid var(--border);background:#fff;color:#333;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer}
+.notification-retry{border:0;background:transparent;color:#333;font-size:12px;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;margin-left:4px}
 .notification-empty,.notification-load-more{padding:24px 10px;text-align:center;color:var(--muted);font-size:12px}
 .notification-drawer-footer{padding:12px 18px;border-top:1px solid var(--border)}
 .notification-drawer-footer button{width:100%;border:1px solid var(--border);background:#fff;color:#333;border-radius:9px;padding:10px;font-size:13px;font-weight:600;cursor:pointer}
