@@ -203,15 +203,6 @@
   cursor: pointer;
 }
 
-.header-account-nav > button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  padding: 0;
-  font-size: inherit;
-  cursor: pointer;
-}
-
 @media (max-width: 900px) {
   .header-account-nav {
     display: flex;

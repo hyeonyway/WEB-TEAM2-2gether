@@ -8,6 +8,7 @@ import {
   setAccessToken,
 } from '../../api/accessTokenStore';
 import {HttpError} from '../../api/httpClient';
+import '../../tailwind.css';
 import Header from '../Header';
 
 const {loginMock, signupMock} = vi.hoisted(() => ({
@@ -60,6 +61,20 @@ async function fillValidSignup(user: ReturnType<typeof userEvent.setup>) {
 afterEach(() => {
   clearAccessToken();
   vi.restoreAllMocks();
+});
+
+describe('Header 계정 메뉴', () => {
+  it('로그인과 마이페이지에 같은 글자 크기를 적용한다', () => {
+    window.history.replaceState({}, '', '/');
+    renderHeader();
+
+    const myPageLink = screen.getByRole('link', {name: '마이페이지'});
+    const loginButton = screen.getByRole('button', {name: '로그인'});
+
+    expect(getComputedStyle(loginButton).fontSize)
+      .toBe(getComputedStyle(myPageLink).fontSize);
+    expect(getComputedStyle(loginButton).fontSize).toBe('11px');
+  });
 });
 
 describe('AuthModal 회원가입', () => {
