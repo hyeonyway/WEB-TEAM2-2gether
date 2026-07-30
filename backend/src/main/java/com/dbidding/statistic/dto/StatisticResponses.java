@@ -1,11 +1,11 @@
-package com.dbidding.home.dto;
+package com.dbidding.statistic.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-public final class HomeResponses {
-    private HomeResponses() {
+public final class StatisticResponses {
+    private StatisticResponses() {
     }
 
     public record Insight(

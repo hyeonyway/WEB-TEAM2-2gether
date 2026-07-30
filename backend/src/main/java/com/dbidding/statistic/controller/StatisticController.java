@@ -1,7 +1,7 @@
-package com.dbidding.home.controller;
+package com.dbidding.statistic.controller;
 
-import com.dbidding.home.dto.HomeResponses;
-import com.dbidding.home.service.HomeService;
+import com.dbidding.statistic.dto.StatisticResponses;
+import com.dbidding.statistic.service.StatisticQueryService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.util.List;
@@ -12,25 +12,25 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/home")
+@RequestMapping("/api/statistic")
 @RequiredArgsConstructor
-public class HomeController {
-    private final HomeService homeService;
+public class StatisticController {
+    private final StatisticQueryService statisticQueryService;
 
     @GetMapping("/insights")
-    public List<HomeResponses.Insight> getInsights() {
-        return homeService.getInsights();
+    public List<StatisticResponses.Insight> getInsights() {
+        return statisticQueryService.getInsights();
     }
 
     @GetMapping("/market")
-    public HomeResponses.Market getMarket(
+    public StatisticResponses.Market getMarket(
             @RequestParam(defaultValue = "30") @Min(1) @Max(365) int days) {
-        return homeService.getMarket(days);
+        return statisticQueryService.getMarket(days);
     }
 
     @GetMapping("/price-movers")
-    public HomeResponses.PriceMovers getPriceMovers(
+    public StatisticResponses.PriceMovers getPriceMovers(
             @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
-        return homeService.getPriceMovers(limit);
+        return statisticQueryService.getPriceMovers(limit);
     }
 }

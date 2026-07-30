@@ -19,13 +19,13 @@
 
 | Method | Path | 기능 |
 |---|---|---|
-| GET | `/api/home/insights` | 진행 경매 인사이트 |
-| GET | `/api/home/market?days=30` | 종료 경매의 일별 가격·입찰 통계 |
-| GET | `/api/home/price-movers?limit=5` | 30일 내 최근 가격 대비 상승·하락 카드 |
+| GET | `/api/statistic/insights` | 진행 경매 인사이트 |
+| GET | `/api/statistic/market?days=30` | 종료 경매의 일별 가격·입찰 통계 |
+| GET | `/api/statistic/price-movers?limit=5` | 30일 내 최근 가격 대비 상승·하락 카드 |
 
 ### 경매 인사이트
 
-`GET /api/home/insights`
+`GET /api/statistic/insights`
 
 - 경매가 상승
   - `current_price > start_price`인 진행 경매 수다.
@@ -43,7 +43,7 @@
 
 ### 최근 30일 경매가·입찰량
 
-`GET /api/home/market?days=30`
+`GET /api/statistic/market?days=30`
 
 - 오늘을 제외하고 `오늘-30일`부터 어제까지 조회한다.
 - 일별 평균 경매가는 해당 날짜에 종료된 경매의 `current_price` 평균이다.
@@ -57,7 +57,7 @@
 
 ### 최근 가격 변동 TOP5
 
-`GET /api/home/price-movers?limit=5`
+`GET /api/statistic/price-movers?limit=5`
 
 1. `item_daily_statistics`에서 오늘을 제외한 최근 30일의 카드별 유효 가격을 조회한다.
 2. 날짜가 가장 최근인 두 거래 가격을 비교한다.
@@ -78,16 +78,13 @@
 거래가 없는 그래프 날짜는 평균 가격을 `null`, 입찰량을 0으로 채운다.
 
 ```text
-home
-├── controller/HomeController
-├── service/HomeService
-├── repository/HomeAuctionRepository
-└── dto/HomeResponses
-
 statistic
+├── controller/StatisticController
+├── dto/StatisticResponses
 ├── domain/{MarketDailyStatistic,ItemDailyStatistic,ItemStatistic}
+├── port/{StatisticAuctionPort,StatisticCardPort}
 ├── repository/{MarketDailyStatisticRepository,ItemDailyStatisticRepository,...}
-└── service/{DailyStatisticAggregationService,DailyStatisticScheduler}
+└── service/{StatisticQueryService,DailyStatisticAggregationService,DailyStatisticScheduler}
 ```
 
 - Controller는 요청 파라미터 범위만 검증한다.

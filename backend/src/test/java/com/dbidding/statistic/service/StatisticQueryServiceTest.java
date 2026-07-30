@@ -1,4 +1,4 @@
-package com.dbidding.home.service;
+package com.dbidding.statistic.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -8,8 +8,8 @@ import static org.mockito.Mockito.verify;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistic.repository.PriceMovementCandidate;
 import com.dbidding.statistic.domain.MarketDailyStatistic;
-import com.dbidding.home.repository.HomeAuctionRepository;
-import com.dbidding.home.port.HomeCardPort;
+import com.dbidding.statistic.port.StatisticAuctionPort;
+import com.dbidding.statistic.port.StatisticCardPort;
 import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -21,36 +21,32 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class HomeServiceTest {
-    private final HomeAuctionRepository auctionRepository = mock(HomeAuctionRepository.class);
+class StatisticQueryServiceTest {
+    private final StatisticAuctionPort auctionPort = mock(StatisticAuctionPort.class);
     private final ItemDailyStatisticRepository dailyStatisticRepository =
             mock(ItemDailyStatisticRepository.class);
     private final MarketDailyStatisticRepository marketStatisticRepository =
             mock(MarketDailyStatisticRepository.class);
-    private final HomeCardPort cardPort = mock(HomeCardPort.class);
+    private final StatisticCardPort cardPort = mock(StatisticCardPort.class);
     private final Clock clock = Clock.fixed(
             Instant.parse("2026-07-28T03:00:00Z"),
             ZoneId.of("Asia/Seoul")
     );
-    private HomeService homeService;
+    private StatisticQueryService statisticQueryService;
 
     @BeforeEach
     void setUp() {
-        homeService = new HomeService(
-                auctionRepository, dailyStatisticRepository, marketStatisticRepository,
+        statisticQueryService = new StatisticQueryService(
+                auctionPort, dailyStatisticRepository, marketStatisticRepository,
                 cardPort, clock);
     }
 
     @Test
     void 진행_경매로_인사이트를_집계한다() {
-        var aggregate = mock(HomeAuctionRepository.InsightAggregate.class);
-        given(aggregate.getTotalCount()).willReturn(11L);
-        given(aggregate.getRisingCount()).willReturn(3L);
-        given(aggregate.getAverageRisingRate()).willReturn(12.345);
-        given(aggregate.getBidAuctionCount()).willReturn(7L);
-        given(auctionRepository.aggregateInsights()).willReturn(aggregate);
+        var aggregate = new StatisticAuctionPort.InsightAggregate(11L, 3L, 12.345, 7L);
+        given(auctionPort.aggregateInsights()).willReturn(aggregate);
 
-        var insights = homeService.getInsights();
+        var insights = statisticQueryService.getInsights();
 
         assertThat(insights).extracting("id", "value")
                 .containsExactly(
@@ -71,7 +67,7 @@ class HomeServiceTest {
         given(marketStatisticRepository
                 .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(from, to))
                 .willReturn(List.of(dayBefore, yesterday));
-        var market = homeService.getMarket(30);
+        var market = statisticQueryService.getMarket(30);
 
         verify(marketStatisticRepository)
                 .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(from, to);
@@ -96,7 +92,7 @@ class HomeServiceTest {
                 .willReturn(List.of());
         given(cardPort.getCards(List.of())).willReturn(Map.of());
 
-        var result = homeService.getPriceMovers(5);
+        var result = statisticQueryService.getPriceMovers(5);
 
         verify(dailyStatisticRepository).findPriceMovementCandidates(from, today);
         assertThat(result.gainers()).isEmpty();
@@ -123,7 +119,7 @@ class HomeServiceTest {
                 org.mockito.ArgumentMatchers.eq(today)
         )).willReturn(List.of());
 
-        var result = homeService.getPriceMovers(5);
+        var result = statisticQueryService.getPriceMovers(5);
 
         assertThat(result.gainers()).extracting("cardId").containsExactly(3, 1);
         assertThat(result.losers()).extracting("cardId").containsExactly(4, 2);
@@ -140,8 +136,8 @@ class HomeServiceTest {
         return candidate;
     }
 
-    private HomeCardPort.CardSnapshot card(Integer id) {
-        return new HomeCardPort.CardSnapshot(id, "카드 " + id, "gold", "/card-" + id);
+    private StatisticCardPort.CardSnapshot card(Integer id) {
+        return new StatisticCardPort.CardSnapshot(id, "카드 " + id, "gold", "/card-" + id);
     }
 
     private MarketDailyStatistic daily(

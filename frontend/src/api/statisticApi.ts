@@ -1,4 +1,4 @@
-import type {HomeInsightDto,HomeMarketDto,HomePriceMoversDto} from '../dto/homeDto';
+import type {StatisticInsightDto,StatisticMarketDto,StatisticPriceMoversDto} from '../dto/statisticDto';
 import mockupData from '../mocks/mockup-data.json';
 import {request} from './httpClient';
 import {resolveImageUrl} from './auctionMapper';
@@ -34,7 +34,7 @@ const mockRankingHistory=(price:number,changeRate:number,cardId:number)=>{
   });
 };
 
-const mockMarket=(days:number):HomeMarketDto=>{
+const mockMarket=(days:number):StatisticMarketDto=>{
   const seoulParts=new Intl.DateTimeFormat('en-CA',{
     timeZone:'Asia/Seoul',
     year:'numeric',
@@ -77,24 +77,24 @@ const mockMarket=(days:number):HomeMarketDto=>{
   };
 };
 
-export async function fetchHomeInsights():Promise<HomeInsightDto[]>{
-  if(isMockApiEnabled())return mockupData.home.insights as HomeInsightDto[];
-  return request<HomeInsightDto[]>('/api/home/insights');
+export async function fetchStatisticInsights():Promise<StatisticInsightDto[]>{
+  if(isMockApiEnabled())return mockupData.home.insights as StatisticInsightDto[];
+  return request<StatisticInsightDto[]>('/api/statistic/insights');
 }
 
-export async function fetchHomeMarket(days=30):Promise<HomeMarketDto>{
+export async function fetchStatisticMarket(days=30):Promise<StatisticMarketDto>{
   if(isMockApiEnabled())return mockMarket(days);
-  return request<HomeMarketDto>(`/api/home/market?days=${days}`);
+  return request<StatisticMarketDto>(`/api/statistic/market?days=${days}`);
 }
 
-export async function fetchHomePriceMovers(limit=5):Promise<HomePriceMoversDto>{
+export async function fetchStatisticPriceMovers(limit=5):Promise<StatisticPriceMoversDto>{
   const yesterday=new Date();
   yesterday.setDate(yesterday.getDate()-1);
   const previous=new Date(yesterday);
   previous.setDate(previous.getDate()-1);
   const isoDate=(date:Date)=>date.toISOString().slice(0,10);
   const source=mockupData.home.topGainers.slice(0,limit);
-  const response:HomePriceMoversDto=isMockApiEnabled()?{
+  const response:StatisticPriceMoversDto=isMockApiEnabled()?{
     periodDays:30,
     gainers:source.map(item=>({
       ...item,
@@ -116,8 +116,8 @@ export async function fetchHomePriceMovers(limit=5):Promise<HomePriceMoversDto>{
         priceHistory:mockRankingHistory(price,changeRate,item.cardId+100),
       };
     }),
-  }:await request<HomePriceMoversDto>(`/api/home/price-movers?limit=${limit}`);
-  const resolveItems=(items:HomePriceMoversDto['gainers'])=>items.map(item=>({
+  }:await request<StatisticPriceMoversDto>(`/api/statistic/price-movers?limit=${limit}`);
+  const resolveItems=(items:StatisticPriceMoversDto['gainers'])=>items.map(item=>({
     ...item,
     imageUrl:resolveImageUrl(item.imageUrl),
   }));

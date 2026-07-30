@@ -680,7 +680,7 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
 }
 ```
 
-가격 변동 API는 `GET /api/home/price-movers?limit=5`이며 오늘을 제외한 최근
+가격 변동 API는 `GET /api/statistic/price-movers?limit=5`이며 오늘을 제외한 최근
 30일 내 각 카드의 최근 두 유효 거래를 비교한다. 상승과 하락 목록을 한 번에
 받으므로 탭 전환 시 추가 요청하지 않는다.
 
@@ -1098,11 +1098,11 @@ PSA 등급과 Population은 인증 응답으로만 입력하며 경매 등록 �
 
 ```text
 HomePage
-→ homeQueries.overview()
+→ statisticQueries.overview()
 → fetchHomeOverview()
 → `localStorage.USE_MOCK_API === "true"`: `mockup-data.json.home`
 → `localStorage.USE_MOCK_API !== "true"`: 실제 홈 API
-→ 실제 API 모드: `GET /api/home`
+→ 실제 API 모드: `GET /api/statistic`
 ```
 
 홈 컴포넌트는 인사이트 수치·문구·정렬 값, 시장 요약, 차트, Top 5 데이터를 직접 하드코딩하지 않는다.

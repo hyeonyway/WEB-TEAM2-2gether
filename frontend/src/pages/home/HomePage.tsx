@@ -4,8 +4,8 @@ import {useEffect,useState} from 'react';
 import {Area,Bar,CartesianGrid,ComposedChart,Legend,Line,XAxis,YAxis} from 'recharts';
 import {Header} from '../../components';
 import {ChartContainer,ChartTooltip,ChartTooltipContent} from '../../components/ui/chart';
-import type {HomeInsightDto,HomeMarketPointDto,HomeRankingDto} from '../../dto/homeDto';
-import {homeQueries} from '../../queries/homeQueries';
+import type {StatisticInsightDto,StatisticMarketPointDto,StatisticRankingDto} from '../../dto/statisticDto';
+import {statisticQueries} from '../../queries/statisticQueries';
 
 function AnimatedNumber({value,suffix}:{value:number;suffix:'원'|'건'}){
   const[displayValue,setDisplayValue]=useState(0);
@@ -69,7 +69,7 @@ function RankingSkeleton(){
   </aside>;
 }
 
-function Insight({insight}:{insight:HomeInsightDto}){
+function Insight({insight}:{insight:StatisticInsightDto}){
   const Icon=insight.id==='RISING'?Flame:insight.id==='NEW_BIDS'?TrendingUp:Diamond;
   const openAuctions=()=>{window.location.href=`/auction?sort=${insight.sort}`};
   return <article className={`insight ${insight.id==='NEW_BIDS'?'rise':insight.id==='ACTIVE'?'volume':'fire'} insight-action`} role="link" tabIndex={0} onClick={openAuctions} onKeyDown={event=>(event.key==='Enter'||event.key===' ')&&openAuctions()}>
@@ -79,7 +79,7 @@ function Insight({insight}:{insight:HomeInsightDto}){
   </article>;
 }
 
-function Chart({history}:{history:HomeMarketPointDto[]}){
+function Chart({history}:{history:StatisticMarketPointDto[]}){
   const config={
     averagePrice:{label:'시세(원)',color:'#ff584d'},
     bidCount:{label:'입찰량(건)',color:'#e2e2e2'},
@@ -160,7 +160,7 @@ function CardArt({theme}:{theme:string}){
   return <div className={`mini-card ${theme}`}><i>HP 70</i><span>●</span><small>POKÉMON</small></div>;
 }
 
-function CardThumbnail({item}:{item:HomeRankingDto}){
+function CardThumbnail({item}:{item:StatisticRankingDto}){
   const[failed,setFailed]=useState(false);
   if(!item.imageUrl||failed)return <CardArt theme={item.theme}/>;
   return <img
@@ -172,7 +172,7 @@ function CardThumbnail({item}:{item:HomeRankingDto}){
   />;
 }
 
-function PriceSparkline({history,direction}:{history:HomeRankingDto['priceHistory'];direction:'gain'|'loss'}){
+function PriceSparkline({history,direction}:{history:StatisticRankingDto['priceHistory'];direction:'gain'|'loss'}){
   if(!history.length)return <svg viewBox="0 0 60 42" aria-label="시세 이력 없음"/>;
   const prices=history.map(point=>point.price);
   const min=Math.min(...prices);
@@ -191,7 +191,7 @@ function PriceSparkline({history,direction}:{history:HomeRankingDto['priceHistor
   </svg>;
 }
 
-function Ranking({gainers,losers}:{gainers:HomeRankingDto[];losers:HomeRankingDto[]}){
+function Ranking({gainers,losers}:{gainers:StatisticRankingDto[];losers:StatisticRankingDto[]}){
   const[tab,setTab]=useState<'gain'|'loss'>('gain');
   const items=tab==='gain'?gainers:losers;
   return <aside><div className="mover-heading"><h2>이전 가격 대비</h2><div className="mover-tabs" role="tablist" aria-label="가격 변동 순위">
@@ -207,9 +207,9 @@ function Ranking({gainers,losers}:{gainers:HomeRankingDto[];losers:HomeRankingDt
 }
 
 export default function HomePage(){
-  const insightsQuery=useQuery(homeQueries.insights());
-  const marketQuery=useQuery(homeQueries.market(30));
-  const priceMoversQuery=useQuery(homeQueries.priceMovers(5));
+  const insightsQuery=useQuery(statisticQueries.insights());
+  const marketQuery=useQuery(statisticQueries.market(30));
+  const priceMoversQuery=useQuery(statisticQueries.priceMovers(5));
 
   return <><Header/><main>
     <div className="home-overview-row"><div><p className="intro">현재 진행 중인 카드 경매의 실시간 입찰 현황입니다.</p><div className="date"><CalendarDays/> 실시간 경매 기준</div></div></div>

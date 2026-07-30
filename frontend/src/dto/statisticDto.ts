@@ -1,4 +1,4 @@
-export type HomeInsightDto={
+export type StatisticInsightDto={
   id:'RISING'|'NEW_BIDS'|'ACTIVE';
   title:string;
   value:number;
@@ -7,13 +7,13 @@ export type HomeInsightDto={
   sort:'BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
 };
 
-export type HomeMarketPointDto={
+export type StatisticMarketPointDto={
   date:string;
   averagePrice:number|null;
   bidCount:number;
 };
 
-export type HomeRankingDto={
+export type StatisticRankingDto={
   cardId:number;
   name:string;
   price:number;
@@ -29,18 +29,18 @@ export type HomeRankingDto={
   }>;
 };
 
-export type HomeMarketDto={
+export type StatisticMarketDto={
   marketSummary:{
     monthlyWinningPriceTotal:number;
     monthlyEndedAuctionCount:number;
     monthlyBidCount:number;
     monthlyHighestPrice:number;
   };
-  marketHistory:HomeMarketPointDto[];
+  marketHistory:StatisticMarketPointDto[];
 };
 
-export type HomePriceMoversDto={
+export type StatisticPriceMoversDto={
   periodDays:number;
-  gainers:HomeRankingDto[];
-  losers:HomeRankingDto[];
+  gainers:StatisticRankingDto[];
+  losers:StatisticRankingDto[];
 };

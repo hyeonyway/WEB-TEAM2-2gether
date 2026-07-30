@@ -1,10 +1,10 @@
-package com.dbidding.home.repository;
+package com.dbidding.auction.repository;
 
 import com.dbidding.auction.domain.Auction;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
-public interface HomeAuctionRepository extends Repository<Auction, Integer> {
+public interface StatisticAuctionQueryRepository extends Repository<Auction, Integer> {
     interface InsightAggregate {
         Long getTotalCount();
         Long getRisingCount();
