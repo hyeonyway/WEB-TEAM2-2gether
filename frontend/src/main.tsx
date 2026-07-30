@@ -10,7 +10,7 @@ import CardDetailPage from './pages/card-detail';
 import DashboardPage from './pages/dashboard';
 import MyPage from './pages/mypage';
 import SellPage from './pages/sell';
-import {Header} from './components';
+import {Header,ToastContainer} from './components';
 
 const path=window.location.pathname;
 const queryClient=new QueryClient({
@@ -36,5 +36,5 @@ const page=path==='/sell'||path==='/sell/'
               : <HomePage/>;
 
 createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}>{page}</QueryClientProvider>
+  <QueryClientProvider client={queryClient}>{page}<ToastContainer/></QueryClientProvider>
 );
