@@ -13,13 +13,14 @@ import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointRecord;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.domain.WalletHold;
-import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import com.dbidding.wallet.service.WalletService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,62 +29,28 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AuctionWalletAdapter implements WalletPort {
 
+	private final WalletService walletService;
 	private final WalletRepository walletRepository;
 	private final WalletHoldRepository walletHoldRepository;
 	private final PointRecordRepository pointRecordRepository;
 
 	@Override
-	@Transactional(readOnly = true)
 	public WalletSnapshot getWallet(Integer userId) {
-		Wallet wallet = walletRepository.findByUserId(userId)
-			.orElseThrow(WalletNotFoundException::new);
-		return snapshot(wallet, walletRepository.sumHeldAmount(wallet.getId()));
+		return snapshot(walletService.getBalance(userId));
 	}
 
 	@Override
-	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletSnapshot holdBidAmount(
 		Integer userId,
 		Integer auctionId,
 		long totalAmount
 	) {
-		Wallet wallet = lockWallet(userId);
-		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
-		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
-		long currentAmount = latest.filter(WalletHold::isHeld)
-			.map(WalletHold::getAmount)
-			.orElse(0L);
-		if (totalAmount < currentAmount) {
-			throw new InvalidWalletHoldStateException();
-		}
-		long additionalAmount = Math.subtractExact(totalAmount, currentAmount);
-		long availableBefore = availableBalance(wallet, frozenBefore);
-		if (availableBefore < additionalAmount) {
-			throw new InsufficientAvailableBalanceException();
-		}
-
-		if (latest.filter(WalletHold::isHeld).isPresent()) {
-			latest.orElseThrow().increaseTo(totalAmount);
-		} else {
-			walletHoldRepository.save(
-				WalletHold.held(wallet.getId(), auctionId, totalAmount)
-			);
-		}
-		return snapshot(wallet, Math.addExact(frozenBefore, additionalAmount));
+		return snapshot(walletService.hold(userId, auctionId, totalAmount));
 	}
 
 	@Override
-	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletSnapshot releaseBidHold(Integer userId, Integer auctionId) {
-		Wallet wallet = lockWallet(userId);
-		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
-		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
-		long releasedAmount = latest.filter(WalletHold::isHeld)
-			.map(WalletHold::getAmount)
-			.orElse(0L);
-		latest.filter(WalletHold::isHeld)
-			.ifPresent(hold -> hold.release(Instant.now()));
-		return snapshot(wallet, Math.subtractExact(frozenBefore, releasedAmount));
+		return snapshot(walletService.release(userId, auctionId));
 	}
 
 	@Override
@@ -137,6 +104,13 @@ public class AuctionWalletAdapter implements WalletPort {
 		return new WalletSnapshot(
 			availableBalance(wallet, frozenBalance),
 			frozenBalance
+		);
+	}
+
+	private WalletSnapshot snapshot(WalletBalanceResponse balance) {
+		return new WalletSnapshot(
+			balance.availableBalance(),
+			balance.frozenBalance()
 		);
 	}
 

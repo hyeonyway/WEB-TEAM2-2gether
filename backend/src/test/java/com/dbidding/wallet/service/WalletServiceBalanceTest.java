@@ -18,6 +18,7 @@ import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
+import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,11 +30,14 @@ class WalletServiceBalanceTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
+	@Mock
+	private WalletHoldRepository walletHoldRepository;
+
 	private WalletService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new WalletService(walletRepository, pointRecordRepository);
+		service = new WalletService(walletRepository, pointRecordRepository, walletHoldRepository);
 	}
 
 	@Test

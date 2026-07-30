@@ -25,6 +25,7 @@ import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import com.dbidding.wallet.service.WalletService;
 
 @ExtendWith(MockitoExtension.class)
 class AuctionWalletCaptureTest {
@@ -38,11 +39,15 @@ class AuctionWalletCaptureTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
+	@Mock
+	private WalletService walletService;
+
 	private AuctionWalletAdapter adapter;
 
 	@BeforeEach
 	void setUp() {
 		adapter = new AuctionWalletAdapter(
+			walletService,
 			walletRepository,
 			walletHoldRepository,
 			pointRecordRepository

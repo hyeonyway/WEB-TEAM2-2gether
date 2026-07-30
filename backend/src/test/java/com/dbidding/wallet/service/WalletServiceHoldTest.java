@@ -1,4 +1,4 @@
-package com.dbidding.wallet.adapter;
+package com.dbidding.wallet.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -16,10 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.dbidding.auction.port.WalletPort.WalletSnapshot;
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.domain.WalletHold;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
@@ -28,7 +28,7 @@ import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AuctionWalletAdapterTest {
+class WalletServiceHoldTest {
 
 	@Mock
 	private WalletRepository walletRepository;
@@ -39,14 +39,14 @@ class AuctionWalletAdapterTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
-	private AuctionWalletAdapter adapter;
+	private WalletService service;
 
 	@BeforeEach
 	void setUp() {
-		adapter = new AuctionWalletAdapter(
+		service = new WalletService(
 			walletRepository,
-			walletHoldRepository,
-			pointRecordRepository
+			pointRecordRepository,
+			walletHoldRepository
 		);
 	}
 
@@ -60,7 +60,7 @@ class AuctionWalletAdapterTest {
 			20
 		)).willReturn(Optional.empty());
 
-		WalletSnapshot result = adapter.holdBidAmount(1, 20, 11_000L);
+		WalletBalanceResponse result = service.hold(1, 20, 11_000L);
 
 		assertThat(result.frozenBalance()).isEqualTo(14_000L);
 		assertThat(result.availableBalance()).isEqualTo(6_000L);
@@ -85,7 +85,7 @@ class AuctionWalletAdapterTest {
 			20
 		)).willReturn(Optional.of(hold));
 
-		WalletSnapshot result = adapter.holdBidAmount(1, 20, 16_000L);
+		WalletBalanceResponse result = service.hold(1, 20, 16_000L);
 
 		assertThat(hold.getAmount()).isEqualTo(16_000L);
 		assertThat(result.availableBalance()).isEqualTo(4_000L);
@@ -104,7 +104,7 @@ class AuctionWalletAdapterTest {
 			20
 		)).willReturn(Optional.of(hold));
 
-		assertThatThrownBy(() -> adapter.holdBidAmount(1, 20, 13_000L))
+		assertThatThrownBy(() -> service.hold(1, 20, 13_000L))
 			.isInstanceOf(InsufficientAvailableBalanceException.class);
 		assertThat(hold.getAmount()).isEqualTo(11_000L);
 		then(walletHoldRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
@@ -121,7 +121,7 @@ class AuctionWalletAdapterTest {
 			20
 		)).willReturn(Optional.of(hold));
 
-		assertThatThrownBy(() -> adapter.holdBidAmount(1, 20, 10_000L))
+		assertThatThrownBy(() -> service.hold(1, 20, 10_000L))
 			.isInstanceOf(InvalidWalletHoldStateException.class);
 		assertThat(hold.getAmount()).isEqualTo(11_000L);
 		then(walletHoldRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
@@ -139,7 +139,7 @@ class AuctionWalletAdapterTest {
 			20
 		)).willReturn(Optional.of(released));
 
-		WalletSnapshot result = adapter.holdBidAmount(1, 20, 16_000L);
+		WalletBalanceResponse result = service.hold(1, 20, 16_000L);
 
 		assertThat(released.getStatus()).isEqualTo(HoldStatus.RELEASED);
 		assertThat(result.frozenBalance()).isEqualTo(16_000L);
@@ -163,8 +163,8 @@ class AuctionWalletAdapterTest {
 			20
 		)).willReturn(Optional.of(hold));
 
-		WalletSnapshot first = adapter.releaseBidHold(1, 20);
-		WalletSnapshot second = adapter.releaseBidHold(1, 20);
+		WalletBalanceResponse first = service.release(1, 20);
+		WalletBalanceResponse second = service.release(1, 20);
 
 		assertThat(hold.getStatus()).isEqualTo(HoldStatus.RELEASED);
 		assertThat(first.frozenBalance()).isZero();
@@ -177,9 +177,9 @@ class AuctionWalletAdapterTest {
 		given(walletRepository.findByUserId(1)).willReturn(Optional.empty());
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> adapter.getWallet(1))
+		assertThatThrownBy(() -> service.getBalance(1))
 			.isInstanceOf(WalletNotFoundException.class);
-		assertThatThrownBy(() -> adapter.holdBidAmount(1, 20, 11_000L))
+		assertThatThrownBy(() -> service.hold(1, 20, 11_000L))
 			.isInstanceOf(WalletNotFoundException.class);
 	}
 

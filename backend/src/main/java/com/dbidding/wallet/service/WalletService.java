@@ -1,13 +1,16 @@
 package com.dbidding.wallet.service;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dbidding.wallet.domain.PointRecord;
 import com.dbidding.wallet.domain.PointTransactionType;
 import com.dbidding.wallet.domain.Wallet;
+import com.dbidding.wallet.domain.WalletHold;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
 import com.dbidding.wallet.exception.IdempotencyConflictException;
@@ -15,8 +18,10 @@ import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import com.dbidding.wallet.exception.InvalidWalletBalanceException;
+import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
+import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -30,6 +35,7 @@ public class WalletService {
 
 	private final WalletRepository walletRepository;
 	private final PointRecordRepository pointRecordRepository;
+	private final WalletHoldRepository walletHoldRepository;
 
 	@Transactional(readOnly = true)
 	public WalletBalanceResponse getBalance(Integer userId) {
@@ -76,9 +82,56 @@ public class WalletService {
 		return WalletTransactionResponse.from(record);
 	}
 
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletBalanceResponse hold(Integer userId, Integer auctionId, long totalAmount) {
+		Wallet wallet = lockWallet(userId);
+		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
+		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
+		long currentAmount = latest.filter(WalletHold::isHeld)
+			.map(WalletHold::getAmount)
+			.orElse(0L);
+		if (totalAmount < currentAmount) {
+			throw new InvalidWalletHoldStateException();
+		}
+		long additionalAmount = Math.subtractExact(totalAmount, currentAmount);
+		long availableBefore = balance(wallet, frozenBefore).availableBalance();
+		if (availableBefore < additionalAmount) {
+			throw new InsufficientAvailableBalanceException();
+		}
+
+		if (latest.filter(WalletHold::isHeld).isPresent()) {
+			latest.orElseThrow().increaseTo(totalAmount);
+		} else {
+			walletHoldRepository.save(
+				WalletHold.held(wallet.getId(), auctionId, totalAmount)
+			);
+		}
+		return balance(wallet, Math.addExact(frozenBefore, additionalAmount));
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletBalanceResponse release(Integer userId, Integer auctionId) {
+		Wallet wallet = lockWallet(userId);
+		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
+		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
+		long releasedAmount = latest.filter(WalletHold::isHeld)
+			.map(WalletHold::getAmount)
+			.orElse(0L);
+		latest.filter(WalletHold::isHeld)
+			.ifPresent(hold -> hold.release(Instant.now()));
+		return balance(wallet, Math.subtractExact(frozenBefore, releasedAmount));
+	}
+
 	private Wallet lockWallet(Integer userId) {
 		return walletRepository.findByUserIdForUpdate(userId)
 			.orElseThrow(WalletNotFoundException::new);
+	}
+
+	private Optional<WalletHold> latestHold(Integer walletId, Integer auctionId) {
+		return walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
+			walletId,
+			auctionId
+		);
 	}
 
 	private Optional<PointRecord> findReplay(Wallet wallet, String idempotencyKey) {
