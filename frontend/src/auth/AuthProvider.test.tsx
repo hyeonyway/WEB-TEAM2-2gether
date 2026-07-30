@@ -19,6 +19,11 @@ function AuthStatusProbe() {
   return <output data-testid="auth-status">{status}</output>;
 }
 
+function RetryInitializationButton() {
+  const {retryInitialization} = useAuth();
+  return <button type="button" onClick={retryInitialization}>인증 복구 요청</button>;
+}
+
 function renderAuthProvider() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -34,6 +39,7 @@ function renderAuthProvider() {
         <AuthProvider>
           <span>공개 화면</span>
           <AuthStatusProbe/>
+          <RetryInitializationButton/>
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -102,6 +108,25 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(getAccessToken()).toBe('retried-access-token');
+  });
+
+  it('인증 복구 중 재시도 요청이 겹쳐도 Refresh를 한 번만 호출한다', async () => {
+    let resolveRefresh!: (response: Response) => void;
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockReturnValue(new Promise(resolve => {
+        resolveRefresh = resolve;
+      }));
+    const user = userEvent.setup();
+
+    renderAuthProvider();
+    await user.click(screen.getByRole('button', {name: '인증 복구 요청'}));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    resolveRefresh(jsonResponse({accessToken: 'restored-access-token'}));
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('authenticated');
+    });
   });
 
   it('anonymous 전환 시 개인 Query cache만 제거한다', async () => {

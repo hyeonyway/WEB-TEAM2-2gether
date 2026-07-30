@@ -93,6 +93,16 @@ describe('authApi', () => {
     expect(getAccessToken()).toBeNull();
   });
 
+  it('Refresh 서버 오류 시 기존 Access Token을 유지한다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'INTERNAL_SERVER_ERROR'}, 500));
+    setAccessToken('still-valid-access-token');
+
+    await expect(refreshAccessToken()).rejects.toMatchObject({status: 500});
+
+    expect(getAccessToken()).toBe('still-valid-access-token');
+  });
+
   it('회원가입 401은 자동 Refresh 없이 그대로 반환한다', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValue(jsonResponse({}, 401));

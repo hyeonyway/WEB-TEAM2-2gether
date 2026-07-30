@@ -6,7 +6,7 @@ import type {
   SignupResponseDto,
 } from '../dto/authDto';
 import {clearAccessToken, setAccessToken} from './accessTokenStore';
-import {request} from './httpClient';
+import {HttpError, request} from './httpClient';
 
 const authRequestOptions = {
   credentials: 'include' as const,
@@ -39,7 +39,9 @@ export async function refreshAccessToken() {
     setAccessToken(response.accessToken);
     return response;
   } catch (error) {
-    clearAccessToken();
+    if (error instanceof HttpError && error.status === 401) {
+      clearAccessToken();
+    }
     throw error;
   }
 }

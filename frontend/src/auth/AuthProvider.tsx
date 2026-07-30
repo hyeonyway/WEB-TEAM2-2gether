@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
@@ -34,8 +35,11 @@ export function AuthProvider({children}: AuthProviderProps) {
   );
   const [initialized, setInitialized] = useState(false);
   const [recoveryError, setRecoveryError] = useState(false);
+  const initializationInFlightRef = useRef(false);
 
   const initialize = useCallback(async () => {
+    if (initializationInFlightRef.current) return;
+    initializationInFlightRef.current = true;
     setInitialized(false);
     setRecoveryError(false);
     try {
@@ -46,6 +50,7 @@ export function AuthProvider({children}: AuthProviderProps) {
       }
     } finally {
       setInitialized(true);
+      initializationInFlightRef.current = false;
     }
   }, []);
 

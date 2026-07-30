@@ -148,6 +148,21 @@ describe('Header 마이페이지 인증 gate', () => {
     expect(screen.getByTestId('router-path')).toHaveTextContent('/');
   });
 
+  it('일반 로그인과 보호 진입이 겹쳐도 닫기 시 모달 상태를 모두 초기화한다', async () => {
+    const user = userEvent.setup();
+    renderHeader('/auction');
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    await user.click(screen.getByRole('button', {name: '로그인'}));
+    await user.click(screen.getByRole('link', {name: '마이페이지'}));
+
+    await user.click(screen.getByRole('button', {name: '인증 모달 닫기'}));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/');
+  });
+
   it('initializing 중 요청한 마이페이지 이동을 인증 복구 뒤 이어간다', async () => {
     let resolveRefresh!: () => void;
     refreshMock.mockImplementation(() => new Promise(resolve => {
