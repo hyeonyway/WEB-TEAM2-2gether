@@ -68,7 +68,7 @@ public class CardStatisticAdapter implements CardStatisticPort {
         return new DailyPrice(
                 statistic.getStatisticsDate(),
                 statistic.getAveragePrice(),
-                statistic.getBidCount()
+                statistic.getEndedAuctionCount()
         );
     }
 }

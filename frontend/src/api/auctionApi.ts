@@ -23,8 +23,8 @@ const mockPriceHistory=(marketPrice:number,monthlyChangeRate:number)=>{
     return {
       date:date.toISOString(),
       average_price:traded?averagePrice:null,
-      bid_count:traded?Math.max(0,Math.round(
-        260+Math.sin(index*.68)*72+Math.cos(index*.31)*38+(index%5)*7,
+      ended_auction_count:traded?Math.max(1,Math.round(
+        3+Math.sin(index*.68)*2+Math.cos(index*.31),
       )):0,
       change_rate:index===0?0:Number(((averagePrice-startPrice)/startPrice*100).toFixed(2)),
       weekly_change_rate:0,

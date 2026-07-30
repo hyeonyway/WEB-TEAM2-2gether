@@ -32,7 +32,7 @@ public interface CardStatisticPort {
     record DailyPrice(
             LocalDate date,
             Long averagePrice,
-            Integer bidCount
+            Integer endedAuctionCount
     ) {
     }
 }

@@ -22,7 +22,7 @@ export default function PriceChangeAreaChart({history}:Props){
       date:point.date,
       timestamp:new Date(point.date).getTime(),
       averagePrice:point.average_price,
-      bidCount:point.bid_count,
+      auctionCount:point.ended_auction_count,
     }))
     .filter(point=>Number.isFinite(point.timestamp))
     .sort((a,b)=>a.timestamp-b.timestamp)
@@ -30,7 +30,7 @@ export default function PriceChangeAreaChart({history}:Props){
   [history]);
   const config={
     averagePrice:{label:'일자별 평균 낙찰가',color:'#16ad64'},
-    bidCount:{label:'일자별 총 입찰 수',color:'#e2e2e2'},
+    auctionCount:{label:'일자별 총 낙찰 수',color:'#e2e2e2'},
   };
   const tickInterval=Math.max(Math.ceil(data.length/5)-1,0);
 
@@ -82,13 +82,13 @@ export default function PriceChangeAreaChart({history}:Props){
           verticalAlign="bottom"
           content={()=><div className="home-chart-legend detail-chart-legend">
             <span><i className="price-line"/>일자별 평균 낙찰가</span>
-            <span><i className="bid-square"/>일자별 총 입찰 수</span>
+            <span><i className="bid-square"/>일자별 총 낙찰 수</span>
           </div>}
         />
         <Bar
           yAxisId="bids"
-          dataKey="bidCount"
-          fill="var(--color-bidCount)"
+          dataKey="auctionCount"
+          fill="var(--color-auctionCount)"
           radius={[4,4,0,0]}
           maxBarSize={10}
         />
@@ -96,6 +96,7 @@ export default function PriceChangeAreaChart({history}:Props){
           yAxisId="price"
           type="monotone"
           dataKey="averagePrice"
+          connectNulls
           stroke="none"
           fill="url(#detail-price-fill)"
           dot={false}
@@ -105,6 +106,7 @@ export default function PriceChangeAreaChart({history}:Props){
           yAxisId="price"
           type="monotone"
           dataKey="averagePrice"
+          connectNulls
           stroke="var(--color-averagePrice)"
           strokeWidth={2.5}
           strokeLinecap="round"

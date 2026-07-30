@@ -107,9 +107,9 @@ class CardPriceServiceTest {
         assertThat(response.history()).hasSize(30);
         assertThat(response.history().getLast().date().toLocalDate()).isEqualTo(yesterday);
         assertThat(response.history().getFirst().averagePrice()).isNull();
-        assertThat(response.history().getFirst().bidCount()).isZero();
+        assertThat(response.history().getFirst().endedAuctionCount()).isZero();
         assertThat(response.history().getLast().averagePrice()).isEqualTo(138_000L);
-        assertThat(response.history().getLast().bidCount()).isEqualTo(20);
+        assertThat(response.history().getLast().endedAuctionCount()).isEqualTo(1);
     }
 
     @Test

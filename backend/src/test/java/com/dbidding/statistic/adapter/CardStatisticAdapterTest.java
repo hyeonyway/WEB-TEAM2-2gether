@@ -53,7 +53,7 @@ class CardStatisticAdapterTest {
         ItemDailyStatistic statistic = mock(ItemDailyStatistic.class);
         given(statistic.getStatisticsDate()).willReturn(date);
         given(statistic.getAveragePrice()).willReturn(null);
-        given(statistic.getBidCount()).willReturn(0);
+        given(statistic.getEndedAuctionCount()).willReturn(0);
         given(dailyStatisticRepository
                 .findByItemIdAndStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
                         10, date, date.plusDays(1)))
@@ -64,7 +64,7 @@ class CardStatisticAdapterTest {
         assertThat(dailyPrices).singleElement().satisfies(daily -> {
             assertThat(daily.date()).isEqualTo(date);
             assertThat(daily.averagePrice()).isNull();
-            assertThat(daily.bidCount()).isZero();
+            assertThat(daily.endedAuctionCount()).isZero();
         });
     }
 }

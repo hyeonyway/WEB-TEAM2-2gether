@@ -135,6 +135,7 @@ function Chart({history}:{history:StatisticMarketPointDto[]}){
         yAxisId="price"
         type="monotone"
         dataKey="averagePrice"
+        connectNulls
         stroke="none"
         fill="url(#home-price-fill)"
         dot={false}
@@ -144,6 +145,7 @@ function Chart({history}:{history:StatisticMarketPointDto[]}){
         yAxisId="price"
         type="monotone"
         dataKey="averagePrice"
+        connectNulls
         stroke="var(--color-averagePrice)"
         strokeWidth={2.8}
         strokeLinecap="round"
