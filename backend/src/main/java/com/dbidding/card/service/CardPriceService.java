@@ -3,14 +3,12 @@ package com.dbidding.card.service;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 import com.dbidding.card.domain.*;
-import com.dbidding.auction.domain.AuctionStatus;
-import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.card.dto.CardResponses;
+import com.dbidding.card.port.CardAuctionPort;
+import com.dbidding.card.port.CardStatisticsPort;
+import com.dbidding.card.port.CardStatisticsPort.DailyPrice;
+import com.dbidding.card.port.CardStatisticsPort.Summary;
 import com.dbidding.card.repository.CardMetadataRepository;
-import com.dbidding.statistics.domain.ItemDailyStatistic;
-import com.dbidding.statistics.domain.ItemStatistic;
-import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
-import com.dbidding.statistics.repository.ItemStatisticRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -31,18 +29,15 @@ public class CardPriceService {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final CardMetadataRepository cardRepository;
-    private final ItemStatisticRepository statisticRepository;
-    private final ItemDailyStatisticRepository dailyStatisticRepository;
-    private final AuctionRepository auctionRepository;
+    private final CardStatisticsPort statisticsPort;
+    private final CardAuctionPort auctionPort;
 
     public CardResponses.Page<CardResponses.CardSummary> getCards(
             String keyword, String psaGrade, CardSort sort, int page, int size) {
         var cards = cardRepository.search(keyword == null ? "" : keyword.trim(), psaGrade,
                 sort.name(), PageRequest.of(page, size));
         var ids = cards.getContent().stream().map(CardMetadata::getId).toList();
-        Map<Integer, ItemStatistic> statistics = ids.isEmpty() ? Map.of()
-                : statisticRepository.findAllByItemIds(ids).stream()
-                .collect(Collectors.toMap(s -> s.getItem().getId(), Function.identity()));
+        Map<Integer, Summary> statistics = statisticsPort.getSummaries(ids);
         var content = cards.getContent().stream()
                 .map(card -> summary(card, statistics.get(card.getId())))
                 .toList();
@@ -52,58 +47,55 @@ public class CardPriceService {
     public CardResponses.CardDetail getCard(Integer cardId, int days) {
         CardMetadata card = cardRepository.findById(cardId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "카드를 찾을 수 없습니다."));
-        ItemStatistic summary = statisticRepository.findById(cardId).orElse(null);
+        Summary summary = statisticsPort.getSummary(cardId).orElse(null);
         LocalDate today = LocalDate.now(SEOUL);
         int range = Math.max(1, days);
         LocalDate from = today.minusDays(range);
-        var daily = dailyStatisticRepository
-                .findByItemIdAndStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
-                        cardId, from, today);
+        var daily = statisticsPort.getDailyPrices(cardId, from, today);
         var history = priceHistory(from, today, daily);
 
         long marketPrice = summary == null ? 0
-                : firstPrice(summary.getLatestPrice(), summary.getAveragePrice30d());
+                : firstPrice(summary.latestPrice(), summary.averagePrice30d());
         return new CardResponses.CardDetail(
                 card.getId(), card.getName(), card.getCardSet().getName(), card.getRarity(),
                 marketPrice,
-                summary == null ? marketPrice : firstPrice(summary.getLowestPrice30d(), marketPrice),
-                summary == null ? marketPrice : firstPrice(summary.getHighestPrice30d(), marketPrice),
-                summary == null ? marketPrice : firstPrice(summary.getAveragePrice30d(), marketPrice),
-                rate(summary == null ? null : summary.getDailyChangeRate()),
-                rate(summary == null ? null : summary.getWeeklyChangeRate()),
-                rate(summary == null ? null : summary.getMonthlyChangeRate()),
-                value(summary == null ? null : summary.getBidCount30d()),
-                value(summary == null ? null : summary.getEndedAuctionCount30d()),
-                Math.toIntExact(auctionRepository.countByItemIdAndStatusIn(
-                        cardId, List.of(AuctionStatus.OPEN, AuctionStatus.ENDING))),
-                value(summary == null ? null : summary.getWishlistCount()),
+                summary == null ? marketPrice : firstPrice(summary.lowestPrice30d(), marketPrice),
+                summary == null ? marketPrice : firstPrice(summary.highestPrice30d(), marketPrice),
+                summary == null ? marketPrice : firstPrice(summary.averagePrice30d(), marketPrice),
+                rate(summary == null ? null : summary.dailyChangeRate()),
+                rate(summary == null ? null : summary.weeklyChangeRate()),
+                rate(summary == null ? null : summary.monthlyChangeRate()),
+                value(summary == null ? null : summary.bidCount30d()),
+                value(summary == null ? null : summary.endedAuctionCount30d()),
+                auctionPort.countActiveAuctions(cardId),
+                value(summary == null ? null : summary.wishlistCount()),
                 card.getPsaGrade(), normalizeLanguage(card.getLanguage()),
                 card.getImagePath(), history);
     }
 
-    private CardResponses.CardSummary summary(CardMetadata card, ItemStatistic statistic) {
+    private CardResponses.CardSummary summary(CardMetadata card, Summary statistic) {
         long price = statistic == null ? 0
-                : firstPrice(statistic.getLatestPrice(), statistic.getAveragePrice30d());
+                : firstPrice(statistic.latestPrice(), statistic.averagePrice30d());
         return new CardResponses.CardSummary(
                 card.getId(), card.getName(), price,
-                statistic == null ? price : firstPrice(statistic.getLowestPrice30d(), price),
-                statistic == null ? price : firstPrice(statistic.getHighestPrice30d(), price),
-                rate(statistic == null ? null : statistic.getDailyChangeRate()),
+                statistic == null ? price : firstPrice(statistic.lowestPrice30d(), price),
+                statistic == null ? price : firstPrice(statistic.highestPrice30d(), price),
+                rate(statistic == null ? null : statistic.dailyChangeRate()),
                 CardTheme.from(card),
-                value(statistic == null ? null : statistic.getBidCount30d()),
+                value(statistic == null ? null : statistic.bidCount30d()),
                 card.getPsaGrade(), normalizeLanguage(card.getLanguage()), card.getImagePath());
     }
 
     private List<CardResponses.PricePoint> priceHistory(
-            LocalDate from, LocalDate to, List<ItemDailyStatistic> statistics) {
-        Map<LocalDate, ItemDailyStatistic> byDate = statistics.stream()
-                .collect(Collectors.toMap(ItemDailyStatistic::getStatisticsDate, Function.identity()));
+            LocalDate from, LocalDate to, List<DailyPrice> statistics) {
+        Map<LocalDate, DailyPrice> byDate = statistics.stream()
+                .collect(Collectors.toMap(DailyPrice::date, Function.identity()));
         List<CardResponses.PricePoint> result = new ArrayList<>();
         for (LocalDate date = from; date.isBefore(to); date = date.plusDays(1)) {
-            ItemDailyStatistic current = byDate.get(date);
-            Long price = current == null ? null : current.getAveragePrice();
+            DailyPrice current = byDate.get(date);
+            Long price = current == null ? null : current.averagePrice();
             result.add(new CardResponses.PricePoint(
-                    date.atStartOfDay(), price, value(current == null ? null : current.getBidCount()),
+                    date.atStartOfDay(), price, value(current == null ? null : current.bidCount()),
                     ZERO_RATE, ZERO_RATE, ZERO_RATE));
         }
         return result;
