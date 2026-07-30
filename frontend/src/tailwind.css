@@ -161,6 +161,13 @@ strong, b { font-weight: 600 !important; }
 .enhanced-cards .card-tile h3{font-size:14px;margin-top:13px}
 .enhanced-cards .tile-price{margin:4px 0 18px}
 .enhanced-cards .tile-price strong{font-size:18px}
+.auction-price-rise{display:inline-block;animation:auction-price-rise .68s cubic-bezier(.2,.8,.2,1)}
+@keyframes auction-price-rise{
+  0%{color:#f05249;transform:translateY(5px) scale(.94);text-shadow:0 0 0 #f0524900}
+  42%{color:#f05249;transform:translateY(-2px) scale(1.1);text-shadow:0 5px 18px #f0524940}
+  100%{color:inherit;transform:translateY(0) scale(1);text-shadow:0 0 0 #f0524900}
+}
+@media(prefers-reduced-motion:reduce){.auction-price-rise{animation:none;color:#f05249}}
 .auction-card-info{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
 .auction-card-info span{min-width:0;background:#f7f7f8;border-radius:9px;padding:10px;color:#999;font-size:9px}
 .auction-card-info b{display:block;margin-top:5px;color:#222;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

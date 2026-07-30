@@ -268,9 +268,11 @@ k6 run \
   src/test/k6/sse/auction-stream.js
 ```
 
-연결만 생성하면 heartbeat와 연결 안정성만 검증된다. payload 수신량과 계약을
-검증하려면 테스트 중 별도 발행 측에서 생성·입찰·종료 payload를 발생시켜야
-한다.
+`sse-load-test` 프로필은
+`POST /api/auctions/stream/test-events/random-bid`를 활성화한다. 이 API는
+DB에서 `OPEN` 또는 `ENDING` 경매를 무작위로 읽고, 경매별 메모리 상태에서
+가격·입찰 수·버전을 증가시킨 `BID_PLACED` payload를 발행한다. DB 데이터는
+변경하지 않는다. k6는 SSE 연결 부하와 이 API의 일정 속도 호출을 함께 수행한다.
 
 ## 8. 테스트 및 완료 기준
 
@@ -283,11 +285,12 @@ k6 run \
 - `previousBidderId`와 `winnerId`의 null 계약이 유지되어야 한다.
 - SSE 구현과 테스트가 auction·notification 패키지를 import하지 않아야 한다.
 - 최종 변경 범위가 `sse/auction`과 해당 SSE 테스트로 제한되어야 한다.
+- 프론트는 SSE 수신 시 목록과 대시보드 React Query 캐시를 직접 수정하고,
+  REST query invalidation이나 재조회를 실행하지 않아야 한다.
 
 ## 9. 후속 과제
 
 - auction 담당 영역에서 트랜잭션 완료 후 SSE payload 발행 연결
-- 프론트 `EventSource` 수신 및 `auctionVersion` 기반 캐시 갱신
 - 멀티 인스턴스 전환 시 인스턴스 간 이벤트 relay 검토
 - 필요 시 짧은 replay buffer와 `Last-Event-ID` 복구 정책 추가
 
