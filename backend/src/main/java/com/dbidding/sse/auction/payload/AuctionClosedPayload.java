@@ -1,9 +1,12 @@
-package com.dbidding.auction.event;
+package com.dbidding.sse.auction.payload;
 
-import com.dbidding.auction.domain.AuctionStatus;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import java.time.LocalDateTime;
 
-public record AuctionClosedEvent(
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+public record AuctionClosedPayload(
+        AuctionPayloadType type,
         Integer auctionId,
         Integer cardId,
         String cardName,
@@ -17,9 +20,13 @@ public record AuctionClosedEvent(
         Long bidIncrement,
         Integer bidCount,
         LocalDateTime endsAt,
-        AuctionStatus status,
+        AuctionPayloadStatus status,
         Long auctionVersion,
         LocalDateTime closedAt,
         LocalDateTime occurredAt
-) implements AuctionEvent {
+) implements AuctionPayload {
+
+    public AuctionClosedPayload {
+        type = AuctionPayloadType.AUCTION_CLOSED;
+    }
 }

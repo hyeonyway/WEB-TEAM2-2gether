@@ -1,8 +1,8 @@
 package com.dbidding.notification;
 
-import com.dbidding.auction.event.AuctionClosedEvent;
-import com.dbidding.auction.event.AuctionCreatedEvent;
-import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.notification.event.AuctionClosedEvent;
+import com.dbidding.notification.event.AuctionCreatedEvent;
+import com.dbidding.notification.event.BidOutbidEvent;
 import com.dbidding.notification.port.WishlistUserFinder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -27,10 +27,7 @@ public class NotificationEventListener {
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleBidPlaced(BidPlacedEvent event) {
-        if (event.previousBidderId() == null) {
-            return;
-        }
+    public void handleBidOutbid(BidOutbidEvent event) {
         String message = event.cardName() + " 카드 경매에 상회 입찰이 발생했습니다.";
         notificationService.save(event.previousBidderId(), event.auctionId(), message);
     }

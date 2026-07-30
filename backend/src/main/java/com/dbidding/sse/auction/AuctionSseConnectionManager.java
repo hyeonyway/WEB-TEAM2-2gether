@@ -1,5 +1,6 @@
 package com.dbidding.sse.auction;
 
+import com.dbidding.sse.auction.payload.AuctionPayload;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -32,7 +33,7 @@ public class AuctionSseConnectionManager {
         return emitter;
     }
 
-    public void broadcast(AuctionSseEvent event) {
+    public void broadcast(AuctionPayload event) {
         emitters.forEach(emitter -> send(
                 emitter,
                 SseEmitter.event()

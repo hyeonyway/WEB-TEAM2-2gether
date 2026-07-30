@@ -7,7 +7,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.sse.auction.payload.AuctionPayload;
+import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
+import com.dbidding.sse.auction.payload.BidPlacedPayload;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -41,13 +43,13 @@ class AuctionSseConnectionManagerTest {
         verify(emitter).complete();
     }
 
-    private AuctionSseEvent event() {
+    private AuctionPayload event() {
         LocalDateTime now = LocalDateTime.of(2026, 7, 30, 12, 0);
-        return new AuctionSseEvent.BidPlaced(
-                AuctionSseEvent.EventType.BID_PLACED,
+        return new BidPlacedPayload(
+                null,
                 1, 2, "리자몽", "10", "JP", "/card.png", 3, 4, null,
                 40_000L, 41_000L, 41_000L, 1_000L, 1, now.plusHours(1),
-                AuctionStatus.OPEN, 2L, now
+                AuctionPayloadStatus.OPEN, 2L, now
         );
     }
 }

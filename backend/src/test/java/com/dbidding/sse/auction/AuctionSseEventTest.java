@@ -2,10 +2,10 @@ package com.dbidding.sse.auction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.dbidding.auction.domain.AuctionStatus;
-import com.dbidding.auction.event.AuctionClosedEvent;
-import com.dbidding.auction.event.AuctionCreatedEvent;
-import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.sse.auction.payload.AuctionClosedPayload;
+import com.dbidding.sse.auction.payload.AuctionCreatedPayload;
+import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
+import com.dbidding.sse.auction.payload.BidPlacedPayload;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -21,15 +21,13 @@ class AuctionSseEventTest {
 
     @Test
     void 생성_이벤트를_전체_렌더링_payload로_직렬화한다() throws Exception {
-        var domainEvent = new AuctionCreatedEvent(
-                10, 20, "리자몽", "10", "JP", "/card.png", 3,
+        var payload = new AuctionCreatedPayload(
+                null, 10, 20, "리자몽", "10", "JP", "/card.png", 3,
                 40_000L, 40_000L, 1_000L, 0, now.plusHours(1),
-                AuctionStatus.OPEN, 1L, now
+                AuctionPayloadStatus.OPEN, 1L, now
         );
 
-        var json = objectMapper.readTree(objectMapper.writeValueAsBytes(
-                AuctionSseEvent.AuctionCreated.from(domainEvent)
-        ));
+        var json = objectMapper.readTree(objectMapper.writeValueAsBytes(payload));
 
         assertThat(json.get("type").asText()).isEqualTo("AUCTION_CREATED");
         assertThat(json.get("auction_id").asInt()).isEqualTo(10);
@@ -40,15 +38,13 @@ class AuctionSseEventTest {
 
     @Test
     void 입찰_이벤트에_현재가와_이전_입찰자를_포함한다() throws Exception {
-        var domainEvent = new BidPlacedEvent(
-                10, 20, "리자몽", null, null, null, 3, 7, 5,
+        var payload = new BidPlacedPayload(
+                null, 10, 20, "리자몽", null, null, null, 3, 7, 5,
                 40_000L, 50_000L, 50_000L, 1_000L, 2, now.plusHours(1),
-                AuctionStatus.OPEN, 2L, now
+                AuctionPayloadStatus.OPEN, 2L, now
         );
 
-        var json = objectMapper.readTree(objectMapper.writeValueAsBytes(
-                AuctionSseEvent.BidPlaced.from(domainEvent)
-        ));
+        var json = objectMapper.readTree(objectMapper.writeValueAsBytes(payload));
 
         assertThat(json.get("type").asText()).isEqualTo("BID_PLACED");
         assertThat(json.get("bidder_id").asInt()).isEqualTo(7);
@@ -58,15 +54,13 @@ class AuctionSseEventTest {
 
     @Test
     void 유찰_종료_이벤트의_winner는_null이다() throws Exception {
-        var domainEvent = new AuctionClosedEvent(
-                10, 20, "리자몽", "10", "JP", "/card.png", null, 3,
-                40_000L, 40_000L, 1_000L, 0, now, AuctionStatus.ENDED, 2L,
+        var payload = new AuctionClosedPayload(
+                null, 10, 20, "리자몽", "10", "JP", "/card.png", null, 3,
+                40_000L, 40_000L, 1_000L, 0, now, AuctionPayloadStatus.ENDED, 2L,
                 now, now
         );
 
-        var json = objectMapper.readTree(objectMapper.writeValueAsBytes(
-                AuctionSseEvent.AuctionClosed.from(domainEvent)
-        ));
+        var json = objectMapper.readTree(objectMapper.writeValueAsBytes(payload));
 
         assertThat(json.get("type").asText()).isEqualTo("AUCTION_CLOSED");
         assertThat(json.get("winner_id").isNull()).isTrue();

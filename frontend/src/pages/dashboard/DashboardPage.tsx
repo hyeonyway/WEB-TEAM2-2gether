@@ -3,10 +3,8 @@ import {ChevronRight,Search} from 'lucide-react';
 import {useState} from 'react';
 import {Header} from '../../components';
 import type {ParticipatingAuctionSort,RecentWinSort} from '../../api/dashboardApi';
-import {dashboardQueries} from '../../queries/dashboardQueries';
+import {dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
-import {applyDashboardEvents} from '../../queries/auctionEventCache';
-import {getDebugUserId} from '../../api/debugAuthStorage';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
 
 const sections=[
@@ -21,10 +19,11 @@ export default function DashboardPage(){
   const[participatingSort,setParticipatingSort]=useState<ParticipatingAuctionSort>('ENDING_SOON');
   const[recentWinSort,setRecentWinSort]=useState<RecentWinSort>('LATEST');
   const queryClient=useQueryClient();
-  const debugUserId=getDebugUserId();
-  const currentUserId=debugUserId===null?null:Number(debugUserId);
   useAuctionStream({
-    onAuctionUpdated:events=>applyDashboardEvents(queryClient,events,currentUserId),
+    enabled:active==='participating',
+    onAuctionUpdated:()=>void queryClient.invalidateQueries({
+      queryKey:[...dashboardQueryKey,'participating-auctions'],
+    }),
   });
   const dashboard=useQuery(
     active==='participating'

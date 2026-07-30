@@ -1,7 +1,6 @@
 package com.dbidding.auction.adapter;
 
 import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.auction.event.AuctionEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;

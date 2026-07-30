@@ -1,8 +1,8 @@
 package com.dbidding.sse.auction;
 
-import com.dbidding.auction.event.AuctionClosedEvent;
-import com.dbidding.auction.event.AuctionCreatedEvent;
-import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.sse.auction.payload.AuctionClosedPayload;
+import com.dbidding.sse.auction.payload.AuctionCreatedPayload;
+import com.dbidding.sse.auction.payload.BidPlacedPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -17,23 +17,23 @@ public class AuctionSseEventListener {
             phase = TransactionPhase.AFTER_COMMIT,
             fallbackExecution = true
     )
-    public void onAuctionCreated(AuctionCreatedEvent event) {
-        connectionManager.broadcast(AuctionSseEvent.AuctionCreated.from(event));
+    public void onAuctionCreated(AuctionCreatedPayload payload) {
+        connectionManager.broadcast(payload);
     }
 
     @TransactionalEventListener(
             phase = TransactionPhase.AFTER_COMMIT,
             fallbackExecution = true
     )
-    public void onBidPlaced(BidPlacedEvent event) {
-        connectionManager.broadcast(AuctionSseEvent.BidPlaced.from(event));
+    public void onBidPlaced(BidPlacedPayload payload) {
+        connectionManager.broadcast(payload);
     }
 
     @TransactionalEventListener(
             phase = TransactionPhase.AFTER_COMMIT,
             fallbackExecution = true
     )
-    public void onAuctionClosed(AuctionClosedEvent event) {
-        connectionManager.broadcast(AuctionSseEvent.AuctionClosed.from(event));
+    public void onAuctionClosed(AuctionClosedPayload payload) {
+        connectionManager.broadcast(payload);
     }
 }
