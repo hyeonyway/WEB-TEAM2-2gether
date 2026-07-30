@@ -33,7 +33,7 @@ import com.dbidding.wallet.repository.WalletRepository;
 
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
-	"statistics.scheduler.enabled=false",
+	"statistic.scheduler.enabled=false",
 	"spring.sql.init.mode=always",
 	"spring.jpa.hibernate.ddl-auto=validate"
 })
@@ -45,7 +45,7 @@ class WalletTransactionConcurrencyTest {
 		.withDatabaseName("dbidding");
 
 	@Autowired
-	private WalletTransactionService walletTransactionService;
+	private WalletService walletService;
 
 	@Autowired
 	private WalletRepository walletRepository;
@@ -118,7 +118,7 @@ class WalletTransactionConcurrencyTest {
 		Callable<WalletTransactionResponse> charge = () -> {
 			ready.countDown();
 			await(start);
-			return walletTransactionService.charge(1, 10_000L, "same-key");
+			return walletService.charge(1, 10_000L, "same-key");
 		};
 		List<Future<WalletTransactionResponse>> futures = List.of(
 			executor.submit(charge),
@@ -162,7 +162,7 @@ class WalletTransactionConcurrencyTest {
 		CountDownLatch refundStarted = new CountDownLatch(1);
 		Future<WalletTransactionResponse> refundFuture = executor.submit(() -> {
 			refundStarted.countDown();
-			return walletTransactionService.refund(1, 7_001L, "refund-key");
+			return walletService.refund(1, 7_001L, "refund-key");
 		});
 		assertThat(refundStarted.await(5, TimeUnit.SECONDS)).isTrue();
 		allowHoldCommit.countDown();

@@ -2,7 +2,8 @@ package com.dbidding.card.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.dbidding.card.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.service.DailyStatisticAggregationService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
-        "statistics.scheduler.enabled=false",
+        "statistic.scheduler.enabled=false",
         "spring.sql.init.mode=always",
         "spring.jpa.hibernate.ddl-auto=validate"
 })
@@ -105,8 +106,25 @@ class StatisticAggregationMySqlIntegrationTest {
         aggregationService.aggregate(LocalDate.of(2026, 7, 28));
 
         assertThat(count("market_daily_statistics")).isEqualTo(1);
+        assertThat(count("item_daily_statistics")).isEqualTo(1);
+        assertThat(nullableValue("select average_price from item_daily_statistics")).isNull();
+        assertThat(value("select bid_count from item_daily_statistics")).isZero();
+        assertThat(value("select ended_auction_count from item_daily_statistics")).isZero();
         assertThat(value("select bid_count from market_daily_statistics")).isZero();
         assertThat(value("select ended_auction_count from market_daily_statistics")).isZero();
+    }
+
+    @Test
+    void 무거래일_행이_최신_유효_시세를_지우지_않는다() {
+        aggregationService.aggregate(LocalDate.of(2026, 7, 27));
+        aggregationService.aggregate(LocalDate.of(2026, 7, 28));
+
+        assertThat(count("item_daily_statistics")).isEqualTo(2);
+        assertThat(nullableValue("""
+                select average_price from item_daily_statistics
+                where statistics_date = '2026-07-28'
+                """)).isNull();
+        assertThat(value("select latest_price from item_statistics")).isEqualTo(120_000);
     }
 
     @Test
@@ -134,6 +152,10 @@ class StatisticAggregationMySqlIntegrationTest {
     }
 
     private long value(String sql) {
+        return jdbcTemplate.queryForObject(sql, Long.class);
+    }
+
+    private Long nullableValue(String sql) {
         return jdbcTemplate.queryForObject(sql, Long.class);
     }
 }

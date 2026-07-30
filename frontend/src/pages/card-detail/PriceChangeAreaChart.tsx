@@ -21,16 +21,17 @@ export default function PriceChangeAreaChart({history}:Props){
     .map(point=>({
       date:point.date,
       timestamp:new Date(point.date).getTime(),
-      averagePrice:point.average_price,
-      bidCount:point.bid_count,
+      averagePrice:point.average_price??0,
+      noTrade:point.average_price===null,
+      auctionCount:point.ended_auction_count,
     }))
-    .filter(point=>Number.isFinite(point.timestamp)&&point.averagePrice>0)
+    .filter(point=>Number.isFinite(point.timestamp))
     .sort((a,b)=>a.timestamp-b.timestamp)
     .filter((point,index,points)=>points[index+1]?.timestamp!==point.timestamp),
   [history]);
   const config={
-    averagePrice:{label:'30일 평균 시세',color:'#16ad64'},
-    bidCount:{label:'30일 누적 입찰량',color:'#e2e2e2'},
+    averagePrice:{label:'일자별 평균 낙찰가',color:'#16ad64'},
+    auctionCount:{label:'일자별 총 낙찰 수',color:'#e2e2e2'},
   };
   const tickInterval=Math.max(Math.ceil(data.length/5)-1,0);
 
@@ -81,14 +82,14 @@ export default function PriceChangeAreaChart({history}:Props){
         <Legend
           verticalAlign="bottom"
           content={()=><div className="home-chart-legend detail-chart-legend">
-            <span><i className="price-line"/>30일 평균 시세</span>
-            <span><i className="bid-square"/>30일 누적 입찰량</span>
+            <span><i className="price-line"/>일자별 평균 낙찰가</span>
+            <span><i className="bid-square"/>일자별 총 낙찰 수</span>
           </div>}
         />
         <Bar
           yAxisId="bids"
-          dataKey="bidCount"
-          fill="var(--color-bidCount)"
+          dataKey="auctionCount"
+          fill="var(--color-auctionCount)"
           radius={[4,4,0,0]}
           maxBarSize={10}
         />

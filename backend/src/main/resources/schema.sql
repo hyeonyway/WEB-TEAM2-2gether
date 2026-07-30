@@ -186,8 +186,14 @@ CREATE TABLE auctions
     bid_price_unit       BIGINT       NOT NULL,
     is_hyped             BOOLEAN      NOT NULL,
     version              BIGINT       NOT NULL DEFAULT 1,
+    idempotency_key      VARCHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
+    idempotency_request_hash CHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
 
     CONSTRAINT pk_auctions PRIMARY KEY (id),
+    CONSTRAINT uk_auctions_user_idempotency
+        UNIQUE (user_id, idempotency_key),
     CONSTRAINT fk_auctions_user
         FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_auctions_item
@@ -228,8 +234,14 @@ CREATE TABLE bids
     bid_price  BIGINT       NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     status     VARCHAR(255) NOT NULL,
+    idempotency_key VARCHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
+    idempotency_request_hash CHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NULL,
 
     CONSTRAINT pk_bids PRIMARY KEY (id),
+    CONSTRAINT uk_bids_user_auction_idempotency
+        UNIQUE (user_id, auction_id, idempotency_key),
     CONSTRAINT fk_bids_user
         FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_bids_auction
@@ -358,16 +370,16 @@ CREATE TABLE notification
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    INT          NOT NULL,
     auction_id INT          NOT NULL,
-    message    VARCHAR(255) NOT NULL,
+    message    VARCHAR(300) NOT NULL,
+    is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     CONSTRAINT pk_notification PRIMARY KEY (id),
     CONSTRAINT fk_notification_user
         FOREIGN KEY (user_id) REFERENCES users (id),
-    CONSTRAINT fk_notification_auction
-        FOREIGN KEY (auction_id) REFERENCES auctions (id),
 
     INDEX idx_notification_user_id (user_id),
-    INDEX idx_notification_auction_id (auction_id)
+    INDEX idx_notification_user_id_is_read (user_id, is_read)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

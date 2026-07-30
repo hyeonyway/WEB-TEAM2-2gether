@@ -57,4 +57,15 @@ class TestAuthFilterTest {
 		assertThat(zero.getAttribute("userId")).isNull();
 		assertThat(negative.getAttribute("userId")).isNull();
 	}
+
+	@Test
+	void 이미_JWT_사용자_ID가_있으면_디버그_헤더가_덮어쓰지_않는다() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.setAttribute("userId", 7);
+		request.addHeader("X-Debug-User-Id", "8");
+
+		filter.doFilterInternal(request, new MockHttpServletResponse(), new MockFilterChain());
+
+		assertThat(request.getAttribute("userId")).isEqualTo(7);
+	}
 }

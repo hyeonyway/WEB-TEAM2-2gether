@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -74,6 +75,12 @@ public class Auction {
     @Column(nullable = false)
     private Long version;
 
+    @Column(name = "idempotency_key", length = 64)
+    private String createIdempotencyKey;
+
+    @Column(name = "idempotency_request_hash", length = 64)
+    private String createIdempotencyRequestHash;
+
     @Builder
     public Auction(
             Integer sellerId,
@@ -107,7 +114,76 @@ public class Auction {
         this.version = 1L;
     }
 
+    public void recordCreateIdempotency(String idempotencyKey, String requestHash) {
+        this.createIdempotencyKey = idempotencyKey;
+        this.createIdempotencyRequestHash = requestHash;
+    }
+
     public Long minimumBid() {
         return currentPrice + bidPriceUnit;
+    }
+
+    public void closeWithWinningBid(Bid winningBid, LocalDateTime closedAt) {
+        validateClosable();
+        if (winningBid == null) {
+            throw new IllegalArgumentException("낙찰 입찰이 필요합니다.");
+        }
+        status = AuctionStatus.ENDED;
+        currentPrice = winningBid.getBidPrice();
+        closeTime = closedAt;
+    }
+
+    public void closeWithoutTrade(LocalDateTime closedAt) {
+        validateClosable();
+        status = AuctionStatus.FAILED;
+        closeTime = closedAt;
+    }
+
+    private void validateClosable() {
+        if (status != AuctionStatus.OPEN && status != AuctionStatus.ENDING) {
+            throw new IllegalArgumentException("진행 중인 경매만 종료할 수 있습니다.");
+        }
+    }
+
+    private boolean extendCloseTimeIfNeeded(
+            LocalDateTime bidAt,
+            Duration extensionWindow,
+            Duration extensionDuration
+    ) {
+        if (extensionWindow.isNegative() || extensionWindow.isZero()) {
+            return false;
+        }
+        if (extensionDuration.isNegative() || extensionDuration.isZero()) {
+            return false;
+        }
+        LocalDateTime extensionThreshold = closeTime.minus(extensionWindow);
+        if (bidAt.isBefore(extensionThreshold)) {
+            return false;
+        }
+        LocalDateTime extendedCloseTime = closeTime.plus(extensionDuration);
+        closeTime = extendedCloseTime;
+        estimatedCloseTime = extendedCloseTime;
+        status = AuctionStatus.ENDING;
+        return true;
+    }
+
+    public boolean placeBid(
+            Long bidPrice,
+            LocalDateTime bidAt,
+            Duration extensionWindow,
+            Duration extensionDuration
+    ) {
+        if (status != AuctionStatus.OPEN && status != AuctionStatus.ENDING) {
+            throw new IllegalArgumentException("진행 중인 경매에만 입찰할 수 있습니다.");
+        }
+        if (!bidAt.isBefore(closeTime)) {
+            throw new IllegalArgumentException("이미 종료된 경매입니다.");
+        }
+        if (bidPrice < minimumBid()) {
+            throw new IllegalArgumentException("최소 입찰가 이상으로 입찰해야 합니다.");
+        }
+        currentPrice = bidPrice;
+        bidCount++;
+        return extendCloseTimeIfNeeded(bidAt, extensionWindow, extensionDuration);
     }
 }

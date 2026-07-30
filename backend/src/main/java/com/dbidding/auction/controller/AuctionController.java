@@ -4,6 +4,7 @@ import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.dto.AuctionCreateResponse;
 import com.dbidding.auction.dto.AuctionResponses;
 import com.dbidding.auction.dto.AuctionSearchRequest;
+import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
 import com.dbidding.auction.service.AuctionService;
@@ -38,6 +39,16 @@ public class AuctionController {
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(auctionService.create(request, idempotencyKey));
+    }
+
+    @PostMapping("/{auctionId}/bids")
+    public ResponseEntity<BidResponses.BidSummary> participate(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @PathVariable @Min(1) Integer auctionId,
+            @Valid @RequestBody BidCreateRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(auctionService.participate(auctionId, request, idempotencyKey));
     }
 
     @GetMapping

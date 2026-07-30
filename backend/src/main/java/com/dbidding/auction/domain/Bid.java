@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -42,11 +43,69 @@ public class Bid {
     @Column(nullable = false)
     private BidStatus status;
 
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
+    @Column(name = "idempotency_request_hash", length = 64)
+    private String idempotencyRequestHash;
+
+    public static Bid leading(Integer bidderId, Auction auction, Long bidPrice, LocalDateTime createdAt) {
+        return leading(bidderId, auction, bidPrice, createdAt, null, null);
+    }
+
+    public static Bid leading(
+            Integer bidderId,
+            Auction auction,
+            Long bidPrice,
+            LocalDateTime createdAt,
+            String idempotencyKey,
+            String idempotencyRequestHash
+    ) {
+        return Bid.builder()
+                .bidderId(bidderId)
+                .auction(auction)
+                .bidPrice(bidPrice)
+                .createdAt(createdAt)
+                .status(BidStatus.LEADING)
+                .idempotencyKey(idempotencyKey)
+                .idempotencyRequestHash(idempotencyRequestHash)
+                .build();
+    }
+
     public Bid(Integer bidderId, Auction auction, Long bidPrice, LocalDateTime createdAt, BidStatus status) {
+        this(bidderId, auction, bidPrice, createdAt, status, null, null);
+    }
+
+    @Builder
+    public Bid(
+            Integer bidderId,
+            Auction auction,
+            Long bidPrice,
+            LocalDateTime createdAt,
+            BidStatus status,
+            String idempotencyKey,
+            String idempotencyRequestHash
+    ) {
         this.bidderId = bidderId;
         this.auction = auction;
         this.bidPrice = bidPrice;
         this.createdAt = createdAt;
         this.status = status;
+        this.idempotencyKey = idempotencyKey;
+        this.idempotencyRequestHash = idempotencyRequestHash;
+    }
+
+
+    public void markOutbid() {
+        if (status == BidStatus.LEADING) {
+            status = BidStatus.OUTBID;
+        }
+    }
+
+    public void markWon() {
+        if (status != BidStatus.LEADING) {
+            throw new IllegalArgumentException("최고 입찰만 낙찰 처리할 수 있습니다.");
+        }
+        status = BidStatus.WON;
     }
 }

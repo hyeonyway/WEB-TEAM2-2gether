@@ -1,6 +1,10 @@
 # Auth 개발 계획
 
-Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주기를 소유한다. 인증 구현이 완료되기 전까지 다른 도메인은 `debug-auth` 프로필에서만 `X-Debug-User-Id`를 사용하므로, Auth 구현 중간 결과를 전역 필터에 연결하지 않는다.
+> 현재 구현은 `account` 패키지로 통합됐다. 이 디렉터리는 인증 기능을 처음
+> 구현할 때의 설계와 판단을 보존하는 역사적 문서다.
+
+Account는 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주기를 소유한다.
+현재 소스 경로는 `com.dbidding.account`이며 외부 `/api/auth/**` 계약은 유지한다.
 
 ## 구현 단계
 
@@ -22,7 +26,7 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 ## 주요 규칙
 
 - 회원가입 입력은 `email`, `password`, `nickname`만 사용한다.
-- User 기본값은 `role=USER`, `status=ACTIVE`이며 MVP에서는 프로필 이미지를 저장하지 않는다.
+- Account 기본값은 `role=USER`, `status=ACTIVE`이며 MVP에서는 프로필 이미지를 저장하지 않는다.
 - Authentication row는 회원가입 시 만들지 않고 첫 로그인 성공 시 생성한다.
 - 사용자당 Authentication row가 하나이므로 MVP는 한 사용자의 활성 Refresh Token을 하나만 허용한다.
 - Access Token에는 `sub=userId`, `role`, `type=access`, `iat`, `exp`만 넣는다.
@@ -36,6 +40,6 @@ Auth는 User 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주�
 - Refresh Token 원문과 비밀번호 평문이 DB에 저장되지 않는다.
 - 잘못된 서명, 만료, token type과 Access Token의 잘못된 role을 각각 정의된
   인증 실패로 처리한다.
-- 실제 `JwtAuthFilter` 전역 적용은 인증 통합 스프린트까지 보류한다.
+- 실제 `JwtAuthFilter`와 SSE 티켓 인증까지 전역 연결을 완료했다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다

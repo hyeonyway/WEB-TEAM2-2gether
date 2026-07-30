@@ -17,5 +17,6 @@ export async function request<T>(path:string,options?:RequestInit):Promise<T>{
     },
   });
   if(!response.ok)throw new HttpError(response.status,await response.text());
+  if(response.status===204)return undefined as T;
   return response.json() as Promise<T>;
 }

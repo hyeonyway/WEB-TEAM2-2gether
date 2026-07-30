@@ -12,11 +12,11 @@ public class InMemoryAuctionEventAdapter implements AuctionEventPort {
     private final List<AuctionEvent> events = new CopyOnWriteArrayList<>();
 
     @Override
-    public void record(AuctionEvent event) {
+    public void publish(AuctionEvent event) {
         events.add(event);
     }
 
-    public List<AuctionEvent> recordedEvents() {
+    public List<AuctionEvent> publishedEvents() {
         return List.copyOf(events);
     }
 

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dbidding.global.security.CurrentUser;
 import com.dbidding.wallet.dto.WalletTransactionRequest;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
-import com.dbidding.wallet.service.WalletTransactionService;
+import com.dbidding.wallet.service.WalletService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WalletTransactionController {
 
-	private final WalletTransactionService walletTransactionService;
+	private final WalletService walletService;
 
 	@PostMapping("/charges")
 	public WalletTransactionResponse charge(
@@ -30,7 +30,7 @@ public class WalletTransactionController {
 		@NotBlank @Size(max = 64) String idempotencyKey,
 		@Valid @RequestBody WalletTransactionRequest request
 	) {
-		return walletTransactionService.charge(
+		return walletService.charge(
 			userId,
 			request.amount(),
 			idempotencyKey
@@ -44,7 +44,7 @@ public class WalletTransactionController {
 		@NotBlank @Size(max = 64) String idempotencyKey,
 		@Valid @RequestBody WalletTransactionRequest request
 	) {
-		return walletTransactionService.refund(
+		return walletService.refund(
 			userId,
 			request.amount(),
 			idempotencyKey
