@@ -151,7 +151,10 @@ public class AuctionQueryService {
     }
 
     private Optional<Bid> highestBid(Integer auctionId) {
-        return bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auctionId, BidStatus.LEADING);
+        return bidRepository.findFirstByAuctionIdAndStatusInOrderByBidPriceDescCreatedAtAsc(
+                auctionId,
+                List.of(BidStatus.LEADING, BidStatus.WON)
+        );
     }
 
     private AuctionImage firstImage(Map<Integer, List<AuctionImage>> images, Auction auction) {
@@ -174,7 +177,7 @@ public class AuctionQueryService {
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getEstimatedCloseTime())
+                .endsAt(auction.getCloseTime())
                 .status(auction.getStatus())
                 .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
@@ -265,7 +268,7 @@ public class AuctionQueryService {
         if (bid == null) {
             return MyBidStatus.NONE;
         }
-        if (bid.getStatus() == BidStatus.LEADING) {
+        if (bid.getStatus() == BidStatus.LEADING || bid.getStatus() == BidStatus.WON) {
             return MyBidStatus.LEADING;
         }
         return MyBidStatus.OUTBID;

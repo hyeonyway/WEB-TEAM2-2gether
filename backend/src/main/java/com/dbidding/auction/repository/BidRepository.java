@@ -12,6 +12,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BidRepository extends JpaRepository<Bid, Long> {
     Optional<Bid> findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(Integer auctionId, BidStatus status);
 
+    Optional<Bid> findFirstByAuctionIdAndStatusInOrderByBidPriceDescCreatedAtAsc(
+            Integer auctionId,
+            Collection<BidStatus> statuses
+    );
+
     Optional<Bid> findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(Integer auctionId, Integer bidderId);
 
     Optional<Bid> findFirstByBidderIdAndAuctionIdAndIdempotencyKey(
