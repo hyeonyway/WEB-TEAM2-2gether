@@ -68,7 +68,7 @@ class NotificationControllerTest {
     @Test
     void 개별_알림을_읽음_처리한다() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/1/read"))
-                .andExpect(MockMvcResultMatchers.status().isOk());
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
 
         then(notificationService).should().markAsRead(1, 1L);
     }
@@ -76,7 +76,7 @@ class NotificationControllerTest {
     @Test
     void 전체_알림을_읽음_처리한다() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/read-all"))
-                .andExpect(MockMvcResultMatchers.status().isOk());
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
 
         then(notificationService).should().markAllAsRead(1);
     }

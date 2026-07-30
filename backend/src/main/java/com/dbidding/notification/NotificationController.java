@@ -2,6 +2,7 @@ package com.dbidding.notification;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -36,12 +37,14 @@ public class NotificationController {
     }
 
     @PatchMapping("/{notificationId}/read")
-    public void markAsRead(@CurrentUser Integer userId, @PathVariable Long notificationId) {
+    public ResponseEntity<Void> markAsRead(@CurrentUser Integer userId, @PathVariable Long notificationId) {
         notificationService.markAsRead(userId, notificationId);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/read-all")
-    public void markAllAsRead(@CurrentUser Integer userId) {
+    public ResponseEntity<Void> markAllAsRead(@CurrentUser Integer userId) {
         notificationService.markAllAsRead(userId);
+        return ResponseEntity.noContent().build();
     }
 }
