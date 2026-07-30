@@ -29,12 +29,9 @@ describe('AppRoutes', () => {
     expect(screen.getByRole('heading', {name: '카드 경매'})).toBeInTheDocument();
   });
 
-  it.each([
-    ['/login', '로그인'],
-    ['/signup', '회원가입'],
-  ])('%s 인증 경로를 제공한다', (path, heading) => {
-    renderRoute(path);
+  it('인증 전용 경로를 만들지 않고 알 수 없는 경로는 홈으로 보낸다', () => {
+    renderRoute('/login');
 
-    expect(screen.getByRole('heading', {name: heading})).toBeInTheDocument();
+    expect(screen.getByRole('heading', {name: '경매 인사이트'})).toBeInTheDocument();
   });
 });
