@@ -14,6 +14,12 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     Optional<Bid> findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(Integer auctionId, Integer bidderId);
 
+    Optional<Bid> findFirstByBidderIdAndAuctionIdAndIdempotencyKey(
+            Integer bidderId,
+            Integer auctionId,
+            String idempotencyKey
+    );
+
     Page<Bid> findByAuctionIdOrderByCreatedAtDescIdDesc(Integer auctionId, Pageable pageable);
 
     List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDesc(Collection<Integer> auctionIds, Integer bidderId);
