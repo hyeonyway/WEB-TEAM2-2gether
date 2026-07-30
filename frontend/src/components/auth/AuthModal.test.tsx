@@ -268,6 +268,23 @@ describe('Header Wallet 잔액', () => {
     expect(screen.getByRole('button', {name: /전자지갑.*987,654P.*충전하기/}))
       .toBeInTheDocument();
   });
+
+  it('Wallet 조회 오류 시 0원 대신 재시도 진입점을 표시한다', async () => {
+    setAccessToken('access-token');
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'WALLET_NOT_FOUND'}, 404));
+    const user = userEvent.setup();
+
+    renderHeader('/');
+
+    const retryButton = await screen.findByRole('button', {
+      name: '전자지갑 잔액 다시 시도',
+    });
+    expect(screen.queryByText('0P')).not.toBeInTheDocument();
+
+    await user.click(retryButton);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('AuthModal 회원가입', () => {

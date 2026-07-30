@@ -33,4 +33,20 @@ describe('walletApi', () => {
     expect(new Headers(requestOptions?.headers).get('Authorization'))
       .toBe('Bearer wallet-access-token');
   });
+
+  it('안전한 정수가 아닌 Wallet 금액 응답을 거부한다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({
+        totalBalance: Number.MAX_SAFE_INTEGER + 1,
+        frozenBalance: 0,
+        availableBalance: Number.MAX_SAFE_INTEGER + 1,
+      }), {
+        status: 200,
+        headers: {'Content-Type': 'application/json'},
+      }));
+    setAccessToken('wallet-access-token');
+
+    await expect(fetchWalletBalance())
+      .rejects.toThrow('Wallet 잔액 응답이 안전한 정수가 아닙니다.');
+  });
 });

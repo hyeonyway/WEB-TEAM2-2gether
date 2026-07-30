@@ -44,6 +44,8 @@ export default function Header(){
   const walletControl=authGate.status==='authenticated'
     ?walletQuery.isPending
       ?<div className="header-wallet header-wallet-skeleton" role="status" aria-label="전자지갑 잔액 불러오는 중"/>
+      :walletQuery.isError
+        ?<button type="button" className="header-wallet header-wallet-error" aria-label="전자지갑 잔액 다시 시도" onClick={()=>void walletQuery.refetch()}><Wallet/><b>다시 시도</b></button>
       :wallet!==undefined
         ?<button className="header-wallet" onClick={()=>setChargeOpen(true)}><Wallet/><span><small>내 전자지갑</small><strong>{wallet.toLocaleString()}P</strong></span><b>충전하기</b></button>
         :null

@@ -1,5 +1,5 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
@@ -79,9 +79,22 @@ describe('AppRoutes', () => {
   });
 
   it('mypage 보호 모달에서 로그인하면 페이지 내용을 표시한다', async () => {
-    vi.mocked(globalThis.fetch)
-      .mockResolvedValueOnce(jsonResponse({code: 'REFRESH_TOKEN_MISSING'}, 401))
-      .mockResolvedValueOnce(jsonResponse({accessToken: 'issued-access-token'}));
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      if (input === '/api/auth/refresh') {
+        return jsonResponse({code: 'REFRESH_TOKEN_MISSING'}, 401);
+      }
+      if (input === '/api/auth/login') {
+        return jsonResponse({accessToken: 'issued-access-token'});
+      }
+      if (input === '/api/wallet') {
+        return jsonResponse({
+          totalBalance: 850_000,
+          frozenBalance: 120_000,
+          availableBalance: 730_000,
+        });
+      }
+      throw new Error(`unexpected request: ${String(input)}`);
+    });
     const user = userEvent.setup();
     renderRoute('/mypage');
     await screen.findByRole('dialog', {name: '계정 로그인'});
@@ -95,5 +108,11 @@ describe('AppRoutes', () => {
         .toBeInTheDocument();
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const walletRegion = await screen.findByRole('region', {
+      name: '전자지갑 잔액',
+    });
+    expect(within(walletRegion).getByText('850,000P')).toBeInTheDocument();
+    expect(within(walletRegion).getByText('120,000P')).toBeInTheDocument();
+    expect(within(walletRegion).getByText('730,000P')).toBeInTheDocument();
   });
 });
