@@ -85,12 +85,18 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
       <label>
         이메일
         <input
+          type="email"
           autoComplete="email"
           value={values.email}
           onChange={event => updateValue('email', event.target.value)}
           aria-invalid={Boolean(errors.email)}
+          aria-describedby={errors.email ? 'signup-email-error' : undefined}
         />
-        {errors.email && <small className="auth-field-error">{errors.email}</small>}
+        {errors.email && (
+          <small id="signup-email-error" className="auth-field-error" role="alert">
+            {errors.email}
+          </small>
+        )}
       </label>
       <label>
         비밀번호
@@ -100,8 +106,13 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
           value={values.password}
           onChange={event => updateValue('password', event.target.value)}
           aria-invalid={Boolean(errors.password)}
+          aria-describedby={errors.password ? 'signup-password-error' : undefined}
         />
-        {errors.password && <small className="auth-field-error">{errors.password}</small>}
+        {errors.password && (
+          <small id="signup-password-error" className="auth-field-error" role="alert">
+            {errors.password}
+          </small>
+        )}
       </label>
       <label>
         비밀번호 확인
@@ -111,9 +122,18 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
           value={values.passwordConfirmation}
           onChange={event => updateValue('passwordConfirmation', event.target.value)}
           aria-invalid={Boolean(errors.passwordConfirmation)}
+          aria-describedby={
+            errors.passwordConfirmation ? 'signup-password-confirmation-error' : undefined
+          }
         />
         {errors.passwordConfirmation && (
-          <small className="auth-field-error">{errors.passwordConfirmation}</small>
+          <small
+            id="signup-password-confirmation-error"
+            className="auth-field-error"
+            role="alert"
+          >
+            {errors.passwordConfirmation}
+          </small>
         )}
       </label>
       <label>
@@ -123,8 +143,13 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
           value={values.nickname}
           onChange={event => updateValue('nickname', event.target.value)}
           aria-invalid={Boolean(errors.nickname)}
+          aria-describedby={errors.nickname ? 'signup-nickname-error' : undefined}
         />
-        {errors.nickname && <small className="auth-field-error">{errors.nickname}</small>}
+        {errors.nickname && (
+          <small id="signup-nickname-error" className="auth-field-error" role="alert">
+            {errors.nickname}
+          </small>
+        )}
       </label>
       {errors.submit && <p className="auth-submit-error" role="alert">{errors.submit}</p>}
       <button className="auth-primary-button" type="submit" disabled={signupMutation.isPending}>

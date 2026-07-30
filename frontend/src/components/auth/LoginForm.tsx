@@ -60,12 +60,18 @@ export default function LoginForm({initialEmail = '', onSuccess}: LoginFormProps
       <label>
         이메일
         <input
+          type="email"
           autoComplete="email"
           value={values.email}
           onChange={event => updateValue('email', event.target.value)}
           aria-invalid={Boolean(errors.email)}
+          aria-describedby={errors.email ? 'login-email-error' : undefined}
         />
-        {errors.email && <small className="auth-field-error">{errors.email}</small>}
+        {errors.email && (
+          <small id="login-email-error" className="auth-field-error" role="alert">
+            {errors.email}
+          </small>
+        )}
       </label>
       <label>
         비밀번호
@@ -75,8 +81,13 @@ export default function LoginForm({initialEmail = '', onSuccess}: LoginFormProps
           value={values.password}
           onChange={event => updateValue('password', event.target.value)}
           aria-invalid={Boolean(errors.password)}
+          aria-describedby={errors.password ? 'login-password-error' : undefined}
         />
-        {errors.password && <small className="auth-field-error">{errors.password}</small>}
+        {errors.password && (
+          <small id="login-password-error" className="auth-field-error" role="alert">
+            {errors.password}
+          </small>
+        )}
       </label>
       {errors.submit && <p className="auth-submit-error" role="alert">{errors.submit}</p>}
       <button className="auth-primary-button" type="submit" disabled={loginMutation.isPending}>

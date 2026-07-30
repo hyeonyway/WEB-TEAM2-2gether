@@ -177,17 +177,35 @@ describe('AuthModal 회원가입', () => {
 
   it('유효하지 않은 입력과 비밀번호 불일치를 서버에 보내지 않는다', async () => {
     const user = await openSignupForm();
+    const emailInput = screen.getByLabelText('이메일');
+    const passwordInput = screen.getByLabelText('비밀번호');
+    const passwordConfirmationInput = screen.getByLabelText('비밀번호 확인');
+    const nicknameInput = screen.getByLabelText('닉네임');
 
-    await user.type(screen.getByLabelText('이메일'), 'invalid-email');
-    await user.type(screen.getByLabelText('비밀번호'), 'short');
-    await user.type(screen.getByLabelText('비밀번호 확인'), 'different');
-    await user.type(screen.getByLabelText('닉네임'), '가');
+    expect(emailInput).toHaveAttribute('type', 'email');
+    await user.type(emailInput, 'invalid-email');
+    await user.type(passwordInput, 'short');
+    await user.type(passwordConfirmationInput, 'different');
+    await user.type(nicknameInput, '가');
     await user.click(screen.getByRole('button', {name: '회원가입'}));
 
-    expect(await screen.findByText('올바른 이메일 주소를 입력해 주세요.')).toBeInTheDocument();
-    expect(screen.getByText('비밀번호는 8자 이상 128자 이하로 입력해 주세요.')).toBeInTheDocument();
-    expect(screen.getByText('비밀번호가 일치하지 않습니다.')).toBeInTheDocument();
-    expect(screen.getByText('닉네임은 2자 이상 30자 이하로 입력해 주세요.')).toBeInTheDocument();
+    const emailError = await screen.findByText('올바른 이메일 주소를 입력해 주세요.');
+    const passwordError = screen.getByText('비밀번호는 8자 이상 128자 이하로 입력해 주세요.');
+    const passwordConfirmationError = screen.getByText('비밀번호가 일치하지 않습니다.');
+    const nicknameError = screen.getByText('닉네임은 2자 이상 30자 이하로 입력해 주세요.');
+    expect(emailInput).toHaveAttribute('aria-describedby', 'signup-email-error');
+    expect(passwordInput).toHaveAttribute('aria-describedby', 'signup-password-error');
+    expect(passwordConfirmationInput)
+      .toHaveAttribute('aria-describedby', 'signup-password-confirmation-error');
+    expect(nicknameInput).toHaveAttribute('aria-describedby', 'signup-nickname-error');
+    expect(emailError).toHaveAttribute('id', 'signup-email-error');
+    expect(passwordError).toHaveAttribute('id', 'signup-password-error');
+    expect(passwordConfirmationError)
+      .toHaveAttribute('id', 'signup-password-confirmation-error');
+    expect(nicknameError).toHaveAttribute('id', 'signup-nickname-error');
+    for (const error of [emailError, passwordError, passwordConfirmationError, nicknameError]) {
+      expect(error).toHaveAttribute('role', 'alert');
+    }
     expect(signupMock).not.toHaveBeenCalled();
   });
 
@@ -262,13 +280,22 @@ describe('AuthModal 로그인', () => {
 
   it('유효하지 않은 이메일과 빈 비밀번호를 서버에 보내지 않는다', async () => {
     const {dialog, user} = await openLoginForm();
-    await user.type(within(dialog).getByLabelText('이메일'), 'invalid-email');
+    const emailInput = within(dialog).getByLabelText('이메일');
+    const passwordInput = within(dialog).getByLabelText('비밀번호');
+
+    expect(emailInput).toHaveAttribute('type', 'email');
+    await user.type(emailInput, 'invalid-email');
 
     await user.click(within(dialog).getByRole('button', {name: '로그인'}));
 
-    expect(await within(dialog).findByText('올바른 이메일 주소를 입력해 주세요.'))
-      .toBeInTheDocument();
-    expect(within(dialog).getByText('비밀번호를 입력해 주세요.')).toBeInTheDocument();
+    const emailError = await within(dialog).findByText('올바른 이메일 주소를 입력해 주세요.');
+    const passwordError = within(dialog).getByText('비밀번호를 입력해 주세요.');
+    expect(emailInput).toHaveAttribute('aria-describedby', 'login-email-error');
+    expect(passwordInput).toHaveAttribute('aria-describedby', 'login-password-error');
+    expect(emailError).toHaveAttribute('id', 'login-email-error');
+    expect(passwordError).toHaveAttribute('id', 'login-password-error');
+    expect(emailError).toHaveAttribute('role', 'alert');
+    expect(passwordError).toHaveAttribute('role', 'alert');
     expect(loginMock).not.toHaveBeenCalled();
   });
 
