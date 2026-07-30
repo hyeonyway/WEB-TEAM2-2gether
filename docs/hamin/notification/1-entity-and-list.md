@@ -1,6 +1,6 @@
-# Notification 설계 문서
+# Notification 엔티티 + 목록조회 골격
 
-담당: D(임하민). 이번 라운드는 설계 정리만 하고, 코드는 이 문서 피드백 이후 다음 단계에서 작성한다.
+담당: D(임하민). 이 라운드는 설계 정리만 하고, 코드는 이 문서 피드백 이후 다음 단계에서 작성한다.
 
 ## 범위
 
@@ -24,7 +24,7 @@ CREATE TABLE notification (
 )
 ```
 
-- `created_at`, `is_read` 컬럼이 없다 → "언제 생겼는지/읽었는지"는 스키마 범위 밖. 정렬은 `id desc`(BIGINT auto-increment라 생성 순서와 동일)로 대체한다.
+- `created_at`, `is_read` 컬럼이 없다 → "언제 생겼는지/읽었는지"는 스키마 범위 밖. 정렬은 `id desc`(BIGINT auto-increment라 생성 순서와 동일)로 대체한다. (→ [2-read-status-and-navigation.md](2-read-status-and-navigation.md)에서 추가)
 - `package-structure.md`의 PK 규칙상 `notification`은 예외적으로 `id`가 `Long`(BIGINT)이다 — Wishlist(`Integer`)와 다르다.
 - `auction_id`는 FK로 `auctions`를 향하지만 Auction 엔티티는 다른 담당 소관 → Wishlist와 동일하게 `Integer auctionId` 필드만 갖고 Auction 엔티티는 참조하지 않는다.
 
@@ -125,3 +125,5 @@ auction이 `AuctionCreatedEvent`를 실제로 발행하고 card가 `getName(card
 2. `feat: 알림 목록 조회 API 구현`
 3. `feat: Wishlist에 카드별 찜한 유저 조회 기능 추가`
 4. `test: Notification 서비스/컨트롤러 단위 테스트 작성`
+
+> 이 문서는 claude의 도움을 받아 작성하였습니다.
