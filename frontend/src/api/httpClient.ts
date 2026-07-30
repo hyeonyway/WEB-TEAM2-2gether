@@ -8,13 +8,16 @@ export class HttpError extends Error{
 
 export async function request<T>(path:string,options?:RequestInit):Promise<T>{
   const debugUserId=getDebugUserId();
+  const headers=new Headers(options?.headers);
+  if(!headers.has('Content-Type'))headers.set('Content-Type','application/json');
+  if(headers.has('Authorization')){
+    headers.delete('X-Debug-User-Id');
+  }else if(debugUserId){
+    headers.set('X-Debug-User-Id',debugUserId);
+  }
   const response=await fetch(`${import.meta.env.VITE_API_BASE_URL??''}${path}`,{
     ...options,
-    headers:{
-      'Content-Type':'application/json',
-      ...(debugUserId?{'X-Debug-User-Id':debugUserId}:{ }),
-      ...options?.headers,
-    },
+    headers,
   });
   if(!response.ok)throw new HttpError(response.status,await response.text());
   if(response.status===204)return undefined as T;

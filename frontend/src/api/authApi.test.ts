@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {getAccessToken, setAccessToken} from './accessTokenStore';
-import {login, logout, signup} from './authApi';
+import {clearAccessToken, getAccessToken, setAccessToken} from './accessTokenStore';
+import {login, logout, refreshAccessToken, signup} from './authApi';
 
 const signupResponse = {
   id: 1,
@@ -20,6 +20,7 @@ function jsonResponse(body: unknown, status = 200) {
 describe('authApi', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    clearAccessToken();
   });
 
   it('회원가입 요청을 Refresh 쿠키를 포함할 수 있는 옵션으로 전송한다', async () => {
@@ -61,6 +62,85 @@ describe('authApi', () => {
       }),
     );
     expect(getAccessToken()).toBe('issued-access-token');
+  });
+
+  it('Refresh 쿠키로 새 Access Token을 발급받아 메모리에 보관한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({accessToken: 'refreshed-access-token'}));
+
+    await expect(refreshAccessToken()).resolves.toEqual({
+      accessToken: 'refreshed-access-token',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/refresh',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+      }),
+    );
+    expect(getAccessToken()).toBe('refreshed-access-token');
+  });
+
+  it('Refresh 실패 시 기존 Access Token을 제거한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'INVALID_REFRESH_TOKEN'}, 401));
+    setAccessToken('expired-access-token');
+
+    await expect(refreshAccessToken()).rejects.toMatchObject({status: 401});
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it('Refresh 서버 오류 시 기존 Access Token을 유지한다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'INTERNAL_SERVER_ERROR'}, 500));
+    setAccessToken('still-valid-access-token');
+
+    await expect(refreshAccessToken()).rejects.toMatchObject({status: 500});
+
+    expect(getAccessToken()).toBe('still-valid-access-token');
+  });
+
+  it('회원가입 401은 자동 Refresh 없이 그대로 반환한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({}, 401));
+
+    await expect(signup({
+      email: 'collector@example.com',
+      password: 'Password123!',
+      nickname: '포켓컬렉터',
+    })).rejects.toMatchObject({status: 401});
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('로그인 401은 자동 Refresh 없이 그대로 반환한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({}, 401));
+
+    await expect(login({
+      email: 'collector@example.com',
+      password: 'wrong-password',
+    })).rejects.toMatchObject({status: 401});
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/login',
+      expect.objectContaining({method: 'POST'}),
+    );
+  });
+
+  it('로그아웃 401은 자동 Refresh 없이 토큰을 제거하고 그대로 반환한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({}, 401));
+    setAccessToken('access-token');
+
+    await expect(logout()).rejects.toMatchObject({status: 401});
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getAccessToken()).toBeNull();
   });
 
   it('로그아웃 요청이 실패해도 메모리의 Access Token을 제거한다', async () => {

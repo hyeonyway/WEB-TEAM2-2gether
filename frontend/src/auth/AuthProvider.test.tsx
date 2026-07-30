@@ -1,0 +1,150 @@
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
+import {render, screen, waitFor} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import {MemoryRouter} from 'react-router-dom';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {clearAccessToken, getAccessToken} from '../api/accessTokenStore';
+import {AuthProvider} from './AuthProvider';
+import {useAuth} from './useAuth';
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {'Content-Type': 'application/json'},
+  });
+}
+
+function AuthStatusProbe() {
+  const {status} = useAuth();
+  return <output data-testid="auth-status">{status}</output>;
+}
+
+function RetryInitializationButton() {
+  const {retryInitialization} = useAuth();
+  return <button type="button" onClick={retryInitialization}>인증 복구 요청</button>;
+}
+
+function renderAuthProvider() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {retry: false},
+    },
+  });
+
+  return {
+    queryClient,
+    ...render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <AuthProvider>
+          <span>공개 화면</span>
+          <AuthStatusProbe/>
+          <RetryInitializationButton/>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+    ),
+  };
+}
+
+describe('AuthProvider 앱 시작 인증 복구', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    clearAccessToken();
+  });
+
+  it('Refresh 성공 전에는 initializing이고 성공하면 authenticated가 된다', async () => {
+    let resolveRefresh!: (response: Response) => void;
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockReturnValue(new Promise(resolve => {
+        resolveRefresh = resolve;
+      }));
+
+    renderAuthProvider();
+
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('initializing');
+    expect(screen.getByText('공개 화면')).toBeInTheDocument();
+
+    resolveRefresh(jsonResponse({accessToken: 'restored-access-token'}));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('authenticated');
+    });
+    expect(getAccessToken()).toBe('restored-access-token');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('Refresh 401이면 공개 화면을 유지하며 anonymous가 된다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'REFRESH_TOKEN_MISSING'}, 401));
+
+    renderAuthProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    expect(screen.getByText('공개 화면')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('네트워크 실패를 안내하고 사용자가 Refresh를 다시 시도할 수 있다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('network error'))
+      .mockResolvedValueOnce(jsonResponse({accessToken: 'retried-access-token'}));
+    const user = userEvent.setup();
+
+    renderAuthProvider();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '로그인 상태를 확인하지 못했습니다.',
+    );
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+
+    await user.click(screen.getByRole('button', {name: '다시 시도'}));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('authenticated');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getAccessToken()).toBe('retried-access-token');
+  });
+
+  it('인증 복구 중 재시도 요청이 겹쳐도 Refresh를 한 번만 호출한다', async () => {
+    let resolveRefresh!: (response: Response) => void;
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockReturnValue(new Promise(resolve => {
+        resolveRefresh = resolve;
+      }));
+    const user = userEvent.setup();
+
+    renderAuthProvider();
+    await user.click(screen.getByRole('button', {name: '인증 복구 요청'}));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    resolveRefresh(jsonResponse({accessToken: 'restored-access-token'}));
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('authenticated');
+    });
+  });
+
+  it('anonymous 전환 시 개인 Query cache만 제거한다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'REFRESH_TOKEN_MISSING'}, 401));
+    const {queryClient} = renderAuthProvider();
+    queryClient.setQueryData(['auth', 'me'], {id: 1});
+    queryClient.setQueryData(['account', 'profile'], {nickname: '포켓컬렉터'});
+    queryClient.setQueryData(['wallet', 'balance'], {totalBalance: 10_000});
+    queryClient.setQueryData(['auction', 'catalog'], [{id: 1}]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+
+    expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
+    expect(queryClient.getQueryData(['account', 'profile'])).toBeUndefined();
+    expect(queryClient.getQueryData(['wallet', 'balance'])).toBeUndefined();
+    expect(queryClient.getQueryData(['auction', 'catalog'])).toEqual([{id: 1}]);
+  });
+});

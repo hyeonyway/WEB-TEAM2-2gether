@@ -9,11 +9,14 @@ import {
   setAccessToken,
 } from '../../api/accessTokenStore';
 import {HttpError} from '../../api/httpClient';
+import {AuthProvider} from '../../auth/AuthProvider';
+import {useAuth} from '../../auth/useAuth';
 import '../../tailwind.css';
 import Header from '../Header';
 
-const {loginMock, signupMock} = vi.hoisted(() => ({
+const {loginMock, refreshMock, signupMock} = vi.hoisted(() => ({
   loginMock: vi.fn(),
+  refreshMock: vi.fn(),
   signupMock: vi.fn(),
 }));
 
@@ -22,6 +25,7 @@ vi.mock('../../api/authApi', async importOriginal => {
   return {
     ...actual,
     login: loginMock,
+    refreshAccessToken: refreshMock,
     signup: signupMock,
   };
 });
@@ -29,6 +33,11 @@ vi.mock('../../api/authApi', async importOriginal => {
 function LocationProbe() {
   const {pathname} = useLocation();
   return <output data-testid="router-path">{pathname}</output>;
+}
+
+function AuthStatusProbe() {
+  const {status} = useAuth();
+  return <output data-testid="auth-status">{status}</output>;
 }
 
 function renderHeader(path = window.location.pathname) {
@@ -44,8 +53,11 @@ function renderHeader(path = window.location.pathname) {
     ...render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[path]}>
-          <Header/>
-          <LocationProbe/>
+          <AuthProvider>
+            <Header/>
+            <LocationProbe/>
+            <AuthStatusProbe/>
+          </AuthProvider>
         </MemoryRouter>
       </QueryClientProvider>,
     ),
@@ -67,9 +79,112 @@ async function fillValidSignup(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText('닉네임'), '포켓컬렉터');
 }
 
+beforeEach(() => {
+  refreshMock.mockReset();
+  refreshMock.mockImplementation(async () => {
+    const accessToken = getAccessToken();
+    if (accessToken) return {accessToken};
+    throw new HttpError(401, 'unauthorized');
+  });
+});
+
 afterEach(() => {
   clearAccessToken();
   vi.restoreAllMocks();
+});
+
+describe('Header 마이페이지 인증 gate', () => {
+  beforeEach(() => {
+    loginMock.mockReset();
+    window.history.replaceState({}, '', '/auction');
+  });
+
+  it('anonymous 사용자는 이동하지 않고 로그인 모달을 연다', async () => {
+    const user = userEvent.setup();
+    renderHeader('/auction');
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+
+    await user.click(screen.getByRole('link', {name: '마이페이지'}));
+
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/auction');
+    expect(screen.getByRole('dialog', {name: '계정 로그인'})).toBeInTheDocument();
+  });
+
+  it('보호 진입 로그인 성공 뒤 마이페이지로 이동한다', async () => {
+    loginMock.mockImplementation(async () => {
+      setAccessToken('issued-access-token');
+      return {accessToken: 'issued-access-token'};
+    });
+    const user = userEvent.setup();
+    renderHeader('/auction');
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    await user.click(screen.getByRole('link', {name: '마이페이지'}));
+    const dialog = screen.getByRole('dialog', {name: '계정 로그인'});
+    await user.type(within(dialog).getByLabelText('이메일'), 'collector@example.com');
+    await user.type(within(dialog).getByLabelText('비밀번호'), 'Password123!');
+
+    await user.click(within(dialog).getByRole('button', {name: '로그인'}));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('router-path')).toHaveTextContent('/mypage');
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('보호 진입 로그인 모달을 닫으면 홈으로 이동한다', async () => {
+    const user = userEvent.setup();
+    renderHeader('/auction');
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    await user.click(screen.getByRole('link', {name: '마이페이지'}));
+
+    await user.click(screen.getByRole('button', {name: '인증 모달 닫기'}));
+
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/');
+  });
+
+  it('일반 로그인과 보호 진입이 겹쳐도 닫기 시 모달 상태를 모두 초기화한다', async () => {
+    const user = userEvent.setup();
+    renderHeader('/auction');
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    await user.click(screen.getByRole('button', {name: '로그인'}));
+    await user.click(screen.getByRole('link', {name: '마이페이지'}));
+
+    await user.click(screen.getByRole('button', {name: '인증 모달 닫기'}));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/');
+  });
+
+  it('initializing 중 요청한 마이페이지 이동을 인증 복구 뒤 이어간다', async () => {
+    let resolveRefresh!: () => void;
+    refreshMock.mockImplementation(() => new Promise(resolve => {
+      resolveRefresh = () => {
+        setAccessToken('restored-access-token');
+        resolve({accessToken: 'restored-access-token'});
+      };
+    }));
+    const user = userEvent.setup();
+    renderHeader('/auction');
+
+    await user.click(screen.getByRole('link', {name: '마이페이지'}));
+
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/auction');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    resolveRefresh();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('router-path')).toHaveTextContent('/mypage');
+    });
+  });
 });
 
 describe('Header 계정 메뉴', () => {
@@ -375,6 +490,9 @@ describe('Header 로그아웃', () => {
     setAccessToken('access-token');
     const {queryClient} = renderHeader();
     queryClient.setQueryData(['auth', 'me'], {id: 1});
+    queryClient.setQueryData(['account', 'profile'], {id: 1});
+    queryClient.setQueryData(['wallet', 'balance'], {totalBalance: 10_000});
+    queryClient.setQueryData(['auction', 'catalog'], [{id: 1}]);
     const user = userEvent.setup();
 
     const logoutButton = screen.getByRole('button', {name: '로그아웃'});
@@ -393,6 +511,9 @@ describe('Header 로그아웃', () => {
     );
     expect(getAccessToken()).toBeNull();
     expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
+    expect(queryClient.getQueryData(['account', 'profile'])).toBeUndefined();
+    expect(queryClient.getQueryData(['wallet', 'balance'])).toBeUndefined();
+    expect(queryClient.getQueryData(['auction', 'catalog'])).toEqual([{id: 1}]);
     expect(screen.getByTestId('router-path')).toHaveTextContent('/');
     expect(screen.getByRole('button', {name: '로그인'})).toBeInTheDocument();
   });

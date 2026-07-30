@@ -4,6 +4,7 @@ import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {BrowserRouter} from 'react-router-dom';
 import './tailwind.css';
 import App from './app/App';
+import {AuthProvider} from './auth/AuthProvider';
 
 const queryClient=new QueryClient({
   defaultOptions:{queries:{retry:1,refetchOnWindowFocus:false}},
@@ -12,7 +13,9 @@ const queryClient=new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
-      <App/>
+      <AuthProvider>
+        <App/>
+      </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>,
 );

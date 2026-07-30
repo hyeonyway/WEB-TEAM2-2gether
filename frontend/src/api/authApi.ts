@@ -1,11 +1,12 @@
 import type {
   LoginRequestDto,
   LoginResponseDto,
+  RefreshResponseDto,
   SignupRequestDto,
   SignupResponseDto,
 } from '../dto/authDto';
 import {clearAccessToken, setAccessToken} from './accessTokenStore';
-import {request} from './httpClient';
+import {HttpError, request} from './httpClient';
 
 const authRequestOptions = {
   credentials: 'include' as const,
@@ -27,6 +28,22 @@ export async function login(loginRequest: LoginRequestDto) {
   });
   setAccessToken(response.accessToken);
   return response;
+}
+
+export async function refreshAccessToken() {
+  try {
+    const response = await request<RefreshResponseDto>('/api/auth/refresh', {
+      ...authRequestOptions,
+      method: 'POST',
+    });
+    setAccessToken(response.accessToken);
+    return response;
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401) {
+      clearAccessToken();
+    }
+    throw error;
+  }
 }
 
 export async function logout() {
