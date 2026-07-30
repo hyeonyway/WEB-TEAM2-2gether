@@ -29,7 +29,7 @@ class WishlistControllerTest {
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/users/1/wishlists")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"cardId\":10}"))
+                        .content("{\"card_id\":10}"))
                 .andExpect(MockMvcResultMatchers.status().isCreated())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.cardId").value(10));
     }
