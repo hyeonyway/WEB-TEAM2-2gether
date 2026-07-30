@@ -13,13 +13,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import com.dbidding.auth.domain.Authentication;
 import com.dbidding.auth.exception.InvalidRefreshTokenException;
-import com.dbidding.auth.port.UserAccountRole;
+import com.dbidding.account.domain.AccountRole;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.token.IssuedTokens;
 import com.dbidding.auth.token.JwtTokenProvider;
 import com.dbidding.auth.token.RefreshTokenHasher;
-import com.dbidding.user.domain.User;
-import com.dbidding.user.repository.UserRepository;
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.repository.AccountRepository;
 
 @SpringBootTest
 class AuthServiceLogoutIntegrationTest {
@@ -31,7 +31,7 @@ class AuthServiceLogoutIntegrationTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private UserRepository userRepository;
+	private AccountRepository userRepository;
 
 	@Autowired
 	private JwtTokenProvider jwtTokenProvider;
@@ -43,13 +43,13 @@ class AuthServiceLogoutIntegrationTest {
 
 	@BeforeEach
 	void setUp() {
-		User user = userRepository.saveAndFlush(User.create(
+		Account user = userRepository.saveAndFlush(Account.create(
 			"logout-integration@example.com",
 			"logout-integration",
 			"a".repeat(64),
 			"b".repeat(32)
 		));
-		IssuedTokens tokens = jwtTokenProvider.issue(user.getId(), UserAccountRole.USER, Instant.now());
+		IssuedTokens tokens = jwtTokenProvider.issue(user.getId(), AccountRole.USER, Instant.now());
 		refreshToken = tokens.refreshToken();
 		authenticationRepository.saveAndFlush(Authentication.issue(
 			user.getId(),

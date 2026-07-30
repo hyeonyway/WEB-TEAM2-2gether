@@ -4,9 +4,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.domain.AccountStatus;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.auth.domain.Authentication;
 import com.dbidding.auth.dto.LoginRequest;
 import com.dbidding.auth.dto.LoginResponse;
@@ -19,8 +24,6 @@ import com.dbidding.auth.exception.InvalidCredentialsException;
 import com.dbidding.auth.exception.InvalidRefreshTokenException;
 import com.dbidding.auth.password.PasswordHash;
 import com.dbidding.auth.password.PasswordHasher;
-import com.dbidding.auth.port.UserAccount;
-import com.dbidding.auth.port.UserAccountPort;
 import com.dbidding.auth.port.WalletProvisioningPort;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.token.IssuedTokens;
@@ -36,8 +39,10 @@ public class AuthService {
 
 	private static final String DUMMY_PASSWORD_HASH = "0".repeat(64);
 	private static final String DUMMY_PASSWORD_SALT = "0".repeat(32);
+	private static final String EMAIL_UNIQUE_CONSTRAINT = "uk_users_email";
+	private static final String NICKNAME_UNIQUE_CONSTRAINT = "uk_users_nickname";
 
-	private final UserAccountPort userAccountPort;
+	private final AccountRepository accountRepository;
 	private final WalletProvisioningPort walletProvisioningPort;
 	private final PasswordHasher passwordHasher;
 	private final AuthenticationRepository authenticationRepository;
@@ -46,29 +51,40 @@ public class AuthService {
 
 	@Transactional
 	public SignupResponse signup(SignupRequest request) {
-		if (userAccountPort.existsByEmail(request.email())) {
+		if (accountRepository.existsByEmail(request.email())) {
 			throw new DuplicateEmailException();
 		}
-		if (userAccountPort.existsByNickname(request.nickname())) {
+		if (accountRepository.existsByNickname(request.nickname())) {
 			throw new DuplicateNicknameException();
 		}
 
 		PasswordHash password = passwordHasher.hash(request.password());
-		UserAccount user = userAccountPort.create(
+		Account account = Account.create(
 			request.email(),
 			request.nickname(),
 			password.encryptedPassword(),
 			password.salt()
 		);
-		walletProvisioningPort.createFor(user.id());
+		try {
+			account = accountRepository.saveAndFlush(account);
+		} catch (DataIntegrityViolationException exception) {
+			if (isConstraintViolation(exception, EMAIL_UNIQUE_CONSTRAINT)) {
+				throw new DuplicateEmailException(exception);
+			}
+			if (isConstraintViolation(exception, NICKNAME_UNIQUE_CONSTRAINT)) {
+				throw new DuplicateNicknameException(exception);
+			}
+			throw exception;
+		}
+		walletProvisioningPort.createFor(account.getId());
 
-		return SignupResponse.from(user);
+		return SignupResponse.from(account);
 	}
 
 	@Transactional
 	public LoginResult login(LoginRequest request) {
-		UserAccount user = userAccountPort.findByEmail(request.email()).orElse(null);
-		if (user == null) {
+		Account account = accountRepository.findByEmail(request.email()).orElse(null);
+		if (account == null) {
 			passwordHasher.matches(
 				request.password(),
 				DUMMY_PASSWORD_SALT,
@@ -79,16 +95,16 @@ public class AuthService {
 
 		boolean passwordMatches = passwordHasher.matches(
 			request.password(),
-			user.salt(),
-			user.encryptedPassword()
+			account.getSalt(),
+			account.getEncryptedPassword()
 		);
-		if (!passwordMatches || !"ACTIVE".equals(user.status())) {
+		if (!passwordMatches || account.getStatus() != AccountStatus.ACTIVE) {
 			throw new InvalidCredentialsException();
 		}
 
-		IssuedTokens tokens = jwtTokenProvider.issue(user.id(), user.role(), Instant.now());
+		IssuedTokens tokens = jwtTokenProvider.issue(account.getId(), account.getRole(), Instant.now());
 		String refreshTokenHash = refreshTokenHasher.hash(tokens.refreshToken());
-		authenticationRepository.upsertRefreshTokenHash(user.id(), refreshTokenHash);
+		authenticationRepository.upsertRefreshTokenHash(account.getId(), refreshTokenHash);
 
 		return new LoginResult(
 			new LoginResponse(tokens.accessToken()),
@@ -107,10 +123,10 @@ public class AuthService {
 			throw new InvalidRefreshTokenException();
 		}
 
-		UserAccount user = userAccountPort.findById(claims.userId())
-			.filter(account -> "ACTIVE".equals(account.status()))
+		Account account = accountRepository.findById(claims.userId())
+			.filter(foundAccount -> foundAccount.getStatus() == AccountStatus.ACTIVE)
 			.orElseThrow(InvalidRefreshTokenException::new);
-		IssuedTokens nextTokens = jwtTokenProvider.issue(user.id(), user.role(), Instant.now());
+		IssuedTokens nextTokens = jwtTokenProvider.issue(account.getId(), account.getRole(), Instant.now());
 		authentication.rotate(refreshTokenHasher.hash(nextTokens.refreshToken()));
 
 		return new RefreshResult(
@@ -134,5 +150,22 @@ public class AuthService {
 			presentedHash.getBytes(StandardCharsets.US_ASCII),
 			storedHash.getBytes(StandardCharsets.US_ASCII)
 		);
+	}
+
+	private boolean isConstraintViolation(Throwable exception, String expectedConstraint) {
+		Throwable cause = exception;
+		while (cause != null) {
+			if (cause instanceof ConstraintViolationException constraintViolation) {
+				String constraintName = constraintViolation.getConstraintName();
+				if (constraintName == null) {
+					return false;
+				}
+				String normalizedName = constraintName.replace("`", "");
+				String unqualifiedName = normalizedName.substring(normalizedName.lastIndexOf('.') + 1);
+				return unqualifiedName.equalsIgnoreCase(expectedConstraint);
+			}
+			cause = cause.getCause();
+		}
+		return false;
 	}
 }

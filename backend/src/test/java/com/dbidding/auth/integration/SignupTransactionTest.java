@@ -16,8 +16,8 @@ import com.dbidding.auth.dto.SignupResponse;
 import com.dbidding.auth.port.WalletProvisioningPort;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.service.AuthService;
-import com.dbidding.user.domain.User;
-import com.dbidding.user.repository.UserRepository;
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.repository.WalletRepository;
 
@@ -28,7 +28,7 @@ class SignupTransactionTest {
 	private AuthService authService;
 
 	@Autowired
-	private UserRepository userRepository;
+	private AccountRepository userRepository;
 
 	@Autowired
 	private WalletRepository walletRepository;
@@ -56,7 +56,7 @@ class SignupTransactionTest {
 
 		SignupResponse response = authService.signup(request);
 
-		User user = userRepository.findById(response.id()).orElseThrow();
+		Account user = userRepository.findById(response.id()).orElseThrow();
 		Wallet wallet = walletRepository.findByUserId(response.id()).orElseThrow();
 		assertThat(user.getEmail()).isEqualTo(request.email());
 		assertThat(user.getEncryptedPassword())

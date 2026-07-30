@@ -6,22 +6,26 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 
+import java.sql.SQLException;
+
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.auth.dto.SignupRequest;
 import com.dbidding.auth.dto.SignupResponse;
 import com.dbidding.auth.exception.DuplicateEmailException;
 import com.dbidding.auth.exception.DuplicateNicknameException;
 import com.dbidding.auth.password.PasswordHash;
 import com.dbidding.auth.password.PasswordHasher;
-import com.dbidding.auth.port.UserAccount;
-import com.dbidding.auth.port.UserAccountPort;
-import com.dbidding.auth.port.UserAccountRole;
 import com.dbidding.auth.port.WalletProvisioningPort;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.token.JwtTokenProvider;
@@ -37,7 +41,7 @@ class AuthServiceSignupTest {
 	);
 
 	@Mock
-	private UserAccountPort userAccountPort;
+	private AccountRepository accountRepository;
 
 	@Mock
 	private WalletProvisioningPort walletProvisioningPort;
@@ -59,7 +63,7 @@ class AuthServiceSignupTest {
 	@BeforeEach
 	void setUp() {
 		authService = new AuthService(
-			userAccountPort,
+			accountRepository,
 			walletProvisioningPort,
 			passwordHasher,
 			authenticationRepository,
@@ -70,24 +74,24 @@ class AuthServiceSignupTest {
 
 	@Test
 	void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
-		given(userAccountPort.existsByEmail(REQUEST.email())).willReturn(true);
+		given(accountRepository.existsByEmail(REQUEST.email())).willReturn(true);
 
 		assertThatThrownBy(() -> authService.signup(REQUEST))
 			.isInstanceOf(DuplicateEmailException.class);
 
-		then(userAccountPort).should(never()).create(any(), any(), any(), any());
+		then(accountRepository).should(never()).saveAndFlush(any(Account.class));
 		then(passwordHasher).shouldHaveNoInteractions();
 		then(walletProvisioningPort).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void 중복_닉네임이면_사용자와_지갑을_생성하지_않는다() {
-		given(userAccountPort.existsByNickname(REQUEST.nickname())).willReturn(true);
+		given(accountRepository.existsByNickname(REQUEST.nickname())).willReturn(true);
 
 		assertThatThrownBy(() -> authService.signup(REQUEST))
 			.isInstanceOf(DuplicateNicknameException.class);
 
-		then(userAccountPort).should(never()).create(any(), any(), any(), any());
+		then(accountRepository).should(never()).saveAndFlush(any(Account.class));
 		then(passwordHasher).shouldHaveNoInteractions();
 		then(walletProvisioningPort).shouldHaveNoInteractions();
 	}
@@ -95,22 +99,15 @@ class AuthServiceSignupTest {
 	@Test
 	void 회원가입하면_해시된_비밀번호로_사용자와_지갑을_생성한다() {
 		PasswordHash passwordHash = new PasswordHash("encrypted-password", "salt");
-		UserAccount savedUser = new UserAccount(
-			1,
+		Account savedAccount = spy(Account.create(
 			REQUEST.email(),
 			REQUEST.nickname(),
-			UserAccountRole.USER,
-			"ACTIVE",
 			passwordHash.encryptedPassword(),
 			passwordHash.salt()
-		);
+		));
+		given(savedAccount.getId()).willReturn(1);
 		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
-		given(userAccountPort.create(
-			REQUEST.email(),
-			REQUEST.nickname(),
-			passwordHash.encryptedPassword(),
-			passwordHash.salt()
-		)).willReturn(savedUser);
+		given(accountRepository.saveAndFlush(any(Account.class))).willReturn(savedAccount);
 
 		SignupResponse response = authService.signup(REQUEST);
 
@@ -122,5 +119,52 @@ class AuthServiceSignupTest {
 			"ACTIVE"
 		));
 		then(walletProvisioningPort).should().createFor(1);
+	}
+
+	@Test
+	void 이메일_UNIQUE_제약이_충돌하면_기존_중복_이메일_예외로_변환한다() {
+		PasswordHash passwordHash = new PasswordHash("encrypted-password", "salt");
+		DataIntegrityViolationException duplicateEmail =
+			dataIntegrityViolation("users.uk_users_email");
+		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
+		given(accountRepository.saveAndFlush(any(Account.class))).willThrow(duplicateEmail);
+
+		assertThatThrownBy(() -> authService.signup(REQUEST))
+			.isInstanceOf(DuplicateEmailException.class)
+			.hasCause(duplicateEmail);
+	}
+
+	@Test
+	void 닉네임_UNIQUE_제약이_충돌하면_기존_중복_닉네임_예외로_변환한다() {
+		PasswordHash passwordHash = new PasswordHash("encrypted-password", "salt");
+		DataIntegrityViolationException duplicateNickname =
+			dataIntegrityViolation("`uk_users_nickname`");
+		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
+		given(accountRepository.saveAndFlush(any(Account.class))).willThrow(duplicateNickname);
+
+		assertThatThrownBy(() -> authService.signup(REQUEST))
+			.isInstanceOf(DuplicateNicknameException.class)
+			.hasCause(duplicateNickname);
+	}
+
+	@Test
+	void UNIQUE가_아닌_무결성_예외는_그대로_전파한다() {
+		PasswordHash passwordHash = new PasswordHash("encrypted-password", "salt");
+		DataIntegrityViolationException unrelatedConstraint =
+			dataIntegrityViolation("fk_users_unrelated");
+		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
+		given(accountRepository.saveAndFlush(any(Account.class))).willThrow(unrelatedConstraint);
+
+		assertThatThrownBy(() -> authService.signup(REQUEST))
+			.isSameAs(unrelatedConstraint);
+	}
+
+	private DataIntegrityViolationException dataIntegrityViolation(String constraintName) {
+		ConstraintViolationException constraintViolation = new ConstraintViolationException(
+			"constraint violation",
+			new SQLException("constraint violation"),
+			constraintName
+		);
+		return new DataIntegrityViolationException("data integrity violation", constraintViolation);
 	}
 }

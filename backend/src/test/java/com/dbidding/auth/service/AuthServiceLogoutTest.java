@@ -11,7 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.dbidding.auth.password.PasswordHasher;
-import com.dbidding.auth.port.UserAccountPort;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.auth.port.WalletProvisioningPort;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.token.JwtTokenProvider;
@@ -24,7 +24,7 @@ class AuthServiceLogoutTest {
 	private static final String REFRESH_TOKEN_HASH = "a".repeat(64);
 
 	@Mock
-	private UserAccountPort userAccountPort;
+	private AccountRepository accountRepository;
 
 	@Mock
 	private WalletProvisioningPort walletProvisioningPort;
@@ -46,7 +46,7 @@ class AuthServiceLogoutTest {
 	@BeforeEach
 	void setUp() {
 		authService = new AuthService(
-			userAccountPort,
+			accountRepository,
 			walletProvisioningPort,
 			passwordHasher,
 			authenticationRepository,

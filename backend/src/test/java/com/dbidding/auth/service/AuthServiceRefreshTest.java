@@ -15,14 +15,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.domain.AccountRole;
+import com.dbidding.account.domain.AccountStatus;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.auth.domain.Authentication;
 import com.dbidding.auth.dto.RefreshResponse;
 import com.dbidding.auth.exception.InvalidRefreshTokenException;
 import com.dbidding.auth.password.PasswordHasher;
-import com.dbidding.auth.port.UserAccount;
-import com.dbidding.auth.port.UserAccountPort;
-import com.dbidding.auth.port.UserAccountRole;
 import com.dbidding.auth.port.WalletProvisioningPort;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.token.IssuedTokens;
@@ -47,7 +49,7 @@ class AuthServiceRefreshTest {
 	);
 
 	@Mock
-	private UserAccountPort userAccountPort;
+	private AccountRepository accountRepository;
 
 	@Mock
 	private WalletProvisioningPort walletProvisioningPort;
@@ -69,7 +71,7 @@ class AuthServiceRefreshTest {
 	@BeforeEach
 	void setUp() {
 		authService = new AuthService(
-			userAccountPort,
+			accountRepository,
 			walletProvisioningPort,
 			passwordHasher,
 			authenticationRepository,
@@ -85,10 +87,11 @@ class AuthServiceRefreshTest {
 		given(authenticationRepository.findByUserIdForUpdate(1))
 			.willReturn(Optional.of(authentication));
 		given(refreshTokenHasher.hash(PRESENTED_TOKEN)).willReturn(PRESENTED_HASH);
-		given(userAccountPort.findById(1)).willReturn(Optional.of(userAccount("ACTIVE")));
+		given(accountRepository.findById(1))
+			.willReturn(Optional.of(account(AccountStatus.ACTIVE)));
 		given(jwtTokenProvider.issue(
 			eq(1),
-			eq(UserAccountRole.USER),
+			eq(AccountRole.USER),
 			any(Instant.class)
 		)).willReturn(NEXT_TOKENS);
 		given(refreshTokenHasher.hash(NEXT_TOKENS.refreshToken())).willReturn(NEXT_HASH);
@@ -115,7 +118,7 @@ class AuthServiceRefreshTest {
 			.isInstanceOf(InvalidRefreshTokenException.class);
 
 		assertThat(authentication.getRefreshTokenHash()).isEqualTo(PRESENTED_HASH);
-		then(userAccountPort).shouldHaveNoInteractions();
+		then(accountRepository).shouldHaveNoInteractions();
 		then(jwtTokenProvider).should().parseRefresh(PRESENTED_TOKEN);
 		then(jwtTokenProvider).shouldHaveNoMoreInteractions();
 	}
@@ -129,14 +132,14 @@ class AuthServiceRefreshTest {
 			.isInstanceOf(InvalidRefreshTokenException.class);
 
 		then(refreshTokenHasher).shouldHaveNoInteractions();
-		then(userAccountPort).shouldHaveNoInteractions();
+		then(accountRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void 사용자가_없으면_refresh를_거절한다() {
 		Authentication authentication = Authentication.issue(1, PRESENTED_HASH);
 		givenStoredAuthentication(authentication);
-		given(userAccountPort.findById(1)).willReturn(Optional.empty());
+		given(accountRepository.findById(1)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> authService.refresh(PRESENTED_TOKEN))
 			.isInstanceOf(InvalidRefreshTokenException.class);
@@ -150,7 +153,8 @@ class AuthServiceRefreshTest {
 	void 비활성_사용자는_refresh를_거절한다() {
 		Authentication authentication = Authentication.issue(1, PRESENTED_HASH);
 		givenStoredAuthentication(authentication);
-		given(userAccountPort.findById(1)).willReturn(Optional.of(userAccount("SUSPENDED")));
+		given(accountRepository.findById(1))
+			.willReturn(Optional.of(account(AccountStatus.SUSPENDED)));
 
 		assertThatThrownBy(() -> authService.refresh(PRESENTED_TOKEN))
 			.isInstanceOf(InvalidRefreshTokenException.class);
@@ -172,15 +176,15 @@ class AuthServiceRefreshTest {
 			.willReturn(new TokenClaims(1, TokenType.REFRESH));
 	}
 
-	private UserAccount userAccount(String status) {
-		return new UserAccount(
-			1,
+	private Account account(AccountStatus status) {
+		Account account = Account.create(
 			"collector@example.com",
 			"collector",
-			UserAccountRole.USER,
-			status,
 			"encrypted-password",
 			"salt"
 		);
+		ReflectionTestUtils.setField(account, "id", 1);
+		ReflectionTestUtils.setField(account, "status", status);
+		return account;
 	}
 }

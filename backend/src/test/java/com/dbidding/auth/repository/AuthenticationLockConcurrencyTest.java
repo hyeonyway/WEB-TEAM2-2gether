@@ -18,8 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.dbidding.auth.domain.Authentication;
-import com.dbidding.user.domain.User;
-import com.dbidding.user.repository.UserRepository;
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.repository.AccountRepository;
 
 @SpringBootTest
 class AuthenticationLockConcurrencyTest {
@@ -31,7 +31,7 @@ class AuthenticationLockConcurrencyTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private UserRepository userRepository;
+	private AccountRepository userRepository;
 
 	@Autowired
 	private TransactionTemplate transactionTemplate;
@@ -40,7 +40,7 @@ class AuthenticationLockConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		User user = userRepository.saveAndFlush(User.create(
+		Account user = userRepository.saveAndFlush(Account.create(
 			"authentication-lock@example.com",
 			"authentication-lock",
 			"c".repeat(64),

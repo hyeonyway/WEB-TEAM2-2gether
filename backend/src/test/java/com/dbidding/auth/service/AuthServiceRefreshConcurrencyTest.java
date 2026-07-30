@@ -18,13 +18,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import com.dbidding.auth.domain.Authentication;
 import com.dbidding.auth.exception.InvalidRefreshTokenException;
-import com.dbidding.auth.port.UserAccountRole;
+import com.dbidding.account.domain.AccountRole;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.token.IssuedTokens;
 import com.dbidding.auth.token.JwtTokenProvider;
 import com.dbidding.auth.token.RefreshTokenHasher;
-import com.dbidding.user.domain.User;
-import com.dbidding.user.repository.UserRepository;
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.repository.AccountRepository;
 
 @SpringBootTest
 class AuthServiceRefreshConcurrencyTest {
@@ -36,7 +36,7 @@ class AuthServiceRefreshConcurrencyTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private UserRepository userRepository;
+	private AccountRepository userRepository;
 
 	@Autowired
 	private JwtTokenProvider jwtTokenProvider;
@@ -49,7 +49,7 @@ class AuthServiceRefreshConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		User user = userRepository.saveAndFlush(User.create(
+		Account user = userRepository.saveAndFlush(Account.create(
 			"concurrent-refresh@example.com",
 			"concurrent-refresh",
 			"a".repeat(64),
@@ -57,7 +57,7 @@ class AuthServiceRefreshConcurrencyTest {
 		));
 		userId = user.getId();
 
-		IssuedTokens tokens = jwtTokenProvider.issue(userId, UserAccountRole.USER, Instant.now());
+		IssuedTokens tokens = jwtTokenProvider.issue(userId, AccountRole.USER, Instant.now());
 		presentedToken = tokens.refreshToken();
 		authenticationRepository.saveAndFlush(Authentication.issue(
 			userId,

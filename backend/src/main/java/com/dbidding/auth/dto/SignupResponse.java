@@ -1,6 +1,6 @@
 package com.dbidding.auth.dto;
 
-import com.dbidding.auth.port.UserAccount;
+import com.dbidding.account.domain.Account;
 
 public record SignupResponse(
 	Integer id,
@@ -10,13 +10,13 @@ public record SignupResponse(
 	String status
 ) {
 
-	public static SignupResponse from(UserAccount user) {
+	public static SignupResponse from(Account account) {
 		return new SignupResponse(
-			user.id(),
-			user.email(),
-			user.nickname(),
-			user.role().name(),
-			user.status()
+			account.getId(),
+			account.getEmail(),
+			account.getNickname(),
+			account.getRole().name(),
+			account.getStatus().name()
 		);
 	}
 }

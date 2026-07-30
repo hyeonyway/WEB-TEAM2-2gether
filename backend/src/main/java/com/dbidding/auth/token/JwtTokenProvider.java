@@ -9,12 +9,12 @@ import javax.crypto.SecretKey;
 
 import org.springframework.stereotype.Component;
 
+import com.dbidding.account.domain.AccountRole;
 import com.dbidding.auth.config.JwtProperties;
 import com.dbidding.auth.exception.ExpiredTokenException;
 import com.dbidding.auth.exception.InvalidTokenException;
 import com.dbidding.auth.exception.InvalidTokenRoleException;
 import com.dbidding.auth.exception.InvalidTokenTypeException;
-import com.dbidding.auth.port.UserAccountRole;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -33,7 +33,7 @@ public class JwtTokenProvider {
         this.secretKey = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
     }
 
-    public IssuedTokens issue(Integer userId, UserAccountRole role, Instant now) {
+    public IssuedTokens issue(Integer userId, AccountRole role, Instant now) {
         Instant accessExpiresAt = now.plusSeconds(properties.accessTokenSeconds());
         Instant refreshExpiresAt = now.plusSeconds(properties.refreshTokenSeconds());
 
@@ -102,7 +102,7 @@ public class JwtTokenProvider {
             throw new InvalidTokenRoleException();
         }
         try {
-            UserAccountRole.valueOf(role);
+            AccountRole.valueOf(role);
         } catch (IllegalArgumentException exception) {
             throw new InvalidTokenRoleException();
         }

@@ -9,8 +9,8 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 
 import com.dbidding.auth.domain.Authentication;
-import com.dbidding.user.domain.User;
-import com.dbidding.user.repository.UserRepository;
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.repository.AccountRepository;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -20,13 +20,13 @@ class AuthenticationRepositoryTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@Autowired
-	private UserRepository userRepository;
+	private AccountRepository userRepository;
 
 	private Integer userId;
 
 	@BeforeEach
 	void setUp() {
-		User user = userRepository.saveAndFlush(User.create(
+		Account user = userRepository.saveAndFlush(Account.create(
 			"auth@example.com",
 			"auth-user",
 			"a".repeat(64),

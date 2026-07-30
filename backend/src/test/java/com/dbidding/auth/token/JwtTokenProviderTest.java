@@ -13,7 +13,7 @@ import com.dbidding.auth.exception.ExpiredTokenException;
 import com.dbidding.auth.exception.InvalidTokenException;
 import com.dbidding.auth.exception.InvalidTokenRoleException;
 import com.dbidding.auth.exception.InvalidTokenTypeException;
-import com.dbidding.auth.port.UserAccountRole;
+import com.dbidding.account.domain.AccountRole;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -33,7 +33,7 @@ class JwtTokenProviderTest {
 
     @Test
     void Access와_Refresh에_각각_필요한_클레임과_만료시간을_넣는다() {
-        IssuedTokens tokens = provider.issue(42, UserAccountRole.USER, NOW);
+        IssuedTokens tokens = provider.issue(42, AccountRole.USER, NOW);
 
         Claims accessClaims = parse(tokens.accessToken());
         assertThat(accessClaims.getSubject()).isEqualTo("42");
@@ -55,8 +55,8 @@ class JwtTokenProviderTest {
 
     @Test
     void 동일한_시각에도_Refresh_Token은_서로_다르게_발급한다() {
-        IssuedTokens first = provider.issue(42, UserAccountRole.USER, NOW);
-        IssuedTokens second = provider.issue(42, UserAccountRole.USER, NOW);
+        IssuedTokens first = provider.issue(42, AccountRole.USER, NOW);
+        IssuedTokens second = provider.issue(42, AccountRole.USER, NOW);
 
         assertThat(first.refreshToken()).isNotEqualTo(second.refreshToken());
         assertThat(parse(first.refreshToken()).getId()).isNotBlank();
@@ -65,7 +65,7 @@ class JwtTokenProviderTest {
 
     @Test
     void Access_Token을_검증해_사용자_ID와_타입을_반환한다() {
-        IssuedTokens tokens = provider.issue(42, UserAccountRole.USER, Instant.now());
+        IssuedTokens tokens = provider.issue(42, AccountRole.USER, Instant.now());
 
         TokenClaims claims = provider.parseAccess(tokens.accessToken());
 
@@ -75,7 +75,7 @@ class JwtTokenProviderTest {
 
     @Test
     void Refresh_Token을_검증해_사용자_ID와_타입을_반환한다() {
-        IssuedTokens tokens = provider.issue(42, UserAccountRole.USER, Instant.now());
+        IssuedTokens tokens = provider.issue(42, AccountRole.USER, Instant.now());
 
         TokenClaims claims = provider.parseRefresh(tokens.refreshToken());
 
@@ -88,7 +88,7 @@ class JwtTokenProviderTest {
         JwtTokenProvider otherProvider = new JwtTokenProvider(
             new JwtProperties("fedcba9876543210fedcba9876543210", 1800, 604800, false)
         );
-        String token = otherProvider.issue(42, UserAccountRole.USER, Instant.now()).accessToken();
+        String token = otherProvider.issue(42, AccountRole.USER, Instant.now()).accessToken();
 
         assertThatThrownBy(() -> provider.parseAccess(token))
             .isInstanceOf(InvalidTokenException.class);
@@ -98,7 +98,7 @@ class JwtTokenProviderTest {
     void 만료된_토큰은_만료_예외로_변환한다() {
         String token = provider.issue(
             42,
-            UserAccountRole.USER,
+            AccountRole.USER,
             Instant.now().minusSeconds(604801)
         ).accessToken();
 
@@ -110,7 +110,7 @@ class JwtTokenProviderTest {
     void Refresh_Token을_Access_Token으로_사용하면_거절한다() {
         String refreshToken = provider.issue(
             42,
-            UserAccountRole.USER,
+            AccountRole.USER,
             Instant.now()
         ).refreshToken();
 
@@ -122,7 +122,7 @@ class JwtTokenProviderTest {
     void Access_Token을_Refresh_Token으로_사용하면_거절한다() {
         String accessToken = provider.issue(
             42,
-            UserAccountRole.USER,
+            AccountRole.USER,
             Instant.now()
         ).accessToken();
 

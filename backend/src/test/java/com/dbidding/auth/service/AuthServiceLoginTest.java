@@ -15,17 +15,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.domain.AccountRole;
+import com.dbidding.account.domain.AccountStatus;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.auth.dto.LoginRequest;
 import com.dbidding.auth.dto.LoginResponse;
 import com.dbidding.auth.exception.InvalidCredentialsException;
 import com.dbidding.auth.password.PasswordHasher;
-import com.dbidding.auth.port.UserAccount;
-import com.dbidding.auth.port.UserAccountPort;
-import com.dbidding.auth.port.UserAccountRole;
 import com.dbidding.auth.port.WalletProvisioningPort;
 import com.dbidding.auth.repository.AuthenticationRepository;
 import com.dbidding.auth.token.IssuedTokens;
@@ -50,7 +52,7 @@ class AuthServiceLoginTest {
 	private static final String REFRESH_TOKEN_HASH = "c".repeat(64);
 
 	@Mock
-	private UserAccountPort userAccountPort;
+	private AccountRepository accountRepository;
 
 	@Mock
 	private WalletProvisioningPort walletProvisioningPort;
@@ -72,7 +74,7 @@ class AuthServiceLoginTest {
 	@BeforeEach
 	void setUp() {
 		authService = new AuthService(
-			userAccountPort,
+			accountRepository,
 			walletProvisioningPort,
 			passwordHasher,
 			authenticationRepository,
@@ -83,7 +85,7 @@ class AuthServiceLoginTest {
 
 	@Test
 	void 존재하지_않는_이메일이면_동일한_인증_실패로_처리한다() {
-		given(userAccountPort.findByEmail(REQUEST.email())).willReturn(Optional.empty());
+		given(accountRepository.findByEmail(REQUEST.email())).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> authService.login(REQUEST))
 			.isInstanceOf(InvalidCredentialsException.class);
@@ -99,12 +101,12 @@ class AuthServiceLoginTest {
 
 	@Test
 	void 비밀번호가_틀리면_동일한_인증_실패로_처리한다() {
-		UserAccount user = userAccount("ACTIVE");
-		given(userAccountPort.findByEmail(REQUEST.email())).willReturn(Optional.of(user));
+		Account account = account(AccountStatus.ACTIVE);
+		given(accountRepository.findByEmail(REQUEST.email())).willReturn(Optional.of(account));
 		given(passwordHasher.matches(
 			REQUEST.password(),
-			user.salt(),
-			user.encryptedPassword()
+			account.getSalt(),
+			account.getEncryptedPassword()
 		)).willReturn(false);
 
 		assertThatThrownBy(() -> authService.login(REQUEST))
@@ -115,14 +117,14 @@ class AuthServiceLoginTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"SUSPENDED", "WITHDRAWN"})
-	void 비활성_계정이면_토큰을_발급하지_않는다(String status) {
-		UserAccount user = userAccount(status);
-		given(userAccountPort.findByEmail(REQUEST.email())).willReturn(Optional.of(user));
+	@EnumSource(value = AccountStatus.class, names = {"SUSPENDED", "WITHDRAWN"})
+	void 비활성_계정이면_토큰을_발급하지_않는다(AccountStatus status) {
+		Account account = account(status);
+		given(accountRepository.findByEmail(REQUEST.email())).willReturn(Optional.of(account));
 		given(passwordHasher.matches(
 			REQUEST.password(),
-			user.salt(),
-			user.encryptedPassword()
+			account.getSalt(),
+			account.getEncryptedPassword()
 		)).willReturn(true);
 
 		assertThatThrownBy(() -> authService.login(REQUEST))
@@ -134,11 +136,11 @@ class AuthServiceLoginTest {
 
 	@Test
 	void 로그인하면_refresh_hash를_저장하고_access를_반환한다() {
-		UserAccount user = userAccount("ACTIVE");
-		givenSuccessfulCredentialValidation(user);
+		Account account = account(AccountStatus.ACTIVE);
+		givenSuccessfulCredentialValidation(account);
 		given(jwtTokenProvider.issue(
-			eq(user.id()),
-			eq(UserAccountRole.USER),
+			eq(account.getId()),
+			eq(AccountRole.USER),
 			any(Instant.class)
 		)).willReturn(TOKENS);
 		given(refreshTokenHasher.hash(TOKENS.refreshToken())).willReturn(REFRESH_TOKEN_HASH);
@@ -150,29 +152,29 @@ class AuthServiceLoginTest {
 			TOKENS.refreshToken()
 		));
 		then(authenticationRepository).should().upsertRefreshTokenHash(
-			user.id(),
+			account.getId(),
 			REFRESH_TOKEN_HASH
 		);
 	}
 
-	private void givenSuccessfulCredentialValidation(UserAccount user) {
-		given(userAccountPort.findByEmail(REQUEST.email())).willReturn(Optional.of(user));
+	private void givenSuccessfulCredentialValidation(Account account) {
+		given(accountRepository.findByEmail(REQUEST.email())).willReturn(Optional.of(account));
 		given(passwordHasher.matches(
 			REQUEST.password(),
-			user.salt(),
-			user.encryptedPassword()
+			account.getSalt(),
+			account.getEncryptedPassword()
 		)).willReturn(true);
 	}
 
-	private UserAccount userAccount(String status) {
-		return new UserAccount(
-			1,
+	private Account account(AccountStatus status) {
+		Account account = Account.create(
 			REQUEST.email(),
 			"collector",
-			UserAccountRole.USER,
-			status,
 			"encrypted-password",
 			"salt"
 		);
+		ReflectionTestUtils.setField(account, "id", 1);
+		ReflectionTestUtils.setField(account, "status", status);
+		return account;
 	}
 }
