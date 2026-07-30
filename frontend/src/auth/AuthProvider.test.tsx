@@ -26,7 +26,9 @@ function renderAuthProvider() {
     },
   });
 
-  return render(
+  return {
+    queryClient,
+    ...render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <AuthProvider>
@@ -35,7 +37,8 @@ function renderAuthProvider() {
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
-  );
+    ),
+  };
 }
 
 describe('AuthProvider 앱 시작 인증 복구', () => {
@@ -99,5 +102,24 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(getAccessToken()).toBe('retried-access-token');
+  });
+
+  it('anonymous 전환 시 개인 Query cache만 제거한다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'REFRESH_TOKEN_MISSING'}, 401));
+    const {queryClient} = renderAuthProvider();
+    queryClient.setQueryData(['auth', 'me'], {id: 1});
+    queryClient.setQueryData(['account', 'profile'], {nickname: '포켓컬렉터'});
+    queryClient.setQueryData(['wallet', 'balance'], {totalBalance: 10_000});
+    queryClient.setQueryData(['auction', 'catalog'], [{id: 1}]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+
+    expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
+    expect(queryClient.getQueryData(['account', 'profile'])).toBeUndefined();
+    expect(queryClient.getQueryData(['wallet', 'balance'])).toBeUndefined();
+    expect(queryClient.getQueryData(['auction', 'catalog'])).toEqual([{id: 1}]);
   });
 });

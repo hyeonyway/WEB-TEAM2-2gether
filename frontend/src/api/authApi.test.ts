@@ -92,6 +92,22 @@ describe('authApi', () => {
     expect(getAccessToken()).toBeNull();
   });
 
+  it('로그인 401은 자동 Refresh 없이 그대로 반환한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({}, 401));
+
+    await expect(login({
+      email: 'collector@example.com',
+      password: 'wrong-password',
+    })).rejects.toMatchObject({status: 401});
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/login',
+      expect.objectContaining({method: 'POST'}),
+    );
+  });
+
   it('로그아웃 요청이 실패해도 메모리의 Access Token을 제거한다', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('network error'));
     setAccessToken('access-token');

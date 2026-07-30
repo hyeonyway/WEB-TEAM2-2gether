@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
+import {useQueryClient} from '@tanstack/react-query';
 import {getAccessToken, subscribeAccessToken} from '../api/accessTokenStore';
 import {refreshAccessToken} from '../api/authApi';
 import {HttpError} from '../api/httpClient';
@@ -25,6 +26,7 @@ type AuthProviderProps = {
 };
 
 export function AuthProvider({children}: AuthProviderProps) {
+  const queryClient = useQueryClient();
   const accessToken = useSyncExternalStore(
     subscribeAccessToken,
     getAccessToken,
@@ -56,6 +58,14 @@ export function AuthProvider({children}: AuthProviderProps) {
     : accessToken
       ? 'authenticated'
       : 'anonymous';
+
+  useEffect(() => {
+    if (status !== 'anonymous') return;
+    queryClient.removeQueries({queryKey: ['auth']});
+    queryClient.removeQueries({queryKey: ['account']});
+    queryClient.removeQueries({queryKey: ['wallet']});
+  }, [queryClient, status]);
+
   const contextValue = useMemo<AuthContextValue>(() => ({
     status,
     retryInitialization: () => {
