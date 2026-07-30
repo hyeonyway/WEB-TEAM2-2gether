@@ -1,4 +1,4 @@
-package com.dbidding.wallet.adapter;
+package com.dbidding.wallet.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,10 +22,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
-import com.dbidding.auction.port.WalletPort.WalletSnapshot;
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.domain.WalletHold;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
@@ -36,7 +36,7 @@ import com.dbidding.wallet.repository.WalletRepository;
 	"spring.sql.init.mode=always",
 	"spring.jpa.hibernate.ddl-auto=validate"
 })
-class AuctionWalletCaptureIntegrationTest {
+class WalletCaptureIntegrationTest {
 
 	@Container
 	@ServiceConnection
@@ -44,7 +44,7 @@ class AuctionWalletCaptureIntegrationTest {
 		.withDatabaseName("dbidding");
 
 	@Autowired
-	private AuctionWalletAdapter adapter;
+	private WalletService walletService;
 
 	@Autowired
 	private WalletRepository walletRepository;
@@ -119,22 +119,22 @@ class AuctionWalletCaptureIntegrationTest {
 	void 동시_낙찰_확정은_잔액과_원장을_한_번만_변경한다() throws Exception {
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
-		Callable<WalletSnapshot> capture = () -> {
+		Callable<WalletBalanceResponse> capture = () -> {
 			ready.countDown();
 			assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
 			return transactionTemplate.execute(status ->
-				adapter.confirmWinningBid(1, 1, 16_000L)
+				walletService.capture(1, 1, 16_000L)
 			);
 		};
-		List<Future<WalletSnapshot>> futures = List.of(
+		List<Future<WalletBalanceResponse>> futures = List.of(
 			executor.submit(capture),
 			executor.submit(capture)
 		);
 
 		assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
 		start.countDown();
-		WalletSnapshot first = futures.get(0).get(10, TimeUnit.SECONDS);
-		WalletSnapshot second = futures.get(1).get(10, TimeUnit.SECONDS);
+		WalletBalanceResponse first = futures.get(0).get(10, TimeUnit.SECONDS);
+		WalletBalanceResponse second = futures.get(1).get(10, TimeUnit.SECONDS);
 
 		assertThat(first.availableBalance()).isEqualTo(4_000L);
 		assertThat(second.availableBalance()).isEqualTo(4_000L);

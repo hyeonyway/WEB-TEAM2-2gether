@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointRecord;
 import com.dbidding.wallet.domain.PointTransactionType;
 import com.dbidding.wallet.domain.Wallet;
@@ -120,6 +121,36 @@ public class WalletService {
 		latest.filter(WalletHold::isHeld)
 			.ifPresent(hold -> hold.release(Instant.now()));
 		return balance(wallet, Math.subtractExact(frozenBefore, releasedAmount));
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletBalanceResponse capture(Integer userId, Integer auctionId, long amount) {
+		Wallet wallet = lockWallet(userId);
+		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
+		WalletHold hold = latestHold(wallet.getId(), auctionId)
+			.orElseThrow(InvalidWalletHoldStateException::new);
+		if (hold.getStatus() == HoldStatus.CAPTURED) {
+			if (hold.getAmount() != amount) {
+				throw new InvalidWalletHoldStateException();
+			}
+			return balance(wallet, frozenBefore);
+		}
+		if (!hold.isHeld() || hold.getAmount() != amount || frozenBefore < amount) {
+			throw new InvalidWalletHoldStateException();
+		}
+		balance(wallet, frozenBefore);
+
+		wallet.debit(amount);
+		hold.capture(Instant.now());
+		pointRecordRepository.save(
+			PointRecord.auctionCapture(
+				wallet.getId(),
+				auctionId,
+				amount,
+				wallet.getPoint()
+			)
+		);
+		return balance(wallet, Math.subtractExact(frozenBefore, amount));
 	}
 
 	private Wallet lockWallet(Integer userId) {
