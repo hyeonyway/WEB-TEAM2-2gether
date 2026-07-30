@@ -24,12 +24,20 @@
 | GET | `/api/users/{userId}/notifications/stream` | 티켓 | 임하민 | 웹 알림 |
 | POST | `/api/sse/tickets` | JWT(기존) | 김현문 | SSE 인증용 1회용 티켓 발급 |
 
+사용자별 스트림의 `{userId}`는 라우팅 값일 뿐 인증 근거가 아니다. 실제
+컨트롤러와 서비스는 티켓 검증 결과가 주입된 `@CurrentUser Integer userId`를
+기준으로 데이터를 조회하고, PathVariable이 필요하면 두 ID의 일치를 검증한다.
+
 이은기는 위 스트림을 직접 만들지 않고 `BidPlacedEvent`/`BidOutbidEvent`/`AuctionClosedEvent` 등 도메인 이벤트 발행만 담당한다. 정세호/임하민이 각자 `@EventListener`로 구독해 자기 SSE emitter에 push한다.
 
 ## 주요 규칙 (회의 결론)
 
 - Redis Pub/Sub, Redis Streams, WebSocket, Polling 전부 **미채택**. 단일 인스턴스 환경이라 인스턴스 간 릴레이가 필요 없고, 순수 인메모리 `@EventListener` → 로컬 `SseEmitter` push만으로 충분하다. 이에 따라 별도 `global.realtime` 공용 모듈도 만들지 않는다 — 정세호/임하민이 각자 패키지 안에서 로컬 emitter 레지스트리만 관리한다.
 - 공개 시세 데이터(경매 목록/상세)는 인증 없이 SSE 접근을 허용한다. 개인화 데이터(대시보드/알림)만 티켓으로 인증한다.
+- SSE 티켓도 단일 인스턴스의 인메모리 저장소에 30초 동안만 보관한다. 검증 시
+  원자적으로 제거해 한 번만 사용할 수 있게 하고, 만료된 미사용 티켓은
+  주기적으로 정리한다. 멀티 인스턴스로 전환할 때만 공유 저장소 구현으로
+  교체한다.
 - 경매 목록은 스크롤/페이지네이션에 따른 재구독 로직이 프론트에서 복잡해, MVP는 auctionId 필터링 없이 **전체 연결**로 구현한다. 트래픽 문제가 실제로 생기면 그때 보이는 항목만 구독하도록 개선한다.
 - SSE 인증은 `fetch`+`Authorization` 헤더 방식을 검토했으나, 통제하기 어려운 프론트 복잡성보다 통제 가능한 백엔드 복잡성(티켓 발급/검증)이 늘어나는 쪽이 문제 발생 시 더 유연하다고 판단해 `EventSource`+티켓 방식을 최종 채택했다.
 - 멀티 인스턴스로 스케일아웃하게 되면 그때 Redis Pub/Sub 발행 한 줄을 추가하면 되고, 로컬 emitter 관리 로직은 바뀌지 않는다.

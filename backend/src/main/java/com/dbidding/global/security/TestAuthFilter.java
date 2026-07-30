@@ -3,6 +3,8 @@ package com.dbidding.global.security;
 import java.io.IOException;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -13,6 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 @Profile("debug-auth")
+@Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class TestAuthFilter extends OncePerRequestFilter {
 
 	private static final String DEBUG_USER_ID_HEADER = "X-Debug-User-Id";
@@ -24,7 +27,7 @@ public class TestAuthFilter extends OncePerRequestFilter {
 		FilterChain filterChain
 	) throws ServletException, IOException {
 		Integer userId = parsePositiveUserId(request.getHeader(DEBUG_USER_ID_HEADER));
-		if (userId != null) {
+		if (request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE) == null && userId != null) {
 			request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, userId);
 		}
 		filterChain.doFilter(request, response);

@@ -6,17 +6,24 @@
 
 - `CurrentUserProvider`는 순수 `Integer userId`만 반환하는 얇은 전역 계약이다(로그인 유저 식별처럼 전원 공통 관심사이므로 특정 도메인 소유가 아니다 — `module-interfaces.md` 4절).
 - `TicketProvider`도 같은 이유로 `global.security` 소유다. 이후 전역 `SseTicketAuthFilter`가 이 인터페이스에 의존하고, 대시보드(정세호)/알림(임하민)의 SSE 컨트롤러는 티켓을 직접 다루지 않은 채 `@CurrentUser Integer userId`만 사용한다. 경매 목록/상세 SSE(정세호 담당, 이은기는 이벤트 발행만)는 공개 데이터라 티켓을 쓰지 않는다.
-- **기존 코드와의 관계(중요):** `auction/port/CurrentUserPort.java`가 이미 존재하며 `id`/`nickname`/`seller`/`restricted`를 담은 자체 `CurrentUser` record를 쓴다(`auction/adapter/MockCurrentUserAdapter.java`가 `@Profile("auction-mock")`으로 고정값 반환 중). `CurrentUserProvider`와 경쟁하는 게 아니라 다른 층위다 — `CurrentUserProvider`는 "누구인지(userId)"만, `CurrentUserPort`처럼 프로필까지 필요한 도메인은 자기 인터페이스를 따로 정의해 쓴다(`module-interfaces.md`의 "쓰는 쪽이 정의" 원칙). 실제 JWT 완성 후 `CurrentUserProvider.getCurrentUserId()` + `UserRepository` 조회를 조합해 `CurrentUserPort`의 실제 어댑터로 `MockCurrentUserAdapter`를 교체한다(Task 6).
+- SSE 티켓은 현재 단일 애플리케이션 인스턴스 안의 메모리에 저장한다. 발급
+  인스턴스와 소비 인스턴스가 항상 같으므로 Redis 같은 공유 저장소는 도입하지
+  않는다. 멀티 인스턴스로 전환할 때만 `TicketProvider` 구현체를 공유 저장소
+  기반으로 교체한다.
+- **기존 코드와의 관계(중요):** `auction/port/CurrentUserPort.java`가 이미 존재하며 `id`/`nickname`/`seller`/`restricted`를 담은 자체 `CurrentUser` record를 쓴다. 계정 자체는 판매자와 구매자를 구분하지 않고, 이 Port는 `auctionId`도 받지 않아 `seller`를 판정할 수 없다. 따라서 실제 어댑터 구현은 이 문서에서 강행하지 않고 Auction 담당자와 계약을 먼저 조정한다(Task 6).
 
-**Tech Stack:** Spring MVC(`OncePerRequestFilter`, `HandlerMethodArgumentResolver`), JJWT, Spring Data Redis, JUnit 5, Mockito
+**Tech Stack:** Spring MVC(`OncePerRequestFilter`, `HandlerMethodArgumentResolver`), JJWT, JDK 동시성 컬렉션, JUnit 5, Mockito
 
 ## Global Constraints
 
 - `CurrentUserProvider`/`@CurrentUser`는 `Integer userId`만 다룬다. 닉네임/권한 등 필요한 도메인은 자기 포트를 따로 정의한다(`CurrentUserPort` 참고).
 - `global.security`는 다른 도메인의 Entity나 Repository를 참조하지 않는다.
-- `X-Debug-User-Id` 헤더 기반 `TestAuthFilter`는 `debug-auth` 프로필을 명시적으로 활성화한 경우에만 사용한다. 기본 프로필에서는 등록하지 않으며, 실제 `JwtAuthFilter` 전역 적용 시 제거한다.
-- `CurrentUserArgumentResolver`는 지금 등록해 `TestAuthFilter`와 함께 사용한다. `JwtAuthFilter`만 구현 후 인증 통합일까지 전역 등록을 미룬다.
+- `X-Debug-User-Id` 헤더 기반 `TestAuthFilter`는 `debug-auth` 프로필을 명시적으로 활성화한 경우에만 JWT가 없는 요청의 fallback으로 사용한다. 기본 프로필과 운영 환경에서는 등록하지 않는다.
+- `JwtAuthFilter`는 기본 인증 필터로 등록한다. Authorization 헤더가 없으면 요청을 그대로 통과시키고, 인증이 필요한 컨트롤러에서는 `CurrentUserProvider`가 `UnauthorizedException`을 발생시킨다.
 - 티켓은 JWT가 아니다 — 클레임 없는 불투명한 랜덤 문자열이며, 검증 성공 시 즉시 폐기되는 1회용이다. TTL은 30초로 고정한다.
+- 티켓 저장소는 `ConcurrentHashMap` 기반 단일 인스턴스 메모리 저장소다. 검증 시
+  `remove()`로 티켓을 원자적으로 소비하고, 주기적인 정리 작업으로 만료된 미사용
+  티켓을 제거한다.
 - 진짜 JWT(Access/Refresh Token)는 어떤 경우에도 쿼리파라미터에 실리지 않는다.
 - `SseTicketAuthFilter`는 설정된 SSE 스트림 경로에만 적용되며, 그 외 경로의 `JwtAuthFilter` 동작에는 영향을 주지 않는다.
 
@@ -165,6 +172,7 @@ public class WebConfig implements WebMvcConfigurer {
 **Interfaces:**
 - Produces: `String TicketProvider.issue(Integer userId)`
 - Produces: `Integer TicketProvider.validateAndConsume(String ticket)` — 무효/만료/이미 소비된 티켓이면 `UnauthorizedException`
+- Produces: `long TicketProvider.ticketTtlSeconds()` — 발급 응답과 실제 만료 시간이 같은 TTL 정의를 사용하도록 초 단위 값을 제공
 
 - [x] **Step 1: 인터페이스 작성**
 
@@ -174,6 +182,7 @@ package com.dbidding.global.security;
 public interface TicketProvider {
     String issue(Integer userId);
     Integer validateAndConsume(String ticket);
+    long ticketTtlSeconds();
 }
 ```
 
@@ -186,13 +195,13 @@ request attribute에 `userId`를 넣고, 각 컨트롤러는 공통 `@CurrentUse
 
 ## 이후 실제 구현 (Task 3~8)
 
-### Task 3: 실제 JwtAuthFilter (구현은 지금, 전역 적용은 인증 통합일)
+### Task 3: 실제 JwtAuthFilter와 Current User 연결
 
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/global/security/JwtAuthFilter.java`
 - Test: `backend/src/test/java/com/dbidding/global/security/JwtAuthFilterTest.java`
 
-- [ ] **Step 1: 유효 토큰이면 request attribute에 userId를 채운다**
+- [x] **Step 1: 유효 토큰이면 request attribute에 userId를 채운다**
 
 ```java
 @Test
@@ -205,106 +214,126 @@ void 유효한_Access_Token이면_userId를_attribute에_저장한다() {
 }
 ```
 
-- [ ] **Step 2: 토큰 없거나 무효면 request attribute를 채우지 않는다**(거절은 `CurrentUserProvider` 쪽에서 함, 필터는 파싱만 담당)
-- [ ] **Step 3: `Authorization: Bearer ...` 헤더에서 토큰 추출 후 `JwtTokenProvider.parseAccess()`(3-login-and-token.md 산출물) 재사용**
+- [x] **Step 2: 토큰이 없으면 request attribute를 채우지 않고 통과시킨다. 잘못된 Bearer 토큰은 401로 처리한다**
+- [x] **Step 3: `Authorization: Bearer ...` 헤더에서 토큰 추출 후 `JwtTokenProvider.parseAccess()`(3-login-and-token.md 산출물) 재사용**
 
-이 필터는 **인증 통합일 전까지 프로필에 등록하지 않는다** — `TestAuthFilter`만 활성 상태를 유지한다. 완성해두는 이유는 인증 통합일에 스위치만 바꾸면 되도록 미리 준비하기 위함이다.
+이 필터는 기본 인증 흐름에 등록한다. `debug-auth` 프로필에서는 Bearer 토큰이
+없는 요청에 한해 `TestAuthFilter`가 사용자 ID를 보완한다. 두 헤더가 함께 오면
+검증된 JWT 사용자 ID를 우선하며 debug header가 덮어쓰지 않는다.
 
-### Task 4: Redis 기반 TicketProvider 구현
+### Task 4: 단일 인스턴스용 InMemoryTicketProvider 구현
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/global/security/RedisTicketProvider.java`
-- Test: `backend/src/test/java/com/dbidding/global/security/RedisTicketProviderTest.java`
+- Create: `backend/src/main/java/com/dbidding/global/security/InMemoryTicketProvider.java`
+- Test: `backend/src/test/java/com/dbidding/global/security/InMemoryTicketProviderTest.java`
 
-- [ ] **Step 1: 발급 테스트**
+- [x] **Step 1: 발급 테스트**
 
 ```java
 @Test
 void 유저_ID로_티켓을_발급하고_TTL을_설정한다() {
     String ticket = provider.issue(1);
 
-    then(redisTemplate.opsForValue()).should()
-        .set(eq("sse:ticket:" + ticket), eq("1"), eq(Duration.ofSeconds(30)));
+    assertThat(ticket).isNotBlank();
+    assertThat(provider.validateAndConsume(ticket)).isEqualTo(1);
 }
 ```
 
-- [ ] **Step 2: 1회성 검증 테스트**
+- [x] **Step 2: 1회성 검증 테스트**
 
 ```java
 @Test
 void 티켓_검증에_성공하면_동일_티켓_재사용이_불가능하다() {
-    given(redisTemplate.opsForValue().getAndDelete("sse:ticket:abc")).willReturn("1");
+    String ticket = provider.issue(1);
 
-    Integer userId = provider.validateAndConsume("abc");
-
-    assertThat(userId).isEqualTo(1);
-    // 두 번째 호출은 getAndDelete가 null을 반환하므로 별도 테스트로 확인
+    assertThat(provider.validateAndConsume(ticket)).isEqualTo(1);
+    assertThatThrownBy(() -> provider.validateAndConsume(ticket))
+        .isInstanceOf(UnauthorizedException.class);
 }
 
 @Test
-void 만료되었거나_이미_소비된_티켓은_거절한다() {
-    given(redisTemplate.opsForValue().getAndDelete("sse:ticket:abc")).willReturn(null);
+void 발급_후_30초가_지나면_티켓을_거절한다() {
+    String ticket = provider.issue(1);
+    clock.advance(Duration.ofSeconds(31));
 
-    assertThatThrownBy(() -> provider.validateAndConsume("abc"))
+    assertThatThrownBy(() -> provider.validateAndConsume(ticket))
         .isInstanceOf(UnauthorizedException.class);
 }
 ```
 
-- [ ] **Step 3: 최소 구현**
+- [x] **Step 3: 최소 구현**
 
 ```java
 @Component
-public class RedisTicketProvider implements TicketProvider {
+public class InMemoryTicketProvider implements TicketProvider {
     private static final Duration TTL = Duration.ofSeconds(30);
-    private final StringRedisTemplate redisTemplate;
+    private final ConcurrentMap<String, TicketEntry> tickets = new ConcurrentHashMap<>();
+    private final Clock clock;
 
     @Override
     public String issue(Integer userId) {
         String ticket = UUID.randomUUID().toString();
-        redisTemplate.opsForValue().set(key(ticket), String.valueOf(userId), TTL);
+        tickets.put(ticket, new TicketEntry(userId, clock.instant().plus(TTL)));
         return ticket;
     }
 
     @Override
-    public Integer validateAndConsume(String ticket) {
-        String userId = redisTemplate.opsForValue().getAndDelete(key(ticket));
-        if (userId == null) {
-            throw new UnauthorizedException();
-        }
-        return Integer.valueOf(userId);
+    public long ticketTtlSeconds() {
+        return TTL.toSeconds();
     }
 
-    private String key(String ticket) {
-        return "sse:ticket:" + ticket;
+    @Override
+    public Integer validateAndConsume(String ticket) {
+        TicketEntry entry = tickets.remove(ticket);
+        if (entry == null || !clock.instant().isBefore(entry.expiresAt())) {
+            throw new UnauthorizedException();
+        }
+        return entry.userId();
     }
+
+    @Scheduled(fixedDelay = 60_000)
+    void removeExpiredTickets() {
+        Instant now = clock.instant();
+        tickets.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().expiresAt()));
+    }
+
+    private record TicketEntry(Integer userId, Instant expiresAt) {}
 }
 ```
 
-`getAndDelete`(Redis 6.2+ `GETDEL`)로 조회와 삭제를 한 번에 처리해 1회성을 보장한다. 사용 중인 Redis가 6.2 미만이면 동일 동작을 하는 Lua 스크립트(`GET` 후 `DEL`을 원자적으로 실행)로 대체한다.
+`ConcurrentHashMap.remove()`로 조회와 삭제를 한 번에 처리해 같은 프로세스 안에서
+1회성을 보장한다. 미사용 티켓은 검증할 때 만료 여부를 확인하고, 60초 주기의
+정리 작업으로 메모리에서도 제거한다. 이 구현은 단일 인스턴스 전용이다. 추후
+멀티 인스턴스로 전환하면 `TicketProvider` 인터페이스는 유지하고 공유 저장소
+구현체로 교체한다.
 
 ### Task 5: 티켓 발급 API + SSE 인증 필터
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/global/security/TicketController.java`
+- Create: `backend/src/main/java/com/dbidding/global/security/SseTicketController.java`
+- Create: `backend/src/main/java/com/dbidding/global/security/SseTicketResponse.java`
 - Create: `backend/src/main/java/com/dbidding/global/security/SseTicketAuthFilter.java`
 
-- [ ] **Step 1: 발급 엔드포인트**
+- [x] **Step 1: 발급 엔드포인트**
 
 ```java
 @RestController
-public class TicketController {
+public class SseTicketController {
     private final TicketProvider ticketProvider;
 
     @PostMapping("/api/sse/tickets")
     public TicketResponse issue(@CurrentUser Integer userId) {
-        return new TicketResponse(ticketProvider.issue(userId), 30);
+        return new TicketResponse(
+            ticketProvider.issue(userId),
+            ticketProvider.ticketTtlSeconds()
+        );
     }
 }
 ```
 
-기존 `JwtAuthFilter`가 이미 처리한 요청이므로 `@CurrentUser`를 그대로 쓴다 — 새 인증 로직이 필요 없다.
+기존 `JwtAuthFilter`가 이미 처리한 요청이므로 `@CurrentUser`를 그대로 쓴다 — 새 인증 로직이 필요 없다. 응답의 `expiresInSeconds`는 Provider의 실제 TTL을 사용해 두 값이 따로 변경되는 것을 막는다.
 
-- [ ] **Step 2: SSE 경로용 인증 필터**
+- [x] **Step 2: SSE 경로용 인증 필터**
 
 ```java
 public class SseTicketAuthFilter extends OncePerRequestFilter {
@@ -315,6 +344,11 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
                                      FilterChain chain) throws IOException, ServletException {
         String ticket = request.getParameter("ticket");
         Integer userId = ticketProvider.validateAndConsume(ticket);
+        Object existingUserId = request.getAttribute("userId");
+        if (existingUserId != null && !existingUserId.equals(userId)) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
         request.setAttribute("userId", userId);
         chain.doFilter(request, response);
     }
@@ -323,7 +357,11 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 
 `JwtAuthFilter`가 request attribute에 `userId`를 저장하는 것과 동일한 방식으로 저장하므로, 대시보드/알림 컨트롤러는 `@CurrentUser Integer userId`를 그대로 쓰면 된다 — `TicketProvider`를 직접 호출할 필요가 없다. 이 필터는 `/api/dashboard/stream`, `/api/users/{userId}/auctions/stream`, `/api/users/{userId}/notifications/stream`에만 등록하고 그 외 경로는 기존 `JwtAuthFilter`를 그대로 통과시킨다.
 
-- [ ] **Step 3: 통합 테스트**
+`JwtAuthFilter`가 먼저 저장한 사용자 ID가 없는 일반 `EventSource` 요청은 티켓 사용자 ID를 그대로 저장한다. JWT와 티켓이 함께 전달된 요청은 두 사용자 ID가 같을 때만 통과시키며, 다르면 티켓을 소비한 뒤 401로 종료한다. 불일치 요청에서도 이미 소비한 티켓을 복구하지 않으므로 같은 티켓을 다시 사용할 수 없다.
+
+사용자별 SSE 경로에 `{userId}`가 남아 있더라도 실제 SSE Controller와 Service는 해당 PathVariable을 인증 근거로 신뢰하지 않는다. `@CurrentUser Integer userId`를 기준으로 데이터를 조회하며, PathVariable을 사용할 필요가 있다면 현재 사용자 ID와 일치하는지 검증해야 한다.
+
+- [x] **Step 3: 통합 테스트**
 
 ```java
 @Test
@@ -335,51 +373,20 @@ void 유효한_티켓으로_SSE_요청하면_현재유저로_인증된다() {
 }
 ```
 
-### Task 6: `auction.CurrentUserPort` 실제 어댑터로 교체
+### Task 6: `auction.CurrentUserPort` 계약 조정 후 별도 구현
 
-**Files:**
-- Create: `backend/src/main/java/com/dbidding/user/adapter/CurrentUserPortAdapter.java` (또는 `auth` 패키지 — User 조회가 필요하므로 `user` 소유가 자연스러움)
-- Modify: `backend/src/main/java/com/dbidding/auction/adapter/MockCurrentUserAdapter.java` — `@Profile("auction-mock")`을 유지하되 실제 어댑터에 `@Profile("!auction-mock")` 부여로 전환
+현재 `CurrentUserPort.CurrentUser`의 `seller`는 계정 단위 속성처럼 정의되어
+있지만, Dibidding은 판매자 계정과 구매자 계정을 구분하지 않는다. 특정 경매의
+판매자 여부는 `auction.sellerId`와 현재 사용자 ID를 비교해야 하며, 경매 생성
+시점에는 비교할 경매도 없다.
 
-- [ ] **Step 1: `CurrentUserProvider` + `UserRepository` 조합 테스트**
+따라서 #83에서는 실제 어댑터를 구현하지 않는다. Auction 담당자와 다음 내용을
+먼저 합의한 뒤 별도 작업으로 진행한다.
 
-```java
-@Test
-void 실제_유저정보로_CurrentUser를_구성한다() {
-    given(currentUserProvider.getCurrentUserId()).willReturn(1);
-    given(userRepository.findById(1)).willReturn(Optional.of(user)); // seller=true, status=ACTIVE
-
-    CurrentUserPort.CurrentUser result = adapter.currentUser();
-
-    assertThat(result.id()).isEqualTo(1);
-    assertThat(result.seller()).isTrue();
-    assertThat(result.restricted()).isFalse();
-}
-```
-
-- [ ] **Step 2: 최소 구현**
-
-```java
-@Component
-@Profile("!auction-mock")
-public class CurrentUserPortAdapter implements CurrentUserPort {
-    private final CurrentUserProvider currentUserProvider;
-    private final UserRepository userRepository;
-
-    @Override
-    public CurrentUser currentUser() {
-        Integer userId = currentUserProvider.getCurrentUserId();
-        User user = userRepository.findById(userId).orElseThrow(UnauthorizedException::new);
-        return new CurrentUser(
-            user.getId(), user.getNickname(),
-            user.getRole() == UserRole.SELLER,
-            user.getStatus() == UserStatus.SUSPENDED
-        );
-    }
-}
-```
-
-`seller`/`restricted` 판정 기준(어떤 role/status 값을 매핑할지)은 실제 `UserRole`/`UserStatus` enum이 확정되는 대로 이은기와 맞춘다 — 지금은 스키마 초안 기준 추정값이다.
+- 계정 단위 `seller` 제거
+- 경매 생성 가능 여부는 `UserStatus.ACTIVE` 기준으로 판단
+- 특정 경매의 소유자 여부는 Auction 안에서 `sellerId`와 현재 사용자 ID 비교
+- `active`와 `restricted`처럼 서로 반대되는 중복 boolean은 하나로 정리
 
 ### Task 7: 팀 사용 가이드 (오늘 바로 적용 가능)
 
@@ -402,31 +409,37 @@ public SseEmitter stream(@CurrentUser Integer userId) {
 }
 ```
 
-김현문의 실제 구현(`RedisTicketProvider`/`CurrentUserPortAdapter`/`JwtAuthFilter`)이
-끝나도 컨트롤러/서비스 코드는 변경하지 않는다. 인증 필터가 request attribute를
+김현문의 실제 구현(`InMemoryTicketProvider`/`JwtAuthFilter`)이 끝나도
+SSE 컨트롤러/서비스 코드는 변경하지 않는다. 인증 필터가 request attribute를
 채우는 방식만 디버그 헤더에서 JWT 또는 SSE 티켓으로 교체된다.
 
 ### Task 8: 단위 테스트와 커밋
 
 ```bash
-./gradlew test --tests com.dbidding.global.security.*
-git add backend/src/main/java/com/dbidding/global/security backend/src/test/java/com/dbidding/global/security \
-  backend/src/main/java/com/dbidding/global/exception backend/src/main/java/com/dbidding/global/config \
-  backend/src/main/java/com/dbidding/user
-git commit -m "feat: 전역 CurrentUserProvider와 SSE 티켓 인증 추가"
+./gradlew clean test
 ```
+
+구현은 JWT 필터, 인메모리 티켓 저장소, 티켓 발급 API, SSE 티켓 필터를 각각
+독립 커밋으로 나눈다.
 
 ## 완료 조건
 
 - `debug-auth` 프로필에서 `@CurrentUser Integer userId`만으로 로그인 유저 식별이 가능하다.
 - `TestAuthFilter`는 `X-Debug-User-Id` 헤더가 없으면 아무 attribute도 채우지 않아, 인증이 실제로 필요한 곳에서는 여전히 `UnauthorizedException`이 발생한다.
 - 기본 프로필과 운영 환경에서는 `X-Debug-User-Id` 헤더만으로 인증할 수 없다.
-- `JwtAuthFilter`는 구현이 끝나 있으나 인증 통합일 전까지 전역 필터체인에 등록되지 않는다.
+- `JwtAuthFilter`는 기본 인증 흐름에 등록되고, `debug-auth` 프로필에서만
+  `X-Debug-User-Id` fallback을 허용한다.
 - 발급된 티켓은 30초 후 자동 만료되고, 동일 티켓 재사용은 거절된다(1회성).
+- JWT 사용자와 SSE 티켓 사용자가 함께 전달되면 두 ID가 일치할 때만 통과하고,
+  불일치하면 티켓을 소비한 뒤 401을 반환한다.
+- 티켓은 단일 인스턴스 메모리에 저장되며, 만료된 미사용 티켓은 주기적으로
+  정리된다.
 - 진짜 JWT(Access/Refresh Token)는 어떤 요청 URL에도 노출되지 않는다.
 - 대시보드/알림 컨트롤러는 `TicketProvider`를 직접 호출하지 않고 `@CurrentUser`만으로 유저를 식별한다.
-- `auction.CurrentUserPort`의 실제 어댑터는 `MockCurrentUserAdapter`와 동일한 인터페이스를 만족하며 교체 시 `auction` 쪽 코드 변경이 없다.
-- `global.security`는 `user`/`auction`의 Entity를 직접 참조하지 않는다(Task 6의 조합 로직은 `user` 패키지에 둔다).
-- `MockCurrentUserAdapter`에서 실제 구현으로 교체하거나 SSE 티켓 필터를 연결할 때 호출부 코드 변경이 없다.
+- 사용자별 SSE 경로의 `{userId}`는 인증 근거로 사용하지 않으며, 필요한 경우
+  `@CurrentUser`와 일치하는지 검증한다.
+- `global.security`는 `user`/`auction`의 Entity를 직접 참조하지 않는다.
+- `auction.CurrentUserPort` 실제 어댑터는 `seller` 계약을 조정하기 전까지
+  구현하지 않는다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다
