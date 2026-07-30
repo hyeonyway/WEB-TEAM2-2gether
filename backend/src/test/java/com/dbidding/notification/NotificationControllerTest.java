@@ -1,9 +1,11 @@
 package com.dbidding.notification;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -11,6 +13,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
+
+import com.dbidding.global.security.CurrentUserProvider;
 
 @WebMvcTest(NotificationController.class)
 class NotificationControllerTest {
@@ -21,6 +25,14 @@ class NotificationControllerTest {
     @MockitoBean
     private NotificationService notificationService;
 
+    @MockitoBean
+    private CurrentUserProvider currentUserProvider;
+
+    @BeforeEach
+    void setUp() {
+        given(currentUserProvider.getCurrentUserId()).willReturn(1);
+    }
+
     @Test
     void 알림_목록을_조회하면_200과_목록을_반환한다() throws Exception {
         given(notificationService.findAll(1)).willReturn(List.of(
@@ -28,7 +40,7 @@ class NotificationControllerTest {
                 Notification.of(1, 20, "메시지2")
         ));
 
-        mockMvc.perform(MockMvcRequestBuilders.get("/api/users/1/notifications"))
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(2))
                 .andExpect(MockMvcResultMatchers.jsonPath("$[1].auctionId").value(20))
@@ -39,8 +51,33 @@ class NotificationControllerTest {
     void 알림이_없으면_빈_목록을_반환한다() throws Exception {
         given(notificationService.findAll(1)).willReturn(List.of());
 
-        mockMvc.perform(MockMvcRequestBuilders.get("/api/users/1/notifications"))
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void read_false_파라미터면_안읽은_알림만_조회한다() throws Exception {
+        given(notificationService.findUnread(1)).willReturn(List.of(Notification.of(1, 10, "메시지1")));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications").param("read", "false"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void 개별_알림을_읽음_처리한다() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/1/read"))
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
+
+        then(notificationService).should().markAsRead(1, 1L);
+    }
+
+    @Test
+    void 전체_알림을_읽음_처리한다() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/read-all"))
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
+
+        then(notificationService).should().markAllAsRead(1);
     }
 }

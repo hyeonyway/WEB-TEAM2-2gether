@@ -2,16 +2,19 @@ package com.dbidding.notification;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dbidding.global.security.CurrentUser;
 import com.dbidding.notification.dto.NotificationResponse;
 
-// TODO: 인증 미들웨어(JwtAuthFilter) 도입되면 @PathVariable Integer userId를 @CurrentUser Integer userId로 교체
 @RestController
-@RequestMapping("/api/users/{userId}/notifications")
+@RequestMapping("/api/notifications")
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -21,9 +24,27 @@ public class NotificationController {
     }
 
     @GetMapping
-    public List<NotificationResponse> findAll(@PathVariable Integer userId) {
-        return notificationService.findAll(userId).stream()
+    public List<NotificationResponse> findAll(
+            @CurrentUser Integer userId,
+            @RequestParam(name = "read", required = false) Boolean read
+    ) {
+        List<Notification> notifications = Boolean.FALSE.equals(read)
+                ? notificationService.findUnread(userId)
+                : notificationService.findAll(userId);
+        return notifications.stream()
                 .map(NotificationResponse::from)
                 .toList();
+    }
+
+    @PatchMapping("/{notificationId}/read")
+    public ResponseEntity<Void> markAsRead(@CurrentUser Integer userId, @PathVariable Long notificationId) {
+        notificationService.markAsRead(userId, notificationId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/read-all")
+    public ResponseEntity<Void> markAllAsRead(@CurrentUser Integer userId) {
+        notificationService.markAllAsRead(userId);
+        return ResponseEntity.noContent().build();
     }
 }

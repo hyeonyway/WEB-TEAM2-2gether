@@ -358,16 +358,16 @@ CREATE TABLE notification
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    INT          NOT NULL,
     auction_id INT          NOT NULL,
-    message    VARCHAR(255) NOT NULL,
+    message    VARCHAR(300) NOT NULL,
+    is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     CONSTRAINT pk_notification PRIMARY KEY (id),
     CONSTRAINT fk_notification_user
         FOREIGN KEY (user_id) REFERENCES users (id),
-    CONSTRAINT fk_notification_auction
-        FOREIGN KEY (auction_id) REFERENCES auctions (id),
 
     INDEX idx_notification_user_id (user_id),
-    INDEX idx_notification_auction_id (auction_id)
+    INDEX idx_notification_user_id_is_read (user_id, is_read)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

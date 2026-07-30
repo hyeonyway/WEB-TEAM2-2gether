@@ -115,7 +115,8 @@ src/main/resources/required-data/
 ├── 001-pokemon-card.sql
 ├── 002-user.sql
 ├── 003-auction-bid-item-statistics.sql
-└── 004-dashboard-current-auctions.sql
+├── 004-dashboard-current-auctions.sql
+└── 005-notification-seed.sql
 ```
 
 DB 초기화 시 비어 있지 않은 `.sql` 파일만 정렬된 순서대로 실행한다. 하나라도
@@ -131,6 +132,12 @@ DB 초기화 시 비어 있지 않은 `.sql` 파일만 정렬된 순서대로 �
 `3000101`~`3000112`에 생성한다. 사용자 `1`의 최종 입찰은 `WON`, 이전 참여자들의
 입찰은 `LOST`로 기록되며, 종료 시각은 최근 1일부터 12일까지 역순으로 구성된다.
 모든 경매에는 카드 메타데이터의 이미지 경로가 함께 등록된다.
+
+`005-notification-seed.sql`은 `004`가 만든 경매를 재사용해 `DEBUG_USER_ID=1`의
+알림 목록에 클릭해볼 데이터를 채운다. 경매 등록 알림(`3000001`~`3000005`),
+상회 입찰 알림(`3000004`, `3000007`, `3000010` — `004`의 상회 입찰 그룹과 동일),
+낙찰 알림(`3000101`~`3000106`)을 만들며, 일부는 `is_read = true`로 시드해
+읽음/안읽음 필터를 바로 확인할 수 있게 한다.
 
 DB 계정은 실제 DB와 `dbidding_schema_check_%` 비교용 DB를 생성·삭제할 수
 있어야 한다.
