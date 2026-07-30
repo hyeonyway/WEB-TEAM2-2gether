@@ -1,16 +1,20 @@
 package com.dbidding.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -56,5 +60,40 @@ class NotificationServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).isRead()).isFalse();
+    }
+
+    @Test
+    void 본인_알림을_읽음_처리한다() {
+        Notification notification = Notification.of(1, 10, "메시지");
+        given(notificationRepository.findById(1L)).willReturn(Optional.of(notification));
+
+        notificationService.markAsRead(1, 1L);
+
+        assertThat(notification.isRead()).isTrue();
+    }
+
+    @Test
+    void 존재하지_않는_알림을_읽음_처리하면_404() {
+        given(notificationRepository.findById(1L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> notificationService.markAsRead(1, 1L))
+                .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void 본인_소유가_아닌_알림을_읽음_처리하면_404() {
+        Notification notification = Notification.of(2, 10, "메시지");
+        given(notificationRepository.findById(1L)).willReturn(Optional.of(notification));
+
+        assertThatThrownBy(() -> notificationService.markAsRead(1, 1L))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThat(notification.isRead()).isFalse();
+    }
+
+    @Test
+    void 전체_알림을_읽음_처리한다() {
+        notificationService.markAllAsRead(1);
+
+        then(notificationRepository).should().markAllAsReadByUserId(1);
     }
 }
