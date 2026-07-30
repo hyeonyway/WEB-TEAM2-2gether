@@ -21,7 +21,8 @@ export default function PriceChangeAreaChart({history}:Props){
     .map(point=>({
       date:point.date,
       timestamp:new Date(point.date).getTime(),
-      averagePrice:point.average_price,
+      averagePrice:point.average_price??0,
+      noTrade:point.average_price===null,
       auctionCount:point.ended_auction_count,
     }))
     .filter(point=>Number.isFinite(point.timestamp))
@@ -96,7 +97,6 @@ export default function PriceChangeAreaChart({history}:Props){
           yAxisId="price"
           type="monotone"
           dataKey="averagePrice"
-          connectNulls
           stroke="none"
           fill="url(#detail-price-fill)"
           dot={false}
@@ -106,7 +106,6 @@ export default function PriceChangeAreaChart({history}:Props){
           yAxisId="price"
           type="monotone"
           dataKey="averagePrice"
-          connectNulls
           stroke="var(--color-averagePrice)"
           strokeWidth={2.5}
           strokeLinecap="round"

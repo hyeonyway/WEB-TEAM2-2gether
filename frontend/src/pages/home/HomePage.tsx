@@ -80,6 +80,11 @@ function Insight({insight}:{insight:StatisticInsightDto}){
 }
 
 function Chart({history}:{history:StatisticMarketPointDto[]}){
+  const data=history.map(point=>({
+    ...point,
+    averagePrice:point.averagePrice??0,
+    noTrade:point.averagePrice===null,
+  }));
   const config={
     averagePrice:{label:'시세(원)',color:'#ff584d'},
     bidCount:{label:'입찰량(건)',color:'#e2e2e2'},
@@ -87,7 +92,7 @@ function Chart({history}:{history:StatisticMarketPointDto[]}){
   const tickInterval=Math.max(Math.ceil(history.length/6)-1,0);
 
   return <ChartContainer config={config} className="home-market-chart">
-    <ComposedChart data={history} margin={{top:16,right:8,bottom:4,left:8}} accessibilityLayer>
+    <ComposedChart data={data} margin={{top:16,right:8,bottom:4,left:8}} accessibilityLayer>
       <defs>
         <linearGradient id="home-price-fill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="5%" stopColor="var(--color-averagePrice)" stopOpacity={0.22}/>
@@ -135,7 +140,6 @@ function Chart({history}:{history:StatisticMarketPointDto[]}){
         yAxisId="price"
         type="monotone"
         dataKey="averagePrice"
-        connectNulls
         stroke="none"
         fill="url(#home-price-fill)"
         dot={false}
@@ -145,7 +149,6 @@ function Chart({history}:{history:StatisticMarketPointDto[]}){
         yAxisId="price"
         type="monotone"
         dataKey="averagePrice"
-        connectNulls
         stroke="var(--color-averagePrice)"
         strokeWidth={2.8}
         strokeLinecap="round"

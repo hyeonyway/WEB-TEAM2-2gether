@@ -52,7 +52,8 @@ export function ChartTooltipContent({
 }){
   const config=useContext(ChartContext);
   if(!active||!payload?.length)return null;
-  const noTrade=payload[0]?.payload?.averagePrice===null;
+  const noTrade=payload[0]?.payload?.noTrade===true
+    ||payload[0]?.payload?.averagePrice===null;
   const normalizedPayload=noTrade&&!payload.some(item=>item.dataKey==='averagePrice')
     ?[{dataKey:'averagePrice',value:null,color:config.averagePrice?.color,payload:payload[0]?.payload},...payload]
     :payload;
@@ -69,7 +70,7 @@ export function ChartTooltipContent({
         <i style={{background:item.color??definition?.color}}/>
         <span>{definition?.label??key}</span>
         <b>{key==='averagePrice'
-          ?item.value===null?'체결 없음':`${Number(item.value).toLocaleString()}원`
+          ?noTrade?'체결 없음':`${Number(item.value).toLocaleString()}원`
           :`${Number(item.value).toLocaleString()}건`}</b>
       </div>;
     })}
