@@ -6,9 +6,9 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.dbidding.auth.exception.InvalidTokenException;
-import com.dbidding.auth.token.JwtTokenProvider;
-import com.dbidding.auth.token.TokenClaims;
+import com.dbidding.account.exception.InvalidTokenException;
+import com.dbidding.account.token.JwtTokenProvider;
+import com.dbidding.account.token.TokenClaims;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

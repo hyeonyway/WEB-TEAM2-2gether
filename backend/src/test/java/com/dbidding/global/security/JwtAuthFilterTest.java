@@ -14,10 +14,10 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import com.dbidding.auth.exception.InvalidTokenException;
-import com.dbidding.auth.token.JwtTokenProvider;
-import com.dbidding.auth.token.TokenClaims;
-import com.dbidding.auth.token.TokenType;
+import com.dbidding.account.exception.InvalidTokenException;
+import com.dbidding.account.token.JwtTokenProvider;
+import com.dbidding.account.token.TokenClaims;
+import com.dbidding.account.token.TokenType;
 
 @ExtendWith(MockitoExtension.class)
 class JwtAuthFilterTest {

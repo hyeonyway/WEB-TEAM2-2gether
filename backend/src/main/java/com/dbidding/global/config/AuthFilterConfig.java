@@ -3,7 +3,7 @@ package com.dbidding.global.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.dbidding.auth.token.JwtTokenProvider;
+import com.dbidding.account.token.JwtTokenProvider;
 import com.dbidding.global.security.JwtAuthFilter;
 import com.dbidding.global.security.SseTicketAuthFilter;
 import com.dbidding.global.security.TicketProvider;

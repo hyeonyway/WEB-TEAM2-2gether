@@ -2,7 +2,7 @@ package com.dbidding.wallet.adapter;
 
 import org.springframework.stereotype.Component;
 
-import com.dbidding.auth.port.WalletProvisioningPort;
+import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.wallet.service.WalletService;
 
 import lombok.RequiredArgsConstructor;
