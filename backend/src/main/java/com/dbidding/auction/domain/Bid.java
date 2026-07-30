@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -42,11 +43,26 @@ public class Bid {
     @Column(nullable = false)
     private BidStatus status;
 
+    public static Bid leading(Integer bidderId, Auction auction, Long bidPrice, LocalDateTime createdAt) {
+        return Bid.builder()
+                .bidderId(bidderId)
+                .auction(auction)
+                .bidPrice(bidPrice)
+                .createdAt(createdAt)
+                .status(BidStatus.LEADING)
+                .build();
+    }
+
+    @Builder
     public Bid(Integer bidderId, Auction auction, Long bidPrice, LocalDateTime createdAt, BidStatus status) {
         this.bidderId = bidderId;
         this.auction = auction;
         this.bidPrice = bidPrice;
         this.createdAt = createdAt;
         this.status = status;
+    }
+
+    public void markOutbid() {
+        status = BidStatus.OUTBID;
     }
 }

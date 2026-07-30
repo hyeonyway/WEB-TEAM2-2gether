@@ -2,11 +2,13 @@ package com.dbidding.auction.repository;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
+import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import java.util.Collection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -35,4 +37,9 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
     Optional<Auction> findByIdAndStatusNot(Integer id, AuctionStatus status);
 
     long countByItemIdAndStatusIn(Integer itemId, Collection<AuctionStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Auction a where a.id = :id")
+    Optional<Auction> findByIdForUpdate(@Param("id") Integer id);
+
 }

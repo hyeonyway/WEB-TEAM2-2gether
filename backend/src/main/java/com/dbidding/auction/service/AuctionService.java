@@ -16,10 +16,12 @@ import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.dto.AuctionCreateResponse;
 import com.dbidding.auction.dto.AuctionResponses;
 import com.dbidding.auction.dto.AuctionSearchRequest;
+import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
+import com.dbidding.auction.port.AuctionEventPort;
 import com.dbidding.auction.port.CurrentUserPort;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.auction.port.WalletPort;
@@ -31,6 +33,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -57,7 +60,9 @@ public class AuctionService {
     private final ImageUploadPort imageUploadPort;
     private final AuctionCardPort auctionCardPort;
     private final AuctionCardStatisticPort auctionCardStatisticPort;
+    private final AuctionEventPort auctionEventPort;
     private final Map<CreateIdempotencyKey, CachedAuctionCreate> createIdempotencyCache = new ConcurrentHashMap<>();
+    private final Map<BidIdempotencyKey, CachedBidCreate> bidIdempotencyCache = new ConcurrentHashMap<>();
 
     @Transactional
     public AuctionCreateResponse create(AuctionCreateRequest request, String idempotencyKey) {
@@ -98,6 +103,13 @@ public class AuctionService {
                 .toList();
         auctionImageRepository.saveAll(auctionImages);
         auctionCardStatisticPort.recordAuctionOpened(auction.getItemId(), now);
+        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                AuctionEventPort.AuctionEventType.AUCTION_OPENED,
+                auction.getId(),
+                user.id(),
+                request.startPrice()+request.shippingFee(),
+                now
+        ));
 
         AuctionCreateResponse response = AuctionCreateResponse.builder()
                 .id(auction.getId())
@@ -107,6 +119,33 @@ public class AuctionService {
                 .version(auction.getVersion())
                 .build();
         createIdempotencyCache.put(cacheKey, new CachedAuctionCreate(request, response));
+        return response;
+    }
+
+    @Transactional
+    public BidResponses.BidSummary participate(Integer auctionId, BidCreateRequest request, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
+        var user = currentUserPort.currentUser();
+        BidIdempotencyKey cacheKey = new BidIdempotencyKey(user.id(), auctionId, idempotencyKey);
+        Optional<BidResponses.BidSummary> cachedResponse = findCachedBidResponse(cacheKey, request);
+        if (cachedResponse.isPresent()) {
+            return cachedResponse.get();
+        }
+
+        Auction auction = auctionRepository.findByIdForUpdate(auctionId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
+        Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
+
+        placeBid(auction, request.price());
+        holdBidAmount(user.id(), auction.getId(), request.price());
+        outbidPreviousLeadingBid(previousLeadingBid, user.id(), auction.getId());
+
+        LocalDateTime now = LocalDateTime.now();
+        Bid currentLeadingBid = bidRepository.save(Bid.leading(user.id(), auction, request.price(), now));
+        auctionCardStatisticPort.recordBid(auction.getItemId(), now);
+        publishBidPlaced(auction, user.id(), request.price(), now);
+        BidResponses.BidSummary response = bidSummary(currentLeadingBid, currentLeadingBid.getId());
+        bidIdempotencyCache.put(cacheKey, new CachedBidCreate(request, response));
         return response;
     }
 
@@ -226,6 +265,20 @@ public class AuctionService {
         return Optional.of(cached.response());
     }
 
+    private Optional<BidResponses.BidSummary> findCachedBidResponse(
+            BidIdempotencyKey cacheKey,
+            BidCreateRequest request
+    ) {
+        CachedBidCreate cached = bidIdempotencyCache.get(cacheKey);
+        if (cached == null) {
+            return Optional.empty();
+        }
+        if (!cached.request().equals(request)) {
+            throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+        }
+        return Optional.of(cached.response());
+    }
+
     private void validateImages(List<ImageUploadPort.ResolvedImage> images) {
         if (images.isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "이미지는 1장 이상 필요합니다.");
@@ -233,6 +286,49 @@ public class AuctionService {
         if (images.size() > MAX_IMAGE_COUNT) {
             throw new ResponseStatusException(BAD_REQUEST, "이미지는 최대 8장까지 등록할 수 있습니다.");
         }
+    }
+
+    private void placeBid(Auction auction, Long price) {
+        try {
+            auction.placeBid(price);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+        }
+    }
+
+    private void holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
+        try {
+            walletPort.holdBidAmount(bidderId, auctionId, price);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+        }
+    }
+
+    private void outbidPreviousLeadingBid(Bid previousLeadingBid, Integer currentBidderId, Integer auctionId) {
+        if (previousLeadingBid == null) {
+            return;
+        }
+        previousLeadingBid.markOutbid();
+        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                AuctionEventPort.AuctionEventType.BID_OUTBID,
+                auctionId,
+                previousLeadingBid.getBidderId(),
+                previousLeadingBid.getBidPrice(),
+                LocalDateTime.now()
+        ));
+        if (!previousLeadingBid.getBidderId().equals(currentBidderId)) {
+            walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auctionId);
+        }
+    }
+
+    private void publishBidPlaced(Auction auction, Integer bidderId, Long bidPrice, LocalDateTime occurredAt) {
+        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
+                AuctionEventPort.AuctionEventType.BID_PLACED,
+                auction.getId(),
+                bidderId,
+                bidPrice,
+                occurredAt
+        ));
     }
 
     private Map<Integer, AuctionCardPort.CardSnapshot> cardSnapshots(List<Auction> auctions) {
@@ -364,7 +460,7 @@ public class AuctionService {
                 .id(bid.getId())
                 .amount(bid.getBidPrice())
                 .bidderAlias(bidderAlias(bid.getBidderId()))
-                .isHighest(bid.getId().equals(highestBidId))
+                .isHighest(Objects.equals(bid.getId(), highestBidId))
                 .createdAt(bid.getCreatedAt())
                 .build();
     }
@@ -391,6 +487,12 @@ public class AuctionService {
     }
 
     private record CachedAuctionCreate(AuctionCreateRequest request, AuctionCreateResponse response) {
+    }
+
+    private record BidIdempotencyKey(Integer userId, Integer auctionId, String idempotencyKey) {
+    }
+
+    private record CachedBidCreate(BidCreateRequest request, BidResponses.BidSummary response) {
     }
 
 }
