@@ -1,6 +1,7 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {MemoryRouter, useLocation} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   clearAccessToken,
@@ -25,7 +26,12 @@ vi.mock('../../api/authApi', async importOriginal => {
   };
 });
 
-function renderHeader() {
+function LocationProbe() {
+  const {pathname} = useLocation();
+  return <output data-testid="router-path">{pathname}</output>;
+}
+
+function renderHeader(path = window.location.pathname) {
   const queryClient = new QueryClient({
     defaultOptions: {
       mutations: {retry: false},
@@ -36,9 +42,12 @@ function renderHeader() {
   return {
     queryClient,
     ...render(
-    <QueryClientProvider client={queryClient}>
-      <Header/>
-    </QueryClientProvider>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[path]}>
+          <Header/>
+          <LocationProbe/>
+        </MemoryRouter>
+      </QueryClientProvider>,
     ),
   };
 }
@@ -75,6 +84,17 @@ describe('Header 계정 메뉴', () => {
       .toBe(getComputedStyle(myPageLink).fontSize);
     expect(getComputedStyle(loginButton).fontSize).toBe('11px');
   });
+
+  it('React Router의 현재 경로를 기준으로 활성 메뉴를 표시한다', () => {
+    window.history.replaceState({}, '', '/');
+
+    renderHeader('/auction');
+
+    expect(screen.getByRole('link', {name: '카드 경매'}))
+      .toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', {name: '홈'}))
+      .not.toHaveAttribute('aria-current');
+  });
 });
 
 describe('AuthModal 회원가입', () => {
@@ -108,6 +128,51 @@ describe('AuthModal 회원가입', () => {
     await user.click(screen.getByRole('button', {name: '인증 모달 닫기'}));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('열릴 때 첫 입력으로 이동하고 닫히면 실행 버튼으로 포커스를 돌려준다', async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    const openButton = screen.getByRole('button', {name: '로그인'});
+
+    await user.click(openButton);
+
+    expect(screen.getByLabelText('이메일')).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+
+    expect(openButton).toHaveFocus();
+  });
+
+  it('회원가입 모드에서 닫았다가 다시 열어도 로그인 입력에 포커스를 둔다', async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    const openButton = screen.getByRole('button', {name: '로그인'});
+
+    await user.click(openButton);
+    await user.click(screen.getByRole('button', {name: '회원가입하기'}));
+    await user.keyboard('{Escape}');
+    await user.click(openButton);
+
+    expect(screen.getByRole('dialog', {name: '계정 로그인'})).toBeInTheDocument();
+    expect(screen.getByLabelText('이메일')).toHaveFocus();
+  });
+
+  it('Tab 포커스를 모달 내부에서 순환시킨다', async () => {
+    const user = userEvent.setup();
+    renderHeader();
+
+    await user.click(screen.getByRole('button', {name: '로그인'}));
+
+    const closeButton = screen.getByRole('button', {name: '인증 모달 닫기'});
+    const switchButton = screen.getByRole('button', {name: '회원가입하기'});
+    closeButton.focus();
+
+    await user.tab({shift: true});
+    expect(switchButton).toHaveFocus();
+
+    await user.tab();
+    expect(closeButton).toHaveFocus();
   });
 
   it('유효하지 않은 입력과 비밀번호 불일치를 서버에 보내지 않는다', async () => {
@@ -301,7 +366,7 @@ describe('Header 로그아웃', () => {
     );
     expect(getAccessToken()).toBeNull();
     expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
-    expect(window.location.pathname).toBe('/');
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/');
     expect(screen.getByRole('button', {name: '로그인'})).toBeInTheDocument();
   });
 

@@ -91,7 +91,8 @@ Header, Home, Card, Auction, Dashboard, Sell의 `<a href>`와
 |---|---|
 | 400 | 입력 필드 또는 요청 형식 오류 표시 |
 | 401, 로그인 | 이메일·비밀번호를 구분하지 않는 공통 자격 증명 오류 |
-| 401, 인증 API | Refresh 한 번 뒤 원 요청을 최대 한 번 재시도 |
+| 401, 인증이 필요한 일반 API | Refresh 한 번 뒤 원 요청을 최대 한 번 재시도 |
+| 401, signup/login/refresh/logout | 자동 Refresh·재시도 없이 엔드포인트별 오류 처리 |
 | 401, Refresh | 메모리 토큰과 인증 Query를 지우고 anonymous 전환 |
 | 404 | Wallet·사용자·배송지 없음 표시 |
 | 409, 회원가입 | 이메일 또는 닉네임 중복 안내 |

@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import LoginForm from './LoginForm';
 import SignupForm from './SignupForm';
 import './AuthModal.css';
@@ -14,12 +14,43 @@ export default function AuthModal({open, onClose}: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [loginEmail, setLoginEmail] = useState('');
   const [notice, setNotice] = useState('');
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusableElements = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), '
+        + 'select:not([disabled]), textarea:not([disabled]), '
+        + '[tabindex]:not([tabindex="-1"])',
+      ));
+      const first = focusableElements[0];
+      const last = focusableElements.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      if (event.shiftKey && (document.activeElement === first
+        || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last
+        || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -31,6 +62,27 @@ export default function AuthModal({open, onClose}: AuthModalProps) {
       setNotice('');
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    return () => {
+      previousFocusRef.current?.focus();
+      previousFocusRef.current = null;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const dialog = dialogRef.current;
+    const initialFocus = dialog?.querySelector<HTMLElement>('input:not([disabled])');
+    (initialFocus ?? dialog)?.focus();
+  }, [open, mode]);
 
   if (!open) return null;
 
@@ -54,10 +106,12 @@ export default function AuthModal({open, onClose}: AuthModalProps) {
       }}
     >
       <section
+        ref={dialogRef}
         className="auth-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
+        tabIndex={-1}
       >
         <button
           type="button"
