@@ -50,7 +50,7 @@ public class CardStatisticsAdapter implements CardStatisticsPort {
 
     private Summary toSummary(ItemStatistic statistic) {
         return new Summary(
-                statistic.getItem().getId(),
+                statistic.getItemId(),
                 statistic.getLatestPrice(),
                 statistic.getAveragePrice30d(),
                 statistic.getLowestPrice30d(),

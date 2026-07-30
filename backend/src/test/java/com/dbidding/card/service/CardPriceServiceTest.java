@@ -38,7 +38,7 @@ class CardPriceServiceTest {
                 set, "피카츄 프로모", "JP", "10", "gold", "/pikachu.png"));
         cardRepository.save(new CardMetadata(
                 set, "리자몽 프로모", "JP", "9", "multi", "/charizard.png"));
-        statisticRepository.save(new ItemStatistic(pikachu, LocalDate.now().minusDays(1),
+        statisticRepository.save(new ItemStatistic(pikachu.getId(), LocalDate.now().minusDays(1),
                 138_000L, 130_000L, 110_000L, 149_000L, 12, 2, 20,
                 new BigDecimal("2.70"), new BigDecimal("5.10"), new BigDecimal("12.10")));
 
@@ -62,7 +62,7 @@ class CardPriceServiceTest {
         CardMetadata card = cardRepository.save(new CardMetadata(
                 set, "피카츄 AR", "JPN", "10", "rainbow", null));
         LocalDate yesterday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
-        statisticRepository.save(new ItemStatistic(card, yesterday,
+        statisticRepository.save(new ItemStatistic(card.getId(), yesterday,
                 138_000L, 127_250L, 105_000L, 155_000L, 32, 2, 30,
                 new BigDecimal("2.70"), new BigDecimal("8.20"), new BigDecimal("12.10")));
         entityManager.flush();
@@ -89,10 +89,10 @@ class CardPriceServiceTest {
                      'ENDED', now(), now(), now(), 0, 1000, false, 1)
                 """).setParameter("itemId", card.getId()).executeUpdate();
         dailyStatisticRepository.save(new ItemDailyStatistic(
-                card, yesterday.minusDays(10), 120_000L, 118_000L,
+                card.getId(), yesterday.minusDays(10), 120_000L, 118_000L,
                 115_000L, 120_000L, 12, 1));
         dailyStatisticRepository.save(new ItemDailyStatistic(
-                card, yesterday, 138_000L, 138_000L,
+                card.getId(), yesterday, 138_000L, 138_000L,
                 138_000L, 138_000L, 20, 1));
 
         var response = cardPriceService.getCard(card.getId(), 30);
@@ -118,7 +118,7 @@ class CardPriceServiceTest {
         entityManager.persist(set);
         CardMetadata card = cardRepository.save(new CardMetadata(
                 set, "피카츄 프로모", "JP", "10", "gold", null));
-        statisticRepository.save(new ItemStatistic(card, LocalDate.now().minusDays(1),
+        statisticRepository.save(new ItemStatistic(card.getId(), LocalDate.now().minusDays(1),
                 null, null, null, null, 0, 0, 0,
                 null, null, null));
 
@@ -138,10 +138,10 @@ class CardPriceServiceTest {
                 set, "고가 카드", "JP", "10", "gold", null));
         CardMetadata popular = cardRepository.save(new CardMetadata(
                 set, "인기 카드", "JP", "10", "gold", null));
-        statisticRepository.save(new ItemStatistic(expensive, LocalDate.now().minusDays(1),
+        statisticRepository.save(new ItemStatistic(expensive.getId(), LocalDate.now().minusDays(1),
                 500_000L, 500_000L, 480_000L, 520_000L, 1, 1, 1,
                 null, null, null));
-        statisticRepository.save(new ItemStatistic(popular, LocalDate.now().minusDays(1),
+        statisticRepository.save(new ItemStatistic(popular.getId(), LocalDate.now().minusDays(1),
                 100_000L, 100_000L, 90_000L, 110_000L, 1, 1, 100,
                 null, null, null));
         entityManager.flush();

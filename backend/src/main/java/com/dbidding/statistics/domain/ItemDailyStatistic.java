@@ -1,6 +1,5 @@
 package com.dbidding.statistics.domain;
 
-import com.dbidding.card.domain.CardMetadata;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import lombok.AccessLevel;
@@ -17,9 +16,8 @@ public class ItemDailyStatistic {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "item_id", nullable = false)
-    private CardMetadata item;
+    @Column(name = "item_id", nullable = false)
+    private Integer itemId;
 
     @Column(name = "statistics_date", nullable = false)
     private LocalDate statisticsDate;
@@ -30,10 +28,10 @@ public class ItemDailyStatistic {
     private Integer bidCount;
     private Integer endedAuctionCount;
 
-    public ItemDailyStatistic(CardMetadata item, LocalDate statisticsDate, Long latestPrice,
+    public ItemDailyStatistic(Integer itemId, LocalDate statisticsDate, Long latestPrice,
                               Long averagePrice, Long lowestPrice, Long highestPrice,
                               Integer bidCount, Integer endedAuctionCount) {
-        this.item = item;
+        this.itemId = itemId;
         this.statisticsDate = statisticsDate;
         this.latestPrice = latestPrice;
         this.averagePrice = averagePrice;

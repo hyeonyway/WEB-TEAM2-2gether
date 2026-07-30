@@ -1,7 +1,8 @@
 package com.dbidding.home.service;
 
-import com.dbidding.card.domain.CardTheme;
 import com.dbidding.home.dto.HomeResponses;
+import com.dbidding.home.port.HomeCardPort;
+import com.dbidding.home.port.HomeCardPort.CardSnapshot;
 import com.dbidding.home.repository.HomeAuctionRepository;
 import com.dbidding.statistics.domain.ItemDailyStatistic;
 import com.dbidding.statistics.domain.MarketDailyStatistic;
@@ -33,6 +34,7 @@ public class HomeService {
     private final HomeAuctionRepository auctionRepository;
     private final ItemDailyStatisticRepository dailyStatisticRepository;
     private final MarketDailyStatisticRepository marketStatisticRepository;
+    private final HomeCardPort cardPort;
     private final Clock clock;
 
     public List<HomeResponses.Insight> getInsights() {
@@ -103,9 +105,11 @@ public class HomeService {
     public HomeResponses.PriceMovers getPriceMovers(int limit) {
         LocalDate today = LocalDate.now(clock);
         LocalDate from = today.minusDays(30);
-        List<HomeResponses.Ranking> candidates = dailyStatisticRepository
-                .findPriceMovementCandidates(from, today).stream()
-                .map(this::ranking)
+        var priceCandidates = dailyStatisticRepository.findPriceMovementCandidates(from, today);
+        Map<Integer, CardSnapshot> cards = cardPort.getCards(
+                priceCandidates.stream().map(PriceMovementCandidate::getCardId).toList());
+        List<HomeResponses.Ranking> candidates = priceCandidates.stream()
+                .map(candidate -> ranking(candidate, cards.get(candidate.getCardId())))
                 .filter(java.util.Objects::nonNull)
                 .toList();
         List<HomeResponses.Ranking> gainers = candidates.stream()
@@ -129,7 +133,7 @@ public class HomeService {
         Map<Integer, List<HomeResponses.RankingPricePoint>> histories =
                 itemIds.isEmpty() ? Map.of() : dailyStatisticRepository.findHistory(itemIds, from, today).stream()
                         .collect(Collectors.groupingBy(
-                                stat -> stat.getItem().getId(),
+                                ItemDailyStatistic::getItemId,
                                 Collectors.collectingAndThen(Collectors.toList(), this::priceHistory)
                         ));
         return new HomeResponses.PriceMovers(
@@ -139,20 +143,21 @@ public class HomeService {
         );
     }
 
-    private HomeResponses.Ranking ranking(PriceMovementCandidate candidate) {
+    private HomeResponses.Ranking ranking(
+            PriceMovementCandidate candidate, CardSnapshot card) {
         long currentPrice = value(candidate.getCurrentPrice());
         long previousPrice = value(candidate.getPreviousPrice());
-        if (currentPrice <= 0 || previousPrice <= 0 || currentPrice == previousPrice) {
+        if (card == null || currentPrice <= 0 || previousPrice <= 0 || currentPrice == previousPrice) {
             return null;
         }
         return new HomeResponses.Ranking(
                 candidate.getCardId(),
-                candidate.getName(),
+                card.name(),
                 currentPrice,
                 changeRate(currentPrice, previousPrice),
-                CardTheme.fromRarity(candidate.getRarity()),
+                card.theme(),
                 candidate.getBidCount() == null ? 0 : candidate.getBidCount(),
-                candidate.getImageUrl(),
+                card.imageUrl(),
                 candidate.getCurrentDate(),
                 candidate.getPreviousDate(),
                 List.of()

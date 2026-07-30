@@ -14,23 +14,15 @@ public interface ItemDailyStatisticRepository extends JpaRepository<ItemDailySta
 
     @Query("""
             select s from ItemDailyStatistic s
-            join fetch s.item
-            where s.item.id in :itemIds
+            where s.itemId in :itemIds
               and s.statisticsDate >= :from
               and s.statisticsDate < :to
-            order by s.item.id, s.statisticsDate
+            order by s.itemId, s.statisticsDate
             """)
     List<ItemDailyStatistic> findHistory(
             @Param("itemIds") Collection<Integer> itemIds,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
-
-    @Query("""
-            select s from ItemDailyStatistic s
-            join fetch s.item
-            where s.statisticsDate = :date
-            """)
-    List<ItemDailyStatistic> findAllWithItemByStatisticsDate(@Param("date") LocalDate date);
 
     @Query(value = """
             with ranked_prices as (
@@ -47,10 +39,7 @@ public interface ItemDailyStatisticRepository extends JpaRepository<ItemDailySta
                   and s.statistics_date < :to
                   and coalesce(nullif(s.latest_price, 0), nullif(s.average_price, 0)) is not null
             )
-            select card.id as cardId,
-                   card.name as name,
-                   card.rarity as rarity,
-                   card.image_path as imageUrl,
+            select current_price.item_id as cardId,
                    current_price.statistics_date as currentDate,
                    current_price.price as currentPrice,
                    current_price.bid_count as bidCount,
@@ -60,7 +49,6 @@ public interface ItemDailyStatisticRepository extends JpaRepository<ItemDailySta
             join ranked_prices previous_price
               on previous_price.item_id = current_price.item_id
              and previous_price.price_rank = 2
-            join card_metadata card on card.id = current_price.item_id
             where current_price.price_rank = 1
             """, nativeQuery = true)
     List<PriceMovementCandidate> findPriceMovementCandidates(

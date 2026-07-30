@@ -9,6 +9,7 @@ import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistics.repository.PriceMovementCandidate;
 import com.dbidding.statistics.domain.MarketDailyStatistic;
 import com.dbidding.home.repository.HomeAuctionRepository;
+import com.dbidding.home.port.HomeCardPort;
 import com.dbidding.statistics.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +27,7 @@ class HomeServiceTest {
             mock(ItemDailyStatisticRepository.class);
     private final MarketDailyStatisticRepository marketStatisticRepository =
             mock(MarketDailyStatisticRepository.class);
+    private final HomeCardPort cardPort = mock(HomeCardPort.class);
     private final Clock clock = Clock.fixed(
             Instant.parse("2026-07-28T03:00:00Z"),
             ZoneId.of("Asia/Seoul")
@@ -34,7 +37,8 @@ class HomeServiceTest {
     @BeforeEach
     void setUp() {
         homeService = new HomeService(
-                auctionRepository, dailyStatisticRepository, marketStatisticRepository, clock);
+                auctionRepository, dailyStatisticRepository, marketStatisticRepository,
+                cardPort, clock);
     }
 
     @Test
@@ -90,6 +94,7 @@ class HomeServiceTest {
         LocalDate today = LocalDate.of(2026, 7, 28);
         given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
                 .willReturn(List.of());
+        given(cardPort.getCards(List.of())).willReturn(Map.of());
 
         var result = homeService.getPriceMovers(5);
 
@@ -110,6 +115,8 @@ class HomeServiceTest {
         );
         given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
                 .willReturn(candidates);
+        given(cardPort.getCards(List.of(1, 2, 3, 4))).willReturn(Map.of(
+                1, card(1), 2, card(2), 3, card(3), 4, card(4)));
         given(dailyStatisticRepository.findHistory(
                 org.mockito.ArgumentMatchers.anyCollection(),
                 org.mockito.ArgumentMatchers.eq(from),
@@ -125,13 +132,16 @@ class HomeServiceTest {
     private PriceMovementCandidate candidate(Integer id, Long current, Long previous) {
         var candidate = mock(PriceMovementCandidate.class);
         given(candidate.getCardId()).willReturn(id);
-        given(candidate.getName()).willReturn("카드 " + id);
         given(candidate.getCurrentPrice()).willReturn(current);
         given(candidate.getPreviousPrice()).willReturn(previous);
         given(candidate.getCurrentDate()).willReturn(LocalDate.of(2026, 7, 27));
         given(candidate.getPreviousDate()).willReturn(LocalDate.of(2026, 7, 25));
         given(candidate.getBidCount()).willReturn(3);
         return candidate;
+    }
+
+    private HomeCardPort.CardSnapshot card(Integer id) {
+        return new HomeCardPort.CardSnapshot(id, "카드 " + id, "gold", "/card-" + id);
     }
 
     private MarketDailyStatistic daily(

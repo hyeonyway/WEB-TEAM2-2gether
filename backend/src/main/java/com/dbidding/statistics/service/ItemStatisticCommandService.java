@@ -1,6 +1,6 @@
 package com.dbidding.statistics.service;
 
-import com.dbidding.card.repository.CardMetadataRepository;
+import com.dbidding.statistics.port.StatisticsCardPort;
 import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,10 +8,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class ItemStatisticCommandService {
-    private final CardMetadataRepository cardRepository;
+    private final StatisticsCardPort cardPort;
 
-    public ItemStatisticCommandService(CardMetadataRepository cardRepository) {
-        this.cardRepository = cardRepository;
+    public ItemStatisticCommandService(StatisticsCardPort cardPort) {
+        this.cardPort = cardPort;
     }
 
     public void recordBid(Integer itemId, LocalDateTime date) {
@@ -35,7 +35,7 @@ public class ItemStatisticCommandService {
     }
 
     private void validateItem(Integer itemId) {
-        if (itemId == null || !cardRepository.existsById(itemId)) {
+        if (!cardPort.exists(itemId)) {
             throw new IllegalArgumentException("존재하지 않는 카드입니다.");
         }
     }

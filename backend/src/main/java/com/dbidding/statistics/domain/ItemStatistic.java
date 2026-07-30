@@ -1,6 +1,5 @@
 package com.dbidding.statistics.domain;
 
-import com.dbidding.card.domain.CardMetadata;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,12 +13,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ItemStatistic {
     @Id
-    private Integer id;
-
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @MapsId
-    @JoinColumn(name = "item_id")
-    private CardMetadata item;
+    @Column(name = "item_id")
+    private Integer itemId;
 
     @Column(name = "as_of_date", nullable = false)
     private LocalDate asOfDate;
@@ -44,12 +39,12 @@ public class ItemStatistic {
     @Column(name = "monthly_change_rate", precision = 8, scale = 2)
     private BigDecimal monthlyChangeRate;
 
-    public ItemStatistic(CardMetadata item, LocalDate asOfDate, Long latestPrice, Long averagePrice30d,
+    public ItemStatistic(Integer itemId, LocalDate asOfDate, Long latestPrice, Long averagePrice30d,
                          Long lowestPrice30d, Long highestPrice30d, Integer bidCount30d,
                          Integer endedAuctionCount30d,
                          Integer wishlistCount, BigDecimal dailyChangeRate,
                          BigDecimal weeklyChangeRate, BigDecimal monthlyChangeRate) {
-        this.item = item;
+        this.itemId = itemId;
         this.asOfDate = asOfDate;
         this.latestPrice = latestPrice;
         this.averagePrice30d = averagePrice30d;

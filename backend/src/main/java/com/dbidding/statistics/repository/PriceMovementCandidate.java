@@ -5,12 +5,6 @@ import java.time.LocalDate;
 public interface PriceMovementCandidate {
     Integer getCardId();
 
-    String getName();
-
-    String getRarity();
-
-    String getImageUrl();
-
     LocalDate getCurrentDate();
 
     Long getCurrentPrice();

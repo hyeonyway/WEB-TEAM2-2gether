@@ -8,6 +8,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ItemStatisticRepository extends JpaRepository<ItemStatistic, Integer> {
-    @Query("select s from ItemStatistic s join fetch s.item where s.item.id in :itemIds")
+    @Query("select s from ItemStatistic s where s.itemId in :itemIds")
     List<ItemStatistic> findAllByItemIds(@Param("itemIds") Collection<Integer> itemIds);
 }

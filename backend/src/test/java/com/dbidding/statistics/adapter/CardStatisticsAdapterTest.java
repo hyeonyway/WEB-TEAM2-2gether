@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.statistics.domain.ItemDailyStatistic;
 import com.dbidding.statistics.domain.ItemStatistic;
 import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
@@ -25,10 +24,8 @@ class CardStatisticsAdapterTest {
 
     @Test
     void 통계_엔티티를_카드_도메인_요약_DTO로_변환한다() {
-        CardMetadata card = mock(CardMetadata.class);
         ItemStatistic statistic = mock(ItemStatistic.class);
-        given(card.getId()).willReturn(10);
-        given(statistic.getItem()).willReturn(card);
+        given(statistic.getItemId()).willReturn(10);
         given(statistic.getLatestPrice()).willReturn(138_000L);
         given(statistic.getAveragePrice30d()).willReturn(127_250L);
         given(statistic.getLowestPrice30d()).willReturn(105_000L);

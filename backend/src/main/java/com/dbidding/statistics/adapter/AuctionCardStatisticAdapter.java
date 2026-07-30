@@ -1,4 +1,4 @@
-package com.dbidding.auction.adapter;
+package com.dbidding.statistics.adapter;
 
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.statistics.service.ItemStatisticCommandService;
