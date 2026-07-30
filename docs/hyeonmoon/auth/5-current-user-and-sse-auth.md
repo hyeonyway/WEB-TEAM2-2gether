@@ -199,7 +199,7 @@ request attribute에 `userId`를 넣고, 각 컨트롤러는 공통 `@CurrentUse
 - Create: `backend/src/main/java/com/dbidding/global/security/JwtAuthFilter.java`
 - Test: `backend/src/test/java/com/dbidding/global/security/JwtAuthFilterTest.java`
 
-- [ ] **Step 1: 유효 토큰이면 request attribute에 userId를 채운다**
+- [x] **Step 1: 유효 토큰이면 request attribute에 userId를 채운다**
 
 ```java
 @Test
@@ -212,8 +212,8 @@ void 유효한_Access_Token이면_userId를_attribute에_저장한다() {
 }
 ```
 
-- [ ] **Step 2: 토큰이 없으면 request attribute를 채우지 않고 통과시킨다. 잘못된 Bearer 토큰은 401로 처리한다**
-- [ ] **Step 3: `Authorization: Bearer ...` 헤더에서 토큰 추출 후 `JwtTokenProvider.parseAccess()`(3-login-and-token.md 산출물) 재사용**
+- [x] **Step 2: 토큰이 없으면 request attribute를 채우지 않고 통과시킨다. 잘못된 Bearer 토큰은 401로 처리한다**
+- [x] **Step 3: `Authorization: Bearer ...` 헤더에서 토큰 추출 후 `JwtTokenProvider.parseAccess()`(3-login-and-token.md 산출물) 재사용**
 
 이 필터는 기본 인증 흐름에 등록한다. `debug-auth` 프로필에서는 Bearer 토큰이
 없는 요청에 한해 `TestAuthFilter`가 사용자 ID를 보완한다. 두 헤더가 함께 오면
@@ -225,7 +225,7 @@ void 유효한_Access_Token이면_userId를_attribute에_저장한다() {
 - Create: `backend/src/main/java/com/dbidding/global/security/InMemoryTicketProvider.java`
 - Test: `backend/src/test/java/com/dbidding/global/security/InMemoryTicketProviderTest.java`
 
-- [ ] **Step 1: 발급 테스트**
+- [x] **Step 1: 발급 테스트**
 
 ```java
 @Test
@@ -237,7 +237,7 @@ void 유저_ID로_티켓을_발급하고_TTL을_설정한다() {
 }
 ```
 
-- [ ] **Step 2: 1회성 검증 테스트**
+- [x] **Step 2: 1회성 검증 테스트**
 
 ```java
 @Test
@@ -259,7 +259,7 @@ void 발급_후_30초가_지나면_티켓을_거절한다() {
 }
 ```
 
-- [ ] **Step 3: 최소 구현**
+- [x] **Step 3: 최소 구현**
 
 ```java
 @Component
@@ -303,14 +303,15 @@ public class InMemoryTicketProvider implements TicketProvider {
 ### Task 5: 티켓 발급 API + SSE 인증 필터
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/global/security/TicketController.java`
+- Create: `backend/src/main/java/com/dbidding/global/security/SseTicketController.java`
+- Create: `backend/src/main/java/com/dbidding/global/security/SseTicketResponse.java`
 - Create: `backend/src/main/java/com/dbidding/global/security/SseTicketAuthFilter.java`
 
-- [ ] **Step 1: 발급 엔드포인트**
+- [x] **Step 1: 발급 엔드포인트**
 
 ```java
 @RestController
-public class TicketController {
+public class SseTicketController {
     private final TicketProvider ticketProvider;
 
     @PostMapping("/api/sse/tickets")
@@ -322,7 +323,7 @@ public class TicketController {
 
 기존 `JwtAuthFilter`가 이미 처리한 요청이므로 `@CurrentUser`를 그대로 쓴다 — 새 인증 로직이 필요 없다.
 
-- [ ] **Step 2: SSE 경로용 인증 필터**
+- [x] **Step 2: SSE 경로용 인증 필터**
 
 ```java
 public class SseTicketAuthFilter extends OncePerRequestFilter {
@@ -341,7 +342,7 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 
 `JwtAuthFilter`가 request attribute에 `userId`를 저장하는 것과 동일한 방식으로 저장하므로, 대시보드/알림 컨트롤러는 `@CurrentUser Integer userId`를 그대로 쓰면 된다 — `TicketProvider`를 직접 호출할 필요가 없다. 이 필터는 `/api/dashboard/stream`, `/api/users/{userId}/auctions/stream`, `/api/users/{userId}/notifications/stream`에만 등록하고 그 외 경로는 기존 `JwtAuthFilter`를 그대로 통과시킨다.
 
-- [ ] **Step 3: 통합 테스트**
+- [x] **Step 3: 통합 테스트**
 
 ```java
 @Test
@@ -396,12 +397,11 @@ SSE 컨트롤러/서비스 코드는 변경하지 않는다. 인증 필터가 re
 ### Task 8: 단위 테스트와 커밋
 
 ```bash
-./gradlew test --tests com.dbidding.global.security.*
-git add backend/src/main/java/com/dbidding/global/security backend/src/test/java/com/dbidding/global/security \
-  backend/src/main/java/com/dbidding/global/exception backend/src/main/java/com/dbidding/global/config \
-  backend/src/main/java/com/dbidding/user
-git commit -m "feat: 전역 CurrentUserProvider와 SSE 티켓 인증 추가"
+./gradlew clean test
 ```
+
+구현은 JWT 필터, 인메모리 티켓 저장소, 티켓 발급 API, SSE 티켓 필터를 각각
+독립 커밋으로 나눈다.
 
 ## 완료 조건
 
