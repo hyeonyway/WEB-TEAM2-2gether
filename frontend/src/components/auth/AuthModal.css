@@ -212,7 +212,17 @@
   cursor: pointer;
 }
 
+@media (max-width: 900px) {
+  .header-account-nav {
+    display: flex;
+  }
+}
+
 @media (max-width: 620px) {
+  .header-account-nav > a {
+    display: none;
+  }
+
   .auth-modal-backdrop {
     align-items: end;
     padding: 0;
