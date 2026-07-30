@@ -13,6 +13,9 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional(readOnly = true)
 public class NotificationService {
 
+    private static final int MIN_PAGE_SIZE = 1;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final NotificationRepository notificationRepository;
 
     public NotificationService(NotificationRepository notificationRepository) {
@@ -25,6 +28,9 @@ public class NotificationService {
     }
 
     public NotificationPage findPage(Integer userId, Long cursor, int size, boolean unreadOnly) {
+        if (size < MIN_PAGE_SIZE || size > MAX_PAGE_SIZE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "size는 %d에서 %d 사이여야 합니다.".formatted(MIN_PAGE_SIZE, MAX_PAGE_SIZE));
+        }
         Pageable pageable = PageRequest.of(0, size + 1);
         List<Notification> fetched = fetch(userId, cursor, unreadOnly, pageable);
         boolean hasNext = fetched.size() > size;

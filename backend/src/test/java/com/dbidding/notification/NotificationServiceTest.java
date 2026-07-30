@@ -77,6 +77,28 @@ class NotificationServiceTest {
     }
 
     @Test
+    void cursor와_안읽음_필터를_함께_적용한다() {
+        given(notificationRepository.findByUserIdAndIsReadFalseAndIdLessThanOrderByIdDesc(1, 42L, PageRequest.of(0, 21)))
+                .willReturn(List.of(Notification.of(1, 10, "메시지")));
+
+        NotificationPage result = notificationService.findPage(1, 42L, 20, true);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).isRead()).isFalse();
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    void size가_유효_범위를_벗어나면_400을_던진다() {
+        assertThatThrownBy(() -> notificationService.findPage(1, null, 0, false))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> notificationService.findPage(1, null, -1, false))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> notificationService.findPage(1, null, 101, false))
+                .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
     void 다음_페이지가_있으면_size만큼만_반환하고_nextCursor를_채운다() {
         List<Notification> fetched = new java.util.ArrayList<>();
         for (int i = 0; i < 21; i++) {

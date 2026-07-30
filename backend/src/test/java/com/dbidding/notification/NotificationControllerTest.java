@@ -75,13 +75,14 @@ class NotificationControllerTest {
     @Test
     void cursor와_size_파라미터를_그대로_전달한다() throws Exception {
         given(notificationService.findPage(1, 42L, 5, false))
-                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, "메시지1")), null, true));
+                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, "메시지1")), 10L, true));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications")
                         .param("cursor", "42")
                         .param("size", "5"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.hasNext").value(true));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.hasNext").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.nextCursor").value(10));
     }
 
     @Test
