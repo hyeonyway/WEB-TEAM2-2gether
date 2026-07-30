@@ -3,11 +3,9 @@ package com.dbidding.sse.auction;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
-@Profile("sse-load-test")
 @Component
 @RequiredArgsConstructor
 class AuctionSseTestAuctionReader {

@@ -31,11 +31,11 @@ Go 1.25.1로 고정한다.
 
 ## 실행
 
-테스트 payload 발행 API는 운영에서 노출되지 않으며 `sse-load-test` 프로필에서만
-활성화된다. 백엔드 서버를 해당 프로필로 먼저 실행한다.
+테스트 payload 발행 API는 별도 프로필 없이 활성화되므로 백엔드 서버를 먼저
+실행한다.
 
 ```bash
-SPRING_PROFILES_ACTIVE=sse-load-test ./gradlew bootRun
+./gradlew bootRun
 ```
 
 다른 터미널에서 스모크 테스트를 실행한다. k6는 SSE 연결을 유지하면서

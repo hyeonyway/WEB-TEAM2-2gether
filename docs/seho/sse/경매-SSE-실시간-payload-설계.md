@@ -263,8 +263,8 @@ k6 run \
   src/test/k6/sse/auction-stream.js
 ```
 
-`sse-load-test` 프로필은
-`POST /api/auctions/stream/test-events/random-bid`를 활성화한다. 이 API는
+`POST /api/auctions/stream/test-events/random-bid`는 별도 프로필 없이
+활성화된다. 이 API는
 DB에서 디버그 사용자 ID `1`이 입찰한 `OPEN` 또는 `ENDING` 경매 중 종료
 시각이 남은 경매를 무작위로 읽고, 경매별 메모리 상태에서 가격·입찰 수·버전을
 증가시킨 `BID_PLACED` payload를 발행한다. DB 데이터는 변경하지 않는다.
