@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,25 +43,62 @@ class NotificationServiceTest {
     }
 
     @Test
-    void 알림_목록을_조회한다() {
-        given(notificationRepository.findByUserIdOrderByIdDesc(1))
+    void 알림_목록을_첫_페이지로_조회한다() {
+        given(notificationRepository.findByUserIdOrderByIdDesc(1, PageRequest.of(0, 21)))
                 .willReturn(List.of(Notification.of(1, 10, "메시지")));
 
-        List<Notification> result = notificationService.findAll(1);
+        NotificationPage result = notificationService.findPage(1, null, 20, false);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getAuctionId()).isEqualTo(10);
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).getAuctionId()).isEqualTo(10);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.nextCursor()).isNull();
     }
 
     @Test
     void 안읽은_알림_목록을_조회한다() {
-        given(notificationRepository.findByUserIdAndIsReadFalseOrderByIdDesc(1))
+        given(notificationRepository.findByUserIdAndIsReadFalseOrderByIdDesc(1, PageRequest.of(0, 21)))
                 .willReturn(List.of(Notification.of(1, 10, "메시지")));
 
-        List<Notification> result = notificationService.findUnread(1);
+        NotificationPage result = notificationService.findPage(1, null, 20, true);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).isRead()).isFalse();
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).isRead()).isFalse();
+    }
+
+    @Test
+    void cursor가_있으면_해당_id_미만의_알림을_조회한다() {
+        given(notificationRepository.findByUserIdAndIdLessThanOrderByIdDesc(1, 42L, PageRequest.of(0, 21)))
+                .willReturn(List.of(Notification.of(1, 10, "메시지")));
+
+        NotificationPage result = notificationService.findPage(1, 42L, 20, false);
+
+        assertThat(result.items()).hasSize(1);
+    }
+
+    @Test
+    void 다음_페이지가_있으면_size만큼만_반환하고_nextCursor를_채운다() {
+        List<Notification> fetched = new java.util.ArrayList<>();
+        for (int i = 0; i < 21; i++) {
+            fetched.add(Notification.of(1, i, "메시지" + i));
+        }
+        ReflectionTestUtils.setField(fetched.get(19), "id", 99L);
+        given(notificationRepository.findByUserIdOrderByIdDesc(1, PageRequest.of(0, 21))).willReturn(fetched);
+
+        NotificationPage result = notificationService.findPage(1, null, 20, false);
+
+        assertThat(result.items()).hasSize(20);
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isEqualTo(99L);
+    }
+
+    @Test
+    void 안읽음_개수를_조회한다() {
+        given(notificationRepository.countByUserIdAndIsReadFalse(1)).willReturn(3L);
+
+        long result = notificationService.countUnread(1);
+
+        assertThat(result).isEqualTo(3L);
     }
 
     @Test
