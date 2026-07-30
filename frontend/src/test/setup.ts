@@ -29,6 +29,15 @@ Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageStub,
 });
 
+class EventSourceStub extends EventTarget {
+  close() {}
+}
+
+Object.defineProperty(globalThis, 'EventSource', {
+  configurable: true,
+  value: EventSourceStub,
+});
+
 afterEach(() => {
   cleanup();
   localStorage.clear();
