@@ -1,6 +1,6 @@
-package com.dbidding.statistics.repository;
+package com.dbidding.statistic.repository;
 
-import com.dbidding.statistics.domain.MarketDailyStatistic;
+import com.dbidding.statistic.domain.MarketDailyStatistic;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;

@@ -4,12 +4,12 @@ import com.dbidding.auction.adapter.CardAuctionAdapter;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
-import com.dbidding.statistics.domain.ItemStatistic;
-import com.dbidding.statistics.domain.ItemDailyStatistic;
+import com.dbidding.statistic.domain.ItemStatistic;
+import com.dbidding.statistic.domain.ItemDailyStatistic;
 import com.dbidding.card.repository.CardMetadataRepository;
-import com.dbidding.statistics.repository.ItemStatisticRepository;
-import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
-import com.dbidding.statistics.adapter.CardStatisticsAdapter;
+import com.dbidding.statistic.repository.ItemStatisticRepository;
+import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.adapter.CardStatisticAdapter;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,7 +22,7 @@ import org.springframework.context.annotation.Import;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
-@Import({CardPriceService.class, CardStatisticsAdapter.class, CardAuctionAdapter.class})
+@Import({CardPriceService.class, CardStatisticAdapter.class, CardAuctionAdapter.class})
 class CardPriceServiceTest {
     @Autowired CardPriceService cardPriceService;
     @Autowired CardMetadataRepository cardRepository;

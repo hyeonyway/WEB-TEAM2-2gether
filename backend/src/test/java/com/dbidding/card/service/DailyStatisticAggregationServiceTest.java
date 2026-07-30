@@ -3,8 +3,8 @@ package com.dbidding.card.service;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 
-import com.dbidding.statistics.repository.StatisticAggregationRepository;
-import com.dbidding.statistics.service.DailyStatisticAggregationService;
+import com.dbidding.statistic.repository.StatisticAggregationRepository;
+import com.dbidding.statistic.service.DailyStatisticAggregationService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;

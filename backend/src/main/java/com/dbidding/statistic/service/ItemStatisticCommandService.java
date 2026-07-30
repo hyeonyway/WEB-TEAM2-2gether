@@ -1,6 +1,6 @@
-package com.dbidding.statistics.service;
+package com.dbidding.statistic.service;
 
-import com.dbidding.statistics.port.StatisticsCardPort;
+import com.dbidding.statistic.port.StatisticCardPort;
 import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,9 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class ItemStatisticCommandService {
-    private final StatisticsCardPort cardPort;
+    private final StatisticCardPort cardPort;
 
-    public ItemStatisticCommandService(StatisticsCardPort cardPort) {
+    public ItemStatisticCommandService(StatisticCardPort cardPort) {
         this.cardPort = cardPort;
     }
 

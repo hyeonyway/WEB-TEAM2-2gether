@@ -5,12 +5,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
-import com.dbidding.statistics.repository.PriceMovementCandidate;
-import com.dbidding.statistics.domain.MarketDailyStatistic;
+import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.repository.PriceMovementCandidate;
+import com.dbidding.statistic.domain.MarketDailyStatistic;
 import com.dbidding.home.repository.HomeAuctionRepository;
 import com.dbidding.home.port.HomeCardPort;
-import com.dbidding.statistics.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;

@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public interface CardStatisticsPort {
+public interface CardStatisticPort {
     Map<Integer, Summary> getSummaries(Collection<Integer> cardIds);
 
     Optional<Summary> getSummary(Integer cardId);

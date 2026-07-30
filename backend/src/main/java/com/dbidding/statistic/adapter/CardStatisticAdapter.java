@@ -1,10 +1,10 @@
-package com.dbidding.statistics.adapter;
+package com.dbidding.statistic.adapter;
 
-import com.dbidding.card.port.CardStatisticsPort;
-import com.dbidding.statistics.domain.ItemDailyStatistic;
-import com.dbidding.statistics.domain.ItemStatistic;
-import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
-import com.dbidding.statistics.repository.ItemStatisticRepository;
+import com.dbidding.card.port.CardStatisticPort;
+import com.dbidding.statistic.domain.ItemDailyStatistic;
+import com.dbidding.statistic.domain.ItemStatistic;
+import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.repository.ItemStatisticRepository;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class CardStatisticsAdapter implements CardStatisticsPort {
+public class CardStatisticAdapter implements CardStatisticPort {
     private final ItemStatisticRepository statisticRepository;
     private final ItemDailyStatisticRepository dailyStatisticRepository;
 

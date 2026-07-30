@@ -1,4 +1,4 @@
-package com.dbidding.statistics.repository;
+package com.dbidding.statistic.repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-public interface StatisticAggregationRepository extends Repository<com.dbidding.statistics.domain.ItemStatistic, Integer> {
+public interface StatisticAggregationRepository extends Repository<com.dbidding.statistic.domain.ItemStatistic, Integer> {
     @Modifying
     @Query(value = """
             insert into item_daily_statistics (

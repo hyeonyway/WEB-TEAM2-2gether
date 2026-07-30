@@ -1,6 +1,6 @@
-package com.dbidding.statistics.service;
+package com.dbidding.statistic.service;
 
-import com.dbidding.statistics.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(
-        name = "statistics.scheduler.enabled",
+        name = "statistic.scheduler.enabled",
         havingValue = "true",
         matchIfMissing = true
 )

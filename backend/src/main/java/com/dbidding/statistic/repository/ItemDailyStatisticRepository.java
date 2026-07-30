@@ -1,6 +1,6 @@
-package com.dbidding.statistics.repository;
+package com.dbidding.statistic.repository;
 
-import com.dbidding.statistics.domain.ItemDailyStatistic;
+import com.dbidding.statistic.domain.ItemDailyStatistic;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;

@@ -1,7 +1,7 @@
 package com.dbidding.card.service;
 
-import com.dbidding.statistics.service.ItemStatisticCommandService;
-import com.dbidding.statistics.port.StatisticsCardPort;
+import com.dbidding.statistic.service.ItemStatisticCommandService;
+import com.dbidding.statistic.port.StatisticCardPort;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 class ItemStatisticCommandServiceTest {
-    private final StatisticsCardPort cardPort = mock(StatisticsCardPort.class);
+    private final StatisticCardPort cardPort = mock(StatisticCardPort.class);
     private final ItemStatisticCommandService service =
             new ItemStatisticCommandService(cardPort);
 

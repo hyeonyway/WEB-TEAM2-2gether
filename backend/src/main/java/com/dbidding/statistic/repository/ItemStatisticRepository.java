@@ -1,6 +1,6 @@
-package com.dbidding.statistics.repository;
+package com.dbidding.statistic.repository;
 
-import com.dbidding.statistics.domain.ItemStatistic;
+import com.dbidding.statistic.domain.ItemStatistic;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;

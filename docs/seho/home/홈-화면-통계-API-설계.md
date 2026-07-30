@@ -84,7 +84,7 @@ home
 ├── repository/HomeAuctionRepository
 └── dto/HomeResponses
 
-statistics
+statistic
 ├── domain/{MarketDailyStatistic,ItemDailyStatistic,ItemStatistic}
 ├── repository/{MarketDailyStatisticRepository,ItemDailyStatisticRepository,...}
 └── service/{DailyStatisticAggregationService,DailyStatisticScheduler}

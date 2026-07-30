@@ -1,7 +1,7 @@
 package com.dbidding.card.adapter;
 
 import com.dbidding.card.repository.CardMetadataRepository;
-import com.dbidding.statistics.port.StatisticsCardPort;
+import com.dbidding.statistic.port.StatisticCardPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class StatisticsCardAdapter implements StatisticsCardPort {
+public class StatisticCardAdapter implements StatisticCardPort {
     private final CardMetadataRepository cardRepository;
 
     @Override

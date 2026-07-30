@@ -2,8 +2,8 @@ package com.dbidding.card.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
-import com.dbidding.statistics.service.DailyStatisticAggregationService;
+import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.service.DailyStatisticAggregationService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
-        "statistics.scheduler.enabled=false",
+        "statistic.scheduler.enabled=false",
         "spring.sql.init.mode=always",
         "spring.jpa.hibernate.ddl-auto=validate"
 })

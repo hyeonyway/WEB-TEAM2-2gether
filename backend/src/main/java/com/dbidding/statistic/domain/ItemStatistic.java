@@ -1,4 +1,4 @@
-package com.dbidding.statistics.domain;
+package com.dbidding.statistic.domain;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;

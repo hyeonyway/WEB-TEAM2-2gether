@@ -1,26 +1,26 @@
-package com.dbidding.statistics.adapter;
+package com.dbidding.statistic.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import com.dbidding.statistics.domain.ItemDailyStatistic;
-import com.dbidding.statistics.domain.ItemStatistic;
-import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
-import com.dbidding.statistics.repository.ItemStatisticRepository;
+import com.dbidding.statistic.domain.ItemDailyStatistic;
+import com.dbidding.statistic.domain.ItemStatistic;
+import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.repository.ItemStatisticRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-class CardStatisticsAdapterTest {
+class CardStatisticAdapterTest {
     private final ItemStatisticRepository statisticRepository =
             mock(ItemStatisticRepository.class);
     private final ItemDailyStatisticRepository dailyStatisticRepository =
             mock(ItemDailyStatisticRepository.class);
-    private final CardStatisticsAdapter adapter =
-            new CardStatisticsAdapter(statisticRepository, dailyStatisticRepository);
+    private final CardStatisticAdapter adapter =
+            new CardStatisticAdapter(statisticRepository, dailyStatisticRepository);
 
     @Test
     void 통계_엔티티를_카드_도메인_요약_DTO로_변환한다() {

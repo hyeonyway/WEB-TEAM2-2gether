@@ -5,9 +5,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 import com.dbidding.card.domain.*;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.port.CardAuctionPort;
-import com.dbidding.card.port.CardStatisticsPort;
-import com.dbidding.card.port.CardStatisticsPort.DailyPrice;
-import com.dbidding.card.port.CardStatisticsPort.Summary;
+import com.dbidding.card.port.CardStatisticPort;
+import com.dbidding.card.port.CardStatisticPort.DailyPrice;
+import com.dbidding.card.port.CardStatisticPort.Summary;
 import com.dbidding.card.repository.CardMetadataRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -29,7 +29,7 @@ public class CardPriceService {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final CardMetadataRepository cardRepository;
-    private final CardStatisticsPort statisticsPort;
+    private final CardStatisticPort statisticPort;
     private final CardAuctionPort auctionPort;
 
     public CardResponses.Page<CardResponses.CardSummary> getCards(
@@ -37,7 +37,7 @@ public class CardPriceService {
         var cards = cardRepository.search(keyword == null ? "" : keyword.trim(), psaGrade,
                 sort.name(), PageRequest.of(page, size));
         var ids = cards.getContent().stream().map(CardMetadata::getId).toList();
-        Map<Integer, Summary> statistics = statisticsPort.getSummaries(ids);
+        Map<Integer, Summary> statistics = statisticPort.getSummaries(ids);
         var content = cards.getContent().stream()
                 .map(card -> summary(card, statistics.get(card.getId())))
                 .toList();
@@ -47,11 +47,11 @@ public class CardPriceService {
     public CardResponses.CardDetail getCard(Integer cardId, int days) {
         CardMetadata card = cardRepository.findById(cardId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "카드를 찾을 수 없습니다."));
-        Summary summary = statisticsPort.getSummary(cardId).orElse(null);
+        Summary summary = statisticPort.getSummary(cardId).orElse(null);
         LocalDate today = LocalDate.now(SEOUL);
         int range = Math.max(1, days);
         LocalDate from = today.minusDays(range);
-        var daily = statisticsPort.getDailyPrices(cardId, from, today);
+        var daily = statisticPort.getDailyPrices(cardId, from, today);
         var history = priceHistory(from, today, daily);
 
         long marketPrice = summary == null ? 0
