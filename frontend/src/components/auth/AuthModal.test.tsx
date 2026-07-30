@@ -1,11 +1,12 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {HttpError} from '../../api/httpClient';
 import Header from '../Header';
 
-const {signupMock} = vi.hoisted(() => ({
+const {loginMock, signupMock} = vi.hoisted(() => ({
+  loginMock: vi.fn(),
   signupMock: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock('../../api/authApi', async importOriginal => {
   const actual = await importOriginal<typeof import('../../api/authApi')>();
   return {
     ...actual,
+    login: loginMock,
     signup: signupMock,
   };
 });
@@ -138,5 +140,103 @@ describe('AuthModal 회원가입', () => {
 
     expect(submit).toBeDisabled();
     expect(signupMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AuthModal 로그인', () => {
+  beforeEach(() => {
+    loginMock.mockReset();
+    window.history.replaceState({}, '', '/auction/7');
+  });
+
+  async function openLoginForm() {
+    const user = userEvent.setup();
+    renderHeader();
+    await user.click(screen.getByRole('button', {name: '로그인'}));
+    return {
+      dialog: screen.getByRole('dialog', {name: '계정 로그인'}),
+      user,
+    };
+  }
+
+  async function fillValidLogin(
+    user: ReturnType<typeof userEvent.setup>,
+    dialog: HTMLElement,
+  ) {
+    await user.type(within(dialog).getByLabelText('이메일'), 'collector@example.com');
+    await user.type(within(dialog).getByLabelText('비밀번호'), 'Password123!');
+  }
+
+  it('유효하지 않은 이메일과 빈 비밀번호를 서버에 보내지 않는다', async () => {
+    const {dialog, user} = await openLoginForm();
+    await user.type(within(dialog).getByLabelText('이메일'), 'invalid-email');
+
+    await user.click(within(dialog).getByRole('button', {name: '로그인'}));
+
+    expect(await within(dialog).findByText('올바른 이메일 주소를 입력해 주세요.'))
+      .toBeInTheDocument();
+    expect(within(dialog).getByText('비밀번호를 입력해 주세요.')).toBeInTheDocument();
+    expect(loginMock).not.toHaveBeenCalled();
+  });
+
+  it('128자를 초과한 비밀번호를 서버에 보내지 않는다', async () => {
+    const {dialog, user} = await openLoginForm();
+    await user.type(within(dialog).getByLabelText('이메일'), 'collector@example.com');
+    await user.type(within(dialog).getByLabelText('비밀번호'), 'a'.repeat(129));
+
+    await user.click(within(dialog).getByRole('button', {name: '로그인'}));
+
+    expect(await within(dialog).findByText('비밀번호는 128자 이하로 입력해 주세요.'))
+      .toBeInTheDocument();
+    expect(loginMock).not.toHaveBeenCalled();
+  });
+
+  it('401 응답은 계정 존재 여부를 드러내지 않는 공통 메시지로 표시한다', async () => {
+    loginMock.mockRejectedValue(new HttpError(401, 'unauthorized'));
+    const {dialog, user} = await openLoginForm();
+    await fillValidLogin(user, dialog);
+
+    await user.click(within(dialog).getByRole('button', {name: '로그인'}));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '이메일 또는 비밀번호가 일치하지 않습니다.',
+    );
+  });
+
+  it('네트워크 오류는 재시도 가능한 공통 메시지로 표시한다', async () => {
+    loginMock.mockRejectedValue(new TypeError('network error'));
+    const {dialog, user} = await openLoginForm();
+    await fillValidLogin(user, dialog);
+
+    await user.click(within(dialog).getByRole('button', {name: '로그인'}));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+    );
+  });
+
+  it('로그인 성공 시 현재 경로를 유지하며 모달을 닫는다', async () => {
+    loginMock.mockResolvedValue({accessToken: 'access-token'});
+    const {dialog, user} = await openLoginForm();
+    await fillValidLogin(user, dialog);
+
+    await user.click(within(dialog).getByRole('button', {name: '로그인'}));
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(window.location.pathname).toBe('/auction/7');
+  });
+
+  it('요청 중에는 제출 버튼을 비활성화해 중복 요청을 막는다', async () => {
+    loginMock.mockReturnValue(new Promise(() => {}));
+    const {dialog, user} = await openLoginForm();
+    await fillValidLogin(user, dialog);
+
+    const submit = within(dialog).getByRole('button', {name: '로그인'});
+    await user.click(submit);
+    await user.click(submit);
+
+    expect(submit).toBeDisabled();
+    expect(loginMock).toHaveBeenCalledTimes(1);
   });
 });

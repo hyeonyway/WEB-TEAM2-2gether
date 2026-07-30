@@ -82,7 +82,7 @@ export default function AuthModal({open, onClose}: AuthModalProps) {
           </p>
           {notice && <p className="auth-success-notice">{notice}</p>}
           {mode === 'login'
-            ? <LoginForm initialEmail={loginEmail}/>
+            ? <LoginForm initialEmail={loginEmail} onSuccess={onClose}/>
             : <SignupForm onSuccess={handleSignupSuccess}/>}
           <div className="auth-mode-switch">
             <span>{mode === 'login' ? '아직 계정이 없으신가요?' : '이미 계정이 있으신가요?'}</span>
