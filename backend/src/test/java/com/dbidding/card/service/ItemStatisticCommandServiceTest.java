@@ -1,5 +1,6 @@
 package com.dbidding.card.service;
 
+import com.dbidding.statistics.service.ItemStatisticCommandService;
 import com.dbidding.card.repository.CardMetadataRepository;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;

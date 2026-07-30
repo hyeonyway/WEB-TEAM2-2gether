@@ -624,9 +624,9 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
 
 종료 경매의 일별 평균 낙찰가와 입찰 수, 기간 요약을 반환한다.
 
-`GET /home/top-gainers?limit=5`
+`GET /home/price-movers?limit=5`
 
-전일 대비 시세가 상승한 카드를 반환한다. 순위 항목은 `auctionId` 없이 `cardId`를 사용해 카드 상세로 이동한다.
+최근 두 유효 거래를 비교한 상승·하락 카드를 반환한다. 순위 항목은 `auctionId` 없이 `cardId`를 사용해 카드 상세로 이동한다.
 
 ```json
 [
@@ -652,8 +652,8 @@ WebSocket 재연결 후 프론트는 마지막 `sequence` 이후 누락 이벤�
     },
     {
       "date": "07/19",
-      "averagePrice": 248875,
-      "bidCount": 392
+      "averagePrice": null,
+      "bidCount": 0
     }
   ]
 }

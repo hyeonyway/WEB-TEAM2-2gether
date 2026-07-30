@@ -1,13 +1,13 @@
 package com.dbidding.home.service;
 
 import com.dbidding.card.domain.CardTheme;
-import com.dbidding.card.domain.ItemDailyStatistic;
-import com.dbidding.card.repository.ItemDailyStatisticRepository;
-import com.dbidding.card.repository.PriceMovementCandidate;
-import com.dbidding.home.domain.MarketDailyStatistic;
 import com.dbidding.home.dto.HomeResponses;
 import com.dbidding.home.repository.HomeAuctionRepository;
-import com.dbidding.home.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistics.domain.ItemDailyStatistic;
+import com.dbidding.statistics.domain.MarketDailyStatistic;
+import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistics.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistics.repository.PriceMovementCandidate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -68,12 +68,6 @@ public class HomeService {
                                 Function.identity()
                         ));
 
-        long previousPrice = marketStatisticRepository
-                .findFirstByStatisticsDateLessThanOrderByStatisticsDateDesc(fromDate)
-                .map(MarketDailyStatistic::getAveragePrice)
-                .filter(java.util.Objects::nonNull)
-                .orElse(0L);
-        long carriedPrice = previousPrice;
         MarketDailyStatistic yesterdaySummary = aggregates.get(today.minusDays(1));
         long monthlyWinningPriceTotal = yesterdaySummary == null
                 ? 0 : value(yesterdaySummary.getWinningPriceTotal30d());
@@ -89,11 +83,10 @@ public class HomeService {
             LocalDate date = fromDate.plusDays(index);
             var daily = aggregates.get(date);
             long bids = daily == null ? 0 : value(daily.getBidCount());
-            if (daily != null && daily.getAveragePrice() != null) {
-                carriedPrice = daily.getAveragePrice();
-            }
             history.add(new HomeResponses.MarketPoint(
-                    date.format(MONTH_DAY), carriedPrice, bids));
+                    date.format(MONTH_DAY),
+                    daily == null ? null : daily.getAveragePrice(),
+                    bids));
         }
 
         return new HomeResponses.Market(
@@ -104,13 +97,6 @@ public class HomeService {
                         monthlyHighestPrice
                 ),
                 history
-        );
-    }
-
-    public HomeResponses.TopGainers getTopGainers(int limit) {
-        return new HomeResponses.TopGainers(
-                "이전 가격 대비 상승 Top 5",
-                getPriceMovers(limit).gainers()
         );
     }
 

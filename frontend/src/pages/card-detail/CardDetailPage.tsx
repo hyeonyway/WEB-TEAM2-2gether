@@ -43,7 +43,7 @@ export default function CardPriceDetailPage(){
           <div><span>최근 30일 입찰 건수</span><strong>{card.bid_count.toLocaleString()}건</strong></div>
         </section>
         <section className="price-trend">
-          <div className="price-trend-head"><div><h2>시세 변화 추이</h2><p>날짜별 30일 평균 시세와 누적 입찰량입니다.</p></div><span>30일</span></div>
+          <div className="price-trend-head"><div><h2>시세 변화 추이</h2><p>일자별 평균 낙찰가와 총 입찰 수입니다.</p></div><span>30일</span></div>
           <PriceChangeAreaChart history={card.history}/>
           <div className="trend-stats">
             <span>1일 변화<b>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</b></span>

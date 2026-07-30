@@ -40,7 +40,6 @@
       {"date":"07/14","averagePrice":234000,"bidCount":337},
       {"date":"07/19","averagePrice":248875,"bidCount":392}
     ],
-    "topGainersTitle": "전일 상승 Top 5",
     "topGainers": [
       {"cardId":2,"name":"피카츄 P 스칼렛&바이올렛 프로모 카드","price":135000,"changeRate":8.9,"theme":"gold","bidCount":105,"imageUrl":"pokemon-cards/card_24032acf332f8defafa6.webp","priceHistory":[{"date":"07/23","price":110000},{"date":"07/24","price":115000},{"date":"07/25","price":118000},{"date":"07/26","price":120000},{"date":"07/27","price":135000}]},
       {"cardId":8,"name":"리자몽 ex 스페셜 아트 카드","price":289000,"changeRate":6.2,"theme":"multi","bidCount":54,"imageUrl":"pokemon-cards/card_c471b35230d34fd914d8.webp","priceHistory":[{"date":"07/23","price":258000},{"date":"07/24","price":265000},{"date":"07/25","price":271000},{"date":"07/26","price":280000},{"date":"07/27","price":289000}]},

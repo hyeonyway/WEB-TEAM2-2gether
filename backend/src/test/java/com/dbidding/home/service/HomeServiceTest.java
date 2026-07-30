@@ -5,11 +5,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.dbidding.card.repository.ItemDailyStatisticRepository;
-import com.dbidding.card.repository.PriceMovementCandidate;
-import com.dbidding.home.domain.MarketDailyStatistic;
+import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistics.repository.PriceMovementCandidate;
+import com.dbidding.statistics.domain.MarketDailyStatistic;
 import com.dbidding.home.repository.HomeAuctionRepository;
-import com.dbidding.home.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistics.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -59,7 +59,7 @@ class HomeServiceTest {
     }
 
     @Test
-    void 오늘을_제외한_종료_경매를_30일간_집계하고_무거래일에는_가격을_이월한다() {
+    void 오늘을_제외한_30일_통계에서_무거래일_가격은_null로_반환한다() {
         LocalDate from = LocalDate.of(2026, 6, 28);
         LocalDate to = LocalDate.of(2026, 7, 28);
         var dayBefore = daily(LocalDate.of(2026, 7, 26), 90_000L, 2, 180_000L);
@@ -67,18 +67,14 @@ class HomeServiceTest {
         given(marketStatisticRepository
                 .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(from, to))
                 .willReturn(List.of(dayBefore, yesterday));
-        var previous = daily(LocalDate.of(2026, 6, 27), 80_000L, 1, 80_000L);
-        given(marketStatisticRepository
-                .findFirstByStatisticsDateLessThanOrderByStatisticsDateDesc(from))
-                .willReturn(java.util.Optional.of(previous));
-
         var market = homeService.getMarket(30);
 
         verify(marketStatisticRepository)
                 .findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(from, to);
         assertThat(market.marketHistory()).hasSize(30);
-        assertThat(market.marketHistory().getFirst().averagePrice()).isEqualTo(80_000L);
+        assertThat(market.marketHistory().getFirst().averagePrice()).isNull();
         assertThat(market.marketHistory().getFirst().date()).isEqualTo("06/28");
+        assertThat(market.marketHistory().getFirst().bidCount()).isZero();
         assertThat(market.marketHistory().get(28).averagePrice()).isEqualTo(90_000L);
         assertThat(market.marketHistory().getLast().averagePrice()).isEqualTo(100_000L);
         assertThat(market.marketHistory().getLast().date()).isEqualTo("07/27");

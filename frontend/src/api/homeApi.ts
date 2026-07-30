@@ -1,4 +1,4 @@
-import type {HomeInsightDto,HomeMarketDto,HomePriceMoversDto,HomeTopGainersDto} from '../dto/homeDto';
+import type {HomeInsightDto,HomeMarketDto,HomePriceMoversDto} from '../dto/homeDto';
 import mockupData from '../mocks/mockup-data.json';
 import {request} from './httpClient';
 import {resolveImageUrl} from './auctionMapper';
@@ -48,16 +48,17 @@ const mockMarket=(days:number):HomeMarketDto=>{
   )));
   const marketHistory=Array.from({length:days},(_,index)=>{
     const date=new Date(today-((days-index)*86400000));
+    const traded=index%9!==4;
     return {
       date:`${String(date.getUTCMonth()+1).padStart(2,'0')}/${String(date.getUTCDate()).padStart(2,'0')}`,
-      averagePrice:prices[index+1],
-      bidCount:Math.max(0,Math.round(
+      averagePrice:traded?prices[index+1]:null,
+      bidCount:traded?Math.max(0,Math.round(
         120+Math.sin(index*.67)*68+Math.cos(index*.31)*34+(index%6)*11,
-      )),
+      )):0,
     };
   });
   const monthlyWinningPriceTotal=marketHistory.reduce(
-    (sum,point)=>sum+(point.averagePrice*Math.max(1,Math.round(point.bidCount/4))),
+    (sum,point)=>sum+((point.averagePrice??0)*Math.max(1,Math.round(point.bidCount/4))),
     0,
   );
   const monthlyEndedAuctionCount=marketHistory.reduce(
@@ -70,7 +71,7 @@ const mockMarket=(days:number):HomeMarketDto=>{
       monthlyWinningPriceTotal,
       monthlyEndedAuctionCount,
       monthlyBidCount,
-      monthlyHighestPrice:Math.max(...marketHistory.map(point=>point.averagePrice)),
+      monthlyHighestPrice:Math.max(...marketHistory.map(point=>point.averagePrice??0)),
     },
     marketHistory,
   };
@@ -84,29 +85,6 @@ export async function fetchHomeInsights():Promise<HomeInsightDto[]>{
 export async function fetchHomeMarket(days=30):Promise<HomeMarketDto>{
   if(isMockApiEnabled())return mockMarket(days);
   return request<HomeMarketDto>(`/api/home/market?days=${days}`);
-}
-
-export async function fetchHomeTopGainers(limit=5):Promise<HomeTopGainersDto>{
-  const yesterday=new Date();
-  yesterday.setDate(yesterday.getDate()-1);
-  const previous=new Date(yesterday);
-  previous.setDate(previous.getDate()-1);
-  const response:HomeTopGainersDto=isMockApiEnabled()?{
-    topGainersTitle:mockupData.home.topGainersTitle,
-    topGainers:mockupData.home.topGainers.map(item=>({
-      ...item,
-      currentDate:yesterday.toISOString().slice(0,10),
-      previousDate:previous.toISOString().slice(0,10),
-      priceHistory:mockRankingHistory(item.price,item.changeRate,item.cardId),
-    })),
-  }:await request<HomeTopGainersDto>(`/api/home/top-gainers?limit=${limit}`);
-  return {
-    ...response,
-    topGainers:response.topGainers.map(item=>({
-      ...item,
-      imageUrl:resolveImageUrl(item.imageUrl),
-    })),
-  };
 }
 
 export async function fetchHomePriceMovers(limit=5):Promise<HomePriceMoversDto>{

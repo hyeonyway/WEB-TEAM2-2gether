@@ -1,4 +1,4 @@
-package com.dbidding.card.repository;
+package com.dbidding.statistics.repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -7,20 +7,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-public interface StatisticAggregationRepository extends Repository<com.dbidding.card.domain.ItemStatistic, Integer> {
+public interface StatisticAggregationRepository extends Repository<com.dbidding.statistics.domain.ItemStatistic, Integer> {
     @Modifying
     @Query(value = """
             insert into item_daily_statistics (
                 item_id, statistics_date, latest_price, average_price,
                 lowest_price, highest_price, bid_count, ended_auction_count
             )
-            select a.item_id, :date,
+            select c.id, :date,
                    substring_index(group_concat(a.current_price order by a.close_time desc, a.id desc), ',', 1) + 0,
                    round(avg(a.current_price)), min(a.current_price), max(a.current_price),
-                   sum((select count(*) from bids b where b.auction_id = a.id)), count(*)
-            from auctions a
-            where a.status = 'ENDED' and a.close_time >= :from and a.close_time < :to
-            group by a.item_id
+                   coalesce(sum((select count(*) from bids b where b.auction_id = a.id)), 0),
+                   count(a.id)
+            from card_metadata c
+            left join auctions a
+              on a.item_id = c.id
+             and a.status = 'ENDED'
+             and a.close_time >= :from
+             and a.close_time < :to
+            group by c.id
             on duplicate key update
                 latest_price = values(latest_price), average_price = values(average_price),
                 lowest_price = values(lowest_price), highest_price = values(highest_price),
@@ -89,6 +94,7 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
             select c.id, :asOf,
                    (select d.latest_price from item_daily_statistics d
                     where d.item_id = c.id and d.statistics_date <= :asOf
+                      and d.latest_price is not null and d.latest_price > 0
                     order by d.statistics_date desc limit 1),
                    (select round(sum(d.average_price * d.ended_auction_count)
                                       / nullif(sum(d.ended_auction_count), 0))
@@ -127,23 +133,29 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
             set daily_change_rate = coalesce(round(
                     (s.latest_price - (select d.latest_price from item_daily_statistics d
                      where d.item_id = s.item_id and d.statistics_date <= :dailyBase
+                       and d.latest_price is not null and d.latest_price > 0
                      order by d.statistics_date desc limit 1)) * 100.0
                     / nullif((select d.latest_price from item_daily_statistics d
                               where d.item_id = s.item_id and d.statistics_date <= :dailyBase
+                                and d.latest_price is not null and d.latest_price > 0
                               order by d.statistics_date desc limit 1), 0), 2), 0.00),
                 weekly_change_rate = coalesce(round(
                     (s.latest_price - (select d.latest_price from item_daily_statistics d
                      where d.item_id = s.item_id and d.statistics_date <= :weeklyBase
+                       and d.latest_price is not null and d.latest_price > 0
                      order by d.statistics_date desc limit 1)) * 100.0
                     / nullif((select d.latest_price from item_daily_statistics d
                               where d.item_id = s.item_id and d.statistics_date <= :weeklyBase
+                                and d.latest_price is not null and d.latest_price > 0
                               order by d.statistics_date desc limit 1), 0), 2), 0.00),
                 monthly_change_rate = coalesce(round(
                     (s.latest_price - (select d.latest_price from item_daily_statistics d
                      where d.item_id = s.item_id and d.statistics_date <= :monthlyBase
+                       and d.latest_price is not null and d.latest_price > 0
                      order by d.statistics_date desc limit 1)) * 100.0
                     / nullif((select d.latest_price from item_daily_statistics d
                               where d.item_id = s.item_id and d.statistics_date <= :monthlyBase
+                                and d.latest_price is not null and d.latest_price > 0
                               order by d.statistics_date desc limit 1), 0), 2), 0.00)
             """, nativeQuery = true)
     void refreshChangeRates(@Param("dailyBase") LocalDate dailyBase,

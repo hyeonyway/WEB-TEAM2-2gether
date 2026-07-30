@@ -41,13 +41,22 @@ export function ChartTooltipContent({
   labelFormatter,
 }:{
   active?:boolean;
-  payload?:Array<{dataKey?:string|number;value?:number;color?:string}>;
+  payload?:Array<{
+    dataKey?:string|number;
+    value?:number|null;
+    color?:string;
+    payload?:Record<string,unknown>;
+  }>;
   label?:string;
   labelFormatter?:(label:string)=>string;
 }){
   const config=useContext(ChartContext);
   if(!active||!payload?.length)return null;
-  const uniquePayload=payload.filter((item,index,items)=>
+  const noTrade=payload[0]?.payload?.averagePrice===null;
+  const normalizedPayload=noTrade&&!payload.some(item=>item.dataKey==='averagePrice')
+    ?[{dataKey:'averagePrice',value:null,color:config.averagePrice?.color,payload:payload[0]?.payload},...payload]
+    :payload;
+  const uniquePayload=normalizedPayload.filter((item,index,items)=>
     items.findIndex(candidate=>candidate.dataKey===item.dataKey)===index,
   );
 
@@ -60,7 +69,7 @@ export function ChartTooltipContent({
         <i style={{background:item.color??definition?.color}}/>
         <span>{definition?.label??key}</span>
         <b>{key==='averagePrice'
-          ?`${Number(item.value).toLocaleString()}원`
+          ?item.value===null?'체결 없음':`${Number(item.value).toLocaleString()}원`
           :`${Number(item.value).toLocaleString()}건`}</b>
       </div>;
     })}

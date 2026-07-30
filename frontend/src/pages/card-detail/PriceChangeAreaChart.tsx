@@ -24,13 +24,13 @@ export default function PriceChangeAreaChart({history}:Props){
       averagePrice:point.average_price,
       bidCount:point.bid_count,
     }))
-    .filter(point=>Number.isFinite(point.timestamp)&&point.averagePrice>0)
+    .filter(point=>Number.isFinite(point.timestamp))
     .sort((a,b)=>a.timestamp-b.timestamp)
     .filter((point,index,points)=>points[index+1]?.timestamp!==point.timestamp),
   [history]);
   const config={
-    averagePrice:{label:'30일 평균 시세',color:'#16ad64'},
-    bidCount:{label:'30일 누적 입찰량',color:'#e2e2e2'},
+    averagePrice:{label:'일자별 평균 낙찰가',color:'#16ad64'},
+    bidCount:{label:'일자별 총 입찰 수',color:'#e2e2e2'},
   };
   const tickInterval=Math.max(Math.ceil(data.length/5)-1,0);
 
@@ -81,8 +81,8 @@ export default function PriceChangeAreaChart({history}:Props){
         <Legend
           verticalAlign="bottom"
           content={()=><div className="home-chart-legend detail-chart-legend">
-            <span><i className="price-line"/>30일 평균 시세</span>
-            <span><i className="bid-square"/>30일 누적 입찰량</span>
+            <span><i className="price-line"/>일자별 평균 낙찰가</span>
+            <span><i className="bid-square"/>일자별 총 입찰 수</span>
           </div>}
         />
         <Bar

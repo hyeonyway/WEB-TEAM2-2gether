@@ -1,10 +1,9 @@
-package com.dbidding.card.repository;
+package com.dbidding.statistics.repository;
 
-import com.dbidding.card.domain.ItemDailyStatistic;
+import com.dbidding.statistics.domain.ItemDailyStatistic;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,9 +11,6 @@ import org.springframework.data.repository.query.Param;
 public interface ItemDailyStatisticRepository extends JpaRepository<ItemDailyStatistic, Long> {
     List<ItemDailyStatistic> findByItemIdAndStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
             Integer itemId, LocalDate from, LocalDate to);
-
-    Optional<ItemDailyStatistic> findFirstByItemIdAndStatisticsDateLessThanOrderByStatisticsDateDesc(
-            Integer itemId, LocalDate before);
 
     @Query("""
             select s from ItemDailyStatistic s

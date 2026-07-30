@@ -1,5 +1,6 @@
-package com.dbidding.card.domain;
+package com.dbidding.statistics.domain;
 
+import com.dbidding.card.domain.CardMetadata;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;

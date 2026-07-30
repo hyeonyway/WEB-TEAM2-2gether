@@ -7,8 +7,10 @@ import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.repository.CardMetadataRepository;
-import com.dbidding.card.repository.ItemDailyStatisticRepository;
-import com.dbidding.card.repository.ItemStatisticRepository;
+import com.dbidding.statistics.domain.ItemDailyStatistic;
+import com.dbidding.statistics.domain.ItemStatistic;
+import com.dbidding.statistics.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistics.repository.ItemStatisticRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -57,7 +59,7 @@ public class CardPriceService {
         var daily = dailyStatisticRepository
                 .findByItemIdAndStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
                         cardId, from, today);
-        var history = priceHistory(cardId, from, today, daily);
+        var history = priceHistory(from, today, daily);
 
         long marketPrice = summary == null ? 0
                 : firstPrice(summary.getLatestPrice(), summary.getAveragePrice30d());
@@ -93,18 +95,13 @@ public class CardPriceService {
     }
 
     private List<CardResponses.PricePoint> priceHistory(
-            Integer cardId, LocalDate from, LocalDate to, List<ItemDailyStatistic> statistics) {
+            LocalDate from, LocalDate to, List<ItemDailyStatistic> statistics) {
         Map<LocalDate, ItemDailyStatistic> byDate = statistics.stream()
                 .collect(Collectors.toMap(ItemDailyStatistic::getStatisticsDate, Function.identity()));
-        ItemDailyStatistic carried = dailyStatisticRepository
-                .findFirstByItemIdAndStatisticsDateLessThanOrderByStatisticsDateDesc(cardId, from)
-                .orElse(null);
         List<CardResponses.PricePoint> result = new ArrayList<>();
         for (LocalDate date = from; date.isBefore(to); date = date.plusDays(1)) {
             ItemDailyStatistic current = byDate.get(date);
-            if (current != null) carried = current;
-            long price = carried == null ? 0
-                    : firstPrice(carried.getAveragePrice(), carried.getLatestPrice());
+            Long price = current == null ? null : current.getAveragePrice();
             result.add(new CardResponses.PricePoint(
                     date.atStartOfDay(), price, value(current == null ? null : current.getBidCount()),
                     ZERO_RATE, ZERO_RATE, ZERO_RATE));

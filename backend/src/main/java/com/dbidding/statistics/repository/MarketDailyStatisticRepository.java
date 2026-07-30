@@ -1,6 +1,6 @@
-package com.dbidding.home.repository;
+package com.dbidding.statistics.repository;
 
-import com.dbidding.home.domain.MarketDailyStatistic;
+import com.dbidding.statistics.domain.MarketDailyStatistic;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -10,9 +10,6 @@ public interface MarketDailyStatisticRepository
         extends JpaRepository<MarketDailyStatistic, LocalDate> {
     List<MarketDailyStatistic> findByStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
             LocalDate from, LocalDate to);
-
-    Optional<MarketDailyStatistic> findFirstByStatisticsDateLessThanOrderByStatisticsDateDesc(
-            LocalDate before);
 
     Optional<MarketDailyStatistic> findFirstByOrderByStatisticsDateDesc();
 }

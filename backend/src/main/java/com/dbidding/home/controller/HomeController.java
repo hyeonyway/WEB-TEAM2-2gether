@@ -28,12 +28,6 @@ public class HomeController {
         return homeService.getMarket(days);
     }
 
-    @GetMapping("/top-gainers")
-    public HomeResponses.TopGainers getTopGainers(
-            @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
-        return homeService.getTopGainers(limit);
-    }
-
     @GetMapping("/price-movers")
     public HomeResponses.PriceMovers getPriceMovers(
             @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {

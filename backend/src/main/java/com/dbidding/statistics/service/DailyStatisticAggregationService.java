@@ -1,6 +1,6 @@
-package com.dbidding.card.service;
+package com.dbidding.statistics.service;
 
-import com.dbidding.card.repository.StatisticAggregationRepository;
+import com.dbidding.statistics.repository.StatisticAggregationRepository;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

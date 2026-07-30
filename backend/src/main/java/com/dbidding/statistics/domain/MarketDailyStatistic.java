@@ -1,4 +1,4 @@
-package com.dbidding.home.domain;
+package com.dbidding.statistics.domain;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

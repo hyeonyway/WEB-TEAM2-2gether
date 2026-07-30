@@ -1,4 +1,4 @@
-package com.dbidding.card.service;
+package com.dbidding.statistics.service;
 
 import com.dbidding.card.repository.CardMetadataRepository;
 import java.time.LocalDateTime;

@@ -46,24 +46,9 @@ class HomeControllerTest {
     }
 
     @Test
-    void 상승_TOP5는_카드_식별자를_반환한다() throws Exception {
-        given(homeService.getTopGainers(5)).willReturn(new HomeResponses.TopGainers(
-                "전일 상승 Top 5",
-                List.of(new HomeResponses.Ranking(
-                        10, "피카츄", 120_000, new BigDecimal("20.00"),
-                        "gold", 4, "pokemon-cards/pikachu.webp",
-                        LocalDate.of(2026, 7, 27), LocalDate.of(2026, 7, 26), List.of(
-                                new HomeResponses.RankingPricePoint("07/26", 100_000),
-                                new HomeResponses.RankingPricePoint("07/27", 120_000)
-                        )))
-        ));
-
+    void 미사용_상승_TOP5_API는_제공하지_않는다() throws Exception {
         mockMvc.perform(get("/api/home/top-gainers"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.topGainers[0].cardId").value(10))
-                .andExpect(jsonPath("$.topGainers[0].imageUrl").value("pokemon-cards/pikachu.webp"))
-                .andExpect(jsonPath("$.topGainers[0].priceHistory[1].price").value(120000))
-                .andExpect(jsonPath("$.topGainers[0].auctionId").doesNotExist());
+                .andExpect(status().isNotFound());
     }
 
     @Test

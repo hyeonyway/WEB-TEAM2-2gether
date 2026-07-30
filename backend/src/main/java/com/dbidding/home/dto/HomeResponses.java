@@ -34,14 +34,8 @@ public final class HomeResponses {
 
     public record MarketPoint(
             String date,
-            long averagePrice,
+            Long averagePrice,
             long bidCount
-    ) {
-    }
-
-    public record TopGainers(
-            String topGainersTitle,
-            List<Ranking> topGainers
     ) {
     }
 

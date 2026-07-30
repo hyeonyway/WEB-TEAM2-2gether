@@ -58,7 +58,7 @@ public final class CardResponses {
 
     public record PricePoint(
             LocalDateTime date,
-            @JsonProperty("average_price") long averagePrice,
+            @JsonProperty("average_price") Long averagePrice,
             @JsonProperty("bid_count") int bidCount,
             @JsonProperty("change_rate") BigDecimal changeRate,
             @JsonProperty("weekly_change_rate") BigDecimal weeklyChangeRate,

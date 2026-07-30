@@ -1,6 +1,6 @@
-package com.dbidding.card.service;
+package com.dbidding.statistics.service;
 
-import com.dbidding.home.repository.MarketDailyStatisticRepository;
+import com.dbidding.statistics.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;

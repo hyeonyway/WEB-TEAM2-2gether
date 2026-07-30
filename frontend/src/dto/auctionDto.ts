@@ -30,7 +30,7 @@ export type CardResponseDto={
 
 export type CardPricePointResponseDto={
   date:string;
-  average_price:number;
+  average_price:number|null;
   bid_count:number;
   change_rate:number;
   weekly_change_rate:number;

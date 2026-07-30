@@ -1,7 +1,7 @@
 package com.dbidding.auction.adapter;
 
 import com.dbidding.auction.port.AuctionCardStatisticPort;
-import com.dbidding.card.service.ItemStatisticCommandService;
+import com.dbidding.statistics.service.ItemStatisticCommandService;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;

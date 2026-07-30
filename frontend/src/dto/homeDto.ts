@@ -9,7 +9,7 @@ export type HomeInsightDto={
 
 export type HomeMarketPointDto={
   date:string;
-  averagePrice:number;
+  averagePrice:number|null;
   bidCount:number;
 };
 
@@ -37,11 +37,6 @@ export type HomeMarketDto={
     monthlyHighestPrice:number;
   };
   marketHistory:HomeMarketPointDto[];
-};
-
-export type HomeTopGainersDto={
-  topGainersTitle:string;
-  topGainers:HomeRankingDto[];
 };
 
 export type HomePriceMoversDto={
