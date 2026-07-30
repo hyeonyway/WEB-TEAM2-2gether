@@ -47,8 +47,8 @@ class AuctionSseConnectionManagerTest {
         LocalDateTime now = LocalDateTime.of(2026, 7, 30, 12, 0);
         return new BidPlacedPayload(
                 null,
-                1, 2, "리자몽", "10", "JP", "/card.png", 3, 4, null,
-                40_000L, 41_000L, 41_000L, 1_000L, 1, now.plusHours(1),
+                1, 4, null,
+                40_000L, 41_000L, 1_000L, 1, now.plusHours(1),
                 AuctionPayloadStatus.OPEN, 2L, now
         );
     }

@@ -39,8 +39,8 @@ class AuctionSseEventTest {
     @Test
     void 입찰_이벤트에_현재가와_이전_입찰자를_포함한다() throws Exception {
         var payload = new BidPlacedPayload(
-                null, 10, 20, "리자몽", null, null, null, 3, 7, 5,
-                40_000L, 50_000L, 50_000L, 1_000L, 2, now.plusHours(1),
+                null, 10, 7, 5,
+                40_000L, 50_000L, 1_000L, 2, now.plusHours(1),
                 AuctionPayloadStatus.OPEN, 2L, now
         );
 
@@ -50,6 +50,9 @@ class AuctionSseEventTest {
         assertThat(json.get("bidder_id").asInt()).isEqualTo(7);
         assertThat(json.get("previous_bidder_id").asInt()).isEqualTo(5);
         assertThat(json.get("current_price").asLong()).isEqualTo(50_000L);
+        assertThat(json.has("card_id")).isFalse();
+        assertThat(json.has("seller_id")).isFalse();
+        assertThat(json.has("bid_price")).isFalse();
     }
 
     @Test

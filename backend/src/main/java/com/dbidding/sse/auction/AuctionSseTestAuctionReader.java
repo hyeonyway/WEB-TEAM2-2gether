@@ -19,19 +19,6 @@ class AuctionSseTestAuctionReader {
     Optional<Snapshot> findRandomActiveAuction() {
         return jdbcClient.sql("""
                         SELECT a.id,
-                               a.item_id,
-                               c.name,
-                               c.psa_grade,
-                               c.language,
-                               COALESCE(
-                                   (SELECT i.image_path
-                                      FROM images i
-                                     WHERE i.auction_id = a.id
-                                     ORDER BY i.id
-                                     LIMIT 1),
-                                   c.image_path
-                               ) AS thumbnail_url,
-                               a.user_id AS seller_id,
                                a.start_price,
                                a.current_price,
                                a.bid_price_unit,
@@ -45,7 +32,6 @@ class AuctionSseTestAuctionReader {
                                  ORDER BY b.bid_price DESC, b.id DESC
                                  LIMIT 1) AS current_bidder_id
                           FROM auctions a
-                          JOIN card_metadata c ON c.id = a.item_id
                          WHERE a.status IN ('OPEN', 'ENDING')
                            AND a.estimated_close_time > NOW(6)
                            AND EXISTS (
@@ -60,12 +46,6 @@ class AuctionSseTestAuctionReader {
                 .param("testUserId", TEST_USER_ID)
                 .query((resultSet, rowNum) -> new Snapshot(
                         resultSet.getInt("id"),
-                        resultSet.getInt("item_id"),
-                        resultSet.getString("name"),
-                        resultSet.getString("psa_grade"),
-                        resultSet.getString("language"),
-                        resultSet.getString("thumbnail_url"),
-                        resultSet.getInt("seller_id"),
                         resultSet.getLong("start_price"),
                         resultSet.getLong("current_price"),
                         resultSet.getLong("bid_price_unit"),
@@ -80,12 +60,6 @@ class AuctionSseTestAuctionReader {
 
     record Snapshot(
             Integer auctionId,
-            Integer cardId,
-            String cardName,
-            String cardPsaGrade,
-            String cardLanguage,
-            String cardThumbnailUrl,
-            Integer sellerId,
             Long startPrice,
             Long currentPrice,
             Long bidIncrement,

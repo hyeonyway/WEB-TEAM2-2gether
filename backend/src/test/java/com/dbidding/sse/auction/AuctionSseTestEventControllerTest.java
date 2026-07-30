@@ -23,8 +23,7 @@ class AuctionSseTestEventControllerTest {
     @Test
     void publishesIncreasingBidsForRandomActiveAuction() {
         Snapshot snapshot = new Snapshot(
-                11, 21, "피카츄", "10", "JP", "/pikachu.png", 3,
-                100_000L, 110_000L, 1_000L, 10,
+                11, 100_000L, 110_000L, 1_000L, 10,
                 LocalDateTime.now().plusHours(1), "OPEN", 4L, 8
         );
         when(auctionReader.findRandomActiveAuction()).thenReturn(Optional.of(snapshot));

@@ -27,8 +27,8 @@ class AuctionSseEventListenerTest {
                 AuctionPayloadStatus.OPEN, 1L, now
         );
         var bid = new BidPlacedPayload(
-                null, 10, 20, "리자몽", "10", "JP", "/card.png", 3, 7, 5,
-                40_000L, 50_000L, 50_000L, 1_000L, 1, now.plusHours(1),
+                null, 10, 7, 5,
+                40_000L, 50_000L, 1_000L, 1, now.plusHours(1),
                 AuctionPayloadStatus.OPEN, 2L, now
         );
         var closed = new AuctionClosedPayload(

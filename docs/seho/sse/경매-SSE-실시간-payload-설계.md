@@ -146,16 +146,9 @@ public record AuctionCreatedPayload(
 public record BidPlacedPayload(
         AuctionPayloadType type,
         Integer auctionId,
-        Integer cardId,
-        String cardName,
-        String cardPsaGrade,
-        String cardLanguage,
-        String cardThumbnailUrl,
-        Integer sellerId,
         Integer bidderId,
         Integer previousBidderId,
         Long startPrice,
-        Long bidPrice,
         Long currentPrice,
         Long bidIncrement,
         Integer bidCount,
@@ -170,7 +163,9 @@ public record BidPlacedPayload(
 - 최초 입찰이면 `previousBidderId`는 null이다.
 - 기존 최고 입찰이 있으면 `previousBidderId`에 상회 입찰된 사용자를 담는다.
 - 별도 outbid SSE payload는 만들지 않는다.
-- `bidPrice == currentPrice`, `bidCount >= 1`이어야 한다.
+- 입찰 이벤트는 기존 목록 항목을 갱신하므로 카드 스냅샷과 판매자 ID를 반복하지
+  않는다.
+- `bidCount >= 1`이어야 한다.
 
 ### `AuctionClosedPayload`
 

@@ -2,18 +2,8 @@ import {useEffect,useRef} from 'react';
 import {isMockApiEnabled} from '../api/mockApiConfig';
 import type {AuctionStatus} from '../dto/auctionDto';
 
-export type AuctionStreamPayload={
-  type:'AUCTION_CREATED'|'BID_PLACED'|'AUCTION_CLOSED';
+type AuctionStreamBase={
   auction_id:number;
-  card_id:number;
-  card_name:string;
-  card_psa_grade:string|null;
-  card_language:string|null;
-  card_thumbnail_url:string|null;
-  seller_id:number;
-  bidder_id?:number;
-  previous_bidder_id?:number|null;
-  winner_id?:number|null;
   start_price:number;
   current_price?:number;
   final_price?:number;
@@ -24,6 +14,30 @@ export type AuctionStreamPayload={
   auction_version:number;
   occurred_at:string;
 };
+
+type AuctionCardSnapshot={
+  card_id:number;
+  card_name:string;
+  card_psa_grade:string|null;
+  card_language:string|null;
+  card_thumbnail_url:string|null;
+};
+
+export type AuctionStreamPayload=
+  |AuctionStreamBase&AuctionCardSnapshot&{
+    type:'AUCTION_CREATED';
+    seller_id:number;
+  }
+  |AuctionStreamBase&{
+    type:'BID_PLACED';
+    bidder_id:number;
+    previous_bidder_id:number|null;
+  }
+  |AuctionStreamBase&AuctionCardSnapshot&{
+    type:'AUCTION_CLOSED';
+    seller_id:number;
+    winner_id:number|null;
+  };
 
 type UseAuctionStreamOptions={
   enabled?:boolean;
@@ -41,12 +55,16 @@ function parsePayload(data:string):AuctionStreamPayload|null{
     const value={
       type:raw.type,
       auction_id:raw.auction_id??raw.auctionId,
-      card_id:raw.card_id??raw.cardId,
-      card_name:raw.card_name??raw.cardName,
-      card_psa_grade:raw.card_psa_grade??raw.cardPsaGrade??null,
-      card_language:raw.card_language??raw.cardLanguage??null,
-      card_thumbnail_url:raw.card_thumbnail_url??raw.cardThumbnailUrl??null,
-      seller_id:raw.seller_id??raw.sellerId,
+      ...(raw.card_id!==undefined||raw.cardId!==undefined?{
+        card_id:raw.card_id??raw.cardId,
+        card_name:raw.card_name??raw.cardName,
+        card_psa_grade:raw.card_psa_grade??raw.cardPsaGrade??null,
+        card_language:raw.card_language??raw.cardLanguage??null,
+        card_thumbnail_url:raw.card_thumbnail_url??raw.cardThumbnailUrl??null,
+      }:{}),
+      ...(raw.seller_id!==undefined||raw.sellerId!==undefined?{
+        seller_id:raw.seller_id??raw.sellerId,
+      }:{}),
       bidder_id:raw.bidder_id??raw.bidderId,
       previous_bidder_id:raw.previous_bidder_id??raw.previousBidderId??null,
       winner_id:raw.winner_id??raw.winnerId??null,
@@ -63,8 +81,6 @@ function parsePayload(data:string):AuctionStreamPayload|null{
     if(
       !['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED'].includes(value.type??'')
       ||!Number.isInteger(value.auction_id)
-      ||!Number.isInteger(value.card_id)
-      ||typeof value.card_name!=='string'
       ||!Number.isFinite(value.start_price)
       ||!Number.isFinite(value.bid_increment)
       ||!Number.isInteger(value.bid_count)
@@ -72,6 +88,12 @@ function parsePayload(data:string):AuctionStreamPayload|null{
       ||!Number.isFinite(value.auction_version)
       ||typeof value.occurred_at!=='string'
     )return null;
+    if(value.type!=='BID_PLACED'&&(
+      !Number.isInteger(value.card_id)
+      ||typeof value.card_name!=='string'
+      ||!Number.isInteger(value.seller_id)
+    ))return null;
+    if(value.type==='BID_PLACED'&&!Number.isInteger(value.bidder_id))return null;
     return value as AuctionStreamPayload;
   }catch{
     return null;

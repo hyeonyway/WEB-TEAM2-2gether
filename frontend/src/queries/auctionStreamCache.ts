@@ -28,6 +28,9 @@ export function applyAuctionEvent(
 }
 
 export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
+  if(event.type!=='AUCTION_CREATED'){
+    throw new Error('AUCTION_CREATED 이벤트만 경매 DTO로 변환할 수 있습니다.');
+  }
   const currentPrice=event.current_price??event.final_price??event.start_price;
   return {
     id:event.auction_id,

@@ -105,16 +105,22 @@ export function publishEvents() {
 }
 
 function isValidPayload(payload) {
-  return payload !== null
+  const commonValid = payload !== null
     && typeof payload === 'object'
     && eventTypes.has(payload.type)
     && Number.isInteger(payload.auction_id ?? payload.auctionId)
-    && Number.isInteger(payload.card_id ?? payload.cardId)
-    && typeof (payload.card_name ?? payload.cardName) === 'string'
     && Number.isFinite(payload.start_price ?? payload.startPrice)
     && Number.isFinite(payload.bid_increment ?? payload.bidIncrement)
     && Number.isInteger(payload.bid_count ?? payload.bidCount)
     && typeof (payload.ends_at ?? payload.endsAt) === 'string'
     && Number.isFinite(payload.auction_version ?? payload.auctionVersion)
     && typeof (payload.occurred_at ?? payload.occurredAt) === 'string';
+  if (!commonValid) {
+    return false;
+  }
+  if (payload.type === 'BID_PLACED') {
+    return Number.isInteger(payload.bidder_id ?? payload.bidderId);
+  }
+  return Number.isInteger(payload.card_id ?? payload.cardId)
+    && typeof (payload.card_name ?? payload.cardName) === 'string';
 }
