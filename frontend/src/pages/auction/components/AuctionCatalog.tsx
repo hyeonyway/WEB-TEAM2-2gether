@@ -1,5 +1,5 @@
 import {CheckCircle2,Clock3,Search} from 'lucide-react';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {AuctionBidDialog} from '../../../components';
 import type {AuctionDto} from '../../../dto/auctionDto';
 import CardArtwork from '../../cards/components/CardArtwork';
@@ -12,6 +12,36 @@ const remainingTime=(endsAt:string,now:number)=>{
   const seconds=total%60;
   return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
 };
+
+function AnimatedAuctionPrice({price}:{price:number}){
+  const previousPrice=useRef(price);
+  const priceElement=useRef<HTMLSpanElement>(null);
+  const[pulse,setPulse]=useState(0);
+
+  useEffect(()=>{
+    if(price>previousPrice.current){
+      setPulse(value=>value+1);
+      if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        priceElement.current?.closest<HTMLElement>('.card-tile')?.animate([
+          {backgroundColor:'#ffffff',boxShadow:'0 2px 3px #00000008'},
+          {backgroundColor:'#fff0c9',boxShadow:'0 8px 28px #f0a42935',offset:.35},
+          {backgroundColor:'#ffe0db',boxShadow:'0 8px 30px #f0524935',offset:.62},
+          {backgroundColor:'#ffffff',boxShadow:'0 2px 3px #00000008'},
+        ],{
+          duration:950,
+          easing:'cubic-bezier(.2,.8,.2,1)',
+        });
+      }
+    }
+    previousPrice.current=price;
+  },[price]);
+
+  return <strong aria-live="polite">
+    <span ref={priceElement} key={pulse} className={pulse>0?'auction-price-rise':undefined}>
+      {price.toLocaleString()}원
+    </span>
+  </strong>;
+}
 
 export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
   const[selectedAuction,setSelectedAuction]=useState<AuctionDto|null>(null);
@@ -26,7 +56,7 @@ export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
     <div>
       <div className="card-meta"><span><span className="grade">PSA {auction.card.psaGrade}</span><span className="grade">{auction.card.language}</span></span><span className="auction-countdown"><Clock3/>{remaining}{!ended&&' 남음'}</span></div>
       <h3>{auction.card.name}</h3><small>현재 경매가</small>
-      <div className="tile-price"><strong>{auction.currentPrice.toLocaleString()}원</strong><em>시작가 대비 +{increaseRate.toFixed(1)}%</em></div>
+      <div className="tile-price"><AnimatedAuctionPrice price={auction.currentPrice}/><em>시작가 대비 +{increaseRate.toFixed(1)}%</em></div>
       <div className="auction-card-info">
         <span>시작가<b>{auction.startPrice.toLocaleString()}원</b></span>
         <span>누적 상승액<b className="increase-value">+{increase.toLocaleString()}원</b></span>

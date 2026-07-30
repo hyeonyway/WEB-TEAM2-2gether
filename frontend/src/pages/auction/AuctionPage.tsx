@@ -1,9 +1,11 @@
 import {useState} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {AuctionCatalog} from './components';
-import type {AuctionListRequestDto} from '../../dto/auctionDto';
-import {auctionQueries} from '../../queries/auctionQueries';
+import type {AuctionDto,AuctionListRequestDto} from '../../dto/auctionDto';
+import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
+import {useAuctionStream} from '../../hooks/useAuctionStream';
+import {applyAuctionEvent,eventToAuction,sortAuctions} from '../../queries/auctionStreamCache';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 
@@ -11,12 +13,27 @@ const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
   ['입찰 수 높은순','BID_COUNT'],['경매가 높은순','PRICE_HIGH'],['경매가 낮은순','PRICE_LOW'],['상승률 높은순','CHANGE_HIGH'],
 ];
 export default function AuctionPage(){
+  const queryClient=useQueryClient();
   const requestedSort=new URLSearchParams(window.location.search).get('sort');
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
   const[query,setQuery]=useState('');
   const debouncedQuery=useDebouncedValue(query);
   const[grade,setGrade]=useState('');
   const[sort,setSort]=useState<AuctionListRequestDto['sort']>(initialSort);
+  useAuctionStream({
+    onAuctionUpdated:event=>queryClient.setQueryData<AuctionDto[]>(
+      auctionQueryKeys.list({keyword:debouncedQuery,psaGrade:grade||null,sort}),
+      current=>{
+        let next=applyAuctionEvent(current,event);
+        if(event.type==='AUCTION_CREATED'&&!next.some(auction=>auction.id===event.auction_id)){
+          const matchesKeyword=event.card_name.toLowerCase().includes(debouncedQuery.toLowerCase());
+          const matchesGrade=!grade||event.card_psa_grade===grade;
+          if(matchesKeyword&&matchesGrade)next=[...next,eventToAuction(event)];
+        }
+        return sortAuctions(next,sort);
+      },
+    ),
+  });
   const{data:auctions=[],isPending,error}=useQuery(auctionQueries.list({keyword:debouncedQuery,psaGrade:grade||null,sort}));
 
   return <div className="cards-page enhanced-cards"><Header/><main>
