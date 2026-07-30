@@ -157,7 +157,7 @@ public class WalletService {
 		if (!hold.isHeld() || hold.getAmount() != amount || frozenBefore < amount) {
 			throw new InvalidWalletHoldStateException();
 		}
-		balance(wallet, frozenBefore);
+		validateFrozenBalance(wallet, frozenBefore);
 
 		wallet.debit(amount);
 		hold.capture(Instant.now());
@@ -220,14 +220,18 @@ public class WalletService {
 	}
 
 	private WalletBalanceResponse balance(Wallet wallet, long frozenBalance) {
-		if (frozenBalance < 0 || frozenBalance > wallet.getPoint()) {
-			throw new InvalidWalletBalanceException();
-		}
+		validateFrozenBalance(wallet, frozenBalance);
 		return new WalletBalanceResponse(
 			wallet.getPoint(),
 			frozenBalance,
 			wallet.getPoint() - frozenBalance
 		);
+	}
+
+	private void validateFrozenBalance(Wallet wallet, long frozenBalance) {
+		if (frozenBalance < 0 || frozenBalance > wallet.getPoint()) {
+			throw new InvalidWalletBalanceException();
+		}
 	}
 
 	private void validateChargeAmount(long amount) {
