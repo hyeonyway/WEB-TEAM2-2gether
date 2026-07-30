@@ -365,10 +365,8 @@ CREATE TABLE notification
     CONSTRAINT pk_notification PRIMARY KEY (id),
     CONSTRAINT fk_notification_user
         FOREIGN KEY (user_id) REFERENCES users (id),
-    CONSTRAINT fk_notification_auction
-        FOREIGN KEY (auction_id) REFERENCES auctions (id),
 
-    INDEX idx_notification_auction_id (auction_id),
+    INDEX idx_notification_user_id (user_id),
     INDEX idx_notification_user_id_is_read (user_id, is_read)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
