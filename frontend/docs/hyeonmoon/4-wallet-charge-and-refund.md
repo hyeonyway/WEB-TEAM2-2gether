@@ -1,5 +1,11 @@
 # Frontend Wallet 충전·환불 구현 계획
 
+## 구현 상태
+
+구현 완료. Header의 충전 팝업과 마이페이지 Wallet 카드의 환불 팝업이 실제
+백엔드 모의 거래 API를 호출한다. 거래 성공 뒤 로컬 잔액을 계산하지 않고
+`walletQueryKeys.balance()`를 무효화해 서버 잔액을 다시 조회한다.
+
 ## 목표
 
 현재 Header의 로컬 포인트 증가를 실제 모의 충전 API로 교체하고, 마이페이지에
@@ -51,10 +57,14 @@ Content-Type: application/json
 
 ```text
 frontend/src/
+├── api/walletApi.ts
+├── dto/walletDto.ts
 ├── queries/walletMutations.ts
 └── components/wallet/
     ├── WalletChargeDialog.tsx
-    └── WalletRefundDialog.tsx
+    ├── WalletChargeDialog.test.tsx
+    ├── WalletRefundDialog.tsx
+    └── WalletRefundDialog.test.tsx
 ```
 
 Header는 다이얼로그 열림 여부만 관리하고 금액 state와 mutation은 각
@@ -119,9 +129,12 @@ Balance Query를 무효화한다.
 
 ## 완료 기준
 
-- Header의 로컬 Wallet 증가 state가 제거된다.
-- 충전·환불이 실제 백엔드 원장에 한 번만 반영된다.
-- 모든 표시 잔액은 재조회한 서버 응답과 일치한다.
-- UI가 모의 거래임을 명확하게 표시한다.
+- [x] Header의 로컬 Wallet 증가 state가 제거된다.
+- [x] 충전·환불이 실제 백엔드 원장 API를 통해 반영된다.
+- [x] 모든 표시 잔액은 재조회한 서버 응답과 일치한다.
+- [x] UI가 모의 거래임을 명확하게 표시한다.
+- [x] 동일 거래의 명시적 재시도는 기존 멱등키를 유지한다.
+- [x] 새 금액 선택과 새 팝업은 새로운 멱등키를 사용한다.
+- [x] 타입 검사, API·컴포넌트 테스트, 프로덕션 빌드를 통과한다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다

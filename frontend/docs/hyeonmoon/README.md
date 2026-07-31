@@ -62,8 +62,8 @@
 | 1 | #78 | 구현 완료 | [인증 UI](1-auth-ui.md) | Router·테스트 기반, 회원가입·로그인·로그아웃 모달 |
 | 2 | #113 | 구현 완료 | [인증 세션과 API Client](2-auth-session-and-api-client.md) | 앱 시작 Refresh, Bearer와 단일 401 갱신 |
 | 3 | #114 | 구현 완료 | [Wallet 잔액](3-wallet-balance.md) | Header·마이페이지의 실제 총액·동결액·가용액 |
-| 4 | #115 | **다음** | [Wallet 충전·환불](4-wallet-charge-and-refund.md) | 멱등 모의 거래와 서버 잔액 동기화 |
-| 5 | #116 | 대기 | [Auction Wallet 접점](5-auction-wallet-integration.md) | 입찰 화면에 Wallet·Auth 계약 전달 |
+| 4 | #115 | 구현 완료 | [Wallet 충전·환불](4-wallet-charge-and-refund.md) | 멱등 모의 거래와 서버 잔액 동기화 |
+| 5 | #116 | **다음** | [Auction Wallet 접점](5-auction-wallet-integration.md) | 입찰 화면에 Wallet·Auth 계약 전달 |
 | 6 | #117 | 백엔드 선행 | [Account와 배송지](6-account-and-address.md) | 현재 사용자 정보와 배송지 CRUD UI |
 | 7 | #112 | 최종 | 별도 공통 작업 | 전체 화면의 SPA 내부 이동 통일 |
 
