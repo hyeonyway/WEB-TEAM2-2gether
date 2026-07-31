@@ -2,7 +2,7 @@ package com.dbidding.sse.auction.payload;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record BidPlacedPayload(
@@ -14,10 +14,10 @@ public record BidPlacedPayload(
         Long currentPrice,
         Long bidIncrement,
         Integer bidCount,
-        LocalDateTime endsAt,
+        Instant endsAt,
         AuctionPayloadStatus status,
         Long auctionVersion,
-        LocalDateTime occurredAt
+        Instant occurredAt
 ) implements AuctionPayload {
 
     public BidPlacedPayload {

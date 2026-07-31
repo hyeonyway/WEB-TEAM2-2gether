@@ -3,7 +3,7 @@ package com.dbidding.dashboard.dto;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public final class DashboardResponse {
     private DashboardResponse() {
@@ -16,7 +16,7 @@ public final class DashboardResponse {
             @JsonProperty("current_price") Long currentPrice,
             @JsonProperty("bid_increment") Long bidIncrement,
             @JsonProperty("bid_count") Integer bidCount,
-            @JsonProperty("ends_at") LocalDateTime endsAt,
+            @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
             Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,

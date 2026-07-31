@@ -2,7 +2,7 @@ package com.dbidding.card.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 public final class CardResponses {
@@ -57,7 +57,7 @@ public final class CardResponses {
     }
 
     public record PricePoint(
-            LocalDateTime date,
+            LocalDate date,
             @JsonProperty("average_price") Long averagePrice,
             @JsonProperty("ended_auction_count") int endedAuctionCount,
             @JsonProperty("change_rate") BigDecimal changeRate,

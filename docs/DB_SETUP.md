@@ -40,7 +40,7 @@ spring:
     name: dbidding
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:dbidding}?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:dbidding}?useSSL=false&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
@@ -50,6 +50,13 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  jackson:
+    time-zone: UTC
 
   sql:
     init:
@@ -65,6 +72,17 @@ springdoc:
 
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` : 개인 환경변수로 설정 (기본값은 로컬 기준: `localhost`, `3306`, `dbidding`, `root`, 빈 비밀번호)
 - 비밀번호처럼 커밋하면 안 되는 값은 `.env` 같은 파일에 넣고 `.gitignore` 처리 추천
+
+### 시간대 기준
+
+- DB 세션, JDBC, Hibernate, JVM의 기준 시간대는 모두 UTC를 사용한다.
+- Docker 이미지는 기본값으로 `TZ=UTC`,
+  `JAVA_TOOL_OPTIONS=-Duser.timezone=UTC`를 설정한다.
+- 서버 환경에서도 같은 값을 명시해 실행 환경이 바뀌어도 UTC 기준을 유지한다.
+- API의 날짜·시간 문자열은 `Z`가 포함된 ISO-8601 UTC 형식으로 응답한다.
+- 사용자에게 보여주는 현지 시간 변환은 프론트엔드에서 담당한다.
+- 일별 통계처럼 한국 서비스 날짜가 필요한 기능만 `Asia/Seoul`을 코드에
+  명시해 UTC 순간값과 구분한다.
 
 ## 4. 각자 로컬 환경변수 설정 예시
 

@@ -9,7 +9,9 @@ import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.dashboard.dto.DashboardResponse;
+import com.dbidding.global.time.UtcTime;
 import java.time.LocalDateTime;
+import java.time.Clock;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +31,7 @@ public class DashboardService {
     private final BidRepository bidRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final AuctionCardPort auctionCardPort;
+    private final Clock clock;
 
     public List<DashboardResponse.AuctionSnapshot> getParticipatingAuctions(
             Integer userId,
@@ -38,7 +41,7 @@ public class DashboardService {
         List<Bid> participating = latestBids.values().stream()
                 .filter(bid -> PARTICIPATING_STATUSES.contains(bid.getAuction().getStatus()))
                 .filter(bid -> bid.getAuction().getEstimatedCloseTime()
-                        .isAfter(LocalDateTime.now()))
+                        .isAfter(LocalDateTime.now(clock)))
                 .sorted(participatingComparator(sort))
                 .toList();
         return snapshots(participating);
@@ -144,7 +147,7 @@ public class DashboardService {
                 auction.getCurrentPrice(),
                 auction.getBidPriceUnit(),
                 auction.getBidCount(),
-                auction.getEstimatedCloseTime(),
+                UtcTime.toInstant(auction.getEstimatedCloseTime()),
                 auction.getStatus(),
                 auction.getVersion(),
                 myBidStatus(bid),
