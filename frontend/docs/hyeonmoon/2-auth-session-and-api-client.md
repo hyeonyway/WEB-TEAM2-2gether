@@ -91,31 +91,38 @@ Account·Wallet API 요청
 
 ## 인증 진입과 보호 경로
 
-`useAuthGate()`는 인증이 필요한 동작과 내부 경로를 공통으로 보호한다.
+> #113 구현 당시에는 Auth 모달과 `returnTo`를 사용하는 보호 진입을
+> 구현했지만, 최종 정책은 후속 #136에서 토스트 기반으로 변경했다. 현재
+> 동작은 [보호 화면 토스트 Auth Gate](7-auth-access-toast-gate.md)를 따른다.
+
+`useAuthGate()`는 Header처럼 인증이 필요한 메뉴 클릭을 보호한다.
 
 ```text
-Header 마이페이지 클릭
-→ initializing: 인증 확인이 끝날 때까지 이동 보류
-→ anonymous: 이동하지 않고 Auth 모달 열기, returnTo=/mypage 저장
-→ authenticated: /mypage 이동
-→ 모달 로그인 성공: 검증된 내부 returnTo로 이동
+Header 보호 메뉴 클릭
+→ initializing: 이동만 보류하고 토스트를 표시하지 않음
+→ anonymous: 이동하지 않고 "로그인이 필요합니다" 토스트 표시
+→ authenticated: 기존 목적지로 이동
 ```
 
-주소창이나 새로고침으로 `/mypage`에 직접 접근한 경우 `RequireAuth`가 페이지
-내용을 먼저 렌더링하지 않는다. `initializing` 동안에는 인증 확인 화면을
-표시하고, `anonymous`로 확정되면 Auth 모달을 연다. 사용자가 모달을 닫고
-로그인하지 않으면 홈으로 이동한다.
+주소창이나 새로고침으로 `/sell`, `/dashboard`, `/mypage`에 직접 접근한 경우
+`RequireAuth`가 페이지 내용을 먼저 렌더링하지 않는다. `initializing` 동안에는
+인증 확인 화면을 표시하고, `anonymous`가 되면 토스트를 한 번 표시한 뒤 홈으로
+`replace` 이동한다.
 
-`returnTo`는 `/`로 시작하는 애플리케이션 내부 경로만 허용한다. 절대 URL,
-프로토콜 상대 URL, 알 수 없는 경로는 홈으로 대체해 open redirect를 막는다.
-일반 Header 로그인처럼 보호 동작 없이 연 모달은 로그인 성공 뒤 현재 경로를
-유지한다.
+보호 접근은 Auth 모달을 자동으로 열거나 `returnTo`를 저장하지 않는다. 로그인
+모달은 Header의 로그인 버튼으로만 열리고 로그인 성공 뒤 현재 경로를 유지한다.
 
 ## 다른 도메인 보호 원칙
 
-- 이 단계에서 `/auction`, `/dashboard`, `/sell` 전체를 강제로 보호하지 않는다.
-- `/mypage`와 Header의 마이페이지 진입은 Account 보호 범위로 포함한다.
-- Account·Wallet 기능 버튼은 `useAuthGate()`로 인증 모달을 열 수 있다.
+> 이 절은 #113 구현 당시의 범위를 기록한다. 판매 등록, 나의 대시보드,
+> 마이페이지의 최종 공통 접근 정책은 후속
+> [보호 화면 토스트 Auth Gate](7-auth-access-toast-gate.md)를 따른다.
+
+- `/auction` 목록·상세 같은 공개 화면은 보호하지 않는다.
+- `/sell`, `/dashboard`, `/mypage`와 Header의 대응 메뉴는 공통 Auth gate로
+  보호한다.
+- Account·Wallet 기능 버튼은 `useAuthGate()`로 접근을 보류하고 로그인 필요
+  토스트를 표시할 수 있다.
 - 다른 담당 도메인은 필요할 때 같은 gate를 호출하되 화면 파일 수정은 담당자와
   합의한다.
 - 비운영 `X-Debug-User-Id`가 필요한 기존 호출은 전환 전까지 유지할 수 있다.
@@ -139,10 +146,12 @@ anonymous 전환과 로그아웃 시 최소한 다음 사용자별 cache를 제�
 - 앱 시작 Refresh 성공 시 `authenticated`가 된다.
 - 일반 공개 화면에서 Refresh 401이면 `anonymous`가 되고 모달을 강제로 열지
   않는다.
-- 비로그인 사용자가 Header 마이페이지를 누르면 이동하지 않고 Auth 모달을 연다.
-- `/mypage` 직접 접근은 페이지 내용을 렌더링하지 않고 Auth 모달을 연다.
-- 보호 진입에서 로그인하면 `/mypage`로 이동하고, 모달을 닫으면 홈으로 이동한다.
-- 외부 URL 형태의 `returnTo`는 홈으로 대체한다.
+- 비로그인 사용자가 Header 보호 메뉴를 누르면 이동하지 않고 로그인 필요
+  토스트를 표시한다.
+- 보호 URL 직접 접근은 페이지 내용을 렌더링하지 않고 토스트를 표시한 뒤 홈으로
+  `replace` 이동한다.
+- 보호 진입은 Auth 모달을 자동으로 열거나 로그인 뒤 목적지로 자동 복귀하지
+  않는다.
 - 일반 Account·Wallet 요청에 Bearer 헤더가 포함된다.
 - 동시 401 여러 건이 Refresh 한 건만 발생시킨다.
 - Refresh 성공 뒤 각 원 요청을 한 번만 재시도한다.

@@ -1,8 +1,8 @@
 import {useEffect,useRef,useState} from 'react';
 import {Bell} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
+import {showAuthRequiredToast} from '../auth/useAuthGate';
 import {useNotifications} from '../hooks/useNotifications';
-import {showToast} from './Toast';
 import type {NotificationDto} from '../dto/notificationDto';
 
 function formatRelativeTime(iso:string):string{
@@ -93,7 +93,7 @@ export default function NotificationBell(){
 
   const handleTrigger=()=>{
     if(!isLoggedIn){
-      showToast('로그인이 필요합니다');
+      showAuthRequiredToast();
       return;
     }
     setIsOpen(current=>!current);

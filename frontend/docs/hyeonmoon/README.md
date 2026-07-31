@@ -22,7 +22,7 @@
 | 범위 | 이 계획에서 수행 | 수행하지 않음 |
 |---|---|---|
 | 공통 Header | 인증 버튼, 로그인 후 Wallet 요약, 마이페이지 Auth gate | 카드·경매 메뉴 정책 변경 |
-| 인증 | Auth API, 토큰 상태, Refresh, 인증 모달, `/mypage` 보호 | 다른 도메인 화면을 일괄 보호 |
+| 인증 | Auth API, 토큰 상태, Refresh, 인증 모달, 공통 보호 화면 gate | 공개 화면이나 개별 도메인 동작을 임의로 보호 |
 | Wallet | 조회·충전·환불 API와 UI | 입찰·낙찰 규칙 재구현 |
 | Auction 접점 | Wallet hook, Query key, 인증 gate 계약 제공 | Auction API·컴포넌트 임의 수정 |
 | 마이페이지 | Account·Wallet·배송지 구역 | 구매·판매·알림 이력 소유권 변경 |
@@ -65,7 +65,8 @@
 | 4 | #115 | 구현 완료 | [Wallet 충전·환불](4-wallet-charge-and-refund.md) | 멱등 모의 거래와 서버 잔액 동기화 |
 | 5 | #116 | **다음** | [Auction Wallet 접점](5-auction-wallet-integration.md) | 입찰 화면에 Wallet·Auth 계약 전달 |
 | 6 | #117 | 백엔드 선행 | [Account와 배송지](6-account-and-address.md) | 현재 사용자 정보와 배송지 CRUD UI |
-| 7 | #112 | 최종 | 별도 공통 작업 | 전체 화면의 SPA 내부 이동 통일 |
+| 7 | #136 | 구현 완료 | [보호 화면 토스트 Auth Gate](7-auth-access-toast-gate.md) | 판매 등록·나의 대시보드·마이페이지 비로그인 접근 차단 |
+| 8 | #112 | 최종 | 별도 공통 작업 | 전체 화면의 SPA 내부 이동 통일 |
 
 각 설계 문서를 하나의 이슈와 PR로 처리한다. #112는 위 연동이 모두 끝난 뒤
 Header, Home, Card, Auction, Dashboard, Sell의 `<a href>`와
@@ -78,8 +79,9 @@ Header, Home, Card, Auction, Dashboard, Sell의 `<a href>`와
 - Refresh Token은 HttpOnly 쿠키로만 전달하고 프론트에서 읽지 않는다.
 - 인증 요청은 `credentials: "include"`를 사용한다.
 - Header 전자지갑은 `authenticated` 상태에서만 표시한다.
-- Header 마이페이지와 `/mypage` 직접 접근은 같은 Auth gate를 사용하고, 로그인
-  성공 뒤 검증된 내부 목적지로 이동한다.
+- Header의 판매 등록·나의 대시보드·마이페이지와 각 직접 URL 접근은 같은
+  Auth gate를 사용한다. 비로그인 메뉴 클릭은 토스트 뒤 현재 화면을 유지하고,
+  직접 접근은 토스트 뒤 홈으로 이동한다.
 - Wallet Query key는 한 모듈에서 정의하고 거래 성공 뒤 같은 key를 무효화한다.
 - 입찰가, 배송비, 활성 hold를 프론트에서 별도 원장처럼 관리하지 않는다.
 - `X-Debug-User-Id`는 다른 도메인의 비운영 개발이 끝날 때까지 해당 호출에만
