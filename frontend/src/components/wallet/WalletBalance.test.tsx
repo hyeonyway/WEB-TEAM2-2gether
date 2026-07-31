@@ -12,6 +12,20 @@ vi.mock('../../queries/walletQueries', () => ({
   useWalletBalance: useWalletBalanceMock,
 }));
 
+vi.mock('./WalletRefundDialog', () => ({
+  default: ({
+    totalBalance,
+    availableBalance,
+  }: {
+    totalBalance: number;
+    availableBalance: number;
+  }) => (
+    <div role="dialog" aria-label="전자지갑 포인트 환불">
+      {totalBalance}/{availableBalance}
+    </div>
+  ),
+}));
+
 describe('WalletBalance', () => {
   beforeEach(() => {
     useWalletBalanceMock.mockReset();
@@ -52,6 +66,27 @@ describe('WalletBalance', () => {
     expect(screen.getByText('730,000P')).toBeInTheDocument();
     expect(screen.getByText(/활성 입찰에 동결된 금액을 제외/))
       .toBeInTheDocument();
+  });
+
+  it('환불하기를 누르면 서버의 총잔액과 가용액으로 환불 창을 연다', async () => {
+    useWalletBalanceMock.mockReturnValue({
+      data: {
+        totalBalance: 850_000,
+        frozenBalance: 120_000,
+        availableBalance: 730_000,
+      },
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    const user = userEvent.setup();
+
+    render(<WalletBalance/>);
+    await user.click(screen.getByRole('button', {name: '포인트 환불하기'}));
+
+    expect(screen.getByRole('dialog', {name: '전자지갑 포인트 환불'}))
+      .toHaveTextContent('850000/730000');
   });
 
   it('404는 0원 대신 Wallet 준비 실패와 재시도를 표시한다', async () => {
