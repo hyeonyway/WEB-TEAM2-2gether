@@ -1,4 +1,4 @@
-import {request} from './httpClient';
+import {authenticatedRequest} from './authenticatedRequest';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {NotificationDto,NotificationPageDto} from '../dto/notificationDto';
 
@@ -51,14 +51,14 @@ export async function fetchNotifications(params:{cursor?:number;size?:number;unr
   if(params.cursor!=null)query.set('cursor',String(params.cursor));
   query.set('size',String(size));
   if(params.unreadOnly)query.set('read','false');
-  return request<NotificationPageDto>(`/api/notifications?${query}`);
+  return authenticatedRequest<NotificationPageDto>(`/api/notifications?${query}`);
 }
 
 export async function fetchUnreadCount():Promise<number>{
   if(isMockApiEnabled()){
     return readMockNotifications().filter(item=>!item.isRead).length;
   }
-  const {count}=await request<{count:number}>('/api/notifications/unread-count');
+  const {count}=await authenticatedRequest<{count:number}>('/api/notifications/unread-count');
   return count;
 }
 
@@ -67,7 +67,7 @@ export async function markNotificationAsRead(notificationId:number):Promise<void
     writeMockNotifications(readMockNotifications().map(item=>item.id===notificationId?{...item,isRead:true}:item));
     return;
   }
-  await request<void>(`/api/notifications/${notificationId}/read`,{method:'PATCH'});
+  await authenticatedRequest<void>(`/api/notifications/${notificationId}/read`,{method:'PATCH'});
 }
 
 export async function markAllNotificationsAsRead():Promise<void>{
@@ -75,5 +75,5 @@ export async function markAllNotificationsAsRead():Promise<void>{
     writeMockNotifications(readMockNotifications().map(item=>({...item,isRead:true})));
     return;
   }
-  await request<void>('/api/notifications/read-all',{method:'PATCH'});
+  await authenticatedRequest<void>('/api/notifications/read-all',{method:'PATCH'});
 }
