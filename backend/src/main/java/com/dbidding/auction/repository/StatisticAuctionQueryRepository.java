@@ -21,6 +21,7 @@ public interface StatisticAuctionQueryRepository extends Repository<Auction, Int
                    sum(case when a.bidCount > 0 then 1 else 0 end) as bidAuctionCount
             from Auction a
             where a.status = com.dbidding.auction.domain.AuctionStatus.OPEN
+              and a.estimatedCloseTime > CURRENT_TIMESTAMP
             """)
     InsightAggregate aggregateInsights();
 
