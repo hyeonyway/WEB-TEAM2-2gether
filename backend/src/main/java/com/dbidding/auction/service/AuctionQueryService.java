@@ -12,7 +12,6 @@ import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
 import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.CurrentUserPort;
 import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
@@ -24,7 +23,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -32,18 +30,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
-@Profile("auction-mock")
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class AuctionQueryService {
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
-    private final CurrentUserPort currentUserPort;
     private final WalletPort walletPort;
     private final AuctionCardPort auctionCardPort;
 
-    public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(AuctionSearchRequest request) {
+    public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(Integer userId, AuctionSearchRequest request) {
         var auctions = auctionRepository.search(
                 request.keywordOrDefault(),
                 request.psaGrade(),
@@ -54,7 +50,7 @@ public class AuctionQueryService {
         List<Auction> content = auctions.getContent();
         Map<Integer, AuctionCardPort.CardSnapshot> cards = cardSnapshots(content);
         Map<Integer, List<AuctionImage>> images = imagesByAuction(content);
-        Map<Integer, Bid> myBids = myBids(content);
+        Map<Integer, Bid> myBids = myBids(userId, content);
         List<AuctionResponses.AuctionSummary> items = content.stream()
                 .map(auction -> summary(auction, cards.get(auction.getItemId()), firstImage(images, auction), myBids.get(auction.getId())))
                 .toList();
@@ -67,11 +63,11 @@ public class AuctionQueryService {
         );
     }
 
-    public AuctionResponses.AuctionDetail getDetail(Integer auctionId) {
+    public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
         Auction auction = getAuction(auctionId);
         AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(auction.getItemId());
         List<AuctionImage> images = auctionImageRepository.findByAuctionIdOrderById(auction.getId());
-        Bid myBid = currentUserBid(auction.getId()).orElse(null);
+        Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
         return detail(auction, card, images, myBid);
     }
 
@@ -94,11 +90,10 @@ public class AuctionQueryService {
         );
     }
 
-    public BidResponses.BidContext getBidContext(Integer auctionId) {
+    public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
         Auction auction = getAuction(auctionId);
-        var user = currentUserPort.currentUser();
-        WalletPort.WalletSnapshot wallet = walletPort.getWallet(user.id());
-        Bid myBid = currentUserBid(auction.getId()).orElse(null);
+        WalletPort.WalletSnapshot wallet = walletPort.getWallet(userId);
+        Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
         var recentBids = getBids(auctionId, new PageRequestDto(0, 5)).content();
         return BidResponses.BidContext.builder()
                 .auctionId(auction.getId())
@@ -133,20 +128,18 @@ public class AuctionQueryService {
                 .collect(Collectors.groupingBy(image -> image.getAuction().getId()));
     }
 
-    private Map<Integer, Bid> myBids(List<Auction> auctions) {
+    private Map<Integer, Bid> myBids(Integer userId, List<Auction> auctions) {
         List<Integer> auctionIds = auctions.stream().map(Auction::getId).toList();
         if (auctionIds.isEmpty()) {
             return Map.of();
         }
-        Integer userId = currentUserPort.currentUser().id();
         Map<Integer, Bid> result = new HashMap<>();
         bidRepository.findByAuctionIdInAndBidderIdOrderByCreatedAtDesc(auctionIds, userId)
                 .forEach(bid -> result.putIfAbsent(bid.getAuction().getId(), bid));
         return result;
     }
 
-    private Optional<Bid> currentUserBid(Integer auctionId) {
-        Integer userId = currentUserPort.currentUser().id();
+    private Optional<Bid> currentUserBid(Integer userId, Integer auctionId) {
         return bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(auctionId, userId);
     }
 
@@ -201,7 +194,7 @@ public class AuctionQueryService {
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getEstimatedCloseTime())
+                .endsAt(auction.getCloseTime())
                 .status(auction.getStatus())
                 .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))

@@ -13,7 +13,6 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.auction.port.CurrentUserPort;
 import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -38,8 +37,6 @@ class AuctionServiceBidTest {
     @Mock
     private BidRepository bidRepository;
     @Mock
-    private CurrentUserPort currentUserPort;
-    @Mock
     private WalletPort walletPort;
     @Mock
     private AuctionCardStatisticPort auctionCardStatisticPort;
@@ -60,7 +57,6 @@ class AuctionServiceBidTest {
                 auctionRepository,
                 null,
                 bidRepository,
-                currentUserPort,
                 walletPort,
                 null,
                 null,
@@ -74,10 +70,9 @@ class AuctionServiceBidTest {
     @Test
     void 판매자는_자신의_경매에_입찰할_수_없다() {
         Auction auction = auction(1);
-        when(currentUserPort.currentUser()).thenReturn(user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
 
-        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(43_000L), "bid-key"))
+        assertThatThrownBy(() -> auctionService.participate(1, 1, new BidCreateRequest(43_000L), "bid-key"))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(403);
@@ -94,29 +89,26 @@ class AuctionServiceBidTest {
     @Test
     void 판매자가_아닌_사용자는_입찰할_수_있다() {
         Auction auction = auction(1);
-        when(currentUserPort.currentUser()).thenReturn(user(2));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
+        when(walletPort.holdBidAmount(2, 1, 43_000L))
+                .thenReturn(new WalletPort.WalletSnapshot(957_000L, 43_000L));
         when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
             Bid bid = invocation.getArgument(0);
             ReflectionTestUtils.setField(bid, "id", 10L);
             return bid;
         });
 
-        var response = auctionService.participate(1, new BidCreateRequest(43_000L), "bid-key");
+        var response = auctionService.participate(2, 1, new BidCreateRequest(43_000L), "bid-key");
 
-        assertThat(response.id()).isEqualTo(10L);
-        assertThat(response.amount()).isEqualTo(43_000L);
-        assertThat(response.isHighest()).isTrue();
+        assertThat(response.bid().id()).isEqualTo(10L);
+        assertThat(response.bid().amount()).isEqualTo(43_000L);
+        assertThat(response.auction().currentPrice()).isEqualTo(43_000L);
         assertThat(auction.getCurrentPrice()).isEqualTo(43_000L);
         assertThat(auction.getBidCount()).isEqualTo(1);
         verify(walletPort).holdBidAmount(2, 1, 43_000L);
         verify(auctionEventPort).publish(any(AuctionEventPort.AuctionEvent.class));
-    }
-
-    private CurrentUserPort.CurrentUser user(Integer userId) {
-        return new CurrentUserPort.CurrentUser(userId, "user-" + userId, true, false);
     }
 
     private Auction auction(Integer sellerId) {

@@ -10,7 +10,6 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.PageRequestDto;
 import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.CurrentUserPort;
 import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
@@ -36,8 +35,6 @@ class AuctionQueryServiceTest {
     @Mock
     private BidRepository bidRepository;
     @Mock
-    private CurrentUserPort currentUserPort;
-    @Mock
     private WalletPort walletPort;
     @Mock
     private AuctionCardPort auctionCardPort;
@@ -50,7 +47,6 @@ class AuctionQueryServiceTest {
                 auctionRepository,
                 auctionImageRepository,
                 bidRepository,
-                currentUserPort,
                 walletPort,
                 auctionCardPort
         );
@@ -79,7 +75,6 @@ class AuctionQueryServiceTest {
         Auction auction = auction(AuctionStatus.ENDED);
         Bid winningBid = bid(1L, 3, auction, 45_000L, BidStatus.WON);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
-        when(currentUserPort.currentUser()).thenReturn(new CurrentUserPort.CurrentUser(3, "winner", true, false));
         when(walletPort.getWallet(3)).thenReturn(new WalletPort.WalletSnapshot(100_000L, 45_000L));
         when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(1, 3))
                 .thenReturn(Optional.of(winningBid));
@@ -90,9 +85,32 @@ class AuctionQueryServiceTest {
                 List.of(BidStatus.LEADING, BidStatus.WON)
         )).thenReturn(Optional.of(winningBid));
 
-        var response = auctionQueryService.getBidContext(1);
+        var response = auctionQueryService.getBidContext(3, 1);
 
         assertThat(response.myBidStatus()).isEqualTo(MyBidStatus.LEADING);
+    }
+
+    @Test
+    void 상세_조회는_실제_마감_시각을_반환한다() {
+        Auction auction = auction(AuctionStatus.ENDED);
+        LocalDateTime actualCloseTime = LocalDateTime.now().minusSeconds(30);
+        ReflectionTestUtils.setField(auction, "closeTime", actualCloseTime);
+        when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
+        when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
+                1,
+                "Mock Card",
+                "Mock Set",
+                "10",
+                "JP",
+                "/mock/card.png"
+        ));
+        when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
+        when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(1, 3))
+                .thenReturn(Optional.empty());
+
+        var response = auctionQueryService.getDetail(3, 1);
+
+        assertThat(response.endsAt()).isEqualTo(actualCloseTime);
     }
 
     private Auction auction(AuctionStatus status) {

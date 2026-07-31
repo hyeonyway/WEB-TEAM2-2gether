@@ -1,6 +1,7 @@
 package com.dbidding.auction.dto;
 
 import com.dbidding.auction.domain.AuctionStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 import lombok.Builder;
 
@@ -8,8 +9,8 @@ import lombok.Builder;
 public record AuctionCreateResponse(
         Integer id,
         AuctionStatus status,
-        LocalDateTime startsAt,
-        LocalDateTime endsAt,
+        @JsonProperty("starts_at") LocalDateTime startsAt,
+        @JsonProperty("ends_at") LocalDateTime endsAt,
         Long version
 ) {
 }

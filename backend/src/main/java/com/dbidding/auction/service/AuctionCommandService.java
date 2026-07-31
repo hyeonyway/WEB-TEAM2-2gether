@@ -18,7 +18,6 @@ import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.auction.port.CurrentUserPort;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
@@ -38,17 +37,15 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
-@Profile("auction-mock")
 @RequiredArgsConstructor
 @Slf4j
-public class AuctionCommandService {            
+public class AuctionCommandService {
     private static final int MAX_IMAGE_COUNT = 8;
     private static final Duration BID_EXTENSION_WINDOW = Duration.ofMinutes(5);
     private static final Duration BID_EXTENSION_DURATION = Duration.ofMinutes(5);
@@ -56,7 +53,6 @@ public class AuctionCommandService {
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
-    private final CurrentUserPort currentUserPort;
     private final WalletPort walletPort;
     private final ImageUploadPort imageUploadPort;
     private final AuctionCardPort auctionCardPort;
@@ -66,15 +62,13 @@ public class AuctionCommandService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public AuctionCreateResponse create(AuctionCreateRequest request, String idempotencyKey) {
+    public AuctionCreateResponse create(Integer userId, AuctionCreateRequest request, String idempotencyKey) {
         validateIdempotencyKey(idempotencyKey);
-        var user = currentUserPort.currentUser();
-        validateSeller(user);
         validateCreateRequest(request);
 
         String requestHash = createRequestHash(request);
         Optional<AuctionCreateResponse> idempotentResponse = findIdempotentCreateResponse(
-                user.id(),
+                userId,
                 idempotencyKey,
                 requestHash
         );
@@ -89,7 +83,7 @@ public class AuctionCommandService {
         LocalDateTime now = now();
         LocalDateTime endsAt = now.plusHours(request.durationHours());
         Auction auction = Auction.builder()
-                .sellerId(user.id())
+                .sellerId(userId)
                 .itemId(request.itemId())
                 .auctionName(request.auctionName())
                 .description(request.description())
@@ -113,7 +107,7 @@ public class AuctionCommandService {
         auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
                 AuctionEventPort.AuctionEventType.AUCTION_OPENED,
                 savedAuction.getId(),
-                user.id(),
+                userId,
                 request.startPrice() + request.shippingFee(),
                 now
         ));
@@ -124,33 +118,38 @@ public class AuctionCommandService {
     }
 
     @Transactional
-    public BidResponses.BidSummary participate(Integer auctionId, BidCreateRequest request, String idempotencyKey) {
+    public BidResponses.BidResult participate(
+            Integer userId,
+            Integer auctionId,
+            BidCreateRequest request,
+            String idempotencyKey
+    ) {
         validateIdempotencyKey(idempotencyKey);
-        var user = currentUserPort.currentUser();
         String requestHash = bidRequestHash(request);
-        Optional<BidResponses.BidSummary> idempotentResponse = findIdempotentBidResponse(
-                user.id(),
+        Auction auction = auctionRepository.findByIdForUpdate(auctionId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
+        Optional<BidResponses.BidResult> idempotentResponse = findIdempotentBidResponse(
+                userId,
                 auctionId,
                 idempotencyKey,
-                requestHash
+                requestHash,
+                auction
         );
         if (idempotentResponse.isPresent()) {
             return idempotentResponse.get();
         }
 
-        Auction auction = auctionRepository.findByIdForUpdate(auctionId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
-        validateNotSellerBid(user, auction);
+        validateNotSellerBid(userId, auction);
         Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
 
         LocalDateTime bidAt = now();
         LocalDateTime previousCloseTime = auction.getCloseTime();
         boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
-        holdBidAmount(user.id(), auction.getId(), request.price());
-        outbidPreviousLeadingBid(previousLeadingBid, user.id(), auction.getId(), bidAt);
+        WalletPort.WalletSnapshot wallet = holdBidAmount(userId, auction.getId(), request.price());
+        outbidPreviousLeadingBid(previousLeadingBid, userId, auction.getId(), bidAt);
 
         Bid currentLeadingBid = bidRepository.save(Bid.leading(
-                user.id(),
+                userId,
                 auction,
                 request.price(),
                 bidAt,
@@ -158,10 +157,10 @@ public class AuctionCommandService {
                 requestHash
         ));
         auctionCardStatisticPort.recordBid(auction.getItemId(), bidAt);
-        publishBidPlaced(auction, user.id(), request.price(), bidAt);
+        publishBidPlaced(auction, userId, request.price(), bidAt);
         log.info(
                 "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
-                auction.getId(), user.id(), currentLeadingBid.getId(), request.price(), auction.getCurrentPrice(),
+                auction.getId(), userId, currentLeadingBid.getId(), request.price(), auction.getCurrentPrice(),
                 auction.getBidCount(), previousLeadingBid == null ? null : previousLeadingBid.getId(),
                 closeTimeExtended, previousCloseTime, auction.getCloseTime(), auction.getStatus()
         );
@@ -174,8 +173,8 @@ public class AuctionCommandService {
             publishCloseScheduleChanged(auction, "close_time_extended");
         }
 
-        BidResponses.BidSummary response = bidSummary(currentLeadingBid, currentLeadingBid.getId());
-        return response;
+        auctionRepository.flush();
+        return bidResult(currentLeadingBid, auction, wallet);
     }
 
     @Transactional
@@ -225,19 +224,10 @@ public class AuctionCommandService {
         }
     }
 
-    private void validateSeller(CurrentUserPort.CurrentUser user) {
-        if (!user.seller()) {
-            throw new ResponseStatusException(FORBIDDEN, "판매자만 경매를 등록할 수 있습니다.");
-        }
-        if (user.restricted()) {
-            throw new ResponseStatusException(FORBIDDEN, "제재된 사용자는 경매를 등록할 수 없습니다.");
-        }
-    }
-
-    private void validateNotSellerBid(CurrentUserPort.CurrentUser user, Auction auction) {
-        if (auction.getSellerId().equals(user.id())) {
+    private void validateNotSellerBid(Integer userId, Auction auction) {
+        if (auction.getSellerId().equals(userId)) {
             log.warn("event=auction.bid.rejected_self_bid auctionId={} sellerId={} bidderId={}",
-                    auction.getId(), auction.getSellerId(), user.id());
+                    auction.getId(), auction.getSellerId(), userId);
             throw new ResponseStatusException(FORBIDDEN, "판매자는 자신의 경매에 입찰할 수 없습니다.");
         }
     }
@@ -270,11 +260,12 @@ public class AuctionCommandService {
         return Optional.of(createResponse(auction));
     }
 
-    private Optional<BidResponses.BidSummary> findIdempotentBidResponse(
+    private Optional<BidResponses.BidResult> findIdempotentBidResponse(
             Integer bidderId,
             Integer auctionId,
             String idempotencyKey,
-            String requestHash
+            String requestHash,
+            Auction auction
     ) {
         Optional<Bid> existingBid = bidRepository.findFirstByBidderIdAndAuctionIdAndIdempotencyKey(
                 bidderId,
@@ -288,7 +279,7 @@ public class AuctionCommandService {
         if (!Objects.equals(bid.getIdempotencyRequestHash(), requestHash)) {
             throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
         }
-        return Optional.of(bidSummary(bid, bid.getId()));
+        return Optional.of(bidResult(bid, auction, walletPort.getWallet(bidderId)));
     }
 
     private void validateImages(List<ImageUploadPort.ResolvedImage> images) {
@@ -313,9 +304,9 @@ public class AuctionCommandService {
         }
     }
 
-    private void holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
+    private WalletPort.WalletSnapshot holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
         try {
-            walletPort.holdBidAmount(bidderId, auctionId, price);
+            return walletPort.holdBidAmount(bidderId, auctionId, price);
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
         }
@@ -433,27 +424,33 @@ public class AuctionCommandService {
                 .id(auction.getId())
                 .status(auction.getStatus())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getEstimatedCloseTime())
+                .endsAt(auction.getCloseTime())
                 .version(auction.getVersion())
                 .build();
     }
 
-    private BidResponses.BidSummary bidSummary(Bid bid, Long highestBidId) {
-        return BidResponses.BidSummary.builder()
-                .id(bid.getId())
-                .amount(bid.getBidPrice())
-                .bidderAlias(bidderAlias(bid.getBidderId()))
-                .isHighest(Objects.equals(bid.getId(), highestBidId))
-                .createdAt(bid.getCreatedAt())
-                .build();
-    }
-
-    private String bidderAlias(Integer bidderId) {
-        String value = String.valueOf(bidderId);
-        if (value.length() <= 2) {
-            return "user-" + value + "***";
-        }
-        return "user-" + value.substring(0, 2) + "***";
+    private BidResponses.BidResult bidResult(
+            Bid bid,
+            Auction auction,
+            WalletPort.WalletSnapshot wallet
+    ) {
+        return new BidResponses.BidResult(
+                new BidResponses.BidDetail(
+                        bid.getId(),
+                        bid.getBidPrice(),
+                        bid.getStatus(),
+                        bid.getCreatedAt()
+                ),
+                new BidResponses.AuctionSnapshot(
+                        auction.getId(),
+                        auction.getVersion(),
+                        auction.getCurrentPrice(),
+                        auction.minimumBid(),
+                        auction.getBidCount(),
+                        auction.getCloseTime()
+                ),
+                new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance())
+        );
     }
 
     private LocalDateTime now() {

@@ -2,6 +2,7 @@ package com.dbidding.auction.dto;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Builder;
@@ -14,8 +15,8 @@ public final class AuctionResponses {
             List<T> content,
             int page,
             int size,
-            long totalElements,
-            boolean hasNext
+            @JsonProperty("total_elements") long totalElements,
+            @JsonProperty("has_next") boolean hasNext
     ) {
     }
 
@@ -24,17 +25,17 @@ public final class AuctionResponses {
             Integer id,
             CardSummary card,
             SellerSummary seller,
-            Long startPrice,
-            Long currentPrice,
-            Long bidIncrement,
-            Long minimumBid,
-            Integer bidCount,
-            LocalDateTime startsAt,
-            LocalDateTime endsAt,
+            @JsonProperty("start_price") Long startPrice,
+            @JsonProperty("current_price") Long currentPrice,
+            @JsonProperty("bid_increment") Long bidIncrement,
+            @JsonProperty("minimum_bid") Long minimumBid,
+            @JsonProperty("bid_count") Integer bidCount,
+            @JsonProperty("starts_at") LocalDateTime startsAt,
+            @JsonProperty("ends_at") LocalDateTime endsAt,
             AuctionStatus status,
             Long version,
-            MyBidStatus myBidStatus,
-            Long myBidAmount
+            @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
+            @JsonProperty("my_bid_amount") Long myBidAmount
     ) {
     }
 
@@ -43,41 +44,41 @@ public final class AuctionResponses {
             Integer id,
             CardSummary card,
             SellerSummary seller,
-            Long startPrice,
-            Long currentPrice,
-            Long bidIncrement,
-            Long minimumBid,
-            Integer bidCount,
-            LocalDateTime startsAt,
-            LocalDateTime endsAt,
+            @JsonProperty("start_price") Long startPrice,
+            @JsonProperty("current_price") Long currentPrice,
+            @JsonProperty("bid_increment") Long bidIncrement,
+            @JsonProperty("minimum_bid") Long minimumBid,
+            @JsonProperty("bid_count") Integer bidCount,
+            @JsonProperty("starts_at") LocalDateTime startsAt,
+            @JsonProperty("ends_at") LocalDateTime endsAt,
             AuctionStatus status,
             Long version,
-            MyBidStatus myBidStatus,
-            Long myBidAmount,
+            @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
+            @JsonProperty("my_bid_amount") Long myBidAmount,
             String description,
-            String sellerMemo,
-            Long shippingFee,
-            Long buyNowPrice,
+            @JsonProperty("seller_memo") String sellerMemo,
+            @JsonProperty("shipping_fee") Long shippingFee,
+            @JsonProperty("buy_now_price") Long buyNowPrice,
             List<AuctionPhoto> photos,
-            PsaCertification psaCertification
+            @JsonProperty("psa_certification") PsaCertification psaCertification
     ) {
     }
 
     public record CardSummary(
             Integer id,
             String name,
-            String setName,
-            String psaGrade,
+            @JsonProperty("set_name") String setName,
+            @JsonProperty("psa_grade") String psaGrade,
             String language,
-            String thumbnailUrl
+            @JsonProperty("thumbnail_url") String thumbnailUrl
     ) {
     }
 
     public record SellerSummary(
             Integer id,
             String nickname,
-            Integer tradeCount,
-            Integer trustScore
+            @JsonProperty("trade_count") Integer tradeCount,
+            @JsonProperty("trust_score") Integer trustScore
     ) {
     }
 
@@ -90,7 +91,7 @@ public final class AuctionResponses {
     }
 
     public record PsaCertification(
-            String certificationNumber,
+            @JsonProperty("certification_number") String certificationNumber,
             String grade,
             Integer population,
             boolean verified
