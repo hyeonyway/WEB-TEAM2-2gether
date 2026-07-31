@@ -293,11 +293,16 @@ describe('Header Wallet 잔액', () => {
 
   it('Wallet 조회 성공 시 서버 totalBalance와 충전 진입점을 표시한다', async () => {
     setAccessToken('access-token');
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({
-      totalBalance: 987_654,
-      frozenBalance: 120_000,
-      availableBalance: 867_654,
-    }));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      if (String(input).includes('/api/wallet')) {
+        return jsonResponse({
+          totalBalance: 987_654,
+          frozenBalance: 120_000,
+          availableBalance: 867_654,
+        });
+      }
+      return jsonResponse({count: 0});
+    });
 
     renderHeader('/');
 
@@ -308,8 +313,12 @@ describe('Header Wallet 잔액', () => {
 
   it('Wallet 조회 오류 시 0원 대신 재시도 진입점을 표시한다', async () => {
     setAccessToken('access-token');
-    vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValue(jsonResponse({code: 'WALLET_NOT_FOUND'}, 404));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      if (String(input).includes('/api/wallet')) {
+        return jsonResponse({code: 'WALLET_NOT_FOUND'}, 404);
+      }
+      return jsonResponse({count: 0});
+    });
     const user = userEvent.setup();
 
     renderHeader('/');
@@ -320,7 +329,9 @@ describe('Header Wallet 잔액', () => {
     expect(screen.queryByText('0P')).not.toBeInTheDocument();
 
     await user.click(retryButton);
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    const walletCalls = vi.mocked(globalThis.fetch).mock.calls
+      .filter(([input]) => String(input).includes('/api/wallet'));
+    expect(walletCalls).toHaveLength(2);
   });
 });
 

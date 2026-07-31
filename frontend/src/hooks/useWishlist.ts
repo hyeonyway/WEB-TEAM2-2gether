@@ -1,21 +1,25 @@
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import {getDebugUserId} from '../api/debugAuthStorage';
+import {useAuth} from '../auth/useAuth';
 import {showToast} from '../components/Toast';
 import {wishlistMutations} from '../queries/wishlistMutations';
 import {wishlistQueries} from '../queries/wishlistQueries';
 
 export function useWishlist(){
-  const userId=getDebugUserId();
+  const {status}=useAuth();
+  const debugUserId=getDebugUserId();
+  const isLoggedIn=status==='authenticated'||debugUserId!==null;
+  const cacheKey=debugUserId??'self';
   const queryClient=useQueryClient();
-  const{data,isLoading}=useQuery({...wishlistQueries.list(userId??''),enabled:userId!==null});
+  const{data,isLoading}=useQuery({...wishlistQueries.list(cacheKey),enabled:isLoggedIn});
   const favoriteCardIds=(data??[]).map(item=>item.cardId);
 
-  const addMutation=useMutation(wishlistMutations.add(queryClient,userId??''));
-  const removeMutation=useMutation(wishlistMutations.remove(queryClient,userId??''));
+  const addMutation=useMutation(wishlistMutations.add(queryClient,cacheKey));
+  const removeMutation=useMutation(wishlistMutations.remove(queryClient,cacheKey));
   const isPending=isLoading||addMutation.isPending||removeMutation.isPending;
 
   const toggleFavorite=(cardId:number)=>{
-    if(!userId){
+    if(!isLoggedIn){
       showToast('로그인이 필요합니다');
       return;
     }
