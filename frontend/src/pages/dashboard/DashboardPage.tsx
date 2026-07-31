@@ -7,6 +7,7 @@ import {dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {applyAuctionEvent} from '../../queries/auctionStreamCache';
 import type {AuctionDto} from '../../dto/auctionDto';
+import {HttpError} from '../../api/httpClient';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
 
 const sections=[
@@ -49,6 +50,8 @@ export default function DashboardPage(){
   );
   const section=sections.find(([id])=>id===active)!;
   const auctions=dashboard.data??[];
+  const authenticationRequired=dashboard.error instanceof HttpError
+    && dashboard.error.status===401;
   const normalizedQuery=query.trim().toLowerCase();
   const visible=auctions.filter(auction=>
     auction.card.name.toLowerCase().includes(normalizedQuery),
@@ -81,7 +84,10 @@ export default function DashboardPage(){
       {dashboard.isPending
         ? <DashboardAuctionSkeleton/>
         : dashboard.isError
-          ? <div className="filter-empty"><b>대시보드를 불러오지 못했습니다.</b><button type="button" onClick={()=>dashboard.refetch()}>다시 시도</button></div>
+          ? <div className="filter-empty">
+              <b>{authenticationRequired?'로그인이 필요합니다.':'대시보드를 불러오지 못했습니다.'}</b>
+              {!authenticationRequired&&<button type="button" onClick={()=>dashboard.refetch()}>다시 시도</button>}
+            </div>
           : <AuctionCatalog auctions={visible}/>}
     </section>
   </main></div>;
