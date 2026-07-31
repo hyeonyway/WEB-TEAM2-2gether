@@ -89,6 +89,25 @@ describe('WalletBalance', () => {
       .toHaveTextContent('850000/730000');
   });
 
+  it('가용 잔액이 없으면 환불하기를 비활성화한다', () => {
+    useWalletBalanceMock.mockReturnValue({
+      data: {
+        totalBalance: 120_000,
+        frozenBalance: 120_000,
+        availableBalance: 0,
+      },
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<WalletBalance/>);
+
+    expect(screen.getByRole('button', {name: '포인트 환불하기'}))
+      .toBeDisabled();
+  });
+
   it('404는 0원 대신 Wallet 준비 실패와 재시도를 표시한다', async () => {
     const refetch = vi.fn();
     useWalletBalanceMock.mockReturnValue({

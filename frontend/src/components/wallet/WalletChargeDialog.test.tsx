@@ -22,14 +22,14 @@ function renderDialog(onClose = vi.fn()) {
   });
   const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 
-  render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <WalletChargeDialog balance={100_000} onClose={onClose}/>
       <ToastContainer/>
     </QueryClientProvider>,
   );
 
-  return {invalidateQueries, onClose};
+  return {invalidateQueries, onClose, unmount: view.unmount};
 }
 
 describe('WalletChargeDialog', () => {
@@ -107,6 +107,60 @@ describe('WalletChargeDialog', () => {
       '11111111-1111-4111-8111-111111111111',
       '11111111-1111-4111-8111-111111111111',
     ]);
+  });
+
+  it('409 충돌 뒤에는 새 멱등키로 재시도한다', async () => {
+    vi.mocked(globalThis.crypto.randomUUID)
+      .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
+      .mockReturnValueOnce('33333333-3333-4333-8333-333333333333');
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({}, 409))
+      .mockResolvedValueOnce(jsonResponse({
+        transactionId: 3,
+        transactionType: 'CHARGE',
+        amount: 50_000,
+        balance: 150_000,
+      }));
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByRole('button', {name: '50,000P 충전하기'}));
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('충전 요청이 충돌했습니다.');
+
+    await user.click(screen.getByRole('button', {name: '50,000P 충전하기'}));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    const keys = fetchMock.mock.calls.map(([, options]) =>
+      new Headers(options?.headers).get('Idempotency-Key'));
+    expect(keys).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+      '33333333-3333-4333-8333-333333333333',
+    ]);
+  });
+
+  it('키보드 포커스를 가두고 Escape로 닫은 뒤 이전 포커스를 복원한다', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    trigger.focus();
+    const user = userEvent.setup();
+    const {onClose, unmount} = renderDialog();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('충전 금액')).toHaveFocus();
+    });
+    const submitButton = screen.getByRole('button', {name: '50,000P 충전하기'});
+    submitButton.focus();
+    await user.tab();
+    expect(screen.getByRole('button', {name: '닫기'})).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledOnce();
+    unmount();
+    expect(trigger).toHaveFocus();
+    trigger.remove();
   });
 
   it('제출 중에는 닫기와 중복 제출을 막는다', async () => {

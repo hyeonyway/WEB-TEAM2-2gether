@@ -2,6 +2,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {Wallet} from 'lucide-react';
 import {type FormEvent, useState} from 'react';
 import {HttpError} from '../../api/httpClient';
+import {useModalFocusTrap} from '../../hooks/useModalFocusTrap';
 import {walletMutations} from '../../queries/walletMutations';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
 import {showToast} from '../Toast';
@@ -30,9 +31,11 @@ export default function WalletChargeDialog({
       onClose();
     },
     onError: error => {
+      const isConflict = error instanceof HttpError && error.status === 409;
+      if (isConflict) setIdempotencyKey(crypto.randomUUID());
       setErrorMessage(
-        error instanceof HttpError && error.status === 409
-          ? '충전 요청이 충돌했습니다. 창을 닫고 새 거래로 다시 시도해 주세요.'
+        isConflict
+          ? '충전 요청이 충돌했습니다. 새 요청으로 다시 시도해 주세요.'
           : '충전에 실패했습니다. 같은 요청으로 다시 시도해 주세요.',
       );
     },
@@ -58,6 +61,7 @@ export default function WalletChargeDialog({
   const close = () => {
     if (!chargeMutation.isPending) onClose();
   };
+  const dialogRef = useModalFocusTrap(close, chargeMutation.isPending);
 
   return (
     <div
@@ -67,10 +71,12 @@ export default function WalletChargeDialog({
       }}
     >
       <section
+        ref={dialogRef}
         className="wallet-charge-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="전자지갑 포인트 충전"
+        tabIndex={-1}
       >
         <button
           type="button"

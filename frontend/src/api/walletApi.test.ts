@@ -106,6 +106,7 @@ describe('walletApi', () => {
       idempotencyKey: 'refund-attempt-id',
     })).resolves.toEqual(transaction);
 
+    const [, options] = fetchMock.mock.calls[0] ?? [];
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/wallet/refunds',
       expect.objectContaining({
@@ -113,6 +114,10 @@ describe('walletApi', () => {
         body: JSON.stringify({amount: 10_000}),
       }),
     );
+    expect(new Headers(options?.headers).get('Authorization'))
+      .toBe('Bearer wallet-access-token');
+    expect(new Headers(options?.headers).get('Idempotency-Key'))
+      .toBe('refund-attempt-id');
   });
 
   it('안전한 정수가 아닌 Wallet 거래 응답을 거부한다', async () => {

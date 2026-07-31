@@ -2,6 +2,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {Wallet} from 'lucide-react';
 import {type FormEvent, useState} from 'react';
 import {HttpError} from '../../api/httpClient';
+import {useModalFocusTrap} from '../../hooks/useModalFocusTrap';
 import {walletMutations} from '../../queries/walletMutations';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
 import {showToast} from '../Toast';
@@ -61,6 +62,7 @@ export default function WalletRefundDialog({
   const close = () => {
     if (!refundMutation.isPending) onClose();
   };
+  const dialogRef = useModalFocusTrap(close, refundMutation.isPending);
 
   return (
     <div
@@ -70,10 +72,12 @@ export default function WalletRefundDialog({
       }}
     >
       <section
+        ref={dialogRef}
         className="wallet-charge-dialog wallet-refund-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="전자지갑 포인트 환불"
+        tabIndex={-1}
       >
         <button
           type="button"

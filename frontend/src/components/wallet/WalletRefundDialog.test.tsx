@@ -22,7 +22,7 @@ function renderDialog(onClose = vi.fn()) {
   });
   const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 
-  render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <WalletRefundDialog
         totalBalance={100_000}
@@ -33,7 +33,7 @@ function renderDialog(onClose = vi.fn()) {
     </QueryClientProvider>,
   );
 
-  return {invalidateQueries, onClose};
+  return {invalidateQueries, onClose, unmount: view.unmount};
 }
 
 describe('WalletRefundDialog', () => {
@@ -127,5 +127,27 @@ describe('WalletRefundDialog', () => {
     expect(new Set(keys)).toEqual(new Set([
       '22222222-2222-4222-8222-222222222222',
     ]));
+  });
+
+  it('키보드 포커스를 가두고 Escape로 닫은 뒤 이전 포커스를 복원한다', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    trigger.focus();
+    const user = userEvent.setup();
+    const {onClose, unmount} = renderDialog();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('환불 금액')).toHaveFocus();
+    });
+    const submitButton = screen.getByRole('button', {name: '10,000P 환불하기'});
+    submitButton.focus();
+    await user.tab();
+    expect(screen.getByRole('button', {name: '닫기'})).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledOnce();
+    unmount();
+    expect(trigger).toHaveFocus();
+    trigger.remove();
   });
 });
