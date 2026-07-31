@@ -20,8 +20,7 @@ public interface StatisticAuctionQueryRepository extends Repository<Auction, Int
                        else null end) as averageRisingRate,
                    sum(case when a.bidCount > 0 then 1 else 0 end) as bidAuctionCount
             from Auction a
-            where a.status in (com.dbidding.auction.domain.AuctionStatus.OPEN,
-                               com.dbidding.auction.domain.AuctionStatus.ENDING)
+            where a.status = com.dbidding.auction.domain.AuctionStatus.OPEN
             """)
     InsightAggregate aggregateInsights();
 
