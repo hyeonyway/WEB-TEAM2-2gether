@@ -88,11 +88,24 @@ export async function fetchCardDetail(cardId:number):Promise<CardDetailResponseD
   return {...response,image_url:resolveImageUrl(response.image_url)};
 }
 
-export async function fetchAuctions(query:AuctionListRequestDto):Promise<AuctionDto[]>{
-  if(isMockApiEnabled())return fetchMockAuctions(query);
-  const search=params(query);search.set('sort',query.sort);
+export async function fetchAuctions(query:AuctionListRequestDto):Promise<PageResponseDto<AuctionDto>>{
+  if(isMockApiEnabled()){
+    const auctions=await fetchMockAuctions(query);
+    const start=query.page*query.size;
+    return {
+      content:auctions.slice(start,start+query.size),
+      page:query.page,
+      size:query.size,
+      total_elements:auctions.length,
+      has_next:start+query.size<auctions.length,
+    };
+  }
+  const search=params(query);
+  search.set('sort',query.sort);
+  search.set('page',String(query.page));
+  search.set('size',String(query.size));
   const response=await authenticatedRequest<PageResponseDto<AuctionResponseDto>>(`/api/auctions?${search}`);
-  return response.content.map(mapAuction);
+  return {...response,content:response.content.map(mapAuction)};
 }
 
 export async function fetchAuctionDetail(auctionId:number):Promise<AuctionDetailResponseDto>{

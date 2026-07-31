@@ -12,6 +12,8 @@ export type CardListRequestDto={
 
 export type AuctionListRequestDto=Omit<CardListRequestDto,'sort'>&{
   sort:AuctionSort;
+  page:number;
+  size:number;
 };
 
 export type CardResponseDto={

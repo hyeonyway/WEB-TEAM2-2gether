@@ -4,7 +4,8 @@ import type {AuctionListRequestDto,CardListRequestDto} from '../dto/auctionDto';
 
 export const auctionQueryKeys={
   all:['auctions'] as const,
-  list:(query:AuctionListRequestDto)=>[...auctionQueryKeys.all,'list',query] as const,
+  lists:()=>[...auctionQueryKeys.all,'list'] as const,
+  list:(query:AuctionListRequestDto)=>[...auctionQueryKeys.lists(),query] as const,
   detail:(auctionId:number)=>[...auctionQueryKeys.all,'detail',auctionId] as const,
   bidContext:(auctionId:number)=>[...auctionQueryKeys.all,'bid-context',auctionId] as const,
 };
