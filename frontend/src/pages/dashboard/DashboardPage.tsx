@@ -3,9 +3,8 @@ import {ChevronRight,Search} from 'lucide-react';
 import {useState} from 'react';
 import {Header} from '../../components';
 import type {ParticipatingAuctionSort,RecentWinSort} from '../../api/dashboardApi';
-import {dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries';
+import {applyDashboardAuctionEvent,dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
-import {applyAuctionEvent} from '../../queries/auctionStreamCache';
 import type {AuctionDto} from '../../dto/auctionDto';
 import {HttpError} from '../../api/httpClient';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
@@ -28,19 +27,8 @@ export default function DashboardPage(){
       const queryKey=[...dashboardQueryKey,'participating-auctions',participatingSort];
       queryClient.setQueryData<AuctionDto[]>(
         queryKey,
-        current=>{
-          let next=applyAuctionEvent(current,event);
-          if(participatingSort==='ENDING_SOON'){
-            next=[...next].sort((a,b)=>Date.parse(a.endsAt)-Date.parse(b.endsAt));
-          }else{
-            next=[...next].sort((a,b)=>b.currentPrice-a.currentPrice);
-          }
-          return next;
-        },
+        current=>applyDashboardAuctionEvent(current,event,participatingSort),
       );
-      if(event.type==='BID_PLACED'){
-        void queryClient.invalidateQueries({queryKey,exact:true});
-      }
     },
   });
   const dashboard=useQuery(
