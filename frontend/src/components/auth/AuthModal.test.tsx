@@ -11,6 +11,7 @@ import {
 import {HttpError} from '../../api/httpClient';
 import {AuthContext, AuthProvider} from '../../auth/AuthProvider';
 import {useAuth} from '../../auth/useAuth';
+import {walletQueryKeys} from '../../queries/walletQueryKeys';
 import '../../tailwind.css';
 import Header from '../Header';
 
@@ -659,10 +660,15 @@ describe('Header 로그아웃', () => {
 
     await user.click(screen.getByRole('button', {name: '로그아웃'}));
     await waitFor(() => expect(getAccessToken()).toBeNull());
+    await waitFor(() => {
+      expect(queryClient.getQueryData(walletQueryKeys.balance())).toBeUndefined();
+    });
     setAccessToken('user-b-access-token');
 
-    expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
-    expect(screen.getByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
-      .toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
+      expect(screen.getByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
+        .toBeInTheDocument();
+    });
   });
 });
