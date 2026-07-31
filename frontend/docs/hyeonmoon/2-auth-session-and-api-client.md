@@ -113,6 +113,10 @@ Header 마이페이지 클릭
 
 ## 다른 도메인 보호 원칙
 
+> 이 절은 #113 구현 당시의 범위를 기록한다. 판매 등록, 나의 대시보드,
+> 마이페이지의 최종 공통 접근 정책은 후속
+> [보호 화면 토스트 Auth Gate](7-auth-access-toast-gate.md)를 따른다.
+
 - 이 단계에서 `/auction`, `/dashboard`, `/sell` 전체를 강제로 보호하지 않는다.
 - `/mypage`와 Header의 마이페이지 진입은 Account 보호 범위로 포함한다.
 - Account·Wallet 기능 버튼은 `useAuthGate()`로 인증 모달을 열 수 있다.
