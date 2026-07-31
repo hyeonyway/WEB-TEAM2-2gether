@@ -254,3 +254,9 @@ strong, b { font-weight: 600 !important; }
 @media(prefers-reduced-motion:reduce){.home-skeleton .skeleton-pulse{animation:none}}
 @media(max-width:760px){.home-insight-skeleton{height:105px}.home-market-skeleton-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 12px;padding-bottom:14px}.home-market-skeleton-metrics>div:first-child{grid-column:1/-1;padding-bottom:14px;border-bottom:1px solid #eef0ef}.home-chart-skeleton{height:250px;margin-top:2px}.home-ranking-skeleton{height:auto}.home-rank-skeleton{height:83px;grid-template-columns:22px 42px 1fr 56px}.home-chart-skeleton>div{gap:5px}}
 .toast-stack{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}.toast{background:#191919;color:#fff;font-size:13px;padding:11px 18px;border-radius:8px;box-shadow:0 6px 18px #00000026;animation:toast-in-out 2.4s ease forwards}@keyframes toast-in-out{0%{opacity:0;transform:translateY(8px)}10%{opacity:1;transform:translateY(0)}85%{opacity:1}100%{opacity:0}}
+
+/* Brand logo */
+.logo{display:flex;align-items:center}
+.logo img{display:block;width:123px;height:auto}
+.product-visual:before{content:"";width:123px;height:40px;background:url("../../asset/dbidding_logo.svg") left center/contain no-repeat}
+@media(max-width:760px){.logo img{width:102px}}

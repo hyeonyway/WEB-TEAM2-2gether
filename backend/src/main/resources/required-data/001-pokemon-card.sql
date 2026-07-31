@@ -10,7 +10,7 @@ START TRANSACTION;
 INSERT INTO `card_sets`
   (`id`, `name`, `code`)
 VALUES
-  (1, 'KREAM Pokemon TCG PSA 10', 'KREAM-POKEMON-PSA10')
+  (1, 'Pokemon TCG PSA 10', 'POKEMON-PSA10')
 ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `code` = VALUES(`code`);
