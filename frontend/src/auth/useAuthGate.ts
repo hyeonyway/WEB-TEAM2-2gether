@@ -1,9 +1,16 @@
 import {useCallback, useEffect, useState} from 'react';
 import {matchPath, useNavigate} from 'react-router-dom';
 import {appRoutePatterns} from '../app/routePaths';
+import {showToast} from '../components/Toast';
 import {useAuth} from './useAuth';
 
 const INTERNAL_ORIGIN = 'https://dbidding.local';
+export const AUTH_REQUIRED_MESSAGE = '로그인이 필요합니다';
+const AUTH_REQUIRED_TOAST_KEY = 'auth-required';
+
+export function showAuthRequiredToast() {
+  showToast(AUTH_REQUIRED_MESSAGE, AUTH_REQUIRED_TOAST_KEY);
+}
 
 export function sanitizeReturnTo(returnTo: string) {
   if (!returnTo.startsWith('/') || returnTo.startsWith('//')) return '/';
@@ -24,6 +31,12 @@ export function useAuthGate() {
   const navigate = useNavigate();
   const [pendingReturnTo, setPendingReturnTo] = useState<string | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  const requestNavigation = useCallback(() => {
+    if (status === 'authenticated') return true;
+    if (status === 'anonymous') showAuthRequiredToast();
+    return false;
+  }, [status]);
 
   const requestAccess = useCallback((returnTo: string) => {
     if (status === 'authenticated') return true;
@@ -67,6 +80,7 @@ export function useAuthGate() {
   return {
     status,
     authModalOpen,
+    requestNavigation,
     requestAccess,
     completeAuthentication,
     cancelAuthentication,

@@ -10,7 +10,6 @@ import{useWalletBalance}from'../queries/walletQueries';
 import{walletQueryKeys}from'../queries/walletQueryKeys';
 import AuthModal from './auth/AuthModal';
 import NotificationBell from'./NotificationBell';
-import{showToast}from'./Toast';
 import WalletChargeDialog from'./wallet/WalletChargeDialog';
 import dbiddingLogo from'../../../asset/dbidding_logo.svg';
 
@@ -18,8 +17,8 @@ const mainNavigation=[
   {href:'/',label:'홈'},
   {href:'/cards',label:'카드 시세'},
   {href:'/auction',label:'카드 경매'},
-  {href:'/sell',label:'판매 등록'},
-  {href:'/dashboard',label:'나의 대시보드'},
+  {href:'/sell',label:'판매 등록',requiresAuth:true},
+  {href:'/dashboard',label:'나의 대시보드',requiresAuth:true},
 ];
 
 const isActivePath=(href:string,path:string)=>href==='/'?path==='/':path===href||path.startsWith(`${href}/`);
@@ -42,7 +41,6 @@ export default function Header(){
     },
   });
 
-  const protectedAuthOpen=authGate.authModalOpen;
   const wallet=walletQuery.data?.totalBalance;
   const walletControl=authGate.status==='authenticated'
     ?walletQuery.isPending

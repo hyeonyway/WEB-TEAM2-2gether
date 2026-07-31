@@ -16,4 +16,14 @@ describe('ToastContainer', () => {
 
     expect(screen.getByText('로그인이 필요합니다')).toBeInTheDocument();
   });
+
+  it('같은 중복 키의 활성 토스트는 한 번만 표시한다', () => {
+    vi.useFakeTimers();
+
+    showToast('로그인이 필요합니다', 'auth-required');
+    showToast('로그인이 필요합니다', 'auth-required');
+    render(<ToastContainer/>);
+
+    expect(screen.getAllByText('로그인이 필요합니다')).toHaveLength(1);
+  });
 });

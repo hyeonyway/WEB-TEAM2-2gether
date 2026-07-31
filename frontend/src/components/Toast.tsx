@@ -3,7 +3,7 @@ import {useSyncExternalStore} from 'react';
 const TOAST_EVENT='app-toast';
 const TOAST_DURATION_MS=2400;
 
-type ToastDetail={id:number;message:string};
+type ToastDetail={id:number;message:string;dedupeKey?:string};
 
 let nextToastId=0;
 let toasts:ToastDetail[]=[];
@@ -22,9 +22,10 @@ function getSnapshot(){
   return toasts;
 }
 
-export function showToast(message:string):void{
+export function showToast(message:string,dedupeKey?:string):void{
+  if(dedupeKey&&toasts.some(toast=>toast.dedupeKey===dedupeKey))return;
   nextToastId+=1;
-  const toast={id:nextToastId,message};
+  const toast={id:nextToastId,message,dedupeKey};
   toasts=[...toasts,toast];
   emitChange();
   window.dispatchEvent(new CustomEvent<ToastDetail>(TOAST_EVENT,{detail:toast}));
