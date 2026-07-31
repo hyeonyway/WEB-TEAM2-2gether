@@ -11,7 +11,7 @@ export default function CardPriceDetailPage(){
   const cardId=Number(window.location.pathname.split('/').filter(Boolean).pop());
   const{data:card,isPending,error}=useQuery(cardQueries.detail(cardId));
   const{favoriteCardIds,toggleFavorite,isPending:wishlistPending}=useWishlist();
-  if(isPending)return <div className="detail-page price-detail-page"><Header/><main><p>카드 시세를 불러오는 중…</p></main></div>;
+  if(isPending)return <CardPriceDetailSkeleton/>;
   if(error||!card)return <div className="detail-page price-detail-page"><Header/><main><p className="form-error">카드 시세를 불러오지 못했습니다.</p></main></div>;
 
   const image=card.image_url||'/assets/pikachu-promo-card.png';
@@ -50,6 +50,49 @@ export default function CardPriceDetailPage(){
             <span>7일 변화<b>{card.weekly_change_rate>=0?'+':''}{card.weekly_change_rate.toFixed(1)}%</b></span>
             <span>30일 변화<b>{card.monthly_change_rate>=0?'+':''}{card.monthly_change_rate.toFixed(1)}%</b></span>
             <span>평균 거래가<strong>{money(card.average_price)}</strong></span>
+          </div>
+        </section>
+      </section>
+    </div>
+  </div>;
+}
+
+function CardPriceDetailSkeleton(){
+  return <div className="detail-page price-detail-page price-detail-skeleton">
+    <Header/>
+    <div className="detail-layout" role="status" aria-label="카드 시세 상세를 불러오는 중" aria-busy="true">
+      <section className="product-visual">
+        <div className="detail-skeleton-image skeleton-pulse"/>
+        <div className="detail-skeleton-thumbnail skeleton-pulse"/>
+      </section>
+      <section className="product-info">
+        <div className="detail-skeleton-grades">
+          <i className="skeleton-pulse"/><i className="skeleton-pulse"/>
+        </div>
+        <div className="detail-skeleton-title">
+          <i className="skeleton-pulse"/><i className="skeleton-pulse"/>
+          <i className="skeleton-pulse"/><i className="skeleton-pulse"/>
+        </div>
+        <div className="detail-skeleton-actions">
+          <i className="skeleton-pulse"/><i className="skeleton-pulse"/>
+          <i className="skeleton-pulse"/>
+        </div>
+        <section className="detail-skeleton-summary">
+          {Array.from({length:3},(_,index)=><div key={index}>
+            <i className="skeleton-pulse"/><b className="skeleton-pulse"/>
+          </div>)}
+        </section>
+        <section className="detail-skeleton-trend">
+          <div><i className="skeleton-pulse"/><b className="skeleton-pulse"/></div>
+          <div className="detail-skeleton-chart">
+            {Array.from({length:12},(_,index)=><i
+              className="skeleton-pulse"
+              style={{height:`${20+(index*23)%65}%`}}
+              key={index}
+            />)}
+          </div>
+          <div className="detail-skeleton-stats">
+            {Array.from({length:4},(_,index)=><i className="skeleton-pulse" key={index}/>)}
           </div>
         </section>
       </section>
