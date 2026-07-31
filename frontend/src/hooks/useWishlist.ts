@@ -1,16 +1,21 @@
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
+import {useEffect} from 'react';
 import {getDebugUserId} from '../api/debugAuthStorage';
 import {useAuth} from '../auth/useAuth';
 import {showToast} from '../components/Toast';
 import {wishlistMutations} from '../queries/wishlistMutations';
-import {wishlistQueries} from '../queries/wishlistQueries';
+import {wishlistQueries,wishlistQueryKeys} from '../queries/wishlistQueries';
 
 export function useWishlist(){
   const {status}=useAuth();
   const debugUserId=getDebugUserId();
   const isLoggedIn=status==='authenticated'||debugUserId!==null;
-  const cacheKey=debugUserId??'self';
+  const cacheKey=status==='authenticated'?'self':(debugUserId??'');
   const queryClient=useQueryClient();
+
+  useEffect(()=>{
+    if(status==='anonymous')queryClient.removeQueries({queryKey:wishlistQueryKeys.all});
+  },[status,queryClient]);
   const{data,isLoading}=useQuery({...wishlistQueries.list(cacheKey),enabled:isLoggedIn});
   const favoriteCardIds=(data??[]).map(item=>item.cardId);
 

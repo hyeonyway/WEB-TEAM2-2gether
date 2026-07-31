@@ -1,4 +1,4 @@
-import {request} from './httpClient';
+import {authenticatedRequest} from './authenticatedRequest';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {WishlistDto,WishlistResponseDto} from '../dto/wishlistDto';
 
@@ -24,7 +24,7 @@ function writeMockCardIds(cardIds:number[]):void{
 
 export async function fetchWishlists():Promise<WishlistDto[]>{
   if(isMockApiEnabled())return readMockCardIds().map(cardId=>({id:cardId,cardId}));
-  const response=await request<WishlistResponseDto[]>('/api/wishlists');
+  const response=await authenticatedRequest<WishlistResponseDto[]>('/api/wishlists');
   return response.map(mapWishlist);
 }
 
@@ -34,7 +34,7 @@ export async function addWishlist(cardId:number):Promise<WishlistDto>{
     if(!cardIds.includes(cardId))writeMockCardIds([...cardIds,cardId]);
     return {id:cardId,cardId};
   }
-  const response=await request<WishlistResponseDto>('/api/wishlists',{
+  const response=await authenticatedRequest<WishlistResponseDto>('/api/wishlists',{
     method:'POST',
     body:JSON.stringify({cardId}),
   });
@@ -46,5 +46,5 @@ export async function removeWishlist(cardId:number):Promise<void>{
     writeMockCardIds(readMockCardIds().filter(id=>id!==cardId));
     return;
   }
-  await request<void>(`/api/wishlists/${cardId}`,{method:'DELETE'});
+  await authenticatedRequest<void>(`/api/wishlists/${cardId}`,{method:'DELETE'});
 }
