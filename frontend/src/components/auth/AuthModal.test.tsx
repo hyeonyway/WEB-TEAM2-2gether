@@ -9,8 +9,9 @@ import {
   setAccessToken,
 } from '../../api/accessTokenStore';
 import {HttpError} from '../../api/httpClient';
-import {AuthProvider} from '../../auth/AuthProvider';
+import {AuthContext, AuthProvider} from '../../auth/AuthProvider';
 import {useAuth} from '../../auth/useAuth';
+import {walletQueryKeys} from '../../queries/walletQueryKeys';
 import '../../tailwind.css';
 import Header from '../Header';
 
@@ -19,6 +20,13 @@ const {loginMock, refreshMock, signupMock} = vi.hoisted(() => ({
   refreshMock: vi.fn(),
   signupMock: vi.fn(),
 }));
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {'Content-Type': 'application/json'},
+  });
+}
 
 vi.mock('../../api/authApi', async importOriginal => {
   const actual = await importOriginal<typeof import('../../api/authApi')>();
@@ -62,6 +70,21 @@ function renderHeader(path = window.location.pathname) {
       </QueryClientProvider>,
     ),
   };
+}
+
+function renderHeaderWithAuthenticatedContext(queryClient: QueryClient) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/auction']}>
+        <AuthContext.Provider value={{
+          status: 'authenticated',
+          retryInitialization: vi.fn(),
+        }}>
+          <Header/>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 async function openSignupForm() {
@@ -209,6 +232,74 @@ describe('Header 계정 메뉴', () => {
       .toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', {name: '홈'}))
       .not.toHaveAttribute('aria-current');
+  });
+});
+
+describe('Header Wallet 잔액', () => {
+  it('anonymous 상태에서는 전자지갑과 충전 진입점을 숨긴다', async () => {
+    renderHeader('/');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    expect(screen.queryByRole('button', {name: /전자지갑/}))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText('충전하기')).not.toBeInTheDocument();
+  });
+
+  it('인증 복구 중에는 전자지갑과 Wallet skeleton을 렌더링하지 않는다', () => {
+    refreshMock.mockReturnValue(new Promise(() => {}));
+
+    renderHeader('/');
+
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('initializing');
+    expect(screen.queryByRole('button', {name: /전자지갑/}))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
+      .not.toBeInTheDocument();
+  });
+
+  it('authenticated 상태의 Wallet 조회 중에 skeleton을 표시한다', async () => {
+    setAccessToken('access-token');
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+
+    renderHeader('/');
+
+    expect(await screen.findByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
+      .toBeInTheDocument();
+    expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
+  });
+
+  it('Wallet 조회 성공 시 서버 totalBalance와 충전 진입점을 표시한다', async () => {
+    setAccessToken('access-token');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({
+      totalBalance: 987_654,
+      frozenBalance: 120_000,
+      availableBalance: 867_654,
+    }));
+
+    renderHeader('/');
+
+    expect(await screen.findByText('987,654P')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /전자지갑.*987,654P.*충전하기/}))
+      .toBeInTheDocument();
+  });
+
+  it('Wallet 조회 오류 시 0원 대신 재시도 진입점을 표시한다', async () => {
+    setAccessToken('access-token');
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'WALLET_NOT_FOUND'}, 404));
+    const user = userEvent.setup();
+
+    renderHeader('/');
+
+    const retryButton = await screen.findByRole('button', {
+      name: '전자지갑 잔액 다시 시도',
+    });
+    expect(screen.queryByText('0P')).not.toBeInTheDocument();
+
+    await user.click(retryButton);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -484,9 +575,18 @@ describe('Header 로그아웃', () => {
   it('서버에 한 번 요청하고 토큰과 인증 cache를 정리한 뒤 홈으로 이동한다', async () => {
     let resolveLogout!: (response: Response) => void;
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockReturnValue(new Promise(resolve => {
-        resolveLogout = resolve;
-      }));
+      .mockImplementation(input => {
+        if (input === '/api/wallet') {
+          return Promise.resolve(jsonResponse({
+            totalBalance: 10_000,
+            frozenBalance: 0,
+            availableBalance: 10_000,
+          }));
+        }
+        return new Promise(resolve => {
+          resolveLogout = resolve;
+        });
+      });
     setAccessToken('access-token');
     const {queryClient} = renderHeader();
     queryClient.setQueryData(['auth', 'me'], {id: 1});
@@ -499,7 +599,8 @@ describe('Header 로그아웃', () => {
     await user.click(logoutButton);
     await user.click(logoutButton);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.filter(([path]) => path === '/api/auth/logout'))
+      .toHaveLength(1);
     resolveLogout(new Response(null, {status: 204}));
     await waitFor(() => expect(getAccessToken()).toBeNull());
     expect(fetchMock).toHaveBeenCalledWith(
@@ -529,5 +630,45 @@ describe('Header 로그아웃', () => {
 
     await waitFor(() => expect(getAccessToken()).toBeNull());
     expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
+  });
+
+  it('로그아웃 후 다른 사용자 토큰이 설정돼도 이전 Wallet 잔액을 표시하지 않는다', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      if (input === '/api/wallet') {
+        return new Promise(() => {});
+      }
+      if (input === '/api/auth/logout') {
+        return new Response(null, {status: 204});
+      }
+      throw new Error(`unexpected request: ${String(input)}`);
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: {retry: false},
+        queries: {retry: false},
+      },
+    });
+    queryClient.setQueryData(['wallet', 'balance'], {
+      totalBalance: 850_000,
+      frozenBalance: 120_000,
+      availableBalance: 730_000,
+    });
+    setAccessToken('user-a-access-token');
+    renderHeaderWithAuthenticatedContext(queryClient);
+    const user = userEvent.setup();
+    expect(screen.getByText('850,000P')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', {name: '로그아웃'}));
+    await waitFor(() => expect(getAccessToken()).toBeNull());
+    await waitFor(() => {
+      expect(queryClient.getQueryData(walletQueryKeys.balance())).toBeUndefined();
+    });
+    setAccessToken('user-b-access-token');
+
+    await waitFor(() => {
+      expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
+      expect(screen.getByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
+        .toBeInTheDocument();
+    });
   });
 });

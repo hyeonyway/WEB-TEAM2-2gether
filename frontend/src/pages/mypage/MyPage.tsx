@@ -2,6 +2,7 @@
 import React,{useEffect,useMemo,useState}from'react';
 import{CalendarDays,Flame,TrendingUp,Diamond,LineChart,SlidersVertical,Info,Search,Grid2X2,Menu,ArrowDownRight,ArrowUpRight,Bookmark,Share2,ChevronRight,Zap,ShoppingBag,Wallet,MapPin,Phone,Clock3,Gavel,Package,MessageCircle,Plus,CheckCircle2}from'lucide-react';
 import {Header} from '../../components';
+import WalletBalance from '../../components/wallet/WalletBalance';
 
 const viewNav:any[][]=[['account','계정 관리',[['회원 정보','profile-info'],['기본 배송지','shipping-address'],['연락처','phone-info'],['로그아웃','signout']]],['support','문의 및 신고',[['문의 / 유저 신고하기','admin-contact'],['문의 내역','support-history']]]];
 
@@ -13,6 +14,6 @@ function SupportView(){const[mode,setMode]=useState('inquiry');const report=mode
 
 function AccountField({label,value}){return <div className="account-field"><span><small>{label}</small><b>{value}</b></span><button>수정</button></div>}
 
-function AccountView(){return <div className="mypage-subview"><div className="subview-title"><small>MY PAGE</small><h1>계정 관리</h1><p>회원 정보와 배송·연락처를 관리하세요.</p></div><section id="profile-info" className="subview-card"><h2>회원 정보</h2><AccountField label="이름" value="포켓컬렉터"/><AccountField label="이메일" value="jy•••••••@gmail.com"/></section><section id="shipping-address" className="subview-card"><h2>기본 배송지</h2><AccountField label="받는 분" value="포켓컬렉터"/><AccountField label="주소" value="서울시 성동구 성수이로 12길 24"/></section><section id="phone-info" className="subview-card"><h2>연락처</h2><AccountField label="휴대전화" value="010-1234-5678"/></section><section id="signout" className="subview-card signout-card"><span><b>로그아웃</b><small>현재 기기에서 안전하게 로그아웃합니다.</small></span><button>로그아웃</button></section></div>}
+function AccountView(){return <div className="mypage-subview"><div className="subview-title"><small>MY PAGE</small><h1>계정 관리</h1><p>회원 정보와 배송·연락처를 관리하세요.</p></div><WalletBalance/><section id="profile-info" className="subview-card"><h2>회원 정보</h2><AccountField label="이름" value="포켓컬렉터"/><AccountField label="이메일" value="jy•••••••@gmail.com"/></section><section id="shipping-address" className="subview-card"><h2>기본 배송지</h2><AccountField label="받는 분" value="포켓컬렉터"/><AccountField label="주소" value="서울시 성동구 성수이로 12길 24"/></section><section id="phone-info" className="subview-card"><h2>연락처</h2><AccountField label="휴대전화" value="010-1234-5678"/></section><section id="signout" className="subview-card signout-card"><span><b>로그아웃</b><small>현재 기기에서 안전하게 로그아웃합니다.</small></span><button>로그아웃</button></section></div>}
 
 export default function MyPageThreeViews(){const[view,setView]=useState('account');const scroll=id=>document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});const change=(next,target)=>{setView(next);if(target)setTimeout(()=>scroll(target),0)};return <div className="cards-mypage"><Header/><div className="cards-dash-shell"><ThreeViewNav view={view} onView={change} onScroll={scroll}/><main>{view==='support'?<SupportView/>:<AccountView/>}</main></div></div>}
