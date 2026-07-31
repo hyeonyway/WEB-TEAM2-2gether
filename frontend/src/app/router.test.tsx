@@ -67,6 +67,19 @@ describe('AppRoutes', () => {
       .not.toBeInTheDocument();
   });
 
+  it('dashboard 직접 접근은 현재 인증 상태를 확인하고 anonymous면 모달을 연다', async () => {
+    renderRoute('/dashboard');
+
+    expect(screen.getByText('인증 상태를 확인하고 있습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', {name: '경매 대시보드', level: 1}))
+      .not.toBeInTheDocument();
+
+    expect(await screen.findByRole('dialog', {name: '계정 로그인'}))
+      .toBeInTheDocument();
+    expect(screen.queryByRole('heading', {name: '경매 대시보드', level: 1}))
+      .not.toBeInTheDocument();
+  });
+
   it('mypage 보호 모달을 닫으면 홈으로 이동한다', async () => {
     const user = userEvent.setup();
     renderRoute('/mypage');
@@ -80,13 +93,14 @@ describe('AppRoutes', () => {
 
   it('mypage 보호 모달에서 로그인하면 페이지 내용을 표시한다', async () => {
     vi.mocked(globalThis.fetch).mockImplementation(async input => {
-      if (input === '/api/auth/refresh') {
+      const path = String(input);
+      if (path.endsWith('/api/auth/refresh')) {
         return jsonResponse({code: 'REFRESH_TOKEN_MISSING'}, 401);
       }
-      if (input === '/api/auth/login') {
+      if (path.endsWith('/api/auth/login')) {
         return jsonResponse({accessToken: 'issued-access-token'});
       }
-      if (input === '/api/wallet') {
+      if (path.endsWith('/api/wallet')) {
         return jsonResponse({
           totalBalance: 850_000,
           frozenBalance: 120_000,

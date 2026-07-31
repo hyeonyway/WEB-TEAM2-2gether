@@ -7,7 +7,6 @@ import {dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {applyAuctionEvent} from '../../queries/auctionStreamCache';
 import type {AuctionDto} from '../../dto/auctionDto';
-import {getDebugUserId} from '../../api/debugAuthStorage';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
 
 const sections=[
@@ -24,28 +23,24 @@ export default function DashboardPage(){
   const queryClient=useQueryClient();
   useAuctionStream({
     enabled:active==='participating',
-    onAuctionUpdated:event=>queryClient.setQueryData<AuctionDto[]>(
-      [...dashboardQueryKey,'participating-auctions',participatingSort],
-      current=>{
-        const userId=Number(getDebugUserId());
-        let next=applyAuctionEvent(current,event).map(auction=>{
-          if(auction.id!==event.auction_id||event.type!=='BID_PLACED')return auction;
-          if(event.bidder_id===userId){
-            return {...auction,myBidStatus:'LEADING' as const,myBidAmount:event.current_price??null};
+    onAuctionUpdated:event=>{
+      const queryKey=[...dashboardQueryKey,'participating-auctions',participatingSort];
+      queryClient.setQueryData<AuctionDto[]>(
+        queryKey,
+        current=>{
+          let next=applyAuctionEvent(current,event);
+          if(participatingSort==='ENDING_SOON'){
+            next=[...next].sort((a,b)=>Date.parse(a.endsAt)-Date.parse(b.endsAt));
+          }else{
+            next=[...next].sort((a,b)=>b.currentPrice-a.currentPrice);
           }
-          if(event.previous_bidder_id===userId){
-            return {...auction,myBidStatus:'OUTBID' as const};
-          }
-          return auction;
-        });
-        if(participatingSort==='ENDING_SOON'){
-          next=[...next].sort((a,b)=>Date.parse(a.endsAt)-Date.parse(b.endsAt));
-        }else{
-          next=[...next].sort((a,b)=>b.currentPrice-a.currentPrice);
-        }
-        return next;
-      },
-    ),
+          return next;
+        },
+      );
+      if(event.type==='BID_PLACED'){
+        void queryClient.invalidateQueries({queryKey,exact:true});
+      }
+    },
   });
   const dashboard=useQuery(
     active==='participating'

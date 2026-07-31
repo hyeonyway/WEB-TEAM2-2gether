@@ -1,6 +1,6 @@
 import type {AuctionDto,CardTheme} from '../dto/auctionDto';
 import type {DashboardAuctionResponseDto} from '../dto/dashboardDto';
-import {request} from './httpClient';
+import {authenticatedRequest} from './authenticatedRequest';
 import {resolveImageUrl} from './auctionMapper';
 
 const themes:CardTheme[]=['gold','water','dark','multi','sketch'];
@@ -36,12 +36,12 @@ export type RecentWinSort='LATEST'|'OLDEST'|'PRICE_HIGH';
 
 export async function fetchParticipatingAuctions(sort:ParticipatingAuctionSort){
   const search=new URLSearchParams({sort});
-  const response=await request<DashboardAuctionResponseDto[]>(`/api/dashboard/participating-auctions?${search}`);
+  const response=await authenticatedRequest<DashboardAuctionResponseDto[]>(`/api/dashboard/participating-auctions?${search}`);
   return response.map(mapDashboardAuction);
 }
 
 export async function fetchRecentWins(sort:RecentWinSort){
   const search=new URLSearchParams({sort});
-  const response=await request<DashboardAuctionResponseDto[]>(`/api/dashboard/recent-wins?${search}`);
+  const response=await authenticatedRequest<DashboardAuctionResponseDto[]>(`/api/dashboard/recent-wins?${search}`);
   return response.map(mapDashboardAuction);
 }
