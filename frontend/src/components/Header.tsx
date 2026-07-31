@@ -7,6 +7,7 @@ import{getAccessToken,subscribeAccessToken}from'../api/accessTokenStore';
 import{useAuthGate}from'../auth/useAuthGate';
 import{authMutations}from'../queries/authMutations';
 import{useWalletBalance}from'../queries/walletQueries';
+import{walletQueryKeys}from'../queries/walletQueryKeys';
 import AuthModal from './auth/AuthModal';
 import NotificationBell from'./NotificationBell';
 
@@ -35,6 +36,7 @@ export default function Header(){
     ...authMutations.logout(),
     onSettled:()=>{
       queryClient.removeQueries({queryKey:['auth']});
+      queryClient.removeQueries({queryKey:walletQueryKeys.all});
       navigate('/');
     },
   });

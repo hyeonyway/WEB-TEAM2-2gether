@@ -9,7 +9,7 @@ import {
   setAccessToken,
 } from '../../api/accessTokenStore';
 import {HttpError} from '../../api/httpClient';
-import {AuthProvider} from '../../auth/AuthProvider';
+import {AuthContext, AuthProvider} from '../../auth/AuthProvider';
 import {useAuth} from '../../auth/useAuth';
 import '../../tailwind.css';
 import Header from '../Header';
@@ -69,6 +69,21 @@ function renderHeader(path = window.location.pathname) {
       </QueryClientProvider>,
     ),
   };
+}
+
+function renderHeaderWithAuthenticatedContext(queryClient: QueryClient) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/auction']}>
+        <AuthContext.Provider value={{
+          status: 'authenticated',
+          retryInitialization: vi.fn(),
+        }}>
+          <Header/>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 async function openSignupForm() {
@@ -614,5 +629,40 @@ describe('Header 로그아웃', () => {
 
     await waitFor(() => expect(getAccessToken()).toBeNull());
     expect(queryClient.getQueryData(['auth', 'me'])).toBeUndefined();
+  });
+
+  it('로그아웃 후 다른 사용자 토큰이 설정돼도 이전 Wallet 잔액을 표시하지 않는다', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      if (input === '/api/wallet') {
+        return new Promise(() => {});
+      }
+      if (input === '/api/auth/logout') {
+        return new Response(null, {status: 204});
+      }
+      throw new Error(`unexpected request: ${String(input)}`);
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: {retry: false},
+        queries: {retry: false},
+      },
+    });
+    queryClient.setQueryData(['wallet', 'balance'], {
+      totalBalance: 850_000,
+      frozenBalance: 120_000,
+      availableBalance: 730_000,
+    });
+    setAccessToken('user-a-access-token');
+    renderHeaderWithAuthenticatedContext(queryClient);
+    const user = userEvent.setup();
+    expect(screen.getByText('850,000P')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', {name: '로그아웃'}));
+    await waitFor(() => expect(getAccessToken()).toBeNull());
+    setAccessToken('user-b-access-token');
+
+    expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
+      .toBeInTheDocument();
   });
 });
