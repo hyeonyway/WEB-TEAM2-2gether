@@ -1,8 +1,9 @@
 import {request} from './httpClient';
+import {authenticatedRequest} from './authenticatedRequest';
 import {fetchMockAuctions,fetchMockCards} from './mockAuctionApi';
 import {mapAuction,mapCard,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
-import type {AuctionDto,AuctionListRequestDto,AuctionResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
+import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
 
 const params=(query:{keyword:string;psaGrade:string|null;sort?:string})=>new URLSearchParams({
   keyword:query.keyword,
@@ -90,6 +91,27 @@ export async function fetchCardDetail(cardId:number):Promise<CardDetailResponseD
 export async function fetchAuctions(query:AuctionListRequestDto):Promise<AuctionDto[]>{
   if(isMockApiEnabled())return fetchMockAuctions(query);
   const search=params(query);search.set('sort',query.sort);
-  const response=await request<PageResponseDto<AuctionResponseDto>>(`/api/auctions?${search}`);
+  const response=await authenticatedRequest<PageResponseDto<AuctionResponseDto>>(`/api/auctions?${search}`);
   return response.content.map(mapAuction);
+}
+
+export async function fetchAuctionDetail(auctionId:number):Promise<AuctionDetailResponseDto>{
+  const response=await authenticatedRequest<AuctionDetailResponseDto>(`/api/auctions/${auctionId}`);
+  return {
+    ...response,
+    card:{...response.card,thumbnail_url:resolveImageUrl(response.card.thumbnail_url)},
+    photos:response.photos.map(photo=>({...photo,url:resolveImageUrl(photo.url)??photo.url})),
+  };
+}
+
+export async function fetchAuctionBidContext(auctionId:number):Promise<BidContextResponseDto>{
+  return authenticatedRequest<BidContextResponseDto>(`/api/auctions/${auctionId}/bid-context`);
+}
+
+export async function createAuctionBid(auctionId:number,price:number,idempotencyKey:string):Promise<BidCreateResponseDto>{
+  return authenticatedRequest<BidCreateResponseDto>(`/api/auctions/${auctionId}/bids`,{
+    method:'POST',
+    headers:{'Idempotency-Key':idempotencyKey},
+    body:JSON.stringify({price}),
+  });
 }

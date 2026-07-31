@@ -1,10 +1,12 @@
 import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
-import {fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
+import {fetchAuctionBidContext,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
 import type {AuctionListRequestDto,CardListRequestDto} from '../dto/auctionDto';
 
 export const auctionQueryKeys={
   all:['auctions'] as const,
   list:(query:AuctionListRequestDto)=>[...auctionQueryKeys.all,'list',query] as const,
+  detail:(auctionId:number)=>[...auctionQueryKeys.all,'detail',auctionId] as const,
+  bidContext:(auctionId:number)=>[...auctionQueryKeys.all,'bid-context',auctionId] as const,
 };
 
 export const cardQueryKeys={
@@ -20,6 +22,16 @@ export const auctionQueries={
     queryFn:()=>fetchAuctions(query),
     placeholderData:keepPreviousData,
     staleTime:30_000,
+  }),
+  detail:(auctionId:number)=>queryOptions({
+    queryKey:auctionQueryKeys.detail(auctionId),
+    queryFn:()=>fetchAuctionDetail(auctionId),
+    staleTime:15_000,
+  }),
+  bidContext:(auctionId:number)=>queryOptions({
+    queryKey:auctionQueryKeys.bidContext(auctionId),
+    queryFn:()=>fetchAuctionBidContext(auctionId),
+    staleTime:5_000,
   }),
 };
 

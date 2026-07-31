@@ -14,9 +14,10 @@ const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
 ];
 export default function AuctionPage(){
   const queryClient=useQueryClient();
-  const requestedSort=new URLSearchParams(window.location.search).get('sort');
+  const searchParams=new URLSearchParams(window.location.search);
+  const requestedSort=searchParams.get('sort');
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
-  const[query,setQuery]=useState('');
+  const[query,setQuery]=useState(searchParams.get('keyword')??'');
   const debouncedQuery=useDebouncedValue(query);
   const[grade,setGrade]=useState('');
   const[sort,setSort]=useState<AuctionListRequestDto['sort']>(initialSort);
