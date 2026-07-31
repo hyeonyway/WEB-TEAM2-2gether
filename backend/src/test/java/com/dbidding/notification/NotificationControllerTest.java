@@ -34,35 +34,64 @@ class NotificationControllerTest {
     }
 
     @Test
-    void 알림_목록을_조회하면_200과_목록을_반환한다() throws Exception {
-        given(notificationService.findAll(1)).willReturn(List.of(
-                Notification.of(1, 10, "메시지1"),
-                Notification.of(1, 20, "메시지2")
+    void 알림_목록을_조회하면_200과_아이템_및_페이지_정보를_반환한다() throws Exception {
+        given(notificationService.findPage(1, null, 20, false)).willReturn(new NotificationPage(
+                List.of(
+                        Notification.of(1, 10, "메시지1"),
+                        Notification.of(1, 20, "메시지2")
+                ),
+                null,
+                false
         ));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(2))
-                .andExpect(MockMvcResultMatchers.jsonPath("$[1].auctionId").value(20))
-                .andExpect(MockMvcResultMatchers.jsonPath("$[1].message").value("메시지2"));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.items.length()").value(2))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.items[1].auctionId").value(20))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.items[1].message").value("메시지2"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.hasNext").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.nextCursor").doesNotExist());
     }
 
     @Test
     void 알림이_없으면_빈_목록을_반환한다() throws Exception {
-        given(notificationService.findAll(1)).willReturn(List.of());
+        given(notificationService.findPage(1, null, 20, false)).willReturn(new NotificationPage(List.of(), null, false));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(0));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.items.length()").value(0));
     }
 
     @Test
     void read_false_파라미터면_안읽은_알림만_조회한다() throws Exception {
-        given(notificationService.findUnread(1)).willReturn(List.of(Notification.of(1, 10, "메시지1")));
+        given(notificationService.findPage(1, null, 20, true))
+                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, "메시지1")), null, false));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications").param("read", "false"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.items.length()").value(1));
+    }
+
+    @Test
+    void cursor와_size_파라미터를_그대로_전달한다() throws Exception {
+        given(notificationService.findPage(1, 42L, 5, false))
+                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, "메시지1")), 10L, true));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications")
+                        .param("cursor", "42")
+                        .param("size", "5"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.hasNext").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.nextCursor").value(10));
+    }
+
+    @Test
+    void 안읽음_개수를_조회한다() throws Exception {
+        given(notificationService.countUnread(1)).willReturn(3L);
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications/unread-count"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.count").value(3));
     }
 
     @Test

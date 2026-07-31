@@ -9,7 +9,7 @@ export const wishlistQueryKeys={
 export const wishlistQueries={
   list:(userId:string)=>queryOptions({
     queryKey:wishlistQueryKeys.list(userId),
-    queryFn:()=>fetchWishlists(userId),
+    queryFn:()=>fetchWishlists(),
     staleTime:60_000,
   }),
 };

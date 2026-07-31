@@ -6,6 +6,7 @@ import com.dbidding.card.domain.*;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.port.CardAuctionPort;
 import com.dbidding.card.port.CardStatisticPort;
+import com.dbidding.card.port.CardWishlistPort;
 import com.dbidding.card.port.CardStatisticPort.DailyPrice;
 import com.dbidding.card.port.CardStatisticPort.Summary;
 import com.dbidding.card.repository.CardMetadataRepository;
@@ -31,6 +32,7 @@ public class CardPriceService {
     private final CardMetadataRepository cardRepository;
     private final CardStatisticPort statisticPort;
     private final CardAuctionPort auctionPort;
+    private final CardWishlistPort wishlistPort;
 
     public CardResponses.Page<CardResponses.CardSummary> getCards(
             String keyword, String psaGrade, CardSort sort, int page, int size) {
@@ -68,7 +70,7 @@ public class CardPriceService {
                 value(summary == null ? null : summary.bidCount30d()),
                 value(summary == null ? null : summary.endedAuctionCount30d()),
                 auctionPort.countActiveAuctions(cardId),
-                value(summary == null ? null : summary.wishlistCount()),
+                wishlistPort.countWishlists(cardId),
                 card.getPsaGrade(), normalizeLanguage(card.getLanguage()),
                 card.getImagePath(), history);
     }

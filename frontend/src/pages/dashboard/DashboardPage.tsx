@@ -7,7 +7,7 @@ import {dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {applyAuctionEvent} from '../../queries/auctionStreamCache';
 import type {AuctionDto} from '../../dto/auctionDto';
-import {getDebugUserId} from '../../api/debugAuthStorage';
+import {HttpError} from '../../api/httpClient';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
 
 const sections=[
@@ -24,28 +24,24 @@ export default function DashboardPage(){
   const queryClient=useQueryClient();
   useAuctionStream({
     enabled:active==='participating',
-    onAuctionUpdated:event=>queryClient.setQueryData<AuctionDto[]>(
-      [...dashboardQueryKey,'participating-auctions',participatingSort],
-      current=>{
-        const userId=Number(getDebugUserId());
-        let next=applyAuctionEvent(current,event).map(auction=>{
-          if(auction.id!==event.auction_id||event.type!=='BID_PLACED')return auction;
-          if(event.bidder_id===userId){
-            return {...auction,myBidStatus:'LEADING' as const,myBidAmount:event.current_price??null};
+    onAuctionUpdated:event=>{
+      const queryKey=[...dashboardQueryKey,'participating-auctions',participatingSort];
+      queryClient.setQueryData<AuctionDto[]>(
+        queryKey,
+        current=>{
+          let next=applyAuctionEvent(current,event);
+          if(participatingSort==='ENDING_SOON'){
+            next=[...next].sort((a,b)=>Date.parse(a.endsAt)-Date.parse(b.endsAt));
+          }else{
+            next=[...next].sort((a,b)=>b.currentPrice-a.currentPrice);
           }
-          if(event.previous_bidder_id===userId){
-            return {...auction,myBidStatus:'OUTBID' as const};
-          }
-          return auction;
-        });
-        if(participatingSort==='ENDING_SOON'){
-          next=[...next].sort((a,b)=>Date.parse(a.endsAt)-Date.parse(b.endsAt));
-        }else{
-          next=[...next].sort((a,b)=>b.currentPrice-a.currentPrice);
-        }
-        return next;
-      },
-    ),
+          return next;
+        },
+      );
+      if(event.type==='BID_PLACED'){
+        void queryClient.invalidateQueries({queryKey,exact:true});
+      }
+    },
   });
   const dashboard=useQuery(
     active==='participating'
@@ -54,6 +50,8 @@ export default function DashboardPage(){
   );
   const section=sections.find(([id])=>id===active)!;
   const auctions=dashboard.data??[];
+  const authenticationRequired=dashboard.error instanceof HttpError
+    && dashboard.error.status===401;
   const normalizedQuery=query.trim().toLowerCase();
   const visible=auctions.filter(auction=>
     auction.card.name.toLowerCase().includes(normalizedQuery),
@@ -86,7 +84,10 @@ export default function DashboardPage(){
       {dashboard.isPending
         ? <DashboardAuctionSkeleton/>
         : dashboard.isError
-          ? <div className="filter-empty"><b>대시보드를 불러오지 못했습니다.</b><button type="button" onClick={()=>dashboard.refetch()}>다시 시도</button></div>
+          ? <div className="filter-empty">
+              <b>{authenticationRequired?'로그인이 필요합니다.':'대시보드를 불러오지 못했습니다.'}</b>
+              {!authenticationRequired&&<button type="button" onClick={()=>dashboard.refetch()}>다시 시도</button>}
+            </div>
           : <AuctionCatalog auctions={visible}/>}
     </section>
   </main></div>;

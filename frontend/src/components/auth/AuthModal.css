@@ -1,0 +1,236 @@
+.auth-modal-backdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 21, 24, .58);
+  backdrop-filter: blur(5px);
+}
+
+.auth-modal {
+  position: relative;
+  display: grid;
+  grid-template-columns: 230px minmax(0, 420px);
+  width: min(650px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .24);
+}
+
+.auth-modal-close {
+  position: absolute;
+  z-index: 1;
+  top: 15px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #777;
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.auth-modal-close:hover {
+  background: #f3f3f3;
+  color: #111;
+}
+
+.auth-modal-brand {
+  min-height: 540px;
+  padding: 42px 28px;
+  background:
+    radial-gradient(circle at 90% 12%, rgba(255, 255, 255, .18), transparent 25%),
+    linear-gradient(155deg, #222431 5%, #101116 72%);
+  color: #fff;
+}
+
+.auth-modal-brand span {
+  color: #ff6257;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+.auth-modal-brand strong {
+  display: block;
+  margin-top: 120px;
+  font-size: 27px;
+  line-height: 1.35;
+  letter-spacing: -.04em;
+}
+
+.auth-modal-brand p {
+  margin: 16px 0 0;
+  color: rgba(255, 255, 255, .6);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.auth-modal-content {
+  padding: 52px 42px 38px;
+}
+
+.auth-eyebrow {
+  color: #f05d50;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.auth-modal-content h2 {
+  margin: 8px 0 7px;
+  color: #171719;
+  font-size: 25px;
+  letter-spacing: -.04em;
+}
+
+.auth-modal-description {
+  margin: 0 0 25px;
+  color: #92959a;
+  font-size: 11px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 7px;
+  color: #4b4d51;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.auth-form input {
+  width: 100%;
+  height: 43px;
+  border: 1px solid #e1e2e5;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 12px;
+  color: #191919;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.auth-form input:focus {
+  border-color: #252630;
+  box-shadow: 0 0 0 3px rgba(37, 38, 48, .08);
+}
+
+.auth-form input[aria-invalid="true"] {
+  border-color: #e65b52;
+}
+
+.auth-field-error {
+  color: #df5047;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.auth-submit-error,
+.auth-success-notice {
+  margin: 0;
+  border-radius: 8px;
+  padding: 10px 11px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.auth-submit-error {
+  background: #fff1f0;
+  color: #d7463d;
+}
+
+.auth-success-notice {
+  margin-bottom: 16px;
+  background: #edf9f3;
+  color: #0a9154;
+}
+
+.auth-primary-button {
+  height: 45px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 9px;
+  background: #1c1d24;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.auth-primary-button:hover:not(:disabled) {
+  background: #343640;
+}
+
+.auth-primary-button:disabled {
+  background: #bfc0c5;
+  cursor: wait;
+}
+
+.auth-mode-switch {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  margin-top: 21px;
+  color: #9a9ca0;
+  font-size: 10px;
+}
+
+.auth-mode-switch button {
+  border: 0;
+  background: transparent;
+  padding: 3px 0;
+  color: #30323a;
+  font-size: inherit;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .header-account-nav {
+    display: flex;
+  }
+}
+
+@media (max-width: 620px) {
+  .header-account-nav > a {
+    display: none;
+  }
+
+  .auth-modal-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .auth-modal {
+    display: block;
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .auth-modal-brand {
+    display: none;
+  }
+
+  .auth-modal-content {
+    padding: 48px 24px 30px;
+  }
+}

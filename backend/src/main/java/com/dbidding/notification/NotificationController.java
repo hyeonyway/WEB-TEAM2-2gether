@@ -1,7 +1,5 @@
 package com.dbidding.notification;
 
-import java.util.List;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,7 +9,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dbidding.global.security.CurrentUser;
-import com.dbidding.notification.dto.NotificationResponse;
+import com.dbidding.notification.dto.NotificationListResponse;
+import com.dbidding.notification.dto.NotificationUnreadCountResponse;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -24,16 +23,19 @@ public class NotificationController {
     }
 
     @GetMapping
-    public List<NotificationResponse> findAll(
+    public NotificationListResponse findAll(
             @CurrentUser Integer userId,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "20") int size,
             @RequestParam(name = "read", required = false) Boolean read
     ) {
-        List<Notification> notifications = Boolean.FALSE.equals(read)
-                ? notificationService.findUnread(userId)
-                : notificationService.findAll(userId);
-        return notifications.stream()
-                .map(NotificationResponse::from)
-                .toList();
+        NotificationPage page = notificationService.findPage(userId, cursor, size, Boolean.FALSE.equals(read));
+        return NotificationListResponse.from(page);
+    }
+
+    @GetMapping("/unread-count")
+    public NotificationUnreadCountResponse unreadCount(@CurrentUser Integer userId) {
+        return new NotificationUnreadCountResponse(notificationService.countUnread(userId));
     }
 
     @PatchMapping("/{notificationId}/read")

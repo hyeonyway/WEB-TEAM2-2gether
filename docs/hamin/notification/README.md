@@ -6,5 +6,6 @@ Notification은 경매 생성/상회 입찰/낙찰 이벤트를 구독해 알림
 
 1. [Notification 엔티티 + 목록조회 골격](1-entity-and-list.md)
 2. [읽음 상태, 목록 API 분리, 이동 기능, 인증 전환](2-read-status-and-navigation.md)
+3. [프론트엔드 연동 계획 (SSE 제외)](3-frontend-integration-plan.md)
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.

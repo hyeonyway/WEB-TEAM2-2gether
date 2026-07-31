@@ -10,6 +10,7 @@ import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistic.adapter.CardStatisticAdapter;
+import com.dbidding.wishlist.WishlistCardAdapter;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,7 +23,12 @@ import org.springframework.context.annotation.Import;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
-@Import({CardPriceService.class, CardStatisticAdapter.class, CardAuctionAdapter.class})
+@Import({
+        CardPriceService.class,
+        CardStatisticAdapter.class,
+        CardAuctionAdapter.class,
+        WishlistCardAdapter.class
+})
 class CardPriceServiceTest {
     @Autowired CardPriceService cardPriceService;
     @Autowired CardMetadataRepository cardRepository;
@@ -69,11 +75,21 @@ class CardPriceServiceTest {
         entityManager.createNativeQuery("""
                 insert into users (
                     id, email, nickname, role, status, encrypted_password, salt
-                ) values (
+                ) values
+                (
                     99001, 'card-price-seller@test.local', 'card-price-seller',
                     'USER', 'ACTIVE', repeat('a', 64), repeat('b', 32)
+                ),
+                (
+                    99002, 'card-price-wishlist@test.local', 'card-price-wishlist',
+                    'USER', 'ACTIVE', repeat('c', 64), repeat('d', 32)
                 )
                 """).executeUpdate();
+        entityManager.createNativeQuery("""
+                insert into wishlists (user_id, item_id) values
+                    (99001, :itemId),
+                    (99002, :itemId)
+                """).setParameter("itemId", card.getId()).executeUpdate();
         entityManager.createNativeQuery("""
                 insert into auctions (
                     user_id, item_id, auction_name, description,
@@ -104,6 +120,7 @@ class CardPriceServiceTest {
         assertThat(response.bidCount()).isEqualTo(32);
         assertThat(response.endedAuctionCount()).isEqualTo(2);
         assertThat(response.activeAuctionCount()).isEqualTo(2);
+        assertThat(response.wishlistCount()).isEqualTo(2);
         assertThat(response.history()).hasSize(30);
         assertThat(response.history().getLast().date().toLocalDate()).isEqualTo(yesterday);
         assertThat(response.history().getFirst().averagePrice()).isNull();

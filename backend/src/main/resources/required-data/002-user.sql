@@ -9,9 +9,9 @@ INSERT INTO `users`
   (`id`, `email`, `nickname`, `created_at`, `role`, `status`,
    `encrypted_password`, `salt`)
 VALUES
-  (1, 'debug-user@dbidding.local', '디버그사용자', NOW(6), 'USER', 'ACTIVE',
-   SHA2('dbidding-debug-password', 256),
-   LEFT(SHA2('dbidding-debug-salt', 256), 32))
+  (1, 'dbidding@dbidding.com', '디비딩', NOW(6), 'USER', 'ACTIVE',
+   '6bda87b448c683cc4790891f008a344146db8cf78420b56b16263b307f7a46b8',
+   '6462696464696e672d757365722d3031')
 ON DUPLICATE KEY UPDATE
   `email` = VALUES(`email`),
   `nickname` = VALUES(`nickname`),
@@ -53,5 +53,29 @@ ON DUPLICATE KEY UPDATE
   `status` = VALUES(`status`),
   `encrypted_password` = VALUES(`encrypted_password`),
   `salt` = VALUES(`salt`);
+
+-- Give the primary local account a reproducible wallet balance.
+INSERT INTO `wallets` (`user_id`, `point`)
+VALUES (1, 1000000)
+ON DUPLICATE KEY UPDATE
+  `point` = VALUES(`point`);
+
+INSERT INTO `point_records`
+  (`wallet_id`, `auction_id`, `amount`, `balance`,
+   `transaction_type`, `idempotency_key`)
+SELECT
+  `wallet`.`id`,
+  NULL,
+  1000000,
+  1000000,
+  'CHARGE',
+  'seed-user-1-initial-charge'
+FROM `wallets` AS `wallet`
+WHERE `wallet`.`user_id` = 1
+ON DUPLICATE KEY UPDATE
+  `auction_id` = VALUES(`auction_id`),
+  `amount` = VALUES(`amount`),
+  `balance` = VALUES(`balance`),
+  `transaction_type` = VALUES(`transaction_type`);
 
 COMMIT;

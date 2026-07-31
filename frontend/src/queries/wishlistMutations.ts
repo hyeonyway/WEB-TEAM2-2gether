@@ -30,7 +30,7 @@ function settleWishlist(queryClient:QueryClient,userId:string){
 export const wishlistMutations={
   add:(queryClient:QueryClient,userId:string)=>mutationOptions({
     mutationKey:['wishlists','add',userId],
-    mutationFn:(cardId:number)=>addWishlist(userId,cardId),
+    mutationFn:(cardId:number)=>addWishlist(cardId),
     onMutate:async(cardId:number)=>{
       await queryClient.cancelQueries({queryKey:wishlistQueryKeys.list(userId)});
       return {previous:optimisticToggle(queryClient,userId,cardId,true)};
@@ -42,7 +42,7 @@ export const wishlistMutations={
   }),
   remove:(queryClient:QueryClient,userId:string)=>mutationOptions({
     mutationKey:['wishlists','remove',userId],
-    mutationFn:(cardId:number)=>removeWishlist(userId,cardId),
+    mutationFn:(cardId:number)=>removeWishlist(cardId),
     onMutate:async(cardId:number)=>{
       await queryClient.cancelQueries({queryKey:wishlistQueryKeys.list(userId)});
       return {previous:optimisticToggle(queryClient,userId,cardId,false)};
