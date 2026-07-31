@@ -210,6 +210,27 @@ describe('Header 마이페이지 인증 gate', () => {
   });
 });
 
+describe('Header 나의 대시보드 인증 안내', () => {
+  it('anonymous 사용자는 이동하거나 로그인 모달을 열지 않고 토스트로 안내한다', async () => {
+    const toastListener = vi.fn();
+    window.addEventListener('app-toast', toastListener);
+    const user = userEvent.setup();
+    renderHeader('/auction');
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+
+    await user.click(screen.getByRole('link', {name: '나의 대시보드'}));
+
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/auction');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(toastListener).toHaveBeenCalledTimes(1);
+    expect((toastListener.mock.calls[0]?.[0] as CustomEvent).detail.message)
+      .toBe('로그인이 필요합니다');
+    window.removeEventListener('app-toast', toastListener);
+  });
+});
+
 describe('Header 계정 메뉴', () => {
   it('로그인과 마이페이지에 같은 글자 크기를 적용한다', () => {
     window.history.replaceState({}, '', '/');
