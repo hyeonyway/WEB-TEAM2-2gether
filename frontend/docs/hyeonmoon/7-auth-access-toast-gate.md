@@ -173,7 +173,14 @@ Header 보호 메뉴 클릭
 
 - Refresh가 401이면 정상적인 `anonymous`로 보고 보호 접근을 차단한다.
 - Refresh가 네트워크 또는 5xx로 실패하면 `AuthProvider`의 기존 복구 오류 안내를
-  유지한다. 보호 화면을 인증된 것으로 간주해 노출하지 않는다.
+  유지하고 다시 시도 버튼을 제공한다.
+- `AuthStatus`는 `initializing | authenticated | anonymous`의 세 상태를
+  유지한다. 이번 이슈에서는 별도 `error` 상태를 추가하지 않으며, 네트워크·5xx
+  복구 실패도 권한 판정에서는 `anonymous`로 fail-closed 처리한다.
+- 네트워크·5xx 뒤 보호 URL에 접근 중이었다면 `RequireAuth`는 보호 화면을
+  노출하지 않고 로그인 필요 토스트를 표시한 뒤 홈으로 `replace` 이동한다.
+  사용자가 복구 안내의 다시 시도를 눌러 성공하면 홈에서 `authenticated`로
+  전환되며, 차단됐던 경로로 자동 복귀하지 않는다.
 - 홈으로 이동하는 동안 `RequireAuth`가 재렌더링돼도 같은 접근의 토스트를
   중복 표시하지 않는다.
 - 앱 최초 렌더의 Route 차단 토스트가 `ToastContainer`의 구독 시점 때문에
@@ -189,6 +196,9 @@ Header 보호 메뉴 클릭
 
 - `/sell`, `/dashboard`, `/mypage`는 초기화 중 보호 화면을 렌더링하지 않는다.
 - Refresh 401 뒤 각 보호 URL은 홈으로 이동하고 토스트를 한 번 표시한다.
+- `AuthProvider`의 네트워크·5xx 복구 실패 테스트는 오류 안내, `anonymous`
+  상태와 사용자 재시도 성공을 검증한다. Router의 `anonymous` 보호 경로
+  테스트는 이 상태에서 보호 화면 미노출, 토스트와 홈 `replace`를 검증한다.
 - 앱 최초 진입에서도 전역 Toast 구독 시점과 관계없이 안내가 표시된다.
 - 보호 URL 차단 이동은 history를 `replace`한다.
 - 로그인 사용자는 세 보호 화면을 정상적으로 볼 수 있다.
