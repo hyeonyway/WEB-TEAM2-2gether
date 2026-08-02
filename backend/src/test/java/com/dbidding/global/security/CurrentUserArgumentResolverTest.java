@@ -2,6 +2,7 @@ package com.dbidding.global.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.lang.reflect.Method;
 
@@ -54,6 +55,21 @@ class CurrentUserArgumentResolverTest {
 		assertThat(resolved).isEqualTo(7);
 	}
 
+	@Test
+	void 선택적_현재_사용자는_인증_정보가_없으면_null로_해석한다() throws Exception {
+		willThrow(new com.dbidding.global.exception.UnauthorizedException())
+			.given(currentUserProvider).getCurrentUserId();
+
+		Object resolved = resolver.resolveArgument(
+			parameter("optionalCurrentUser", Integer.class),
+			null,
+			null,
+			null
+		);
+
+		assertThat(resolved).isNull();
+	}
+
 	private MethodParameter parameter(String methodName, Class<?> parameterType) {
 		try {
 			Method method = TestController.class.getDeclaredMethod(methodName, parameterType);
@@ -66,6 +82,9 @@ class CurrentUserArgumentResolverTest {
 	private static class TestController {
 
 		void currentUser(@CurrentUser Integer userId) {
+		}
+
+		void optionalCurrentUser(@CurrentUser(required = false) Integer userId) {
 		}
 
 		void plainUser(Integer userId) {

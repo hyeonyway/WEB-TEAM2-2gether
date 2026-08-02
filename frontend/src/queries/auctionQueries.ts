@@ -1,13 +1,16 @@
 import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
-import {fetchAuctionBidContext,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
+import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
 import type {AuctionListRequestDto,CardListRequestDto} from '../dto/auctionDto';
+
+export type AuctionViewerScope='public'|'self';
 
 export const auctionQueryKeys={
   all:['auctions'] as const,
   lists:()=>[...auctionQueryKeys.all,'list'] as const,
-  list:(query:AuctionListRequestDto)=>[...auctionQueryKeys.lists(),query] as const,
-  detail:(auctionId:number)=>[...auctionQueryKeys.all,'detail',auctionId] as const,
+  list:(query:AuctionListRequestDto,viewerScope:AuctionViewerScope)=>[...auctionQueryKeys.lists(),viewerScope,query] as const,
+  detail:(auctionId:number,viewerScope:AuctionViewerScope)=>[...auctionQueryKeys.all,'detail',auctionId,viewerScope] as const,
   bidContext:(auctionId:number)=>[...auctionQueryKeys.all,'bid-context',auctionId] as const,
+  bids:(auctionId:number)=>[...auctionQueryKeys.all,'bids',auctionId] as const,
 };
 
 export const cardQueryKeys={
@@ -18,16 +21,21 @@ export const cardQueryKeys={
 };
 
 export const auctionQueries={
-  list:(query:AuctionListRequestDto)=>queryOptions({
-    queryKey:auctionQueryKeys.list(query),
+  list:(query:AuctionListRequestDto,viewerScope:AuctionViewerScope)=>queryOptions({
+    queryKey:auctionQueryKeys.list(query,viewerScope),
     queryFn:()=>fetchAuctions(query),
     placeholderData:keepPreviousData,
     staleTime:30_000,
   }),
-  detail:(auctionId:number)=>queryOptions({
-    queryKey:auctionQueryKeys.detail(auctionId),
+  detail:(auctionId:number,viewerScope:AuctionViewerScope)=>queryOptions({
+    queryKey:auctionQueryKeys.detail(auctionId,viewerScope),
     queryFn:()=>fetchAuctionDetail(auctionId),
     staleTime:15_000,
+  }),
+  bids:(auctionId:number)=>queryOptions({
+    queryKey:auctionQueryKeys.bids(auctionId),
+    queryFn:()=>fetchAuctionBids(auctionId),
+    staleTime:5_000,
   }),
   bidContext:(auctionId:number)=>queryOptions({
     queryKey:auctionQueryKeys.bidContext(auctionId),

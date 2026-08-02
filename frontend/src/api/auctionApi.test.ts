@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {clearAccessToken,setAccessToken} from './accessTokenStore';
-import {createAuctionBid,fetchAuctionBidContext,fetchAuctionDetail,fetchAuctions} from './auctionApi';
+import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions} from './auctionApi';
 
 const auctionResponse={
   id:10,
@@ -40,7 +40,8 @@ describe('auctionApi',()=>{
     setAccessToken('auction-access-token');
   });
 
-  it('JWT로 요청한 페이지 크기의 경매 목록과 페이지 정보를 조회한다',async()=>{
+  it('인증 헤더 없이 경매 목록과 페이지 정보를 조회한다',async()=>{
+    clearAccessToken();
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({
       content:[auctionResponse],
       page:1,
@@ -67,7 +68,7 @@ describe('auctionApi',()=>{
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('page=1');
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('size=12');
     const headers=new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
-    expect(headers.get('Authorization')).toBe('Bearer auction-access-token');
+    expect(headers.get('Authorization')).toBeNull();
   });
 
   it('JWT와 멱등성 키로 입찰한다',async()=>{
@@ -85,7 +86,8 @@ describe('auctionApi',()=>{
     expect(headers.get('Idempotency-Key')).toBe('bid-key');
   });
 
-  it('JWT로 경매 상세와 입찰 컨텍스트를 조회한다',async()=>{
+  it('경매 상세와 입찰 이력은 공개로, 입찰 컨텍스트는 JWT로 조회한다',async()=>{
+    clearAccessToken();
     const fetchMock=vi.spyOn(globalThis,'fetch')
       .mockResolvedValueOnce(jsonResponse({
         ...auctionResponse,
@@ -95,6 +97,9 @@ describe('auctionApi',()=>{
         buy_now_price:20000,
         photos:[],
         psa_certification:null,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        content:[],page:0,size:5,total_elements:0,has_next:false,
       }))
       .mockResolvedValueOnce(jsonResponse({
         auction_id:10,
@@ -110,11 +115,13 @@ describe('auctionApi',()=>{
       }));
 
     await fetchAuctionDetail(10);
+    await fetchAuctionBids(10);
+    setAccessToken('auction-access-token');
     await fetchAuctionBidContext(10);
 
-    for(const [,options] of fetchMock.mock.calls){
-      expect(new Headers(options?.headers).get('Authorization'))
-        .toBe('Bearer auction-access-token');
-    }
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBeNull();
+    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get('Authorization')).toBeNull();
+    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get('Authorization'))
+      .toBe('Bearer auction-access-token');
   });
 });

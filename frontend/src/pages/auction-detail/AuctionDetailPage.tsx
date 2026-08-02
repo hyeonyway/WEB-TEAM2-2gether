@@ -5,6 +5,7 @@ import {useParams} from 'react-router-dom';
 import {AuctionBidDialog,Header} from '../../components';
 import {mapAuction,mapCardLanguage,normalizePsaGrade} from '../../api/auctionMapper';
 import {auctionQueries} from '../../queries/auctionQueries';
+import {useAuthGate} from '../../auth/useAuthGate';
 
 function useAuctionNow(){
   const[now,setNow]=useState(Date.now());
@@ -39,27 +40,37 @@ export default function AuctionDetailPage(){
   const validAuctionId=Number.isInteger(auctionId)&&auctionId>0;
   const now=useAuctionNow();
   const[bidOpen,setBidOpen]=useState(false);
+  const authGate=useAuthGate();
+  const authenticated=authGate.status==='authenticated';
+  const viewerScope=authenticated?'self':'public';
   const detailQuery=useQuery({
-    ...auctionQueries.detail(auctionId),
+    ...auctionQueries.detail(auctionId,viewerScope),
     enabled:validAuctionId,
   });
   const contextQuery=useQuery({
     ...auctionQueries.bidContext(auctionId),
+    enabled:validAuctionId&&authenticated,
+  });
+  const bidsQuery=useQuery({
+    ...auctionQueries.bids(auctionId),
     enabled:validAuctionId,
   });
 
   if(!validAuctionId){
     return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell"><p className="form-error">잘못된 경매 번호입니다.</p></main></div>;
   }
-  if(detailQuery.isPending||contextQuery.isPending){
+  if(detailQuery.isPending||bidsQuery.isPending||(authenticated&&contextQuery.isPending)){
     return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell"><p>경매 정보를 불러오는 중...</p></main></div>;
   }
-  if(detailQuery.error||contextQuery.error||!detailQuery.data||!contextQuery.data){
+  if(detailQuery.error||bidsQuery.error||!detailQuery.data||!bidsQuery.data){
     return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell"><p className="form-error">경매 정보를 불러오지 못했습니다.</p></main></div>;
   }
 
   const detail=detailQuery.data;
-  const context=contextQuery.data;
+  const context=authenticated?contextQuery.data:undefined;
+  const currentPrice=context?.current_price??detail.current_price;
+  const minimumBid=context?.minimum_bid??detail.minimum_bid;
+  const recentBids=bidsQuery.data.content;
   const auction=mapAuction(detail);
   const grade=normalizePsaGrade(detail.card.psa_grade);
   const language=mapCardLanguage(detail.card.language);
@@ -69,7 +80,7 @@ export default function AuctionDetailPage(){
     ??detail.photos[0]?.url
     ??detail.card.thumbnail_url;
   const increaseRate=detail.start_price>0
-    ?(context.current_price-detail.start_price)/detail.start_price*100
+    ?(currentPrice-detail.start_price)/detail.start_price*100
     :0;
 
   return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell">
@@ -83,21 +94,21 @@ export default function AuctionDetailPage(){
       </section>
       <section className="auction-bid-panel">
         <div className="auction-live-label"><i/> {ended?'종료된 경매':'LIVE 경매'} <span><Clock3/>{remaining}</span></div>
-        <div className="auction-current-price"><small>현재 입찰가</small><strong>{context.current_price.toLocaleString()}원</strong><em>+{increaseRate.toFixed(1)}%</em></div>
+        <div className="auction-current-price"><small>현재 입찰가</small><strong>{currentPrice.toLocaleString()}원</strong><em>+{increaseRate.toFixed(1)}%</em></div>
         <div className="auction-bid-summary">
-          <span>다음 최소 입찰가<b>{context.minimum_bid.toLocaleString()}원</b></span>
+          <span>다음 최소 입찰가<b>{minimumBid.toLocaleString()}원</b></span>
           <span>누적 입찰 수<b>{detail.bid_count.toLocaleString()}건</b></span>
           <span>PSA 등급<b>PSA {grade}</b></span>
         </div>
-        <div className="auction-wallet-summary"><span><Wallet/>보유 포인트</span><strong>{context.wallet.available_balance.toLocaleString()}P</strong></div>
-        <button className="auction-detail-bid-button" disabled={ended} onClick={()=>setBidOpen(true)}>
-          {ended?'경매 종료':`${context.minimum_bid.toLocaleString()}원부터 입찰하기`}
+        {context&&<div className="auction-wallet-summary"><span><Wallet/>보유 포인트</span><strong>{context.wallet.available_balance.toLocaleString()}P</strong></div>}
+        <button className="auction-detail-bid-button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setBidOpen(true)}}>
+          {ended?'경매 종료':`${minimumBid.toLocaleString()}원부터 입찰하기`}
         </button>
         <a className="auction-card-price-link" href={`/cards/${detail.card.id}`}>카드 시세 상세 <ChevronRight/></a>
         <section className="auction-detail-history"><h2>최근 입찰 내역</h2>
-          {context.recent_bids.length===0
+          {recentBids.length===0
             ?<p>아직 입찰 내역이 없습니다.</p>
-            :context.recent_bids.map(bid=><div key={bid.id}><span><b>{bid.is_highest?'최고 입찰':'입찰 완료'}</b><small>{bid.bidder_alias} · {formatBidTime(bid.created_at)}</small></span><strong>{bid.amount.toLocaleString()}원</strong></div>)}
+            :recentBids.map(bid=><div key={bid.id}><span><b>{bid.is_highest?'최고 입찰':'입찰 완료'}</b><small>{bid.bidder_alias} · {formatBidTime(bid.created_at)}</small></span><strong>{bid.amount.toLocaleString()}원</strong></div>)}
         </section>
       </section>
     </div>

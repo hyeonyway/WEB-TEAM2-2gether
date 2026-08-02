@@ -2,6 +2,7 @@ package com.dbidding.auction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
@@ -111,6 +112,22 @@ class AuctionQueryServiceTest {
         var response = auctionQueryService.getDetail(3, 1);
 
         assertThat(response.endsAt()).isEqualTo(actualCloseTime);
+    }
+
+    @Test
+    void 비로그인_상세_조회는_내_입찰을_조회하지_않는다() {
+        Auction auction = auction(AuctionStatus.OPEN);
+        when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
+        when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
+                1, "Mock Card", "Mock Set", "10", "JP", "/mock/card.png"
+        ));
+        when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
+
+        var response = auctionQueryService.getDetail(null, 1);
+
+        assertThat(response.myBidStatus()).isEqualTo(MyBidStatus.NONE);
+        assertThat(response.myBidAmount()).isNull();
+        verifyNoInteractions(bidRepository);
     }
 
     private Auction auction(AuctionStatus status) {

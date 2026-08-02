@@ -1,6 +1,7 @@
 import {render, screen} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import ToastContainer, {showToast} from './Toast';
+import '../tailwind.css';
 
 describe('ToastContainer', () => {
   afterEach(() => {
@@ -25,5 +26,17 @@ describe('ToastContainer', () => {
     render(<ToastContainer/>);
 
     expect(screen.getAllByText('로그인이 필요합니다')).toHaveLength(1);
+  });
+
+  it('토스트를 헤더 아래 오른쪽에 표시한다', () => {
+    vi.useFakeTimers();
+    showToast('로그인이 필요합니다');
+    const {container} = render(<ToastContainer/>);
+
+    const stack = container.querySelector('.toast-stack');
+    expect(stack).not.toBeNull();
+    expect(getComputedStyle(stack!).top).toBe('81px');
+    expect(getComputedStyle(stack!).right).toBe('24px');
+    expect(getComputedStyle(stack!).bottom).toBe('auto');
   });
 });

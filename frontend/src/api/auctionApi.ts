@@ -1,9 +1,9 @@
 import {request} from './httpClient';
-import {authenticatedRequest} from './authenticatedRequest';
+import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticatedRequest';
 import {fetchMockAuctions,fetchMockCards} from './mockAuctionApi';
 import {mapAuction,mapCard,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
-import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
+import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
 
 const params=(query:{keyword:string;psaGrade:string|null;sort?:string})=>new URLSearchParams({
   keyword:query.keyword,
@@ -104,17 +104,23 @@ export async function fetchAuctions(query:AuctionListRequestDto):Promise<PageRes
   search.set('sort',query.sort);
   search.set('page',String(query.page));
   search.set('size',String(query.size));
-  const response=await authenticatedRequest<PageResponseDto<AuctionResponseDto>>(`/api/auctions?${search}`);
+  const response=await optionallyAuthenticatedRequest<PageResponseDto<AuctionResponseDto>>(`/api/auctions?${search}`);
   return {...response,content:response.content.map(mapAuction)};
 }
 
 export async function fetchAuctionDetail(auctionId:number):Promise<AuctionDetailResponseDto>{
-  const response=await authenticatedRequest<AuctionDetailResponseDto>(`/api/auctions/${auctionId}`);
+  const response=await optionallyAuthenticatedRequest<AuctionDetailResponseDto>(`/api/auctions/${auctionId}`);
   return {
     ...response,
     card:{...response.card,thumbnail_url:resolveImageUrl(response.card.thumbnail_url)},
     photos:response.photos.map(photo=>({...photo,url:resolveImageUrl(photo.url)??photo.url})),
   };
+}
+
+export async function fetchAuctionBids(auctionId:number,page=0,size=5):Promise<PageResponseDto<BidSummaryResponseDto>>{
+  return request<PageResponseDto<BidSummaryResponseDto>>(
+    `/api/auctions/${auctionId}/bids?page=${page}&size=${size}`,
+  );
 }
 
 export async function fetchAuctionBidContext(auctionId:number):Promise<BidContextResponseDto>{

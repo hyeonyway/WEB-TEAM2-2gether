@@ -54,7 +54,7 @@ public class AuctionController {
 
     @GetMapping
     public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(
-            @CurrentUser Integer userId,
+            @CurrentUser(required = false) Integer userId,
             @Valid @ModelAttribute AuctionSearchRequest request
     ) {
         return auctionService.search(userId, request);
@@ -62,7 +62,7 @@ public class AuctionController {
 
     @GetMapping("/{auctionId}")
     public AuctionResponses.AuctionDetail getDetail(
-            @CurrentUser Integer userId,
+            @CurrentUser(required = false) Integer userId,
             @PathVariable @Min(1) Integer auctionId
     ) {
         return auctionService.getDetail(userId, auctionId);

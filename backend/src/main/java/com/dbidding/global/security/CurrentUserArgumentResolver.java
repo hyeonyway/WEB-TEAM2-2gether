@@ -1,5 +1,6 @@
 package com.dbidding.global.security;
 
+import com.dbidding.global.exception.UnauthorizedException;
 import org.springframework.core.MethodParameter;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -26,6 +27,14 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 		NativeWebRequest webRequest,
 		WebDataBinderFactory binderFactory
 	) {
-		return currentUserProvider.getCurrentUserId();
+		CurrentUser currentUser = parameter.getParameterAnnotation(CurrentUser.class);
+		try {
+			return currentUserProvider.getCurrentUserId();
+		} catch (UnauthorizedException exception) {
+			if (currentUser != null && !currentUser.required()) {
+				return null;
+			}
+			throw exception;
+		}
 	}
 }

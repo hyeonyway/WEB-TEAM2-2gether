@@ -129,6 +129,9 @@ public class AuctionQueryService {
     }
 
     private Map<Integer, Bid> myBids(Integer userId, List<Auction> auctions) {
+        if (userId == null) {
+            return Map.of();
+        }
         List<Integer> auctionIds = auctions.stream().map(Auction::getId).toList();
         if (auctionIds.isEmpty()) {
             return Map.of();
@@ -140,6 +143,9 @@ public class AuctionQueryService {
     }
 
     private Optional<Bid> currentUserBid(Integer userId, Integer auctionId) {
+        if (userId == null) {
+            return Optional.empty();
+        }
         return bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(auctionId, userId);
     }
 

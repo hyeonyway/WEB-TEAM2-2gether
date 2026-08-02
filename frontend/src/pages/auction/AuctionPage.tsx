@@ -7,6 +7,7 @@ import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
+import {useAuth} from '../../auth/useAuth';
 
 const PAGE_SIZE=12;
 const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
@@ -14,6 +15,8 @@ const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
 ];
 export default function AuctionPage(){
   const queryClient=useQueryClient();
+  const{status:authStatus}=useAuth();
+  const viewerScope=authStatus==='authenticated'?'self':'public';
   const searchParams=new URLSearchParams(window.location.search);
   const requestedSort=searchParams.get('sort');
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
@@ -28,7 +31,7 @@ export default function AuctionPage(){
   useAuctionStream({
     onAuctionUpdated:()=>void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()}),
   });
-  const{data,isPending,error}=useQuery(auctionQueries.list(listRequest));
+  const{data,isPending,error}=useQuery(auctionQueries.list(listRequest,viewerScope));
   const auctions=data?.content??[];
 
   useEffect(()=>{
