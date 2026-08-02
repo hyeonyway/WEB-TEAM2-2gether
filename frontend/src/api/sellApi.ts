@@ -5,7 +5,6 @@ import {authenticatedRequest} from './authenticatedRequest';
 import {isMockApiEnabled} from './mockApiConfig';
 
 const wait=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
-const idempotencyKey=()=>crypto.randomUUID();
 
 export async function scanCardImage(file:File):Promise<CardRecognition>{
   if(isMockApiEnabled()){await wait(700);return mockupData.card_recognition as CardRecognition}
@@ -58,12 +57,12 @@ export async function uploadSellImages(photos:SellPhoto[]):Promise<UploadedPhoto
   }));
 }
 
-export async function createAuction(payload:AuctionPayload){
+export async function createAuction(payload:AuctionPayload,idempotencyKey:string){
   if(isMockApiEnabled()){await wait(450);return {id:1,...payload}}
   const {form}=payload;
   return authenticatedRequest<{id:number}>('/api/auctions',{
     method:'POST',
-    headers:{'Idempotency-Key':idempotencyKey()},
+    headers:{'Idempotency-Key':idempotencyKey},
     body:JSON.stringify({
       itemId:payload.itemId,
       auctionName:form.cardName.trim(),

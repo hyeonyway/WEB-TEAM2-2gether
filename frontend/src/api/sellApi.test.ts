@@ -57,10 +57,11 @@ describe('sellApi',()=>{
       psaCertification:null,
     };
 
-    await createAuction(payload);
+    await createAuction(payload,'registration-key');
 
     const [,options]=fetchMock.mock.calls[0];
     expect(new Headers(options?.headers).get('Authorization')).toBe('Bearer seller-access-token');
+    expect(new Headers(options?.headers).get('Idempotency-Key')).toBe('registration-key');
     expect(JSON.parse(String(options?.body))).toEqual({
       itemId:1,
       auctionName:'피카츄',

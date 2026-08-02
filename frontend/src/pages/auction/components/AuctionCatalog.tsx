@@ -3,6 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import {AuctionBidDialog} from '../../../components';
 import type {AuctionDto} from '../../../dto/auctionDto';
 import CardArtwork from '../../cards/components/CardArtwork';
+import {useAuthGate} from '../../../auth/useAuthGate';
 
 const remainingTime=(endsAt:string,now:number)=>{
   const total=Math.max(0,Math.ceil((new Date(endsAt).getTime()-now)/1000));
@@ -44,6 +45,7 @@ function AnimatedAuctionPrice({price}:{price:number}){
 }
 
 export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
+  const authGate=useAuthGate();
   const[selectedAuction,setSelectedAuction]=useState<AuctionDto|null>(null);
   const[now,setNow]=useState(Date.now());
   useEffect(()=>{
@@ -65,7 +67,7 @@ export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
       </div>
       <div className="card-actions">
         <button className="card-detail-button" type="button" onClick={()=>window.location.href=`/auction/${auction.id}`}>상세보기</button>
-        <button className={`card-bid-button ${buttonState}`} type="button" disabled={ended} onClick={()=>setSelectedAuction(auction)}>
+        <button className={`card-bid-button ${buttonState}`} type="button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setSelectedAuction(auction)}}>
           {ended?'경매 종료':auction.myBidStatus==='LEADING'?<><CheckCircle2/><span><b>내가 최고가 입찰 중</b><small>현재 1위 · 입찰 현황 보기</small></span></>:auction.myBidStatus==='OUTBID'?<><b>상회 입찰 필요</b><small>내 입찰 {(auction.myBidAmount??0).toLocaleString()}원</small></>:<b>입찰하기</b>}
         </button>
       </div>
