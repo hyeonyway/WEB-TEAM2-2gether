@@ -1,5 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 import {Bookmark,Share2} from 'lucide-react';
+import {Link} from 'react-router-dom';
 import {Header,showToast} from '../../components';
 import {cardQueries} from '../../queries/auctionQueries';
 import {useWishlist} from '../../hooks/useWishlist';
@@ -44,7 +45,7 @@ export default function CardPriceDetailPage(){
         <div className="buy-row price-buy-row">
           <button className={'icon-action '+(saved?'saved':'')} disabled={wishlistPending} onClick={()=>toggleFavorite(card.id)} aria-label="관심 카드"><Bookmark/><small>{card.wishlist_count}</small></button>
           <button type="button" className="icon-action" aria-label="공유" onClick={()=>void copyCurrentLink()}><Share2/><small>공유</small></button>
-          <a className="buy detail-bid-button" href={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</a>
+          <Link className="buy detail-bid-button" to={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</Link>
         </div>
         <section className="detail-price-summary">
           <div className="detail-price-range"><span>최근 시세 범위</span><strong>{priceRange}</strong><em>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</em></div>

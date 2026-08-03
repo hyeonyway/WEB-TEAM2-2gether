@@ -1,6 +1,7 @@
 import {useEffect,useState} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
+import {useSearchParams} from 'react-router-dom';
 import {AuctionCatalog,AuctionPagination} from './components';
 import type {AuctionListRequestDto} from '../../dto/auctionDto';
 import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
@@ -17,16 +18,21 @@ export default function AuctionPage(){
   const queryClient=useQueryClient();
   const{status:authStatus}=useAuth();
   const viewerScope=authStatus==='authenticated'?'self':'public';
-  const searchParams=new URLSearchParams(window.location.search);
+  const[searchParams]=useSearchParams();
   const requestedSort=searchParams.get('sort');
+  const requestedKeyword=searchParams.get('keyword')??'';
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
-  const[query,setQuery]=useState(searchParams.get('keyword')??'');
+  const[query,setQuery]=useState(requestedKeyword);
   const debouncedQuery=useDebouncedValue(query);
   const[grade,setGrade]=useState('');
   const[sort,setSort]=useState<AuctionListRequestDto['sort']>(initialSort);
   const[page,setPage]=useState(0);
   const listRequest={keyword:debouncedQuery,psaGrade:grade||null,sort,page,size:PAGE_SIZE};
 
+  useEffect(()=>{
+    setQuery(requestedKeyword);
+    setPage(0);
+  },[requestedKeyword]);
   useEffect(()=>setPage(0),[debouncedQuery]);
   useAuctionStream({
     onAuctionUpdated:()=>void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()}),
