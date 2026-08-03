@@ -27,6 +27,7 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 	);
 
 	private final TicketProvider ticketProvider;
+	private final RequestUserIdWriter requestUserIdWriter;
 	private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
 	@Override
@@ -44,13 +45,7 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 	) throws ServletException, IOException {
 		try {
 			Integer userId = ticketProvider.validateAndConsume(request.getParameter("ticket"));
-			Object existingUserId = request.getAttribute(
-				RequestCurrentUserProvider.USER_ID_ATTRIBUTE
-			);
-			if (existingUserId != null && !existingUserId.equals(userId)) {
-				throw new UnauthorizedException();
-			}
-			request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, userId);
+			requestUserIdWriter.write(request, userId);
 			filterChain.doFilter(request, response);
 		} catch (UnauthorizedException exception) {
 			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);

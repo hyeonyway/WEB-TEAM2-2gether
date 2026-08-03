@@ -20,6 +20,7 @@ import com.dbidding.global.config.WebConfig;
 @Import({
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
+	RequestUserIdWriter.class,
 	TestAuthFilter.class
 })
 class CurrentUserWebMvcTest {

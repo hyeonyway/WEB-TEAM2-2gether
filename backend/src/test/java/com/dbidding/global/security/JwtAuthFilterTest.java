@@ -29,7 +29,7 @@ class JwtAuthFilterTest {
 
 	@BeforeEach
 	void setUp() {
-		filter = new JwtAuthFilter(jwtTokenProvider);
+		filter = new JwtAuthFilter(jwtTokenProvider, new RequestUserIdWriter());
 	}
 
 	@Test

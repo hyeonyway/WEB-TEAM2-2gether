@@ -24,6 +24,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 	private static final String BEARER_PREFIX = "Bearer ";
 
 	private final JwtTokenProvider jwtTokenProvider;
+	private final RequestUserIdWriter requestUserIdWriter;
 
 	@Override
 	protected void doFilterInternal(
@@ -45,7 +46,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
 		try {
 			TokenClaims claims = jwtTokenProvider.parseAccess(accessToken);
-			request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, claims.userId());
+			requestUserIdWriter.write(request, claims.userId());
 			filterChain.doFilter(request, response);
 		} catch (InvalidTokenException exception) {
 			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);

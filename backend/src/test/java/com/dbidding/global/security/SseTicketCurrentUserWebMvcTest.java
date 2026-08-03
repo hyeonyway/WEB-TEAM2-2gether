@@ -24,6 +24,7 @@ import com.dbidding.global.exception.UnauthorizedException;
 @Import({
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
+	RequestUserIdWriter.class,
 	JwtAuthFilter.class,
 	SseTicketAuthFilter.class
 })

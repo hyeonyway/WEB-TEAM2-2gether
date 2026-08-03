@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.dbidding.account.token.JwtTokenProvider;
 import com.dbidding.global.security.JwtAuthFilter;
+import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.SseTicketAuthFilter;
 import com.dbidding.global.security.TicketProvider;
 
@@ -12,12 +13,12 @@ import com.dbidding.global.security.TicketProvider;
 public class AuthFilterConfig {
 
 	@Bean
-	JwtAuthFilter jwtAuthFilter(JwtTokenProvider jwtTokenProvider) {
-		return new JwtAuthFilter(jwtTokenProvider);
+	JwtAuthFilter jwtAuthFilter(JwtTokenProvider jwtTokenProvider, RequestUserIdWriter requestUserIdWriter) {
+		return new JwtAuthFilter(jwtTokenProvider, requestUserIdWriter);
 	}
 
 	@Bean
-	SseTicketAuthFilter sseTicketAuthFilter(TicketProvider ticketProvider) {
-		return new SseTicketAuthFilter(ticketProvider);
+	SseTicketAuthFilter sseTicketAuthFilter(TicketProvider ticketProvider, RequestUserIdWriter requestUserIdWriter) {
+		return new SseTicketAuthFilter(ticketProvider, requestUserIdWriter);
 	}
 }

@@ -34,7 +34,7 @@ class SseTicketAuthFilterTest {
 
 	@BeforeEach
 	void setUp() {
-		filter = new SseTicketAuthFilter(ticketProvider);
+		filter = new SseTicketAuthFilter(ticketProvider, new RequestUserIdWriter());
 	}
 
 	@Test
@@ -71,7 +71,10 @@ class SseTicketAuthFilterTest {
 		InMemoryTicketProvider realTicketProvider = new InMemoryTicketProvider(
 			Clock.fixed(Instant.parse("2026-07-30T00:00:00Z"), ZoneOffset.UTC)
 		);
-		SseTicketAuthFilter realFilter = new SseTicketAuthFilter(realTicketProvider);
+		SseTicketAuthFilter realFilter = new SseTicketAuthFilter(
+			realTicketProvider,
+			new RequestUserIdWriter()
+		);
 		String ticket = realTicketProvider.issue(8);
 		MockHttpServletRequest request = get("/api/dashboard/stream");
 		request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, 7);
