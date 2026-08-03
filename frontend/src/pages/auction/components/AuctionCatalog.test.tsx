@@ -17,6 +17,15 @@ const auction:AuctionDto={
 };
 
 describe('AuctionCatalog',()=>{
+  it('PSA 접두사가 포함된 등급도 한 번만 표시한다',()=>{
+    render(<AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+      <AuctionCatalog auctions={[{...auction,card:{...auction.card,psaGrade:'PSA 10'}}]}/>
+    </AuthContext.Provider>);
+
+    expect(screen.getByText('PSA 10')).toBeInTheDocument();
+    expect(screen.queryByText('PSA PSA 10')).not.toBeInTheDocument();
+  });
+
   it('비로그인 사용자가 입찰을 누르면 다이얼로그 대신 로그인 안내를 표시한다',async()=>{
     const user=userEvent.setup();
     render(<AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
