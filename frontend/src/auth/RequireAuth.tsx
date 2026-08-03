@@ -1,38 +1,33 @@
-import {type ReactNode, useEffect} from 'react';
-import {useLocation} from 'react-router-dom';
-import AuthModal from '../components/auth/AuthModal';
-import {useAuthGate} from './useAuthGate';
+import {type ReactNode, useEffect, useRef} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {showAuthRequiredToast} from './useAuthGate';
+import {useAuth} from './useAuth';
 
 type RequireAuthProps = {
   children: ReactNode;
 };
 
 export function RequireAuth({children}: RequireAuthProps) {
-  const location = useLocation();
-  const authGate = useAuthGate();
-  const returnTo = `${location.pathname}${location.search}${location.hash}`;
+  const {status} = useAuth();
+  const navigate = useNavigate();
+  const blockedRef = useRef(false);
 
   useEffect(() => {
-    if (authGate.status !== 'authenticated') {
-      authGate.requestAccess(returnTo);
-    }
-  }, [authGate.requestAccess, authGate.status, returnTo]);
+    if (status !== 'anonymous' || blockedRef.current) return;
+    blockedRef.current = true;
+    showAuthRequiredToast();
+    navigate('/', {replace: true});
+  }, [navigate, status]);
 
-  if (authGate.status === 'authenticated') {
+  if (status === 'authenticated') {
     return children;
   }
-  if (authGate.status === 'initializing') {
+  if (status === 'initializing') {
     return (
       <main aria-busy="true">
         <p>인증 상태를 확인하고 있습니다.</p>
       </main>
     );
   }
-  return (
-    <AuthModal
-      open={authGate.authModalOpen}
-      onClose={authGate.cancelAuthentication}
-      onLoginSuccess={authGate.completeAuthentication}
-    />
-  );
+  return null;
 }

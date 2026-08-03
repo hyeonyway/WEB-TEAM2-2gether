@@ -1,4 +1,4 @@
-package com.dbidding.wallet.adapter;
+package com.dbidding.auction.adapter;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;

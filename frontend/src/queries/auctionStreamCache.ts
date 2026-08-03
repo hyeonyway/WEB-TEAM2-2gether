@@ -1,4 +1,4 @@
-import {resolveImageUrl} from '../api/auctionMapper';
+import {mapCardLanguage,normalizePsaGrade,resolveImageUrl} from '../api/auctionMapper';
 import type {AuctionDto,AuctionSort} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 
@@ -43,8 +43,8 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
       changeRate:0,
       theme:themes[event.card_id%themes.length],
       bidCount:event.bid_count,
-      psaGrade:event.card_psa_grade??'-',
-      language:event.card_language==='EN'?'EN':event.card_language==='KR'?'KR':'JP',
+      psaGrade:normalizePsaGrade(event.card_psa_grade),
+      language:mapCardLanguage(event.card_language),
       imageUrl:resolveImageUrl(event.card_thumbnail_url),
     },
     startPrice:event.start_price,

@@ -46,6 +46,18 @@ public class CardPriceService {
         return new CardResponses.Page<>(content, page, size, cards.getTotalElements(), cards.hasNext());
     }
 
+    public List<CardResponses.CardSummary> getWishlistedCards(Integer userId) {
+        var orderedIds = wishlistPort.findCardIdsByUserId(userId).stream().distinct().toList();
+        var cardsById = cardRepository.findAllById(orderedIds).stream()
+                .collect(Collectors.toMap(CardMetadata::getId, Function.identity()));
+        Map<Integer, Summary> statistics = statisticPort.getSummaries(orderedIds);
+        return orderedIds.stream()
+                .map(cardsById::get)
+                .filter(Objects::nonNull)
+                .map(card -> summary(card, statistics.get(card.getId())))
+                .toList();
+    }
+
     public CardResponses.CardDetail getCard(Integer cardId, int days) {
         CardMetadata card = cardRepository.findById(cardId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "카드를 찾을 수 없습니다."));

@@ -1,6 +1,15 @@
-import type {AuctionDto,AuctionResponseDto,CardDto,CardResponseDto,CardTheme} from '../dto/auctionDto';
+import type {AuctionCardResponseDto,AuctionDto,AuctionResponseDto,CardDto,CardResponseDto,CardTheme} from '../dto/auctionDto';
 
 const themes:CardTheme[]=['gold','water','dark','multi','sketch'];
+
+export const mapCardLanguage=(language:string|null|undefined):CardDto['language']=>{
+  if(language==='EN'||language==='English')return 'EN';
+  if(language==='KR'||language==='Korean')return 'KR';
+  return 'JP';
+};
+
+export const normalizePsaGrade=(grade:string|null|undefined):string=>
+  grade?.replace(/^PSA\s+/i,'').trim()||'-';
 
 export const resolveImageUrl=(path?:string|null):string|null=>{
   if(!path)return null;
@@ -19,21 +28,35 @@ export const mapCard=(dto:CardResponseDto):CardDto=>({
   changeRate:dto.change_rate,
   theme:themes.includes(dto.theme as CardTheme)?dto.theme as CardTheme:'gold',
   bidCount:dto.bid_count,
-  psaGrade:String(dto.psa_grade),
-  language:dto.language==='EN'?'EN':dto.language==='KR'?'KR':'JP',
+  psaGrade:normalizePsaGrade(dto.psa_grade),
+  language:mapCardLanguage(dto.language),
+  imageUrl:resolveImageUrl(dto.thumbnail_url),
+});
+
+const mapAuctionCard=(dto:AuctionCardResponseDto):CardDto=>({
+  id:dto.id,
+  name:dto.name,
+  marketPrice:0,
+  lowPrice:0,
+  highPrice:0,
+  changeRate:0,
+  theme:'gold',
+  bidCount:0,
+  psaGrade:normalizePsaGrade(dto.psa_grade),
+  language:mapCardLanguage(dto.language),
   imageUrl:resolveImageUrl(dto.thumbnail_url),
 });
 
 export const mapAuction=(dto:AuctionResponseDto):AuctionDto=>({
   id:dto.id,
-  card:mapCard(dto.card),
-  startPrice:dto.start_price??dto.current_price,
+  card:mapAuctionCard(dto.card),
+  startPrice:dto.start_price,
   currentPrice:dto.current_price,
-  bidIncrement:dto.bid_increment??1000,
+  bidIncrement:dto.bid_increment,
   bidCount:dto.bid_count,
   endsAt:dto.ends_at,
   status:dto.status,
-  myBidStatus:dto.my_bid_status??'NONE',
-  myBidAmount:dto.my_bid_amount??null,
-  version:dto.version??0,
+  myBidStatus:dto.my_bid_status,
+  myBidAmount:dto.my_bid_amount,
+  version:dto.version,
 });

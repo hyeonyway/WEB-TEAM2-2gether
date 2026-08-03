@@ -20,7 +20,9 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             where a.status in :statuses
               and (:keyword = '' or lower(a.auctionName) like lower(concat('%', :keyword, '%')))
               and (:psaGrade is null or a.itemId in (
-                    select c.id from CardMetadata c where c.psaGrade = :psaGrade
+                    select c.id from CardMetadata c
+                    where replace(upper(trim(c.psaGrade)), 'PSA ', '') =
+                          replace(upper(trim(:psaGrade)), 'PSA ', '')
               ))
             order by
               case when :sort = 'BID_COUNT' then a.bidCount end desc,
@@ -40,7 +42,11 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
 
     Optional<Auction> findBySellerIdAndCreateIdempotencyKey(Integer sellerId, String createIdempotencyKey);
 
-    long countByItemIdAndStatusIn(Integer itemId, Collection<AuctionStatus> statuses);
+    long countByItemIdAndStatusInAndCloseTimeAfter(
+            Integer itemId,
+            Collection<AuctionStatus> statuses,
+            LocalDateTime closeTime
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Auction a where a.id = :id")

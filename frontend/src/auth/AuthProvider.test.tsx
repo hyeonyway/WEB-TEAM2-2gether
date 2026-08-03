@@ -88,7 +88,7 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('네트워크 실패를 안내하고 사용자가 Refresh를 다시 시도할 수 있다', async () => {
+  it('네트워크 실패 시 전역 오류를 노출하지 않고 수동 복구할 수 있다', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockRejectedValueOnce(new TypeError('network error'))
       .mockResolvedValueOnce(jsonResponse({accessToken: 'retried-access-token'}));
@@ -96,12 +96,12 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
 
     renderAuthProvider();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      '로그인 상태를 확인하지 못했습니다.',
-    );
-    expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', {name: '다시 시도'}));
+    await user.click(screen.getByRole('button', {name: '인증 복구 요청'}));
 
     await waitFor(() => {
       expect(screen.getByTestId('auth-status')).toHaveTextContent('authenticated');

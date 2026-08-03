@@ -1,4 +1,4 @@
-package com.dbidding.wallet.adapter;
+package com.dbidding.account.adapter;
 
 import org.springframework.stereotype.Component;
 

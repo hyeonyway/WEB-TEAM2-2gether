@@ -15,7 +15,9 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Inte
                     left join item_statistics s
                       on s.item_id = c.id
                     where (:keyword = '' or lower(c.name) like lower(concat('%', :keyword, '%')))
-                      and (:psaGrade is null or c.psa_grade = :psaGrade)
+                      and (:psaGrade is null or
+                           replace(upper(trim(c.psa_grade)), 'PSA ', '') =
+                           replace(upper(trim(:psaGrade)), 'PSA ', ''))
                     order by
                       case when :sort = 'PRICE'
                            then coalesce(s.latest_price, s.average_price_30d, 0)
@@ -32,7 +34,9 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Inte
                     select count(*)
                     from card_metadata c
                     where (:keyword = '' or lower(c.name) like lower(concat('%', :keyword, '%')))
-                      and (:psaGrade is null or c.psa_grade = :psaGrade)
+                      and (:psaGrade is null or
+                           replace(upper(trim(c.psa_grade)), 'PSA ', '') =
+                           replace(upper(trim(:psaGrade)), 'PSA ', ''))
                     """,
             nativeQuery = true
     )

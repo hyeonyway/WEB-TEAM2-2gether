@@ -4,6 +4,7 @@ import com.dbidding.auction.adapter.CardAuctionAdapter;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
+import com.dbidding.global.config.TimeConfig;
 import com.dbidding.statistic.domain.ItemStatistic;
 import com.dbidding.statistic.domain.ItemDailyStatistic;
 import com.dbidding.card.repository.CardMetadataRepository;
@@ -15,6 +16,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -27,7 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         CardPriceService.class,
         CardStatisticAdapter.class,
         CardAuctionAdapter.class,
-        WishlistCardAdapter.class
+        WishlistCardAdapter.class,
+        TimeConfig.class
 })
 class CardPriceServiceTest {
     @Autowired CardPriceService cardPriceService;
@@ -59,6 +62,21 @@ class CardPriceServiceTest {
             assertThat(card.changeRate()).isEqualByComparingTo("2.70");
             assertThat(card.bidCount()).isEqualTo(12);
         });
+    }
+
+    @Test
+    void PSA_등급_필터는_접두사가_포함된_저장값도_조회한다() {
+        CardSet set = new CardSet("PSA 필터", "PSA-FILTER");
+        entityManager.persist(set);
+        cardRepository.save(new CardMetadata(
+                set, "PSA 10 카드", "JP", "PSA 10", "gold", null));
+        cardRepository.save(new CardMetadata(
+                set, "PSA 9 카드", "JP", "PSA 9", "gold", null));
+
+        var response = cardPriceService.getCards("", "10", CardSort.REGISTERED, 0, 20);
+
+        assertThat(response.content()).extracting("name")
+                .containsExactly("PSA 10 카드");
     }
 
     @Test
@@ -98,9 +116,14 @@ class CardPriceServiceTest {
                     bid_count, bid_price_unit, is_hyped, version
                 ) values
                     (99001, :itemId, '진행 경매', '테스트', 1000, 1000, 2000, 0,
-                     'OPEN', now(), now(), now(), 0, 1000, false, 1),
+                     'OPEN', now(), date_add(now(), interval 1 hour),
+                     date_add(now(), interval 1 hour), 0, 1000, false, 1),
                     (99001, :itemId, '마감 임박 경매', '테스트', 1000, 1000, 2000, 0,
-                     'ENDING', now(), now(), now(), 0, 1000, false, 1),
+                     'ENDING', now(), date_add(now(), interval 1 hour),
+                     date_add(now(), interval 1 hour), 0, 1000, false, 1),
+                    (99001, :itemId, '상태 갱신이 지연된 경매', '테스트', 1000, 1000, 2000, 0,
+                     'OPEN', date_sub(now(), interval 2 hour), date_sub(now(), interval 1 hour),
+                     date_sub(now(), interval 1 hour), 0, 1000, false, 1),
                     (99001, :itemId, '종료 경매', '테스트', 1000, 1000, 2000, 0,
                      'ENDED', now(), now(), now(), 0, 1000, false, 1)
                 """).setParameter("itemId", card.getId()).executeUpdate();
@@ -175,4 +198,5 @@ class CardPriceServiceTest {
         assertThat(registeredSorted.content()).extracting("name")
                 .containsExactly("고가 카드", "인기 카드");
     }
+
 }

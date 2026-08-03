@@ -21,7 +21,10 @@ export function AppRoutes() {
       <Route path={routePaths.auctionDetail} element={<AuctionDetailPage/>}/>
       <Route path={routePaths.dashboard} element={<RequireAuth><DashboardPage/></RequireAuth>}/>
       <Route path={routePaths.myPage} element={<RequireAuth><MyPage/></RequireAuth>}/>
-      <Route path={routePaths.sell} element={<SellPage Header={Header}/>}/>
+      <Route
+        path={routePaths.sell}
+        element={<RequireAuth><SellPage Header={Header}/></RequireAuth>}
+      />
       <Route path="*" element={<HomePage/>}/>
     </Routes>
   );

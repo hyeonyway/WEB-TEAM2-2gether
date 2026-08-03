@@ -11,38 +11,41 @@ import com.dbidding.auction.dto.PageRequestDto;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 @Service
-@Profile("auction-mock")
 @RequiredArgsConstructor
 public class AuctionService {
     private final AuctionCommandService auctionCommandService;
     private final AuctionQueryService auctionQueryService;
 
-    public AuctionCreateResponse create(AuctionCreateRequest request, String idempotencyKey) {
-        return auctionCommandService.create(request, idempotencyKey);
+    public AuctionCreateResponse create(Integer userId, AuctionCreateRequest request, String idempotencyKey) {
+        return auctionCommandService.create(userId, request, idempotencyKey);
     }
 
-    public BidResponses.BidSummary participate(Integer auctionId, BidCreateRequest request, String idempotencyKey) {
-        return auctionCommandService.participate(auctionId, request, idempotencyKey);
+    public BidResponses.BidResult participate(
+            Integer userId,
+            Integer auctionId,
+            BidCreateRequest request,
+            String idempotencyKey
+    ) {
+        return auctionCommandService.participate(userId, auctionId, request, idempotencyKey);
     }
 
-    public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(AuctionSearchRequest request) {
-        return auctionQueryService.search(request);
+    public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(Integer userId, AuctionSearchRequest request) {
+        return auctionQueryService.search(userId, request);
     }
 
-    public AuctionResponses.AuctionDetail getDetail(Integer auctionId) {
-        return auctionQueryService.getDetail(auctionId);
+    public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
+        return auctionQueryService.getDetail(userId, auctionId);
     }
 
     public AuctionResponses.Page<BidResponses.BidSummary> getBids(Integer auctionId, PageRequestDto request) {
         return auctionQueryService.getBids(auctionId, request);
     }
 
-    public BidResponses.BidContext getBidContext(Integer auctionId) {
-        return auctionQueryService.getBidContext(auctionId);
+    public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
+        return auctionQueryService.getBidContext(userId, auctionId);
     }
 
     public AuctionCloseResponse closeAuction(Integer auctionId) {

@@ -1,7 +1,9 @@
 package com.dbidding.auction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,6 +70,67 @@ class AuctionDeadlineSchedulerTest {
         verify(auctionService).closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100);
     }
 
+    @Test
+    void 마감_일정_변경_이벤트를_받으면_기존_작업을_취소하고_가장_빠른_마감을_다시_예약한다() {
+        Auction first = auction(1, LocalDateTime.of(2026, 7, 29, 10, 10));
+        Auction changed = auction(2, LocalDateTime.of(2026, 7, 29, 10, 5));
+        when(auctionRepository.findNextCloseTarget(
+                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
+                PageRequest.of(0, 1)
+        )).thenReturn(List.of(first), List.of(changed));
+
+        scheduler.scheduleNext("initial");
+        CompletedScheduledFuture firstFuture = taskScheduler.scheduledFuture;
+        scheduler.reschedule(new AuctionCloseScheduleChangedEvent(
+                changed.getId(),
+                changed.getCloseTime(),
+                "auction_created"
+        ));
+
+        assertThat(firstFuture.cancelled).isTrue();
+        assertThat(taskScheduler.scheduledInstant)
+                .isEqualTo(changed.getCloseTime().atZone(clock.getZone()).toInstant());
+    }
+
+    @Test
+    void 정시_마감이_실패해도_다음_마감_대상을_예약한다() {
+        Auction failedTarget = auction(1, LocalDateTime.of(2026, 7, 29, 10, 0));
+        Auction nextTarget = auction(2, LocalDateTime.of(2026, 7, 29, 10, 5));
+        when(auctionRepository.findNextCloseTarget(
+                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
+                PageRequest.of(0, 1)
+        )).thenReturn(List.of(failedTarget), List.of(nextTarget));
+        when(auctionService.closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100))
+                .thenThrow(new IllegalStateException("close failed"));
+
+        scheduler.scheduleNext("initial");
+
+        assertThatThrownBy(taskScheduler.scheduledTask::run)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("close failed");
+        verify(auctionRepository, times(2)).findNextCloseTarget(
+                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
+                PageRequest.of(0, 1)
+        );
+        assertThat(taskScheduler.scheduledInstant)
+                .isEqualTo(nextTarget.getCloseTime().atZone(clock.getZone()).toInstant());
+    }
+
+    @Test
+    void 다음_마감_대상이_없으면_기존_예약을_취소한다() {
+        Auction auction = auction(1, LocalDateTime.of(2026, 7, 29, 10, 5));
+        when(auctionRepository.findNextCloseTarget(
+                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
+                PageRequest.of(0, 1)
+        )).thenReturn(List.of(auction), List.of());
+
+        scheduler.scheduleNext("initial");
+        CompletedScheduledFuture scheduledFuture = taskScheduler.scheduledFuture;
+        scheduler.scheduleNext("empty");
+
+        assertThat(scheduledFuture.cancelled).isTrue();
+    }
+
     private Auction auction(Integer id, LocalDateTime closeTime) {
         Auction auction = Auction.builder()
                 .sellerId(1)
@@ -90,6 +153,7 @@ class AuctionDeadlineSchedulerTest {
     private static class CapturingTaskScheduler implements TaskScheduler {
         private Runnable scheduledTask;
         private Instant scheduledInstant;
+        private CompletedScheduledFuture scheduledFuture;
 
         @Override
         public ScheduledFuture<?> schedule(Runnable task, Trigger trigger) {
@@ -100,7 +164,8 @@ class AuctionDeadlineSchedulerTest {
         public ScheduledFuture<?> schedule(Runnable task, Instant startTime) {
             this.scheduledTask = task;
             this.scheduledInstant = startTime;
-            return new CompletedScheduledFuture();
+            this.scheduledFuture = new CompletedScheduledFuture();
+            return scheduledFuture;
         }
 
         @Override
@@ -125,6 +190,8 @@ class AuctionDeadlineSchedulerTest {
     }
 
     private static class CompletedScheduledFuture implements ScheduledFuture<Object> {
+        private boolean cancelled;
+
         @Override
         public long getDelay(TimeUnit unit) {
             return 0;
@@ -137,12 +204,13 @@ class AuctionDeadlineSchedulerTest {
 
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
+            cancelled = true;
             return true;
         }
 
         @Override
         public boolean isCancelled() {
-            return false;
+            return cancelled;
         }
 
         @Override

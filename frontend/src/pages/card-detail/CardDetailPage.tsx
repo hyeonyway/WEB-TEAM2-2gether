@@ -1,6 +1,7 @@
 import {useQuery} from '@tanstack/react-query';
 import {Bookmark,Share2} from 'lucide-react';
-import {Header} from '../../components';
+import {Link} from 'react-router-dom';
+import {Header,showToast} from '../../components';
 import {cardQueries} from '../../queries/auctionQueries';
 import {useWishlist} from '../../hooks/useWishlist';
 import PriceChangeAreaChart from './PriceChangeAreaChart';
@@ -10,18 +11,27 @@ const money=(value:number)=>`${value.toLocaleString()}원`;
 export default function CardPriceDetailPage(){
   const cardId=Number(window.location.pathname.split('/').filter(Boolean).pop());
   const{data:card,isPending,error}=useQuery(cardQueries.detail(cardId));
-  const{favoriteCardIds,toggleFavorite,isPending:wishlistPending}=useWishlist();
+  const{isFavorite,toggleFavorite,isPending:wishlistPending}=useWishlist();
   if(isPending)return <CardPriceDetailSkeleton/>;
   if(error||!card)return <div className="detail-page price-detail-page"><Header/><main><p className="form-error">카드 시세를 불러오지 못했습니다.</p></main></div>;
 
   const image=card.image_url||'/assets/pikachu-promo-card.png';
-  const saved=favoriteCardIds.includes(card.id);
+  const saved=isFavorite(card.id);
   const priceRange=`${money(card.low_price)} - ${money(card.high_price)}`;
+  const copyCurrentLink=async()=>{
+    try{
+      if(!navigator.clipboard)throw new Error('Clipboard API is unavailable');
+      await navigator.clipboard.writeText(window.location.href);
+      showToast('시세 상세 링크를 복사했습니다.');
+    }catch{
+      showToast('링크를 복사하지 못했습니다.');
+    }
+  };
   return <div className="detail-page price-detail-page">
     <Header/>
     <div className="detail-layout">
       <section className="product-visual">
-        <img className="product-image" src={image} alt={card.name}/>
+        <div className="product-image-viewport"><img className="product-image" src={image} alt={card.name}/></div>
         <div className="thumbs"><img src={image} alt="선택된 카드 이미지"/></div>
       </section>
       <section className="product-info">
@@ -34,8 +44,8 @@ export default function CardPriceDetailPage(){
         </div>
         <div className="buy-row price-buy-row">
           <button className={'icon-action '+(saved?'saved':'')} disabled={wishlistPending} onClick={()=>toggleFavorite(card.id)} aria-label="관심 카드"><Bookmark/><small>{card.wishlist_count}</small></button>
-          <button className="icon-action" aria-label="공유" onClick={()=>navigator.clipboard?.writeText(window.location.href)}><Share2/><small>공유</small></button>
-          <a className="buy detail-bid-button" href={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</a>
+          <button type="button" className="icon-action" aria-label="공유" onClick={()=>void copyCurrentLink()}><Share2/><small>공유</small></button>
+          <Link className="buy detail-bid-button" to={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</Link>
         </div>
         <section className="detail-price-summary">
           <div className="detail-price-range"><span>최근 시세 범위</span><strong>{priceRange}</strong><em>{card.change_rate>=0?'+':''}{card.change_rate.toFixed(1)}%</em></div>
