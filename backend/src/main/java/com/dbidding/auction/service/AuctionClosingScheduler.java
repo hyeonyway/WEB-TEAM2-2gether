@@ -22,7 +22,10 @@ public class AuctionClosingScheduler {
     private final AuctionService auctionService;
     private final Clock clock;
 
-    @Scheduled(fixedDelayString = "${auction.closing.scheduler.fixed-delay-ms:10000}")
+    @Scheduled(
+            fixedDelayString = "${auction.closing.scheduler.fixed-delay-ms:10000}",
+            scheduler = "auctionBackupTaskScheduler"
+    )
     public void closeDueAuctions() {
         LocalDateTime now = LocalDateTime.now(clock);
         log.debug("event=auction.close.backup_scheduler.started now={} batchSize={}", now, CLOSE_BATCH_SIZE);

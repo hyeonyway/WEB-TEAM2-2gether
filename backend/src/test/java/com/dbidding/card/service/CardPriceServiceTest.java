@@ -4,6 +4,7 @@ import com.dbidding.auction.adapter.CardAuctionAdapter;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
+import com.dbidding.global.config.TimeConfig;
 import com.dbidding.statistic.domain.ItemStatistic;
 import com.dbidding.statistic.domain.ItemDailyStatistic;
 import com.dbidding.card.repository.CardMetadataRepository;
@@ -28,7 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         CardPriceService.class,
         CardStatisticAdapter.class,
         CardAuctionAdapter.class,
-        WishlistCardAdapter.class
+        WishlistCardAdapter.class,
+        TimeConfig.class
 })
 class CardPriceServiceTest {
     @Autowired CardPriceService cardPriceService;
@@ -114,9 +116,14 @@ class CardPriceServiceTest {
                     bid_count, bid_price_unit, is_hyped, version
                 ) values
                     (99001, :itemId, '진행 경매', '테스트', 1000, 1000, 2000, 0,
-                     'OPEN', now(), now(), now(), 0, 1000, false, 1),
+                     'OPEN', now(), date_add(now(), interval 1 hour),
+                     date_add(now(), interval 1 hour), 0, 1000, false, 1),
                     (99001, :itemId, '마감 임박 경매', '테스트', 1000, 1000, 2000, 0,
-                     'ENDING', now(), now(), now(), 0, 1000, false, 1),
+                     'ENDING', now(), date_add(now(), interval 1 hour),
+                     date_add(now(), interval 1 hour), 0, 1000, false, 1),
+                    (99001, :itemId, '상태 갱신이 지연된 경매', '테스트', 1000, 1000, 2000, 0,
+                     'OPEN', date_sub(now(), interval 2 hour), date_sub(now(), interval 1 hour),
+                     date_sub(now(), interval 1 hour), 0, 1000, false, 1),
                     (99001, :itemId, '종료 경매', '테스트', 1000, 1000, 2000, 0,
                      'ENDED', now(), now(), now(), 0, 1000, false, 1)
                 """).setParameter("itemId", card.getId()).executeUpdate();

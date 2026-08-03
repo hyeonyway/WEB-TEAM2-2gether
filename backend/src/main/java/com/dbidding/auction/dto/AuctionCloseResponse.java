@@ -1,15 +1,16 @@
 package com.dbidding.auction.dto;
 
 import com.dbidding.auction.domain.AuctionStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 
 public record AuctionCloseResponse(
-        Integer auctionId,
+        @JsonProperty("auction_id") Integer auctionId,
         AuctionStatus status,
-        Integer winnerId,
-        Long winningBidId,
-        Long winningPrice,
-        LocalDateTime closedAt,
+        @JsonProperty("winner_id") Integer winnerId,
+        @JsonProperty("winning_bid_id") Long winningBidId,
+        @JsonProperty("winning_price") Long winningPrice,
+        @JsonProperty("closed_at") LocalDateTime closedAt,
         Long version
 ) {
 }

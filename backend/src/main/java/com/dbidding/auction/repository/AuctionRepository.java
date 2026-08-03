@@ -42,7 +42,11 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
 
     Optional<Auction> findBySellerIdAndCreateIdempotencyKey(Integer sellerId, String createIdempotencyKey);
 
-    long countByItemIdAndStatusIn(Integer itemId, Collection<AuctionStatus> statuses);
+    long countByItemIdAndStatusInAndCloseTimeAfter(
+            Integer itemId,
+            Collection<AuctionStatus> statuses,
+            LocalDateTime closeTime
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Auction a where a.id = :id")
