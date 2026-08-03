@@ -1,23 +1,13 @@
 package com.dbidding.auction.port;
 
-import java.time.LocalDateTime;
+import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.auction.event.AuctionOpenedEvent;
+import com.dbidding.auction.event.BidPlacedEvent;
 
 public interface AuctionEventPort {
-    void publish(AuctionEvent event);
+    void publishOpened(AuctionOpenedEvent event);
 
-    record AuctionEvent(
-            AuctionEventType type,
-            Integer auctionId,
-            Integer actorId,
-            Long amount,
-            LocalDateTime occurredAt
-    ) {
-    }
+    void publishBidPlaced(BidPlacedEvent event);
 
-    enum AuctionEventType {
-        AUCTION_OPENED,
-        BID_PLACED,
-        BID_OUTBID,
-        AUCTION_ENDED
-    }
+    void publishClosed(AuctionClosedEvent event);
 }

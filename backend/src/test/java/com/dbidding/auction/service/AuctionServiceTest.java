@@ -3,6 +3,7 @@ package com.dbidding.auction.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -17,6 +18,8 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.dto.BidCreateRequest;
+import com.dbidding.auction.event.AuctionOpenedEvent;
+import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
@@ -147,7 +150,11 @@ class AuctionServiceTest {
         verify(auctionRepository, times(1)).save(any(Auction.class));
         verify(auctionImageRepository, times(1)).saveAll(any());
         verify(auctionCardStatisticPort, times(1)).recordAuctionOpened(any(), any());
-        verify(auctionEventPort, times(1)).publish(any());
+        verify(auctionEventPort, times(1)).publishOpened(any(AuctionOpenedEvent.class));
+        verify(eventPublisher, times(1)).publishEvent(argThat((Object event) ->
+                event instanceof AuctionCloseScheduleChangedEvent changed
+                        && changed.reason().equals("auction_created")
+                        && changed.closeTime().equals(LocalDateTime.now(clock).plusHours(12))));
     }
 
     @Test
@@ -214,7 +221,7 @@ class AuctionServiceTest {
         verify(bidRepository).save(any(Bid.class));
         verify(auctionRepository).flush();
         verify(auctionCardStatisticPort).recordBid(eq(1), any());
-        verify(auctionEventPort).publish(any());
+        verify(auctionEventPort).publishBidPlaced(any(BidPlacedEvent.class));
     }
 
     @Test
@@ -233,7 +240,7 @@ class AuctionServiceTest {
         verify(auctionRepository, times(2)).findByIdForUpdate(1);
         verify(walletPort, times(1)).holdBidAmount(1, 1, 11_000L);
         verify(bidRepository, times(1)).save(any(Bid.class));
-        verify(auctionEventPort, times(1)).publish(any());
+        verify(auctionEventPort, times(1)).publishBidPlaced(any(BidPlacedEvent.class));
     }
 
     @Test
@@ -275,7 +282,9 @@ class AuctionServiceTest {
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         verify(walletPort).holdBidAmount(1, 1, 12_000L);
         verify(walletPort).releaseBidHold(2, 1);
-        verify(auctionEventPort, times(2)).publish(any());
+        verify(auctionEventPort).publishBidPlaced(argThat(event ->
+                event.previousBidderId().equals(2)
+        ));
     }
 
     @Test
@@ -291,6 +300,7 @@ class AuctionServiceTest {
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         verify(walletPort).holdBidAmount(1, 1, 12_000L);
         verify(walletPort, never()).releaseBidHold(any(), any());
+        verify(auctionEventPort).publishBidPlaced(any(BidPlacedEvent.class));
     }
 
     @Test

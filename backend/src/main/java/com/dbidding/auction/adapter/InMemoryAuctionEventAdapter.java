@@ -1,5 +1,8 @@
 package com.dbidding.auction.adapter;
 
+import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.auction.event.AuctionOpenedEvent;
+import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.port.AuctionEventPort;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -9,18 +12,40 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("auction-mock")
 public class InMemoryAuctionEventAdapter implements AuctionEventPort {
-    private final List<AuctionEvent> events = new CopyOnWriteArrayList<>();
+    private final List<AuctionOpenedEvent> openedEvents = new CopyOnWriteArrayList<>();
+    private final List<BidPlacedEvent> bidPlacedEvents = new CopyOnWriteArrayList<>();
+    private final List<AuctionClosedEvent> closedEvents = new CopyOnWriteArrayList<>();
 
     @Override
-    public void publish(AuctionEvent event) {
-        events.add(event);
+    public void publishOpened(AuctionOpenedEvent event) {
+        openedEvents.add(event);
     }
 
-    public List<AuctionEvent> publishedEvents() {
-        return List.copyOf(events);
+    @Override
+    public void publishBidPlaced(BidPlacedEvent event) {
+        bidPlacedEvents.add(event);
+    }
+
+    @Override
+    public void publishClosed(AuctionClosedEvent event) {
+        closedEvents.add(event);
+    }
+
+    public List<AuctionOpenedEvent> publishedOpenedEvents() {
+        return List.copyOf(openedEvents);
+    }
+
+    public List<BidPlacedEvent> publishedBidPlacedEvents() {
+        return List.copyOf(bidPlacedEvents);
+    }
+
+    public List<AuctionClosedEvent> publishedClosedEvents() {
+        return List.copyOf(closedEvents);
     }
 
     public void clear() {
-        events.clear();
+        openedEvents.clear();
+        bidPlacedEvents.clear();
+        closedEvents.clear();
     }
 }

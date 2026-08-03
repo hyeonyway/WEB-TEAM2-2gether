@@ -15,6 +15,9 @@ import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.dto.AuctionCreateResponse;
 import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.dto.BidResponses;
+import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.auction.event.AuctionOpenedEvent;
+import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
@@ -76,7 +79,7 @@ public class AuctionCommandService {
             return idempotentResponse.get();
         }
 
-        auctionCardPort.getCardSnapshot(request.itemId());
+        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(request.itemId());
         List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
         validateImages(images);
 
@@ -104,11 +107,21 @@ public class AuctionCommandService {
                 .toList();
         auctionImageRepository.saveAll(auctionImages);
         auctionCardStatisticPort.recordAuctionOpened(savedAuction.getItemId(), now);
-        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
-                AuctionEventPort.AuctionEventType.AUCTION_OPENED,
+        auctionEventPort.publishOpened(new AuctionOpenedEvent(
                 savedAuction.getId(),
-                userId,
-                request.startPrice() + request.shippingFee(),
+                card.itemId(),
+                card.name(),
+                card.psaGrade(),
+                card.language(),
+                card.thumbnailUrl(),
+                savedAuction.getSellerId(),
+                savedAuction.getStartPrice(),
+                savedAuction.getCurrentPrice(),
+                savedAuction.getBidPriceUnit(),
+                savedAuction.getBidCount(),
+                savedAuction.getCloseTime(),
+                savedAuction.getStatus(),
+                savedAuction.getVersion(),
                 now
         ));
 
@@ -146,7 +159,7 @@ public class AuctionCommandService {
         LocalDateTime previousCloseTime = auction.getCloseTime();
         boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
         WalletPort.WalletSnapshot wallet = holdBidAmount(userId, auction.getId(), request.price());
-        outbidPreviousLeadingBid(previousLeadingBid, userId, auction.getId(), bidAt);
+        outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
 
         Bid currentLeadingBid = bidRepository.save(Bid.leading(
                 userId,
@@ -157,7 +170,7 @@ public class AuctionCommandService {
                 requestHash
         ));
         auctionCardStatisticPort.recordBid(auction.getItemId(), bidAt);
-        publishBidPlaced(auction, userId, request.price(), bidAt);
+        publishBidPlaced(auction, userId, auction.getItemId(), previousLeadingBid, bidAt);
         log.info(
                 "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
                 auction.getId(), userId, currentLeadingBid.getId(), request.price(), auction.getCurrentPrice(),
@@ -315,30 +328,23 @@ public class AuctionCommandService {
     private void outbidPreviousLeadingBid(
             Bid previousLeadingBid,
             Integer currentBidderId,
-            Integer auctionId,
+            Auction auction,
             LocalDateTime occurredAt
     ) {
         if (previousLeadingBid == null) {
             return;
         }
         previousLeadingBid.markOutbid();
-        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
-                AuctionEventPort.AuctionEventType.BID_OUTBID,
-                auctionId,
-                previousLeadingBid.getBidderId(),
-                previousLeadingBid.getBidPrice(),
-                occurredAt
-        ));
         if (!previousLeadingBid.getBidderId().equals(currentBidderId)) {
-            walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auctionId);
+            walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auction.getId());
             log.info(
                     "event=auction.bid.previous_hold.released auctionId={} previousBidId={} previousBidderId={} previousBidPrice={} currentBidderId={}",
-                    auctionId, previousLeadingBid.getId(), previousLeadingBid.getBidderId(),
+                    auction.getId(), previousLeadingBid.getId(), previousLeadingBid.getBidderId(),
                     previousLeadingBid.getBidPrice(), currentBidderId
             );
         } else {
             log.debug("event=auction.bid.previous_hold.kept auctionId={} previousBidId={} bidderId={}",
-                    auctionId, previousLeadingBid.getId(), currentBidderId);
+                    auction.getId(), previousLeadingBid.getId(), currentBidderId);
         }
     }
 
@@ -356,13 +362,7 @@ public class AuctionCommandService {
         if (winningBid.isEmpty()) {
             auction.closeWithoutTrade(closedAt);
             auctionCardStatisticPort.recordAuctionClosedWithoutTrade(auction.getItemId(), closedAt);
-            auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
-                    AuctionEventPort.AuctionEventType.AUCTION_ENDED,
-                    auction.getId(),
-                    null,
-                    null,
-                    closedAt
-            ));
+            publishAuctionClosed(auction, null, closedAt);
             log.info("event=auction.closed.without_trade auctionId={} itemId={} sellerId={} closedAt={} status={} bidCount={}",
                     auction.getId(), auction.getItemId(), auction.getSellerId(), closedAt,
                     auction.getStatus(), auction.getBidCount());
@@ -374,13 +374,7 @@ public class AuctionCommandService {
         auction.closeWithWinningBid(winner, closedAt);
         walletPort.confirmWinningBid(winner.getBidderId(), auction.getId(), winner.getBidPrice());
         auctionCardStatisticPort.recordAuctionCompleted(auction.getItemId(), winner.getBidPrice(), closedAt);
-        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
-                AuctionEventPort.AuctionEventType.AUCTION_ENDED,
-                auction.getId(),
-                winner.getBidderId(),
-                winner.getBidPrice(),
-                closedAt
-        ));
+        publishAuctionClosed(auction, winner, closedAt);
         log.info(
                 "event=auction.closed.with_winner auctionId={} itemId={} sellerId={} winnerId={} winningBidId={} winningPrice={} closedAt={} status={} bidCount={}",
                 auction.getId(), auction.getItemId(), auction.getSellerId(), winner.getBidderId(), winner.getId(),
@@ -389,12 +383,51 @@ public class AuctionCommandService {
         return closeResponse(auction, winner);
     }
 
-    private void publishBidPlaced(Auction auction, Integer bidderId, Long bidPrice, LocalDateTime occurredAt) {
-        auctionEventPort.publish(new AuctionEventPort.AuctionEvent(
-                AuctionEventPort.AuctionEventType.BID_PLACED,
+    private void publishBidPlaced(
+            Auction auction,
+            Integer bidderId,
+            Integer itemId,
+            Bid previousLeadingBid,
+            LocalDateTime occurredAt
+    ) {
+        auctionEventPort.publishBidPlaced(new BidPlacedEvent(
                 auction.getId(),
+                itemId,
                 bidderId,
-                bidPrice,
+                previousLeadingBid == null ? null : previousLeadingBid.getBidderId(),
+                auction.getStartPrice(),
+                auction.getCurrentPrice(),
+                auction.getBidPriceUnit(),
+                auction.getBidCount(),
+                auction.getCloseTime(),
+                auction.getStatus(),
+                auction.getVersion(),
+                occurredAt
+        ));
+    }
+
+    private void publishAuctionClosed(Auction auction, Bid winningBid, LocalDateTime occurredAt) {
+        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(auction.getItemId());
+        Integer winnerId = winningBid == null ? null : winningBid.getBidderId();
+        Long winningPrice = winningBid == null ? null : winningBid.getBidPrice();
+
+        auctionEventPort.publishClosed(new AuctionClosedEvent(
+                auction.getId(),
+                card.itemId(),
+                card.name(),
+                card.psaGrade(),
+                card.language(),
+                card.thumbnailUrl(),
+                winnerId,
+                auction.getSellerId(),
+                auction.getStartPrice(),
+                auction.getCurrentPrice(),
+                winningPrice,
+                auction.getBidPriceUnit(),
+                auction.getBidCount(),
+                auction.getCloseTime(),
+                auction.getStatus(),
+                auction.getVersion(),
                 occurredAt
         ));
     }
