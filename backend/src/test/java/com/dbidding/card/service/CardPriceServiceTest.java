@@ -62,6 +62,21 @@ class CardPriceServiceTest {
     }
 
     @Test
+    void PSA_등급_필터는_접두사가_포함된_저장값도_조회한다() {
+        CardSet set = new CardSet("PSA 필터", "PSA-FILTER");
+        entityManager.persist(set);
+        cardRepository.save(new CardMetadata(
+                set, "PSA 10 카드", "JP", "PSA 10", "gold", null));
+        cardRepository.save(new CardMetadata(
+                set, "PSA 9 카드", "JP", "PSA 9", "gold", null));
+
+        var response = cardPriceService.getCards("", "10", CardSort.REGISTERED, 0, 20);
+
+        assertThat(response.content()).extracting("name")
+                .containsExactly("PSA 10 카드");
+    }
+
+    @Test
     void 상세는_최근_30일_통계와_요약값을_반환한다() {
         CardSet set = new CardSet("151", "SV2A");
         entityManager.persist(set);
