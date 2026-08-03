@@ -133,7 +133,7 @@ Wallet 규칙을 재구현하지 않는다.
 - Implements: `void WalletProvisioningPort.createFor(Integer userId)`
 - Preserves: Wallet 생성 실패 시 Account 저장까지 롤백되는 회원가입 원자성
 
-- [ ] **Step 1: Account 패키지의 실패 테스트를 작성한다**
+- [x] **Step 1: Account 패키지의 실패 테스트를 작성한다**
 
 `backend/src/test/java/com/dbidding/account/adapter/WalletProvisioningAdapterTest.java`에
 다음 테스트를 작성한다. 아직 Account 패키지에 Adapter가 없으므로 컴파일이
@@ -170,7 +170,7 @@ class WalletProvisioningAdapterTest {
 }
 ```
 
-- [ ] **Step 2: 새 패키지의 테스트가 실패하는지 확인한다**
+- [x] **Step 2: 새 패키지의 테스트가 실패하는지 확인한다**
 
 ```bash
 cd backend
@@ -180,7 +180,7 @@ cd backend
 Expected: `com.dbidding.account.adapter.WalletProvisioningAdapter`가 없어 test
 compile 실패.
 
-- [ ] **Step 3: Account 소유 Adapter를 최소 구현한다**
+- [x] **Step 3: Account 소유 Adapter를 최소 구현한다**
 
 `backend/src/main/java/com/dbidding/account/adapter/WalletProvisioningAdapter.java`를
 다음과 같이 작성한다.
@@ -208,7 +208,7 @@ public class WalletProvisioningAdapter implements WalletProvisioningPort {
 }
 ```
 
-- [ ] **Step 4: Wallet 소유의 기존 Adapter와 테스트를 삭제한다**
+- [x] **Step 4: Wallet 소유의 기존 Adapter와 테스트를 삭제한다**
 
 다음 두 파일을 삭제해 같은 Port 구현 Bean과 중복 테스트가 남지 않게 한다.
 
@@ -217,7 +217,7 @@ backend/src/main/java/com/dbidding/wallet/adapter/WalletProvisioningAdapter.java
 backend/src/test/java/com/dbidding/wallet/adapter/WalletProvisioningAdapterTest.java
 ```
 
-- [ ] **Step 5: Adapter 위임과 회원가입 원자성을 검증한다**
+- [x] **Step 5: Adapter 위임과 회원가입 원자성을 검증한다**
 
 ```bash
 ./gradlew test \
@@ -230,7 +230,7 @@ backend/src/test/java/com/dbidding/wallet/adapter/WalletProvisioningAdapterTest.
 Expected: Adapter 위임, Account·Wallet 동시 생성과 Wallet 실패 시 Account 롤백
 테스트 모두 PASS.
 
-- [ ] **Step 6: Account Adapter 이동을 커밋한다**
+- [x] **Step 6: Account Adapter 이동을 커밋한다**
 
 ```bash
 git add \
@@ -259,7 +259,7 @@ git commit -m "refactor: Wallet 생성 adapter를 Account로 이동"
 - Produces: `WalletPort.WalletSnapshot(long availableBalance, long frozenBalance)`
 - Preserves: `@Profile("!auction-mock")` 실제 구현과 `@Profile("auction-mock")` Fake 구현의 상호 배타성
 
-- [ ] **Step 1: Auction 패키지의 실패 테스트를 작성한다**
+- [x] **Step 1: Auction 패키지의 실패 테스트를 작성한다**
 
 기존 `AuctionWalletAdapterTest`의 네 테스트를
 `backend/src/test/java/com/dbidding/auction/adapter/AuctionWalletAdapterTest.java`로
@@ -278,7 +278,7 @@ releaseBidHold()       → WalletService.release()
 confirmWinningBid()    → WalletService.capture()
 ```
 
-- [ ] **Step 2: 새 패키지의 테스트가 실패하는지 확인한다**
+- [x] **Step 2: 새 패키지의 테스트가 실패하는지 확인한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.auction.adapter.AuctionWalletAdapterTest
@@ -287,7 +287,7 @@ confirmWinningBid()    → WalletService.capture()
 Expected: `com.dbidding.auction.adapter.AuctionWalletAdapter`가 없어 test compile
 실패.
 
-- [ ] **Step 3: Auction 소유 Adapter를 구현한다**
+- [x] **Step 3: Auction 소유 Adapter를 구현한다**
 
 기존 구현을
 `backend/src/main/java/com/dbidding/auction/adapter/AuctionWalletAdapter.java`로
@@ -314,14 +314,14 @@ public class AuctionWalletAdapter implements WalletPort {
 `WalletPort.WalletSnapshot`으로 변환하며 total balance를 Auction 계약에 새로
 노출하지 않는다.
 
-- [ ] **Step 4: Wallet 소유의 기존 Adapter와 테스트를 삭제한다**
+- [x] **Step 4: Wallet 소유의 기존 Adapter와 테스트를 삭제한다**
 
 ```text
 backend/src/main/java/com/dbidding/wallet/adapter/AuctionWalletAdapter.java
 backend/src/test/java/com/dbidding/wallet/adapter/AuctionWalletAdapterTest.java
 ```
 
-- [ ] **Step 5: 실제·Mock Adapter와 Auction 호출 회귀를 검증한다**
+- [x] **Step 5: 실제·Mock Adapter와 Auction 호출 회귀를 검증한다**
 
 ```bash
 ./gradlew test \
@@ -338,7 +338,7 @@ backend/src/test/java/com/dbidding/wallet/adapter/AuctionWalletAdapterTest.java
 Expected: Adapter의 네 위임·변환 테스트와 Auction 입찰·마감·조회, Wallet
 hold·release·capture 회귀 테스트 모두 PASS.
 
-- [ ] **Step 6: Auction Adapter 이동을 커밋한다**
+- [x] **Step 6: Auction Adapter 이동을 커밋한다**
 
 ```bash
 git add \
@@ -361,7 +361,7 @@ git commit -m "refactor: Wallet 연동 adapter를 Auction으로 이동"
 - Verifies: Wallet main/test 소스에서 `com.dbidding.account`와 `com.dbidding.auction` 의존 제거
 - Preserves: 전체 Backend HTTP API, Spring Bean 구성과 테스트 계약
 
-- [ ] **Step 1: Wallet의 역방향 의존이 제거됐는지 확인한다**
+- [x] **Step 1: Wallet의 역방향 의존이 제거됐는지 확인한다**
 
 ```bash
 rg -n \
@@ -373,7 +373,7 @@ rg -n \
 Expected: 출력 없음, exit code 1. `rg`의 exit code 1은 검색 결과가 없다는
 뜻이므로 이 검증에서는 성공이다.
 
-- [ ] **Step 2: Adapter와 Port 위치를 확인한다**
+- [x] **Step 2: Adapter와 Port 위치를 확인한다**
 
 ```bash
 test -f backend/src/main/java/com/dbidding/account/port/WalletProvisioningPort.java
@@ -387,7 +387,7 @@ Expected: 모든 명령 exit code 0. Wallet의 `adapter` 디렉터리에 다른 
 추가되어 있다면 마지막 검증은 디렉터리 부재 대신 두 이전 Adapter 파일의 부재
 검증으로 바꾼다.
 
-- [ ] **Step 3: 문서 인덱스의 현재 구조를 갱신한다**
+- [x] **Step 3: 문서 인덱스의 현재 구조를 갱신한다**
 
 `docs/hyeonmoon/wallet/README.md`에는 6번 단계로 이 문서를 연결하고 완료 후
 상태를 `완료`로 바꾼다. `docs/hyeonmoon/README.md`의 패키지 경계 설명은
@@ -403,7 +403,7 @@ Provider 도메인은 자신의 범용 Service, Entity, Repository를 소유한�
 `wallet/5-auction-wallet-integration.md`는 당시 구현 판단을 남기는 역사 문서로
 유지하며, 현재 구조는 이 문서가 대체한다고 각 문서의 본문을 다시 쓰지 않는다.
 
-- [ ] **Step 4: 전체 Backend 테스트를 실행한다**
+- [x] **Step 4: 전체 Backend 테스트를 실행한다**
 
 ```bash
 ./gradlew clean test
@@ -412,7 +412,7 @@ Provider 도메인은 자신의 범용 Service, Entity, Repository를 소유한�
 Expected: 모든 Backend 테스트 PASS. 특정 test task가 `NO-SOURCE`라면 해당
 사실을 별도로 보고하고 테스트 통과로 표현하지 않는다.
 
-- [ ] **Step 5: 문서와 최종 검증을 커밋한다**
+- [x] **Step 5: 문서와 최종 검증을 커밋한다**
 
 ```bash
 git add \
