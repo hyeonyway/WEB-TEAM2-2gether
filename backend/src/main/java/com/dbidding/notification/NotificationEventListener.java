@@ -1,9 +1,10 @@
 package com.dbidding.notification;
 
+import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.auction.event.AuctionOpenedEvent;
+import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.notification.dto.NotificationResponse;
-import com.dbidding.notification.event.AuctionClosedEvent;
-import com.dbidding.notification.event.AuctionCreatedEvent;
-import com.dbidding.notification.event.BidPlacedEvent;
+import com.dbidding.notification.port.CardNameFinder;
 import com.dbidding.notification.port.WishlistUserFinder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -16,14 +17,15 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class NotificationEventListener {
 
     private final WishlistUserFinder wishlistUserFinder;
+    private final CardNameFinder cardNameFinder;
     private final NotificationService notificationService;
     private final NotificationSseConnectionManager notificationSseConnectionManager;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleAuctionCreated(AuctionCreatedEvent event) {
+    public void handleAuctionOpened(AuctionOpenedEvent event) {
         String message = event.cardName() + " 카드의 경매가 등록되었습니다.";
-        wishlistUserFinder.findUserIdsByCardId(event.cardId())
+        wishlistUserFinder.findUserIdsByCardId(event.itemId())
                 .forEach(userId -> notifyAndPush(userId, event.auctionId(), message));
     }
 
@@ -33,7 +35,8 @@ public class NotificationEventListener {
         if (event.previousBidderId() == null) {
             return;
         }
-        String message = event.cardName() + " 카드 경매에 상회 입찰이 발생했습니다.";
+        String cardName = cardNameFinder.findNameById(event.itemId());
+        String message = cardName + " 카드 경매에 " + "%,d".formatted(event.currentPrice()) + "원에 상회 입찰이 발생했습니다.";
         notifyAndPush(event.previousBidderId(), event.auctionId(), message);
     }
 
