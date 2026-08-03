@@ -31,7 +31,7 @@ export default function CardPriceDetailPage(){
     <Header/>
     <div className="detail-layout">
       <section className="product-visual">
-        <img className="product-image" src={image} alt={card.name}/>
+        <div className="product-image-viewport"><img className="product-image" src={image} alt={card.name}/></div>
         <div className="thumbs"><img src={image} alt="선택된 카드 이미지"/></div>
       </section>
       <section className="product-info">
