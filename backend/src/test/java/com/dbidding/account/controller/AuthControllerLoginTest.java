@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -12,32 +13,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.dbidding.account.config.JwtProperties;
+import com.dbidding.account.authentication.AuthenticatedAccount;
+import com.dbidding.account.authentication.AuthenticationStrategy;
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.cookie.RefreshCookieFactory;
+import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.dto.LoginRequest;
 import com.dbidding.account.dto.LoginResponse;
 import com.dbidding.account.exception.InvalidCredentialsException;
 import com.dbidding.account.service.AuthService;
-import com.dbidding.account.service.LoginResult;
 
 @WebMvcTest(AuthController.class)
-@Import(RefreshCookieFactory.class)
-@EnableConfigurationProperties(JwtProperties.class)
-@TestPropertySource(properties = {
-	"app.jwt.secret=0123456789abcdef0123456789abcdef",
-	"app.jwt.access-token-seconds=1800",
-	"app.jwt.refresh-token-seconds=604800",
-	"app.jwt.secure-cookie=true"
-})
 class AuthControllerLoginTest {
 
 	@Autowired
@@ -46,12 +40,31 @@ class AuthControllerLoginTest {
 	@MockitoBean
 	private AuthService authService;
 
+	@MockitoBean
+	private CredentialAuthenticationService credentialAuthenticationService;
+
+	@MockitoBean
+	private AuthenticationStrategy authenticationStrategy;
+
+	@MockitoBean
+	private RefreshCookieFactory refreshCookieFactory;
+
 	@Test
 	void 로그인하면_access만_응답하고_refresh는_host_only_cookie로_전달한다() throws Exception {
-		given(authService.login(any(LoginRequest.class))).willReturn(new LoginResult(
-			new LoginResponse("access-token"),
-			"refresh-token"
-		));
+		AuthenticatedAccount account = new AuthenticatedAccount(1, AccountRole.USER);
+		ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", "refresh-token")
+			.httpOnly(true)
+			.secure(true)
+			.path("/api/auth")
+			.maxAge(604800)
+			.sameSite("Strict")
+			.build();
+		given(credentialAuthenticationService.authenticate(any(), any())).willReturn(account);
+		doReturn(
+			ResponseEntity.ok()
+				.header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+				.body(new LoginResponse("access-token"))
+		).when(authenticationStrategy).establish(any(), any());
 
 		mockMvc.perform(post("/api/auth/login")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -70,7 +83,7 @@ class AuthControllerLoginTest {
 
 	@Test
 	void 로그인_정보가_틀리면_401이고_refresh_cookie를_발급하지_않는다() throws Exception {
-		given(authService.login(any(LoginRequest.class)))
+		given(credentialAuthenticationService.authenticate(any(), any()))
 			.willThrow(new InvalidCredentialsException());
 
 		mockMvc.perform(post("/api/auth/login")

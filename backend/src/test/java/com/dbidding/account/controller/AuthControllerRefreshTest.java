@@ -21,6 +21,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.dbidding.account.config.JwtProperties;
+import com.dbidding.account.authentication.AuthenticationStrategy;
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.cookie.RefreshCookieFactory;
 import com.dbidding.account.dto.RefreshResponse;
 import com.dbidding.account.exception.InvalidTokenException;
@@ -45,6 +47,12 @@ class AuthControllerRefreshTest {
 
 	@MockitoBean
 	private AuthService authService;
+
+	@MockitoBean
+	private CredentialAuthenticationService credentialAuthenticationService;
+
+	@MockitoBean
+	private AuthenticationStrategy authenticationStrategy;
 
 	@Test
 	void refresh_cookie가_없으면_401과_에러_코드를_반환한다() throws Exception {

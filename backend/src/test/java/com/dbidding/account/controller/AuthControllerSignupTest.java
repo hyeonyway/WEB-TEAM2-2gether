@@ -16,6 +16,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.dbidding.account.cookie.RefreshCookieFactory;
+import com.dbidding.account.authentication.AuthenticationStrategy;
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
@@ -33,6 +35,12 @@ class AuthControllerSignupTest {
 
 	@MockitoBean
 	private RefreshCookieFactory refreshCookieFactory;
+
+	@MockitoBean
+	private CredentialAuthenticationService credentialAuthenticationService;
+
+	@MockitoBean
+	private AuthenticationStrategy authenticationStrategy;
 
 	@Test
 	void 회원가입하면_201과_공개된_사용자_정보만_반환한다() throws Exception {

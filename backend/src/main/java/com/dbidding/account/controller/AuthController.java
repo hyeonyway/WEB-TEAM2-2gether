@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dbidding.account.authentication.AuthenticatedAccount;
+import com.dbidding.account.authentication.AuthenticationStrategy;
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.cookie.RefreshCookieFactory;
 import com.dbidding.account.dto.LoginRequest;
-import com.dbidding.account.dto.LoginResponse;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
@@ -23,9 +25,9 @@ import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.exception.InvalidCredentialsException;
 import com.dbidding.account.exception.InvalidTokenException;
 import com.dbidding.account.service.AuthService;
-import com.dbidding.account.service.LoginResult;
 import com.dbidding.account.service.RefreshResult;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -36,6 +38,8 @@ public class AuthController {
 
 	private final AuthService authService;
 	private final RefreshCookieFactory refreshCookieFactory;
+	private final CredentialAuthenticationService credentialAuthenticationService;
+	private final AuthenticationStrategy authenticationStrategy;
 
 	@PostMapping("/signup")
 	public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
@@ -43,13 +47,15 @@ public class AuthController {
 	}
 
 	@PostMapping("/login")
-	public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-		LoginResult result = authService.login(request);
-		ResponseCookie refreshCookie = refreshCookieFactory.create(result.refreshToken());
-
-		return ResponseEntity.ok()
-			.header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-			.body(result.response());
+	public ResponseEntity<?> login(
+		@Valid @RequestBody LoginRequest request,
+		HttpServletRequest httpServletRequest
+	) {
+		AuthenticatedAccount account = credentialAuthenticationService.authenticate(
+			request.email(),
+			request.password()
+		);
+		return authenticationStrategy.establish(account, httpServletRequest);
 	}
 
 	@PostMapping("/refresh")
@@ -70,15 +76,8 @@ public class AuthController {
 	}
 
 	@PostMapping("/logout")
-	public ResponseEntity<Void> logout(
-		@CookieValue(name = "refreshToken", required = false) String refreshToken
-	) {
-		authService.logout(refreshToken);
-		ResponseCookie expiredRefreshCookie = refreshCookieFactory.expire();
-
-		return ResponseEntity.noContent()
-			.header(HttpHeaders.SET_COOKIE, expiredRefreshCookie.toString())
-			.build();
+	public ResponseEntity<Void> logout(HttpServletRequest request) {
+		return authenticationStrategy.terminate(request);
 	}
 
 	@ExceptionHandler({
