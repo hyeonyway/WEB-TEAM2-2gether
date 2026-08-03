@@ -3,9 +3,9 @@
 ## 구현 상태
 
 PR #155에서 Auction 입찰 API, 인증 진입, `bid-context` 기반 Wallet snapshot과
-Auction Query 갱신을 연결했다. 남은 작업은 입찰 성공 뒤 공통
-`walletQueryKeys.balance()`를 무효화해 Header와 마이페이지 Wallet도 서버 값을
-다시 조회하게 만드는 것이다.
+Auction Query 갱신을 연결했다. 이슈 #116에서는 입찰 성공 뒤 공통
+`walletQueryKeys.balance()`도 무효화해 Header와 마이페이지 Wallet이 서버 값을
+다시 조회하도록 연결했다.
 
 입찰 hold 금액은 배송비를 제외한 입찰가로 확정했다. 배송비는 경매 상세에서
 별도로 표시하며 Wallet 가용액 검증과 예상 잔여액 계산에는 포함하지 않는다.
@@ -107,9 +107,9 @@ Query를 무효화한다. SSE나 Notification을 이 문서에서 새로 소유�
 
 ## 검증 범위
 
-이번 후속 작업은 신규 프론트 테스트를 추가하지 않는다. 기존 Auction 인증·API
+이번 후속 작업은 신규 프론트 테스트를 추가하지 않았다. 기존 Auction 인증·API
 테스트는 유지하고 TypeScript 검사와 프로덕션 빌드로 import, Query key와 번들
-회귀를 확인한다.
+회귀가 없음을 확인했다.
 
 ## 완료 기준
 
