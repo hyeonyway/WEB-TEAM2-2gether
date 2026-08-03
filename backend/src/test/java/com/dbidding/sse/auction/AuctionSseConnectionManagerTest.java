@@ -12,6 +12,7 @@ import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
 import com.dbidding.sse.auction.payload.BidPlacedPayload;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -24,7 +25,12 @@ class AuctionSseConnectionManagerTest {
 
         manager.broadcast(event());
 
-        verify(emitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
+        ArgumentCaptor<SseEmitter.SseEventBuilder> eventCaptor =
+                ArgumentCaptor.forClass(SseEmitter.SseEventBuilder.class);
+        verify(emitter, times(2)).send(eventCaptor.capture());
+        assertThat(eventCaptor.getAllValues().get(1).build())
+                .extracting(data -> data.getData().toString())
+                .anySatisfy(data -> assertThat(data).startsWith("event:BID_PLACED\n"));
         assertThat(manager.connectionCount()).isEqualTo(1);
     }
 

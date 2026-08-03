@@ -29,7 +29,7 @@ class AuctionSseEventTest {
 
         var json = objectMapper.readTree(objectMapper.writeValueAsBytes(payload));
 
-        assertThat(json.get("type").asText()).isEqualTo("AUCTION_CREATED");
+        assertThat(json.has("type")).isFalse();
         assertThat(json.get("auction_id").asInt()).isEqualTo(10);
         assertThat(json.get("card_name").asText()).isEqualTo("리자몽");
         assertThat(json.get("current_price").asLong()).isEqualTo(40_000L);
@@ -46,7 +46,7 @@ class AuctionSseEventTest {
 
         var json = objectMapper.readTree(objectMapper.writeValueAsBytes(payload));
 
-        assertThat(json.get("type").asText()).isEqualTo("BID_PLACED");
+        assertThat(json.has("type")).isFalse();
         assertThat(json.get("bidder_id").asInt()).isEqualTo(7);
         assertThat(json.get("previous_bidder_id").asInt()).isEqualTo(5);
         assertThat(json.get("current_price").asLong()).isEqualTo(50_000L);
@@ -65,7 +65,7 @@ class AuctionSseEventTest {
 
         var json = objectMapper.readTree(objectMapper.writeValueAsBytes(payload));
 
-        assertThat(json.get("type").asText()).isEqualTo("AUCTION_CLOSED");
+        assertThat(json.has("type")).isFalse();
         assertThat(json.get("winner_id").isNull()).isTrue();
         assertThat(json.get("final_price").asLong()).isEqualTo(40_000L);
     }

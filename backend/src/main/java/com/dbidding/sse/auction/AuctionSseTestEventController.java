@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,7 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class AuctionSseTestEventController {
 
-    private final ApplicationEventPublisher eventPublisher;
+    private final AuctionSseConnectionManager connectionManager;
     private final AuctionSseTestAuctionReader auctionReader;
     private final ConcurrentMap<Integer, SimulatedBid> simulatedBids = new ConcurrentHashMap<>();
     private final AtomicLong bidderSequence = new AtomicLong();
@@ -38,7 +37,7 @@ public class AuctionSseTestEventController {
                 nextBid(auction, previous)
         );
         BidPlacedPayload payload = toPayload(auction, bid);
-        eventPublisher.publishEvent(payload);
+        connectionManager.broadcast(payload);
         return payload;
     }
 

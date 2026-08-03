@@ -10,7 +10,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Component
 public class AuctionSseConnectionManager {
-    static final String AUCTION_UPDATED_EVENT = "auction-updated";
     private static final long CONNECTION_TIMEOUT_MILLIS = 30 * 60 * 1000L;
     private static final long RECONNECT_TIME_MILLIS = 3_000L;
 
@@ -37,7 +36,7 @@ public class AuctionSseConnectionManager {
         emitters.forEach(emitter -> send(
                 emitter,
                 SseEmitter.event()
-                        .name(AUCTION_UPDATED_EVENT)
+                        .name(event.type().name())
                         .data(event)
         ));
     }

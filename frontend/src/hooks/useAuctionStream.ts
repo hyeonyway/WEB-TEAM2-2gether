@@ -39,21 +39,30 @@ export type AuctionStreamPayload=
     winner_id:number|null;
   };
 
+const AUCTION_STREAM_EVENT_TYPES=['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED'] as const;
+type AuctionStreamEventType=typeof AUCTION_STREAM_EVENT_TYPES[number];
+
 type UseAuctionStreamOptions={
   enabled?:boolean;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
 };
+
+type AuctionStreamSubscriber=(payload:AuctionStreamPayload)=>void;
+
+const subscribers=new Set<AuctionStreamSubscriber>();
+let sharedEventSource:EventSource|null=null;
+let sharedListeners:ReadonlyArray<readonly[AuctionStreamEventType,EventListener]>=[];
 
 function auctionStreamUrl(){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
   return `${apiBaseUrl}/api/auctions/stream`;
 }
 
-function parsePayload(data:string):AuctionStreamPayload|null{
+function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayload|null{
   try{
     const raw=JSON.parse(data) as Record<string,unknown>;
     const value={
-      type:raw.type,
+      type,
       auction_id:raw.auction_id??raw.auctionId,
       ...(raw.card_id!==undefined||raw.cardId!==undefined?{
         card_id:raw.card_id??raw.cardId,
@@ -79,8 +88,7 @@ function parsePayload(data:string):AuctionStreamPayload|null{
       occurred_at:raw.occurred_at??raw.occurredAt,
     } as Partial<AuctionStreamPayload>;
     if(
-      !['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED'].includes(value.type??'')
-      ||!Number.isInteger(value.auction_id)
+      !Number.isInteger(value.auction_id)
       ||!Number.isFinite(value.start_price)
       ||!Number.isFinite(value.bid_increment)
       ||!Number.isInteger(value.bid_count)
@@ -100,6 +108,36 @@ function parsePayload(data:string):AuctionStreamPayload|null{
   }
 }
 
+function connectSharedEventSource(){
+  if(sharedEventSource)return;
+
+  const eventSource=new EventSource(auctionStreamUrl());
+  sharedEventSource=eventSource;
+  sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
+    const listener:EventListener=event=>{
+      const payload=parsePayload(type,(event as MessageEvent<string>).data);
+      if(payload)subscribers.forEach(subscriber=>subscriber(payload));
+    };
+    eventSource.addEventListener(type,listener);
+    return [type,listener] as const;
+  });
+}
+
+function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
+  subscribers.add(subscriber);
+  connectSharedEventSource();
+
+  return ()=>{
+    subscribers.delete(subscriber);
+    if(subscribers.size>0||!sharedEventSource)return;
+
+    sharedListeners.forEach(([type,listener])=>sharedEventSource?.removeEventListener(type,listener));
+    sharedEventSource.close();
+    sharedEventSource=null;
+    sharedListeners=[];
+  };
+}
+
 export function useAuctionStream({
   enabled=true,
   onAuctionUpdated,
@@ -109,18 +147,6 @@ export function useAuctionStream({
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
-
-    const eventSource=new EventSource(auctionStreamUrl());
-    const handleUpdate=(event:Event)=>{
-      const payload=parsePayload((event as MessageEvent<string>).data);
-      if(payload)onAuctionUpdatedRef.current(payload);
-    };
-
-    eventSource.addEventListener('auction-updated',handleUpdate);
-
-    return ()=>{
-      eventSource.removeEventListener('auction-updated',handleUpdate);
-      eventSource.close();
-    };
+    return subscribeToAuctionStream(payload=>onAuctionUpdatedRef.current(payload));
   },[enabled]);
 }
