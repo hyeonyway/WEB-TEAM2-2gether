@@ -11,5 +11,6 @@ export const wishlistQueries={
     queryKey:wishlistQueryKeys.list(userId),
     queryFn:()=>fetchWishlists(),
     staleTime:60_000,
+    refetchOnMount:'always',
   }),
 };
