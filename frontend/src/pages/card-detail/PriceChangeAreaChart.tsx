@@ -69,10 +69,11 @@ export default function PriceChangeAreaChart({history}:Props){
         <YAxis
           yAxisId="bids"
           orientation="right"
+          allowDecimals={false}
           axisLine={false}
           tickLine={false}
           tick={{fill:'#8b928e',fontSize:10}}
-          tickFormatter={value=>`${value}건`}
+          tickFormatter={value=>`${Math.round(Number(value))}건`}
           width={42}
         />
         <ChartTooltip
