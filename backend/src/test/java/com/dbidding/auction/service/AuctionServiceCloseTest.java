@@ -3,14 +3,19 @@ package com.dbidding.auction.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
+import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
 import com.dbidding.auction.port.WalletPort;
@@ -43,6 +48,8 @@ class AuctionServiceCloseTest {
     @Mock
     private AuctionEventPort auctionEventPort;
     @Mock
+    private AuctionCardPort auctionCardPort;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private final Clock clock = Clock.fixed(
@@ -59,12 +66,20 @@ class AuctionServiceCloseTest {
                 bidRepository,
                 walletPort,
                 null,
-                null,
+                auctionCardPort,
                 auctionCardStatisticPort,
                 auctionEventPort,
                 clock,
                 eventPublisher
         );
+        lenient().when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
+                1,
+                "리자몽",
+                "기본 세트",
+                "10",
+                "JP",
+                "/cards/charizard.png"
+        ));
     }
 
     @Test
@@ -86,7 +101,15 @@ class AuctionServiceCloseTest {
         assertThat(response.winningPrice()).isEqualTo(45_000L);
         verify(walletPort).confirmWinningBid(3, 1, 45_000L);
         verify(auctionCardStatisticPort).recordAuctionCompleted(1, 45_000L, auction.getCloseTime());
-        verify(auctionEventPort).publish(any(AuctionEventPort.AuctionEvent.class));
+        verify(auctionEventPort).publishClosed(argThat((AuctionClosedEvent closed) ->
+                closed.auctionId().equals(1)
+                && closed.itemId().equals(1)
+                && closed.cardName().equals("리자몽")
+                && closed.winnerId().equals(3)
+                && closed.sellerId().equals(2)
+                && closed.winningPrice().equals(45_000L)
+                && closed.currentPrice().equals(45_000L)
+                && closed.status() == AuctionStatus.ENDED));
     }
 
     @Test
@@ -105,7 +128,14 @@ class AuctionServiceCloseTest {
         assertThat(response.winningPrice()).isNull();
         verify(walletPort, never()).confirmWinningBid(any(), any(), any(Long.class));
         verify(auctionCardStatisticPort).recordAuctionClosedWithoutTrade(1, auction.getCloseTime());
-        verify(auctionEventPort).publish(any(AuctionEventPort.AuctionEvent.class));
+        verify(auctionEventPort).publishClosed(argThat((AuctionClosedEvent closed) ->
+                closed.auctionId().equals(1)
+                && closed.cardName().equals("리자몽")
+                && closed.winnerId() == null
+                && closed.sellerId().equals(2)
+                && closed.winningPrice() == null
+                && closed.currentPrice().equals(42_000L)
+                && closed.status() == AuctionStatus.FAILED));
     }
 
     @Test
@@ -120,7 +150,7 @@ class AuctionServiceCloseTest {
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
         verify(walletPort, never()).confirmWinningBid(any(), any(), any(Long.class));
         verify(auctionCardStatisticPort, never()).recordAuctionCompleted(any(), any(Long.class), any());
-        verify(auctionEventPort, never()).publish(any(AuctionEventPort.AuctionEvent.class));
+        verifyNoInteractions(auctionEventPort);
     }
 
     private Auction auction(LocalDateTime closeTime) {
