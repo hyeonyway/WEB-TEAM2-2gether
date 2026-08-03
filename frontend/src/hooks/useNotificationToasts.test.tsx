@@ -71,4 +71,16 @@ describe('useNotificationToasts',()=>{
 
     expect(result.current.toasts).toEqual([]);
   });
+
+  it('clear하면 모든 토스트가 즉시 사라진다',()=>{
+    const{result}=renderHook(()=>useNotificationToasts());
+    act(()=>{
+      result.current.push(notification(1));
+      result.current.push(notification(2));
+    });
+
+    act(()=>result.current.clear());
+
+    expect(result.current.toasts).toEqual([]);
+  });
 });

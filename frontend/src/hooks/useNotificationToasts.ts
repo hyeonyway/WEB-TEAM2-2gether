@@ -22,6 +22,12 @@ export function useNotificationToasts(){
     timersRef.current.set(notification.id,timer);
   },[dismiss]);
 
+  const clear=useCallback(()=>{
+    timersRef.current.forEach(timer=>clearTimeout(timer));
+    timersRef.current.clear();
+    setToasts([]);
+  },[]);
+
   useEffect(()=>{
     const timers=timersRef.current;
     return()=>{
@@ -30,5 +36,5 @@ export function useNotificationToasts(){
     };
   },[]);
 
-  return {toasts,push,dismiss};
+  return {toasts,push,dismiss,clear};
 }
