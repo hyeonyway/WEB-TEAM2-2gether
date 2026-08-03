@@ -3,12 +3,10 @@ package com.dbidding.auction.config;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 @Configuration
-@Profile("auction-mock")
 public class AuctionSchedulingConfig {
     @Bean
     @Qualifier("auctionDeadlineTaskScheduler")

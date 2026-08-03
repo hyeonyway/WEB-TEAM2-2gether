@@ -28,12 +28,13 @@ export type SellPhoto={
 
 export type UploadedPhoto={
   order:number;
-  url:string;
+  uploadToken:string;
 };
 
 export type CardRecognition=Partial<SellForm>;
 
 export type AuctionPayload={
+  itemId:number;
   form:SellForm;
   photos:UploadedPhoto[];
   psaCertification:string|null;

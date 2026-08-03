@@ -8,10 +8,10 @@ import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
 import com.dbidding.auction.service.AuctionService;
+import com.dbidding.global.security.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Validated
 @RestController
-@Profile("auction-mock")
 @RequestMapping("/api/auctions")
 @RequiredArgsConstructor
 public class AuctionController {
@@ -34,33 +33,39 @@ public class AuctionController {
 
     @PostMapping
     public ResponseEntity<AuctionCreateResponse> create(
+            @CurrentUser Integer userId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody AuctionCreateRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(auctionService.create(request, idempotencyKey));
+                .body(auctionService.create(userId, request, idempotencyKey));
     }
 
     @PostMapping("/{auctionId}/bids")
-    public ResponseEntity<BidResponses.BidSummary> participate(
+    public ResponseEntity<BidResponses.BidResult> participate(
+            @CurrentUser Integer userId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable @Min(1) Integer auctionId,
             @Valid @RequestBody BidCreateRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(auctionService.participate(auctionId, request, idempotencyKey));
+                .body(auctionService.participate(userId, auctionId, request, idempotencyKey));
     }
 
     @GetMapping
     public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(
+            @CurrentUser(required = false) Integer userId,
             @Valid @ModelAttribute AuctionSearchRequest request
     ) {
-        return auctionService.search(request);
+        return auctionService.search(userId, request);
     }
 
     @GetMapping("/{auctionId}")
-    public AuctionResponses.AuctionDetail getDetail(@PathVariable @Min(1) Integer auctionId) {
-        return auctionService.getDetail(auctionId);
+    public AuctionResponses.AuctionDetail getDetail(
+            @CurrentUser(required = false) Integer userId,
+            @PathVariable @Min(1) Integer auctionId
+    ) {
+        return auctionService.getDetail(userId, auctionId);
     }
 
     @GetMapping("/{auctionId}/bids")
@@ -72,8 +77,11 @@ public class AuctionController {
     }
 
     @GetMapping("/{auctionId}/bid-context")
-    public BidResponses.BidContext getBidContext(@PathVariable @Min(1) Integer auctionId) {
-        return auctionService.getBidContext(auctionId);
+    public BidResponses.BidContext getBidContext(
+            @CurrentUser Integer userId,
+            @PathVariable @Min(1) Integer auctionId
+    ) {
+        return auctionService.getBidContext(userId, auctionId);
     }
 
 }

@@ -12,6 +12,8 @@ export type CardListRequestDto={
 
 export type AuctionListRequestDto=Omit<CardListRequestDto,'sort'>&{
   sort:AuctionSort;
+  page:number;
+  size:number;
 };
 
 export type CardResponseDto={
@@ -26,6 +28,15 @@ export type CardResponseDto={
   psa_grade:string;
   language:string;
   thumbnail_url?:string|null;
+};
+
+export type AuctionCardResponseDto={
+  id:number;
+  name:string;
+  set_name:string;
+  psa_grade:string|null;
+  language:string;
+  thumbnail_url:string|null;
 };
 
 export type CardPricePointResponseDto={
@@ -61,19 +72,75 @@ export type CardDetailResponseDto={
 
 export type AuctionResponseDto={
   id:number;
-  card:CardResponseDto;
-  start_price?:number;
+  card:AuctionCardResponseDto;
+  seller:{
+    id:number;
+    nickname:string;
+    trade_count:number;
+    trust_score:number;
+  };
+  start_price:number;
   current_price:number;
-  bid_increment?:number;
+  bid_increment:number;
+  minimum_bid:number;
   bid_count:number;
+  starts_at:string;
   ends_at:string;
   status:AuctionStatus;
-  my_bid_status?:MyBidStatus;
-  my_bid_amount?:number|null;
-  version?:number;
+  my_bid_status:MyBidStatus;
+  my_bid_amount:number|null;
+  version:number;
 };
 
-export type MockAuctionResponseDto=Omit<AuctionResponseDto,'card'>&{
+export type AuctionPhotoResponseDto={
+  id:number;
+  url:string;
+  order:number;
+  representative:boolean;
+};
+
+export type AuctionDetailResponseDto=AuctionResponseDto&{
+  description:string;
+  seller_memo:string|null;
+  shipping_fee:number;
+  buy_now_price:number;
+  photos:AuctionPhotoResponseDto[];
+  psa_certification:{
+    certification_number:string|null;
+    grade:string|null;
+    population:number|null;
+    verified:boolean;
+  }|null;
+};
+
+export type BidSummaryResponseDto={
+  id:number;
+  amount:number;
+  bidder_alias:string;
+  is_highest:boolean;
+  created_at:string;
+};
+
+export type BidContextResponseDto={
+  auction_id:number;
+  status:AuctionStatus;
+  version:number;
+  current_price:number;
+  minimum_bid:number;
+  bid_increment:number;
+  my_bid_status:MyBidStatus;
+  my_bid_amount:number|null;
+  wallet:{
+    available_balance:number;
+    frozen_balance:number;
+  };
+  recent_bids:BidSummaryResponseDto[];
+};
+
+export type MockAuctionResponseDto=Pick<
+  AuctionResponseDto,
+  'id'|'start_price'|'current_price'|'bid_increment'|'bid_count'|'ends_at'|'status'|'my_bid_status'|'my_bid_amount'
+>&{
   card_id:number;
 };
 
@@ -83,6 +150,27 @@ export type PageResponseDto<T>={
   size:number;
   total_elements:number;
   has_next:boolean;
+};
+
+export type BidCreateResponseDto={
+  bid:{
+    id:number;
+    amount:number;
+    status:'LEADING'|'OUTBID'|'WON'|'LOST'|'WITHDRAWN';
+    created_at:string;
+  };
+  auction:{
+    id:number;
+    version:number;
+    current_price:number;
+    minimum_bid:number;
+    bid_count:number;
+    ends_at:string;
+  };
+  wallet:{
+    available_balance:number;
+    frozen_balance:number;
+  };
 };
 
 export type CardDto={

@@ -55,7 +55,7 @@ describe('AppRoutes', () => {
     vi.restoreAllMocks();
   });
 
-  it('공개 경로는 anonymous 상태에서도 표시한다', () => {
+  it('경매 목록은 anonymous 상태에서도 표시한다', () => {
     renderRoute('/auction', 'anonymous');
 
     expect(screen.getByRole('heading', {name: '카드 경매'}))
@@ -103,6 +103,13 @@ describe('AppRoutes', () => {
     fireEvent.click(screen.getByRole('button', {name: '뒤로'}));
 
     expect(screen.getByTestId('router-path')).toHaveTextContent('/');
+  });
+
+  it('경매 상세 경로는 anonymous 상태에서도 유지한다', () => {
+    renderRoute('/auction/1', 'anonymous');
+
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/auction/1');
+    expect(screen.queryByText('로그인이 필요합니다')).not.toBeInTheDocument();
   });
 
   it.each(protectedRoutes)(

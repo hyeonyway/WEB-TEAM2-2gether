@@ -57,7 +57,6 @@ class AuctionServiceCloseTest {
                 auctionRepository,
                 null,
                 bidRepository,
-                null,
                 walletPort,
                 null,
                 null,

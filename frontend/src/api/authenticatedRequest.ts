@@ -52,3 +52,16 @@ export async function authenticatedRequest<T>(path: string, options?: RequestIni
     throw error;
   }
 }
+
+export async function optionallyAuthenticatedRequest<T>(path: string, options?: RequestInit) {
+  if (!getAccessToken()) return request<T>(path, options);
+
+  try {
+    return await authenticatedRequest<T>(path, options);
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401) {
+      return request<T>(path, options);
+    }
+    throw error;
+  }
+}

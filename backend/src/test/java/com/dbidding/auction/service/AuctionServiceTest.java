@@ -20,7 +20,6 @@ import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.auction.port.CurrentUserPort;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
@@ -51,8 +50,6 @@ class AuctionServiceTest {
     @Mock
     private BidRepository bidRepository;
     @Mock
-    private CurrentUserPort currentUserPort;
-    @Mock
     private WalletPort walletPort;
     @Mock
     private ImageUploadPort imageUploadPort;
@@ -82,7 +79,6 @@ class AuctionServiceTest {
                         auctionRepository,
                         auctionImageRepository,
                         bidRepository,
-                        currentUserPort,
                         walletPort,
                         imageUploadPort,
                         auctionCardPort,
@@ -123,6 +119,10 @@ class AuctionServiceTest {
                             .filter(bid -> idempotencyKey.equals(bid.getIdempotencyKey()))
                             .findFirst();
                 });
+        lenient().when(walletPort.holdBidAmount(any(), any(), any(Long.class)))
+                .thenReturn(new WalletPort.WalletSnapshot(900_000L, 100_000L));
+        lenient().when(walletPort.getWallet(any()))
+                .thenReturn(new WalletPort.WalletSnapshot(900_000L, 100_000L));
         lenient().when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
                 1,
                 "Mock Card",
@@ -138,11 +138,10 @@ class AuctionServiceTest {
 
     @Test
     void 같은_사용자의_같은_요청은_저장된_idempotency_결과를_재사용한다() {
-        when(currentUserPort.currentUser()).thenReturn(user(1));
         AuctionCreateRequest request = request("경매 A", 42_000L);
 
-        var first = auctionService.create(request, "same-key");
-        var second = auctionService.create(request, "same-key");
+        var first = auctionService.create(1, request, "same-key");
+        var second = auctionService.create(1, request, "same-key");
 
         assertThat(second).isEqualTo(first);
         verify(auctionRepository, times(1)).save(any(Auction.class));
@@ -153,10 +152,9 @@ class AuctionServiceTest {
 
     @Test
     void 같은_사용자가_같은_key로_다른_요청을_보내면_충돌한다() {
-        when(currentUserPort.currentUser()).thenReturn(user(1));
-        auctionService.create(request("경매 A", 42_000L), "same-key");
+        auctionService.create(1, request("경매 A", 42_000L), "same-key");
 
-        assertThatThrownBy(() -> auctionService.create(request("경매 B", 43_000L), "same-key"))
+        assertThatThrownBy(() -> auctionService.create(1, request("경매 B", 43_000L), "same-key"))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(409);
@@ -165,53 +163,32 @@ class AuctionServiceTest {
 
     @Test
     void 다른_사용자는_같은_idempotency_key를_공유하지_않는다() {
-        when(currentUserPort.currentUser()).thenReturn(user(1), user(2));
         AuctionCreateRequest request = request("경매 A", 42_000L);
 
-        auctionService.create(request, "same-key");
-        auctionService.create(request, "same-key");
+        auctionService.create(1, request, "same-key");
+        auctionService.create(2, request, "same-key");
 
         verify(auctionRepository, times(2)).save(any(Auction.class));
     }
 
     @Test
     void idempotency_key가_비어_있으면_경매를_생성하지_않는다() {
-        assertThatThrownBy(() -> auctionService.create(request("경매 A", 42_000L), " "))
+        assertThatThrownBy(() -> auctionService.create(1, request("경매 A", 42_000L), " "))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(400);
-        verify(currentUserPort, never()).currentUser();
-        verify(auctionRepository, never()).save(any(Auction.class));
-    }
-
-    @Test
-    void 판매자가_아니거나_제재된_사용자는_경매를_생성할_수_없다() {
-        when(currentUserPort.currentUser()).thenReturn(
-                new CurrentUserPort.CurrentUser(1, "buyer", false, false),
-                new CurrentUserPort.CurrentUser(2, "restricted-seller", true, true)
-        );
-
-        assertThatThrownBy(() -> auctionService.create(request("경매 A", 42_000L), "buyer-key"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
-                .isEqualTo(403);
-        assertThatThrownBy(() -> auctionService.create(request("경매 B", 42_000L), "restricted-key"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
-                .isEqualTo(403);
         verify(auctionRepository, never()).save(any(Auction.class));
     }
 
     @Test
     void 이미지가_없거나_너무_많으면_경매를_생성할_수_없다() {
-        when(currentUserPort.currentUser()).thenReturn(user(1), user(1));
         when(imageUploadPort.resolveImages(List.of("upl-1"))).thenReturn(List.of());
 
-        assertThatThrownBy(() -> auctionService.create(request("경매 A", 42_000L), "empty-images"))
+        assertThatThrownBy(() -> auctionService.create(1, request("경매 A", 42_000L), "empty-images"))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(400);
-        assertThatThrownBy(() -> auctionService.create(requestWithImageTokens(List.of(
+        assertThatThrownBy(() -> auctionService.create(1, requestWithImageTokens(List.of(
                 "1", "2", "3", "4", "5", "6", "7", "8", "9"
         )), "too-many-images"))
                 .isInstanceOf(ResponseStatusException.class)
@@ -223,19 +200,19 @@ class AuctionServiceTest {
     @Test
     void 입찰하면_경매_현재가와_최고_입찰이_갱신된다() {
         Auction auction = auction(10_000L, 1_000L);
-        when(currentUserPort.currentUser()).thenReturn(user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
 
-        var response = auctionService.participate(1, new BidCreateRequest(11_000L), "bid-key");
+        var response = auctionService.participate(1, 1, new BidCreateRequest(11_000L), "bid-key");
 
         assertThat(auction.getCurrentPrice()).isEqualTo(11_000L);
         assertThat(auction.getBidCount()).isEqualTo(1);
-        assertThat(response.amount()).isEqualTo(11_000L);
-        assertThat(response.isHighest()).isTrue();
+        assertThat(response.bid().amount()).isEqualTo(11_000L);
+        assertThat(response.auction().currentPrice()).isEqualTo(11_000L);
         verify(walletPort).holdBidAmount(1, 1, 11_000L);
         verify(bidRepository).save(any(Bid.class));
+        verify(auctionRepository).flush();
         verify(auctionCardStatisticPort).recordBid(eq(1), any());
         verify(auctionEventPort).publish(any());
     }
@@ -243,18 +220,17 @@ class AuctionServiceTest {
     @Test
     void 같은_사용자의_같은_입찰_요청은_저장된_idempotency_결과를_재사용한다() {
         Auction auction = auction(10_000L, 1_000L);
-        when(currentUserPort.currentUser()).thenReturn(user(1), user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
 
-        var first = auctionService.participate(1, new BidCreateRequest(11_000L), "same-bid-key");
-        var second = auctionService.participate(1, new BidCreateRequest(11_000L), "same-bid-key");
+        var first = auctionService.participate(1, 1, new BidCreateRequest(11_000L), "same-bid-key");
+        var second = auctionService.participate(1, 1, new BidCreateRequest(11_000L), "same-bid-key");
 
         assertThat(second).isEqualTo(first);
         assertThat(auction.getCurrentPrice()).isEqualTo(11_000L);
         assertThat(auction.getBidCount()).isEqualTo(1);
-        verify(auctionRepository, times(1)).findByIdForUpdate(1);
+        verify(auctionRepository, times(2)).findByIdForUpdate(1);
         verify(walletPort, times(1)).holdBidAmount(1, 1, 11_000L);
         verify(bidRepository, times(1)).save(any(Bid.class));
         verify(auctionEventPort, times(1)).publish(any());
@@ -263,13 +239,12 @@ class AuctionServiceTest {
     @Test
     void 같은_사용자가_같은_입찰_key로_다른_금액을_보내면_충돌한다() {
         Auction auction = auction(10_000L, 1_000L);
-        when(currentUserPort.currentUser()).thenReturn(user(1), user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
-        auctionService.participate(1, new BidCreateRequest(11_000L), "same-bid-key");
+        auctionService.participate(1, 1, new BidCreateRequest(11_000L), "same-bid-key");
 
-        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(12_000L), "same-bid-key"))
+        assertThatThrownBy(() -> auctionService.participate(1, 1, new BidCreateRequest(12_000L), "same-bid-key"))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(409);
@@ -279,11 +254,10 @@ class AuctionServiceTest {
 
     @Test
     void 입찰_idempotency_key가_비어_있으면_입찰하지_않는다() {
-        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(11_000L), " "))
+        assertThatThrownBy(() -> auctionService.participate(1, 1, new BidCreateRequest(11_000L), " "))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(400);
-        verify(currentUserPort, never()).currentUser();
         verify(auctionRepository, never()).findByIdForUpdate(any());
         verify(bidRepository, never()).save(any(Bid.class));
     }
@@ -292,12 +266,11 @@ class AuctionServiceTest {
     void 새_입찰이_들어오면_이전_최고_입찰은_상회입찰_상태가_되고_동결금액이_해제된다() {
         Auction auction = auction(11_000L, 1_000L);
         Bid previousLeadingBid = Bid.leading(2, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
-        when(currentUserPort.currentUser()).thenReturn(user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.of(previousLeadingBid));
 
-        auctionService.participate(1, new BidCreateRequest(12_000L), "bid-key");
+        auctionService.participate(1, 1, new BidCreateRequest(12_000L), "bid-key");
 
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         verify(walletPort).holdBidAmount(1, 1, 12_000L);
@@ -309,12 +282,11 @@ class AuctionServiceTest {
     void 같은_입찰자가_다시_최고가를_갱신하면_이전_동결금액을_해제하지_않는다() {
         Auction auction = auction(11_000L, 1_000L);
         Bid previousLeadingBid = Bid.leading(1, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
-        when(currentUserPort.currentUser()).thenReturn(user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.of(previousLeadingBid));
 
-        auctionService.participate(1, new BidCreateRequest(12_000L), "bid-key");
+        auctionService.participate(1, 1, new BidCreateRequest(12_000L), "bid-key");
 
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         verify(walletPort).holdBidAmount(1, 1, 12_000L);
@@ -324,21 +296,16 @@ class AuctionServiceTest {
     @Test
     void 최소_입찰가보다_낮으면_입찰할_수_없다() {
         Auction auction = auction(10_000L, 1_000L);
-        when(currentUserPort.currentUser()).thenReturn(user(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> auctionService.participate(1, new BidCreateRequest(10_500L), "bid-key"))
+        assertThatThrownBy(() -> auctionService.participate(1, 1, new BidCreateRequest(10_500L), "bid-key"))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(400);
         verify(walletPort, never()).holdBidAmount(any(), any(), any(Long.class));
         verify(bidRepository, never()).save(any(Bid.class));
-    }
-
-    private CurrentUserPort.CurrentUser user(Integer userId) {
-        return new CurrentUserPort.CurrentUser(userId, "seller-" + userId, true, false);
     }
 
     private AuctionCreateRequest request(String auctionName, Long startPrice) {

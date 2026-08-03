@@ -11,4 +11,5 @@ import java.lang.annotation.Target;
 @Target(PARAMETER)
 @Retention(RUNTIME)
 public @interface CurrentUser {
+	boolean required() default true;
 }

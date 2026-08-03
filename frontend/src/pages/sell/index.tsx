@@ -1,10 +1,10 @@
-import React,{useState}from'react';
+import React,{useRef,useState}from'react';
 import{useMutation}from'@tanstack/react-query';
 import{CheckCircle2,Info}from'lucide-react';
 import{SellPageHeader,SellProgress,SellStepActions}from'./components';
 import{lookupPsaCertification,scanCardImage}from'../../api/sellApi';
 import type{SellPhoto}from'../../dto/sellDto';
-import{sellMutations}from'../../queries/sellMutations';
+import{createRegistrationSubmission,sellMutations}from'../../queries/sellMutations';
 import{initialSellForm}from'./data/initialState';
 
 const digits=value=>value.replace(/\D/g,'');
@@ -22,7 +22,8 @@ export default function SellPage({Header}){
   const[photoError,setPhotoError]=useState('');
   const[submitStatus,setSubmitStatus]=useState('idle');
   const[submitError,setSubmitError]=useState('');
-  const registerAuction=useMutation(sellMutations.register());
+  const registrationSubmission=useRef(createRegistrationSubmission()).current;
+  const registerAuction=useMutation(sellMutations.register(registrationSubmission));
   const setField=(key,value)=>setForm(current=>({...current,[key]:value}));
   const validYear=!form.year||/^\d{4}$/.test(form.year);
   const validPopulation=!form.population||/^\d+$/.test(form.population);

@@ -1,17 +1,31 @@
 import {CheckCircle2,Wallet} from 'lucide-react';
 import {useState} from 'react';
+import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import type {AuctionDto} from '../dto/auctionDto';
-
-const recentBids=[[137000,'2시간 전'],[132000,'7시간 전'],[128000,'8시간 전'],[122000,'9시간 전'],[119000,'11시간 전']];
+import {createAuctionBid} from '../api/auctionApi';
+import {auctionQueries,auctionQueryKeys} from '../queries/auctionQueries';
 
 export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;onClose:()=>void}){
-  const wallet=850000;
-  const minimum=auction.currentPrice+1000;
+  const queryClient=useQueryClient();
+  const contextQuery=useQuery(auctionQueries.bidContext(auction.id));
+  const context=contextQuery.data;
+  const wallet=context?.wallet.available_balance??0;
+  const minimum=context?.minimum_bid??auction.currentPrice+auction.bidIncrement;
   const[amount,setAmount]=useState<number|string>(minimum);
   const amountValue=Number(amount);
   const belowMinimum=amount===''||amountValue<minimum;
   const insufficient=amountValue>wallet;
-  const leading=auction.myBidStatus==='LEADING';
+  const leading=(context?.my_bid_status??auction.myBidStatus)==='LEADING';
+  const bidMutation=useMutation({
+    mutationFn:()=>createAuctionBid(auction.id,amountValue,crypto.randomUUID()),
+    onSuccess:async()=>{
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),
+        queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
+      ]);
+      onClose();
+    },
+  });
 
   return <div className="bid-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}>
     <section className="bid-dialog" role="dialog" aria-modal="true" aria-label={`${auction.card.name} 입찰`}>
@@ -21,12 +35,13 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       <div className="bid-wallet"><span><Wallet/>전자지갑 포인트</span><strong>{wallet.toLocaleString()}P</strong></div>
       <div className="bid-current"><span>현재 경매가<b>{auction.currentPrice.toLocaleString()}원</b></span><span>최소 입찰가<b>{minimum.toLocaleString()}원</b></span></div>
       <h3>입찰가 선택</h3>
-      <div className="bid-options">{[minimum,minimum+4000,minimum+9000].map(value=><button key={value} className={amountValue===value?'active':''} disabled={leading} onClick={()=>setAmount(value)}>{value.toLocaleString()}원</button>)}</div>
-      <label>직접 입력<div className={belowMinimum?'invalid':''}><input disabled={leading} type="number" step="1000" value={amount} onChange={event=>setAmount(event.target.value)}/><span>원</span></div>{belowMinimum&&<small className="bid-minimum-error">최소 입찰가 {minimum.toLocaleString()}원 이상 입력해 주세요.</small>}</label>
-      <section className="bid-history"><div className="bid-history-head"><h3>경매 입찰 내역</h3><span>최근 5건</span></div><div className="bid-history-list">{recentBids.map(([price,time],index)=><div className="bid-history-row" key={`${price}-${time}`}><span><b>PSA {auction.card.psaGrade}</b><small>{index===0?'최고 입찰':'입찰 완료'}</small></span><strong>{price.toLocaleString()}원</strong><time>{time}</time></div>)}</div></section>
+      <div className="bid-options">{[minimum,minimum+auction.bidIncrement*4,minimum+auction.bidIncrement*9].map(value=><button key={value} className={amountValue===value?'active':''} disabled={leading||bidMutation.isPending} onClick={()=>setAmount(value)}>{value.toLocaleString()}원</button>)}</div>
+      <label>직접 입력<div className={belowMinimum?'invalid':''}><input disabled={leading||bidMutation.isPending} type="number" step={auction.bidIncrement} value={amount} onChange={event=>setAmount(event.target.value)}/><span>원</span></div>{belowMinimum&&<small className="bid-minimum-error">최소 입찰가 {minimum.toLocaleString()}원 이상 입력해 주세요.</small>}</label>
+      <section className="bid-history"><div className="bid-history-head"><h3>경매 입찰 내역</h3><span>최근 {context?.recent_bids.length??0}건</span></div><div className="bid-history-list">{contextQuery.isPending?<p>불러오는 중...</p>:context?.recent_bids.map(bid=><div className="bid-history-row" key={bid.id}><span><b>{bid.bidder_alias}</b><small>{bid.is_highest?'최고 입찰':'입찰 완료'}</small></span><strong>{bid.amount.toLocaleString()}원</strong><time>{new Date(bid.created_at).toLocaleString('ko-KR')}</time></div>)}</div></section>
       <div className="bid-balance"><span>입찰 후 잔여 포인트</span><b>{Math.max(0,wallet-(amountValue||0)).toLocaleString()}P</b></div>
       {insufficient&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}
-      <button className="bid-submit" disabled={belowMinimum||insufficient||leading} onClick={onClose}>{leading?'현재 최고가 입찰 중':`${amountValue.toLocaleString()}원 입찰하기`}</button>
+      {bidMutation.isError&&<p className="bid-error">입찰하지 못했습니다. 현재 가격과 잔액을 다시 확인해 주세요.</p>}
+      <button className="bid-submit" disabled={contextQuery.isPending||belowMinimum||insufficient||leading||bidMutation.isPending} onClick={()=>bidMutation.mutate()}>{leading?'현재 최고가 입찰 중':bidMutation.isPending?'입찰 처리 중...':`${amountValue.toLocaleString()}원 입찰하기`}</button>
     </section>
   </div>;
 }

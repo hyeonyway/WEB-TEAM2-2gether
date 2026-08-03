@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {clearAccessToken, getAccessToken, setAccessToken} from './accessTokenStore';
-import {authenticatedRequest} from './authenticatedRequest';
+import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticatedRequest';
 import {clearDebugUserId, setDebugUserId} from './debugAuthStorage';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -102,6 +102,21 @@ describe('authenticatedRequest', () => {
       .rejects.toMatchObject({status: 401});
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it('선택적 인증 요청은 Refresh 실패 후 익명으로 재시도한다',async()=>{
+    setAccessToken('expired-access-token');
+    const fetchMock=vi.spyOn(globalThis,'fetch')
+      .mockResolvedValueOnce(jsonResponse({},401))
+      .mockResolvedValueOnce(jsonResponse({},401))
+      .mockResolvedValueOnce(jsonResponse({content:[]}));
+
+    await expect(optionallyAuthenticatedRequest('/api/auctions'))
+      .resolves.toEqual({content:[]});
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get('Authorization')).toBeNull();
     expect(getAccessToken()).toBeNull();
   });
 });
