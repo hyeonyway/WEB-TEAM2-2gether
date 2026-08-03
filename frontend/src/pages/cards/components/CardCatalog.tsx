@@ -13,7 +13,7 @@ export default function CardCatalog({cards}:{cards:CardDto[]}){
     const psaGrade=normalizePsaGrade(card.psaGrade);
     return <a className="catalog-card" href={`/cards/${card.id}`} key={card.id}>
       <CardFavoriteButton cardId={card.id}/>
-      <div className="catalog-art"><div className="catalog-image-viewport"><CardArtwork theme={card.theme} imageUrl={card.imageUrl} name={card.name}/></div><span>PSA {psaGrade}</span></div>
+      <div className="catalog-art"><div className="catalog-image-viewport"><CardArtwork theme={card.theme} imageUrl={card.imageUrl} name={card.name}/></div></div>
       <div className="catalog-card-body">
         <small>Pokemon Trading Card Game</small><h2>{card.name}</h2><p>PSA {psaGrade} · {card.language}</p>
         <div className="catalog-preview">

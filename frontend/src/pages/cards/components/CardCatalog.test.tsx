@@ -14,7 +14,7 @@ describe('CardCatalog',()=>{
   it('PSA 접두사가 포함된 등급도 접두사를 한 번만 표시한다',()=>{
     const{container}=render(<CardCatalog cards={[card]}/>);
 
-    expect(screen.getAllByText(/PSA 10/)).toHaveLength(2);
+    expect(screen.getAllByText(/PSA 10/)).toHaveLength(1);
     expect(screen.queryByText(/PSA PSA 10/)).not.toBeInTheDocument();
     expect(container.querySelector('.catalog-image-viewport .catalog-card-image'))
       .toBeInTheDocument();
