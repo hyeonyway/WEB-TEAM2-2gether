@@ -41,7 +41,7 @@ export default function Header(){
     },
   });
 
-  const wallet=walletQuery.data?.totalBalance;
+  const wallet=walletQuery.data?.availableBalance;
   const walletControl=authGate.status==='authenticated'
     ?walletQuery.isPending
       ?<div className="header-wallet header-wallet-skeleton" role="status" aria-label="전자지갑 잔액 불러오는 중"/>

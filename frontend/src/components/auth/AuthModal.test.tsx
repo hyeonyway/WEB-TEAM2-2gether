@@ -221,7 +221,7 @@ describe('Header Wallet 잔액', () => {
     expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
   });
 
-  it('Wallet 조회 성공 시 서버 totalBalance와 충전 진입점을 표시한다', async () => {
+  it('Wallet 조회 성공 시 hold를 제외한 availableBalance와 충전 진입점을 표시한다', async () => {
     setAccessToken('access-token');
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       if (String(input).includes('/api/wallet')) {
@@ -236,8 +236,8 @@ describe('Header Wallet 잔액', () => {
 
     renderHeader('/');
 
-    expect(await screen.findByText('987,654P')).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: /전자지갑.*987,654P.*충전하기/}))
+    expect(await screen.findByText('867,654P')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /전자지갑.*867,654P.*충전하기/}))
       .toBeInTheDocument();
   });
 
@@ -618,7 +618,7 @@ describe('Header 로그아웃', () => {
     setAccessToken('user-a-access-token');
     renderHeaderWithAuthenticatedContext(queryClient);
     const user = userEvent.setup();
-    expect(screen.getByText('850,000P')).toBeInTheDocument();
+    expect(screen.getByText('730,000P')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', {name: '로그아웃'}));
     await waitFor(() => expect(getAccessToken()).toBeNull());
@@ -628,7 +628,7 @@ describe('Header 로그아웃', () => {
     setAccessToken('user-b-access-token');
 
     await waitFor(() => {
-      expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
+      expect(screen.queryByText('730,000P')).not.toBeInTheDocument();
       expect(screen.getByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
         .toBeInTheDocument();
     });
