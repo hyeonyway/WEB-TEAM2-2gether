@@ -4,7 +4,6 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.notification.event.AuctionCreatedEvent;
 import com.dbidding.sse.auction.payload.AuctionClosedPayload;
 import com.dbidding.sse.auction.payload.AuctionCreatedPayload;
 import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
@@ -22,12 +21,7 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
 
     @Override
     public void publishOpened(AuctionOpenedEvent event) {
-        applicationEventPublisher.publishEvent(new AuctionCreatedEvent(
-                event.auctionId(),
-                event.itemId(),
-                event.cardName(),
-                event.sellerId()
-        ));
+        applicationEventPublisher.publishEvent(event);
         applicationEventPublisher.publishEvent(new AuctionCreatedPayload(
                 null,
                 event.auctionId(),
@@ -50,6 +44,7 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
 
     @Override
     public void publishBidPlaced(BidPlacedEvent event) {
+        applicationEventPublisher.publishEvent(event);
         applicationEventPublisher.publishEvent(new BidPlacedPayload(
                 null,
                 event.auctionId(),
@@ -68,14 +63,7 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
 
     @Override
     public void publishClosed(AuctionClosedEvent event) {
-        applicationEventPublisher.publishEvent(new com.dbidding.notification.event.AuctionClosedEvent(
-                event.auctionId(),
-                event.itemId(),
-                event.cardName(),
-                event.winnerId(),
-                event.sellerId(),
-                event.winningPrice()
-        ));
+        applicationEventPublisher.publishEvent(event);
         applicationEventPublisher.publishEvent(new AuctionClosedPayload(
                 null,
                 event.auctionId(),
