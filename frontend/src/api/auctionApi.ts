@@ -1,7 +1,7 @@
-import {request} from './httpClient';
+import {HttpError,request} from './httpClient';
 import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticatedRequest';
 import {fetchMockAuctions,fetchMockCards} from './mockAuctionApi';
-import {mapAuction,mapCard,resolveImageUrl} from './auctionMapper';
+import {mapAuction,mapCard,mapCardLanguage,normalizePsaGrade,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
 
@@ -49,8 +49,26 @@ export async function fetchCardsByIds(cardIds:number[]):Promise<CardDto[]>{
     return cardIds.flatMap(cardId=>cardsById.get(cardId)??[]);
   }
   const search=new URLSearchParams({ids:cardIds.join(',')});
-  const response=await request<CardResponseDto[]>(`/api/cards/batch?${search}`);
-  return response.map(mapCard);
+  try{
+    const response=await request<CardResponseDto[]>(`/api/cards/batch?${search}`);
+    return response.map(mapCard);
+  }catch(error){
+    if(!(error instanceof HttpError)||error.status!==404)throw error;
+    const details=await Promise.all(cardIds.map(fetchCardDetail));
+    return details.map(card=>({
+      id:card.id,
+      name:card.name,
+      marketPrice:card.market_price,
+      lowPrice:card.low_price,
+      highPrice:card.high_price,
+      changeRate:card.change_rate,
+      theme:'gold',
+      bidCount:card.bid_count,
+      psaGrade:normalizePsaGrade(card.psa_grade),
+      language:mapCardLanguage(card.language),
+      imageUrl:card.image_url,
+    }));
+  }
 }
 
 export async function fetchCardPage(
