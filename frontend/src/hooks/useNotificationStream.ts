@@ -45,6 +45,7 @@ export function useNotificationStream({
   const queryClient=useQueryClient();
   const onNotificationCreatedRef=useRef(onNotificationCreated);
   onNotificationCreatedRef.current=onNotificationCreated;
+  const seenNotificationIdsRef=useRef(new Set<number>());
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
@@ -56,6 +57,8 @@ export function useNotificationStream({
     const handleNotificationCreated=(event:Event)=>{
       const notification=parsePayload((event as MessageEvent<string>).data);
       if(!notification)return;
+      if(seenNotificationIdsRef.current.has(notification.id))return;
+      seenNotificationIdsRef.current.add(notification.id);
 
       queryClient.setQueryData<InfiniteData<NotificationPageDto>>(
         notificationQueryKeys.list(false),

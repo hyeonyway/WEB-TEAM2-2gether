@@ -91,6 +91,27 @@ describe('useNotificationStream',()=>{
     unmount();
   });
 
+  it('같은 알림이 중복으로 오면 캐시와 콜백에 한 번만 반영한다',async()=>{
+    const{queryClient,Wrapper}=createWrapper();
+    queryClient.setQueryData(notificationQueryKeys.list(false),{pages:[{items:[],nextCursor:null,hasNext:false}],pageParams:[undefined]});
+    queryClient.setQueryData(notificationQueryKeys.unreadCount,2);
+    const onNotificationCreated=vi.fn();
+    const{unmount}=renderHook(()=>useNotificationStream({onNotificationCreated}),{wrapper:Wrapper});
+    await waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
+
+    act(()=>{
+      publish(EventSourceMock.instances[0]!,notification);
+      publish(EventSourceMock.instances[0]!,notification);
+    });
+
+    expect(onNotificationCreated).toHaveBeenCalledOnce();
+    expect(queryClient.getQueryData(notificationQueryKeys.list(false))).toEqual({
+      pages:[{items:[notification],nextCursor:null,hasNext:false}],pageParams:[undefined],
+    });
+    expect(queryClient.getQueryData(notificationQueryKeys.unreadCount)).toBe(3);
+    unmount();
+  });
+
   it('이미 읽은 알림이면 안읽음 카운트를 올리지 않는다',async()=>{
     const{queryClient,Wrapper}=createWrapper();
     queryClient.setQueryData(notificationQueryKeys.unreadCount,2);
