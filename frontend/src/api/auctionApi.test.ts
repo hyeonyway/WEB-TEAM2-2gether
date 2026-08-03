@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {clearAccessToken,setAccessToken} from './accessTokenStore';
-import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions} from './auctionApi';
+import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardsByIds} from './auctionApi';
 
 const auctionResponse={
   id:10,
@@ -84,6 +84,21 @@ describe('auctionApi',()=>{
     const headers=new Headers(options?.headers);
     expect(headers.get('Authorization')).toBe('Bearer auction-access-token');
     expect(headers.get('Idempotency-Key')).toBe('bid-key');
+  });
+
+  it('찜 카드 ID를 일괄 조회한다',async()=>{
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse([
+      {
+        id:2,name:'리자몽',market_price:20000,low_price:18000,high_price:22000,
+        change_rate:0,theme:'gold',bid_count:1,psa_grade:'PSA 10',language:'Japanese',
+        thumbnail_url:null,
+      },
+    ]));
+
+    const cards=await fetchCardsByIds([2,7]);
+
+    expect(cards).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/cards/batch?ids=2%2C7');
   });
 
   it('경매 상세와 입찰 이력은 공개로, 입찰 컨텍스트는 JWT로 조회한다',async()=>{

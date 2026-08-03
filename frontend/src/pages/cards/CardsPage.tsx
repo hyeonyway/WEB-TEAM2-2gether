@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {useInfiniteQuery} from '@tanstack/react-query';
+import {useInfiniteQuery,useQuery} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {CardCatalog,CardCatalogSkeleton} from './components';
 import {cardQueries} from '../../queries/auctionQueries';
@@ -13,13 +13,21 @@ export default function CardsPage(){
   const[grade,setGrade]=useState('');
   const[sort,setSort]=useState<CardSort>('REGISTERED');
   const[favoriteOnly,setFavoriteOnly]=useState(false);
-  const{favoriteCardIds}=useWishlist();
+  const{favoriteCardIds,isPending:wishlistPending}=useWishlist();
   const debouncedQuery=useDebouncedValue(query);
   const loadMoreRef=useRef<HTMLDivElement>(null);
   const cardQuery=cardQueries.infiniteList({keyword:debouncedQuery,psaGrade:grade||null,sort});
   const{data,isPending,error,hasNextPage,isFetchingNextPage,fetchNextPage}=useInfiniteQuery(cardQuery);
   const cards=data?.pages.flatMap(page=>page.content)??[];
-  const visibleCards=favoriteOnly?cards.filter(card=>favoriteCardIds.includes(card.id)):cards;
+  const favoriteCardsQuery=useQuery({
+    ...cardQueries.byIds(favoriteCardIds),
+    enabled:favoriteOnly&&favoriteCardIds.length>0,
+  });
+  const visibleCards=favoriteOnly?(favoriteCardsQuery.data??[]):cards;
+  const catalogPending=favoriteOnly
+    ?wishlistPending||(favoriteCardIds.length>0&&favoriteCardsQuery.isPending)
+    :isPending;
+  const catalogError=favoriteOnly?favoriteCardsQuery.error:error;
   const totalElements=data?.pages[0]?.total_elements??0;
 
   useEffect(()=>{
@@ -54,7 +62,7 @@ export default function CardsPage(){
         </div>
       </div>
       <p className="catalog-count">{favoriteOnly?`나의 찜 ${visibleCards.length.toLocaleString()}개`:`전체 ${totalElements.toLocaleString()}개 · ${cards.length.toLocaleString()}개 표시 중`}</p>
-      {isPending?<CardCatalogSkeleton/>:error?<p className="form-error">카드 정보를 불러오지 못했습니다.</p>:<CardCatalog cards={visibleCards}/>}
+      {catalogPending?<CardCatalogSkeleton/>:catalogError?<p className="form-error">카드 정보를 불러오지 못했습니다.</p>:<CardCatalog cards={visibleCards}/>}
       {!favoriteOnly&&isFetchingNextPage&&<CardCatalogSkeleton count={3}/>}
       <div ref={loadMoreRef} className="catalog-count" aria-live="polite">
         {favoriteOnly||isFetchingNextPage?'':hasNextPage?'아래로 스크롤하면 더 불러옵니다.':cards.length?'모든 카드를 불러왔습니다.':''}

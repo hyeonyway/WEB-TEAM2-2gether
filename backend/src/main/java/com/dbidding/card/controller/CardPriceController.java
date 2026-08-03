@@ -5,6 +5,7 @@ import com.dbidding.card.domain.CardSort;
 import com.dbidding.card.service.CardPriceService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,12 @@ public class CardPriceController {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return cardPriceService.getCards(keyword, psaGrade, sort, page, size);
+    }
+
+    @GetMapping("/batch")
+    public List<CardResponses.CardSummary> getCardsByIds(
+            @RequestParam List<@Min(1) Integer> ids) {
+        return cardPriceService.getCardsByIds(ids);
     }
 
     @GetMapping("/{cardId}")

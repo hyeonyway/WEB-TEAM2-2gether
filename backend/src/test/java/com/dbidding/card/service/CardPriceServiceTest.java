@@ -15,6 +15,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -189,5 +190,20 @@ class CardPriceServiceTest {
                 .containsExactly("인기 카드", "고가 카드");
         assertThat(registeredSorted.content()).extracting("name")
                 .containsExactly("고가 카드", "인기 카드");
+    }
+
+    @Test
+    void 카드_ID_목록으로_요청한_카드를_순서대로_반환한다() {
+        CardSet set = new CardSet("찜 카드", "WISHLIST-CARDS");
+        entityManager.persist(set);
+        CardMetadata first = cardRepository.save(new CardMetadata(
+                set, "첫 번째 카드", "JP", "10", "gold", null));
+        CardMetadata second = cardRepository.save(new CardMetadata(
+                set, "두 번째 카드", "JP", "9", "gold", null));
+
+        var response = cardPriceService.getCardsByIds(List.of(second.getId(), first.getId()));
+
+        assertThat(response).extracting("name")
+                .containsExactly("두 번째 카드", "첫 번째 카드");
     }
 }

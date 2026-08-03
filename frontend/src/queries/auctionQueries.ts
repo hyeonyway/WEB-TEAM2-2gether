@@ -1,5 +1,5 @@
 import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
-import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
+import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards,fetchCardsByIds} from '../api/auctionApi';
 import type {AuctionListRequestDto,CardListRequestDto} from '../dto/auctionDto';
 
 export type AuctionViewerScope='public'|'self';
@@ -17,6 +17,7 @@ export const cardQueryKeys={
   all:['cards'] as const,
   list:(query:CardListRequestDto)=>[...cardQueryKeys.all,'list',query] as const,
   infiniteList:(query:CardListRequestDto)=>[...cardQueryKeys.all,'infinite-list',query] as const,
+  byIds:(cardIds:number[])=>[...cardQueryKeys.all,'by-ids',cardIds] as const,
   detail:(cardId:number)=>[...cardQueryKeys.all,'detail',cardId] as const,
 };
 
@@ -61,6 +62,11 @@ export const cardQueries={
     queryFn:({pageParam})=>fetchCardPage(query,pageParam),
     initialPageParam:0,
     getNextPageParam:lastPage=>lastPage.has_next?lastPage.page+1:undefined,
+    staleTime:60_000,
+  }),
+  byIds:(cardIds:number[])=>queryOptions({
+    queryKey:cardQueryKeys.byIds(cardIds),
+    queryFn:()=>fetchCardsByIds(cardIds),
     staleTime:60_000,
   }),
 };

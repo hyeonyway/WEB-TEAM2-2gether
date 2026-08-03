@@ -40,6 +40,19 @@ export async function fetchCards(query:CardListRequestDto):Promise<CardDto[]>{
   return response.content.map(mapCard);
 }
 
+export async function fetchCardsByIds(cardIds:number[]):Promise<CardDto[]>{
+  if(!cardIds.length)return [];
+  if(isMockApiEnabled()){
+    const idSet=new Set(cardIds);
+    const cards=await fetchMockCards({keyword:'',psaGrade:null});
+    const cardsById=new Map(cards.filter(card=>idSet.has(card.id)).map(card=>[card.id,card]));
+    return cardIds.flatMap(cardId=>cardsById.get(cardId)??[]);
+  }
+  const search=new URLSearchParams({ids:cardIds.join(',')});
+  const response=await request<CardResponseDto[]>(`/api/cards/batch?${search}`);
+  return response.map(mapCard);
+}
+
 export async function fetchCardPage(
   query:CardListRequestDto,
   page:number,
