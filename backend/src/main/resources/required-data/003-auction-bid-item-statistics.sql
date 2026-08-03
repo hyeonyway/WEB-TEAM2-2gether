@@ -17,6 +17,14 @@ WHERE `item_id` BETWEEN 1 AND 804
 DELETE FROM `item_statistics`
 WHERE `item_id` BETWEEN 1 AND 804;
 
+DELETE FROM `wallet_holds`
+WHERE `auction_id` BETWEEN 1000100 AND 1080431
+   OR `auction_id` BETWEEN 2000001 AND 2000024;
+
+DELETE FROM `images`
+WHERE `auction_id` BETWEEN 1000100 AND 1080431
+   OR `auction_id` BETWEEN 2000001 AND 2000024;
+
 DELETE FROM `bids`
 WHERE `auction_id` BETWEEN 1000100 AND 1080431
    OR `auction_id` BETWEEN 2000001 AND 2000024;
@@ -171,6 +179,13 @@ ON DUPLICATE KEY UPDATE
   `is_hyped` = VALUES(`is_hyped`),
   `version` = VALUES(`version`);
 
+INSERT INTO `images` (`auction_id`, `image_path`)
+SELECT
+  `seed`.`auction_id`,
+  `card`.`image_path`
+FROM `_seed_ended_auctions` AS `seed`
+JOIN `card_metadata` AS `card` ON `card`.`id` = `seed`.`item_id`;
+
 INSERT INTO `bids`
   (`id`, `user_id`, `auction_id`, `bid_price`, `created_at`, `status`)
 WITH RECURSIVE `bid_steps` (`step_number`) AS (
@@ -197,7 +212,7 @@ SELECT
   ),
   CASE
     WHEN `steps`.`step_number` = `seed`.`number_of_bids` THEN 'WON'
-    ELSE 'LOST'
+    ELSE 'OUTBID'
   END
 FROM `_seed_ended_auctions` AS `seed`
 CROSS JOIN `bid_steps` AS `steps`
@@ -225,7 +240,6 @@ WITH RECURSIVE `items` (`item_id`) AS (
       ELSE 1000
     END AS `bid_unit`,
     CASE
-      WHEN MOD(`items`.`item_id`, 6) = 0 THEN 'SCHEDULED'
       WHEN MOD(`items`.`item_id`, 5) = 0 THEN 'ENDING'
       ELSE 'OPEN'
     END AS `auction_status`,
@@ -266,18 +280,13 @@ SELECT
   `seed`.`base_price` + (`seed`.`bid_unit` * 15),
   3000,
   `seed`.`auction_status`,
-  CASE
-    WHEN `seed`.`auction_status` = 'SCHEDULED' THEN TIMESTAMPADD(HOUR, 2, NOW(6))
-    ELSE TIMESTAMPADD(HOUR, -(2 + MOD(`seed`.`item_id`, 10)), NOW(6))
-  END,
+  TIMESTAMPADD(HOUR, -(2 + MOD(`seed`.`item_id`, 10)), NOW(6)),
   CASE
     WHEN `seed`.`auction_status` = 'ENDING' THEN TIMESTAMPADD(MINUTE, 30, NOW(6))
-    WHEN `seed`.`auction_status` = 'SCHEDULED' THEN TIMESTAMPADD(HOUR, 26, NOW(6))
     ELSE TIMESTAMPADD(HOUR, 3 + MOD(`seed`.`item_id`, 10), NOW(6))
   END,
   CASE
     WHEN `seed`.`auction_status` = 'ENDING' THEN TIMESTAMPADD(MINUTE, 30, NOW(6))
-    WHEN `seed`.`auction_status` = 'SCHEDULED' THEN TIMESTAMPADD(HOUR, 26, NOW(6))
     ELSE TIMESTAMPADD(HOUR, 3 + MOD(`seed`.`item_id`, 10), NOW(6))
   END,
   `seed`.`number_of_bids`,
@@ -304,6 +313,13 @@ ON DUPLICATE KEY UPDATE
   `bid_price_unit` = VALUES(`bid_price_unit`),
   `is_hyped` = VALUES(`is_hyped`),
   `version` = VALUES(`version`);
+
+INSERT INTO `images` (`auction_id`, `image_path`)
+SELECT
+  `seed`.`auction_id`,
+  `card`.`image_path`
+FROM `_seed_current_auctions` AS `seed`
+JOIN `card_metadata` AS `card` ON `card`.`id` = `seed`.`item_id`;
 
 INSERT INTO `bids`
   (`id`, `user_id`, `auction_id`, `bid_price`, `created_at`, `status`)
@@ -336,6 +352,21 @@ ON DUPLICATE KEY UPDATE
   `bid_price` = VALUES(`bid_price`),
   `created_at` = VALUES(`created_at`),
   `status` = VALUES(`status`);
+
+INSERT INTO `wallet_holds`
+  (`wallet_id`, `auction_id`, `amount`, `status`, `created_at`)
+SELECT
+  `wallet`.`id`,
+  `bid`.`auction_id`,
+  `bid`.`bid_price`,
+  'HELD',
+  `bid`.`created_at`
+FROM `bids` AS `bid`
+JOIN `auctions` AS `auction` ON `auction`.`id` = `bid`.`auction_id`
+JOIN `wallets` AS `wallet` ON `wallet`.`user_id` = `bid`.`user_id`
+WHERE `bid`.`auction_id` BETWEEN 2000001 AND 2000024
+  AND `bid`.`status` = 'LEADING'
+  AND `auction`.`status` IN ('OPEN', 'ENDING');
 
 DROP TEMPORARY TABLE IF EXISTS `_seed_daily_statistics`;
 CREATE TEMPORARY TABLE `_seed_daily_statistics` AS

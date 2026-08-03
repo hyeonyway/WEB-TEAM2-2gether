@@ -7,6 +7,9 @@ SET time_zone = '+09:00';
 USE `dbidding`;
 START TRANSACTION;
 
+DELETE FROM `wallet_holds`
+WHERE `auction_id` BETWEEN 3000001 AND 3000050;
+
 DELETE FROM `bids`
 WHERE `auction_id` BETWEEN 3000001 AND 3000050;
 
@@ -15,6 +18,9 @@ WHERE `auction_id` BETWEEN 3000001 AND 3000050;
 
 DELETE FROM `auctions`
 WHERE `id` BETWEEN 3000001 AND 3000050;
+
+DELETE FROM `wallet_holds`
+WHERE `auction_id` BETWEEN 3000101 AND 3000112;
 
 DELETE FROM `bids`
 WHERE `auction_id` BETWEEN 3000101 AND 3000112;
@@ -138,6 +144,21 @@ FROM `_seed_dashboard_auctions` AS `seed`
 CROSS JOIN `bid_steps` AS `steps`
 WHERE `steps`.`step_number` <= `seed`.`number_of_bids`;
 
+INSERT INTO `wallet_holds`
+  (`wallet_id`, `auction_id`, `amount`, `status`, `created_at`)
+SELECT
+  `wallet`.`id`,
+  `bid`.`auction_id`,
+  `bid`.`bid_price`,
+  'HELD',
+  `bid`.`created_at`
+FROM `bids` AS `bid`
+JOIN `auctions` AS `auction` ON `auction`.`id` = `bid`.`auction_id`
+JOIN `wallets` AS `wallet` ON `wallet`.`user_id` = `bid`.`user_id`
+WHERE `bid`.`auction_id` BETWEEN 3000001 AND 3000050
+  AND `bid`.`status` = 'LEADING'
+  AND `auction`.`status` IN ('OPEN', 'ENDING');
+
 DROP TEMPORARY TABLE IF EXISTS `_seed_dashboard_auctions`;
 
 DROP TEMPORARY TABLE IF EXISTS `_seed_dashboard_wins`;
@@ -221,13 +242,13 @@ SELECT
   TIMESTAMPADD(
     MINUTE,
     -(
-      (`seed`.`number_of_bids` - `steps`.`step_number`) * 8
+      ((`seed`.`number_of_bids` - `steps`.`step_number`) * 8) + 1
     ),
     TIMESTAMPADD(DAY, -`seed`.`sequence`, NOW(6))
   ),
   CASE
     WHEN `steps`.`step_number` = `seed`.`number_of_bids` THEN 'WON'
-    ELSE 'LOST'
+    ELSE 'OUTBID'
   END
 FROM `_seed_dashboard_wins` AS `seed`
 CROSS JOIN `bid_steps` AS `steps`
