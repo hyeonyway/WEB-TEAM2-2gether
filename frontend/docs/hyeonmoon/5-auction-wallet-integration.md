@@ -5,7 +5,9 @@
 PR #155에서 Auction 입찰 API, 인증 진입, `bid-context` 기반 Wallet snapshot과
 Auction Query 갱신을 연결했다. 이슈 #116에서는 입찰 성공 뒤 공통
 `walletQueryKeys.balance()`도 무효화해 Header와 마이페이지 Wallet이 서버 값을
-다시 조회하도록 연결했다.
+다시 조회하도록 연결했다. 이후 기존 Auction SSE가 연결된 상태에서는 현재
+사용자가 새 최고 입찰자·상회 입찰당한 이전 최고 입찰자·낙찰자인 경우에도 같은
+Query를 무효화하도록 확장했다.
 
 입찰 hold 금액은 배송비를 제외한 입찰가로 확정했다. 배송비는 경매 상세에서
 별도로 표시하며 Wallet 가용액 검증과 예상 잔여액 계산에는 포함하지 않는다.
@@ -78,10 +80,19 @@ Auction 입찰 mutation 성공
 
 ### 상회 입찰과 낙찰
 
-상회 입찰 알림이나 경매 종료 응답 뒤 Wallet 변경을 알 수 있는 시점에 Balance
-Query를 무효화한다. SSE나 Notification을 이 문서에서 새로 소유하지 않으며,
-해당 담당자가 이벤트 수신 지점에서 Wallet Query invalidation만 호출할 수 있게
-계약을 전달한다.
+전역 `AuthProvider`가 기존 Auction SSE를 한 번 구독한다. JWT `sub`는 권한
+판단이 아니라 현재 브라우저 사용자의 Wallet cache 갱신 대상을 고르는 용도로만
+사용한다.
+
+- `BID_PLACED.bidder_id`가 현재 사용자면 새 hold를 반영한다.
+- `BID_PLACED.previous_bidder_id`가 현재 사용자면 상회 입찰로 해제된 hold를
+  반영한다.
+- `AUCTION_CLOSED.winner_id`가 현재 사용자면 낙찰 차감과 hold 종료를 반영한다.
+- 위 ID가 모두 현재 사용자와 다르면 Wallet Query를 무효화하지 않는다.
+
+이 작업은 Auction SSE emitter, payload 또는 Notification을 새로 구현하지 않는다.
+기존 공개 Auction 스트림을 소비해 `walletQueryKeys.balance()`만 무효화하며,
+실제 Wallet 값은 항상 서버 API에서 다시 조회한다.
 
 ## 다른 도메인 변경 절차
 
@@ -107,15 +118,22 @@ Query를 무효화한다. SSE나 Notification을 이 문서에서 새로 소유�
 
 ## 검증 범위
 
-이번 후속 작업은 신규 프론트 테스트를 추가하지 않았다. 기존 Auction 인증·API
-테스트는 유지하고 TypeScript 검사와 프로덕션 빌드로 import, Query key와 번들
-회귀가 없음을 확인했다.
+본인 입찰 mutation의 Wallet Query 무효화와 함께 기존 Auction SSE에 대한 다음
+회귀 테스트를 유지한다.
+
+- 현재 사용자가 새 최고 입찰자면 Wallet Query가 무효화된다.
+- 현재 사용자가 상회 입찰당하면 해제된 hold를 다시 조회한다.
+- 현재 사용자가 낙찰되면 차감된 Wallet을 다시 조회한다.
+- Wallet이 변하지 않는 다른 사용자의 이벤트는 무시한다.
+
+TypeScript 검사와 프로덕션 빌드로 import, Query key와 번들 회귀도 확인한다.
 
 ## 완료 기준
 
 - Auction 프론트가 하드코딩 Wallet 금액을 사용하지 않는다.
 - 입찰 성공 뒤 동결액과 가용액이 서버 상태와 일치한다.
 - Header와 마이페이지의 공통 Wallet Query가 입찰 성공 뒤 다시 조회된다.
+- 상회 입찰과 낙찰 SSE 뒤 영향을 받은 현재 사용자의 Wallet만 다시 조회된다.
 - 프론트가 hold·release·capture를 직접 호출하거나 재구현하지 않는다.
 - 배송비를 입찰 hold와 Wallet 예상 잔여액에 포함하지 않는다.
 - 다른 담당자 파일 변경이 합의된 연결 범위로 제한된다.

@@ -11,6 +11,7 @@ import {
 import {useQueryClient} from '@tanstack/react-query';
 import {getAccessToken, subscribeAccessToken} from '../api/accessTokenStore';
 import {refreshAccessToken} from '../api/authApi';
+import {useAuctionWalletSync} from '../hooks/useAuctionWalletSync';
 
 export type AuthStatus = 'initializing' | 'authenticated' | 'anonymous';
 
@@ -58,6 +59,8 @@ export function AuthProvider({children}: AuthProviderProps) {
     : accessToken
       ? 'authenticated'
       : 'anonymous';
+
+  useAuctionWalletSync(accessToken, status === 'authenticated');
 
   useEffect(() => {
     if (status !== 'anonymous') return;
