@@ -35,6 +35,7 @@
 
 ```text
 account
+├── adapter
 ├── controller
 ├── service
 ├── domain
@@ -52,16 +53,18 @@ account
 wallet
 ├── domain
 ├── repository
-├── adapter
 ├── controller
 ├── service
 ├── dto
 └── exception
 ```
 
-엔티티는 `domain`, Spring Data 인터페이스는 `repository`, 다른 도메인이 소유한
-Port의 구현체는 `adapter`에 둔다. 유스케이스와 HTTP 진입점은 각각 `service`,
-`controller`에 두고 요청·응답 모델은 `dto`에 둔다. Auth의 JWT 구현은 `token`,
+엔티티는 `domain`, Spring Data 인터페이스는 `repository`에 둔다. Port와 이를
+연결하는 Adapter는 해당 기능을 사용하는 소비자 도메인이 함께 소유한다. 제공자
+도메인은 범용 Service·Entity·Repository만 소유하며, 현재의 로컬 Adapter는
+제공자 Service를 호출하고 도메인이 분리되면 원격 Adapter로 교체한다.
+유스케이스와 HTTP 진입점은 각각 `service`, `controller`에 두고 요청·응답
+모델은 `dto`에 둔다. Auth의 JWT 구현은 `token`,
 JWT 설정은 `config`, Refresh 쿠키 생성은 `cookie`, 비밀번호 해시는
 `password`가 소유한다.
 
@@ -85,8 +88,9 @@ DTO를 두지 않는다. 외부 API와 DB FK에서는 기존 계약인 `userId`�
 | 9 | 완료 | [Auction Wallet 연동](wallet/5-auction-wallet-integration.md) | 입찰 홀드·해제와 낙찰 차감 |
 | 10 | 완료 | [Current User와 SSE 인증](auth/5-current-user-and-sse-auth.md) | 실제 JWT 필터 전환과 SSE 티켓 인증 |
 | 11 | 완료 | [Account 도메인 통합](account/1-account-domain-refactor.md) | Auth·User 계정 책임과 패키지 통합 |
-| 12 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
-| 13 | **다음 백엔드** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
+| 12 | 완료 | [소비자 소유 Wallet Adapter 리팩터링](wallet/6-consumer-owned-port-adapter-refactor.md) | Account·Auction Port와 Adapter의 소유권 통일 |
+| 13 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
+| 14 | **다음 백엔드** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
 
 문서 번호는 도메인 안의 책임 순서를 나타낸다. 도메인 사이의 실제 구현은
 Auth 1 → Wallet 1·2 → Auth 2·3·4·5 → Wallet 3·4·5 → Account 통합까지
