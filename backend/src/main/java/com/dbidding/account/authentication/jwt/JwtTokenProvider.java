@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
-import org.springframework.stereotype.Component;
 
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.exception.ExpiredTokenException;
@@ -21,7 +20,6 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
-@Component
 public class JwtTokenProvider {
 
     private final JwtProperties properties;

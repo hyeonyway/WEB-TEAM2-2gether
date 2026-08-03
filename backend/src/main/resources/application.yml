@@ -62,6 +62,8 @@ cloud:
       bucket: ${AUCTION_IMAGE_BUCKET:}
       presign-duration-seconds: ${AUCTION_IMAGE_PRESIGN_DURATION_SECONDS:300}
 app:
+  auth:
+    mode: ${AUTH_MODE:jwt}
   jwt:
     secret: ${JWT_SECRET}
     access-token-seconds: ${JWT_ACCESS_SECONDS:1800}

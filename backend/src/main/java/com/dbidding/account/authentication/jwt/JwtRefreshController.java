@@ -2,6 +2,7 @@ package com.dbidding.account.authentication.jwt;
 
 import java.util.Map;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -17,6 +18,7 @@ import com.dbidding.account.exception.InvalidTokenException;
 import lombok.RequiredArgsConstructor;
 
 @RestController
+@ConditionalOnProperty(name = "app.auth.mode", havingValue = "jwt", matchIfMissing = true)
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class JwtRefreshController {

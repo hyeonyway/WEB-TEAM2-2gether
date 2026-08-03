@@ -3,11 +3,9 @@ package com.dbidding.account.authentication.jwt;
 import java.time.Duration;
 
 import org.springframework.http.ResponseCookie;
-import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
-@Component
 @RequiredArgsConstructor
 public class RefreshCookieFactory {
 
