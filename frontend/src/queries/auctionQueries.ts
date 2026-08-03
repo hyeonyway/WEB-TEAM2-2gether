@@ -114,6 +114,15 @@ export function applyBidContextEvent(
 ):BidContextResponseDto|undefined{
   if(!context||context.auction_id!==event.auction_id||context.version>=event.auction_version)return context;
   const currentPrice=event.current_price??event.final_price??context.current_price;
+  const recentBids=event.type==='BID_PLACED'
+    ?[{
+      id:-event.auction_version,
+      amount:currentPrice,
+      bidder_alias:`user-${String(event.bidder_id).slice(0,2)}***`,
+      is_highest:true,
+      created_at:event.occurred_at,
+    },...context.recent_bids.map(bid=>({...bid,is_highest:false}))].slice(0,5)
+    :context.recent_bids;
   return {
     ...context,
     status:event.status,
@@ -121,5 +130,6 @@ export function applyBidContextEvent(
     current_price:currentPrice,
     minimum_bid:currentPrice+event.bid_increment,
     bid_increment:event.bid_increment,
+    recent_bids:recentBids,
   };
 }

@@ -62,8 +62,12 @@ describe('auctionQueryKeys',()=>{
   });
 
   it('입찰 SSE 이벤트를 열린 팝업의 입찰 컨텍스트에 반영한다',()=>{
-    expect(applyBidContextEvent(bidContext,bidEvent)).toMatchObject({
+    const result=applyBidContextEvent(bidContext,bidEvent);
+    expect(result).toMatchObject({
       current_price:30_000,minimum_bid:32_000,bid_increment:2_000,status:'ENDING',version:2,
+    });
+    expect(result?.recent_bids[0]).toMatchObject({
+      id:-2,amount:30_000,bidder_alias:'user-2***',is_highest:true,
     });
   });
 

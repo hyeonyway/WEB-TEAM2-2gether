@@ -3,8 +3,8 @@ import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {useSearchParams} from 'react-router-dom';
 import {AuctionCatalog,AuctionCatalogSkeleton,AuctionPagination} from './components';
-import type {AuctionDto,AuctionListRequestDto,BidContextResponseDto,PageResponseDto} from '../../dto/auctionDto';
-import {applyAuctionListEvent,applyBidContextEvent,auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
+import type {AuctionDto,AuctionListRequestDto,PageResponseDto} from '../../dto/auctionDto';
+import {applyAuctionListEvent,auctionQueries} from '../../queries/auctionQueries';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
@@ -40,12 +40,6 @@ export default function AuctionPage(){
         auctionQueries.list(listRequest,viewerScope).queryKey,
         current=>applyAuctionListEvent(current,event,listRequest),
       );
-      const bidContextKey=auctionQueryKeys.bidContext(event.auction_id);
-      queryClient.setQueryData<BidContextResponseDto>(
-        bidContextKey,
-        current=>applyBidContextEvent(current,event),
-      );
-      if(event.type==='BID_PLACED')void queryClient.invalidateQueries({queryKey:bidContextKey,refetchType:'active'});
     },
   });
   const{data,isPending,error}=useQuery(auctionQueries.list(listRequest,viewerScope));
