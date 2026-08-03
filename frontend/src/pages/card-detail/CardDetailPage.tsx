@@ -1,6 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 import {Bookmark,Share2} from 'lucide-react';
-import {Header} from '../../components';
+import {Header,showToast} from '../../components';
 import {cardQueries} from '../../queries/auctionQueries';
 import {useWishlist} from '../../hooks/useWishlist';
 import PriceChangeAreaChart from './PriceChangeAreaChart';
@@ -17,6 +17,15 @@ export default function CardPriceDetailPage(){
   const image=card.image_url||'/assets/pikachu-promo-card.png';
   const saved=favoriteCardIds.includes(card.id);
   const priceRange=`${money(card.low_price)} - ${money(card.high_price)}`;
+  const copyCurrentLink=async()=>{
+    try{
+      if(!navigator.clipboard)throw new Error('Clipboard API is unavailable');
+      await navigator.clipboard.writeText(window.location.href);
+      showToast('시세 상세 링크를 복사했습니다.');
+    }catch{
+      showToast('링크를 복사하지 못했습니다.');
+    }
+  };
   return <div className="detail-page price-detail-page">
     <Header/>
     <div className="detail-layout">
@@ -34,7 +43,7 @@ export default function CardPriceDetailPage(){
         </div>
         <div className="buy-row price-buy-row">
           <button className={'icon-action '+(saved?'saved':'')} disabled={wishlistPending} onClick={()=>toggleFavorite(card.id)} aria-label="관심 카드"><Bookmark/><small>{card.wishlist_count}</small></button>
-          <button className="icon-action" aria-label="공유" onClick={()=>navigator.clipboard?.writeText(window.location.href)}><Share2/><small>공유</small></button>
+          <button type="button" className="icon-action" aria-label="공유" onClick={()=>void copyCurrentLink()}><Share2/><small>공유</small></button>
           <a className="buy detail-bid-button" href={`/auction?keyword=${encodeURIComponent(card.name)}`}>진행 경매 보기 ({card.active_auction_count}개)</a>
         </div>
         <section className="detail-price-summary">
