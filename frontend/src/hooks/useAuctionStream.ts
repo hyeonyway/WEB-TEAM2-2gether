@@ -39,6 +39,9 @@ export type AuctionStreamPayload=
     winner_id:number|null;
   };
 
+const AUCTION_STREAM_EVENT_TYPES=['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED'] as const;
+type AuctionStreamEventType=typeof AUCTION_STREAM_EVENT_TYPES[number];
+
 type UseAuctionStreamOptions={
   enabled?:boolean;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
@@ -49,11 +52,11 @@ function auctionStreamUrl(){
   return `${apiBaseUrl}/api/auctions/stream`;
 }
 
-function parsePayload(data:string):AuctionStreamPayload|null{
+function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayload|null{
   try{
     const raw=JSON.parse(data) as Record<string,unknown>;
     const value={
-      type:raw.type,
+      type,
       auction_id:raw.auction_id??raw.auctionId,
       ...(raw.card_id!==undefined||raw.cardId!==undefined?{
         card_id:raw.card_id??raw.cardId,
@@ -79,8 +82,7 @@ function parsePayload(data:string):AuctionStreamPayload|null{
       occurred_at:raw.occurred_at??raw.occurredAt,
     } as Partial<AuctionStreamPayload>;
     if(
-      !['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED'].includes(value.type??'')
-      ||!Number.isInteger(value.auction_id)
+      !Number.isInteger(value.auction_id)
       ||!Number.isFinite(value.start_price)
       ||!Number.isFinite(value.bid_increment)
       ||!Number.isInteger(value.bid_count)
@@ -111,15 +113,17 @@ export function useAuctionStream({
     if(!enabled||isMockApiEnabled())return;
 
     const eventSource=new EventSource(auctionStreamUrl());
-    const handleUpdate=(event:Event)=>{
-      const payload=parsePayload((event as MessageEvent<string>).data);
-      if(payload)onAuctionUpdatedRef.current(payload);
-    };
-
-    eventSource.addEventListener('auction-updated',handleUpdate);
+    const listeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
+      const listener=(event:Event)=>{
+        const payload=parsePayload(type,(event as MessageEvent<string>).data);
+        if(payload)onAuctionUpdatedRef.current(payload);
+      };
+      eventSource.addEventListener(type,listener);
+      return [type,listener] as const;
+    });
 
     return ()=>{
-      eventSource.removeEventListener('auction-updated',handleUpdate);
+      listeners.forEach(([type,listener])=>eventSource.removeEventListener(type,listener));
       eventSource.close();
     };
   },[enabled]);
