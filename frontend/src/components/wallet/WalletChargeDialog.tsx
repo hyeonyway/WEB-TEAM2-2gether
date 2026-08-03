@@ -2,13 +2,14 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {Wallet} from 'lucide-react';
 import {type FormEvent, useState} from 'react';
 import {HttpError} from '../../api/httpClient';
+import type {WalletBalanceDto} from '../../dto/walletDto';
 import {useModalFocusTrap} from '../../hooks/useModalFocusTrap';
 import {walletMutations} from '../../queries/walletMutations';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
 import {showToast} from '../Toast';
 
 type WalletChargeDialogProps = {
-  balance: number;
+  wallet: WalletBalanceDto;
   onClose: () => void;
 };
 
@@ -16,11 +17,11 @@ const quickAmounts = [50_000, 100_000, 300_000];
 const minimumChargeAmount = 1_000;
 
 export default function WalletChargeDialog({
-  balance,
+  wallet,
   onClose,
 }: WalletChargeDialogProps) {
   const queryClient = useQueryClient();
-  const [amount, setAmount] = useState(quickAmounts[0]);
+  const [amount, setAmount] = useState(0);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [errorMessage, setErrorMessage] = useState('');
   const chargeMutation = useMutation({
@@ -94,10 +95,11 @@ export default function WalletChargeDialog({
             <h2>포인트 충전</h2>
           </div>
         </div>
-        <div className="wallet-current">
-          <span>현재 보유 포인트</span>
-          <strong>{balance.toLocaleString()}P</strong>
-        </div>
+        <dl className="wallet-current-balances" role="group" aria-label="현재 전자지갑 잔액">
+          <div><dt>총 잔액</dt><dd>{wallet.totalBalance.toLocaleString()}P</dd></div>
+          <div><dt>동결 금액</dt><dd>{wallet.frozenBalance.toLocaleString()}P</dd></div>
+          <div><dt>가용 잔액</dt><dd>{wallet.availableBalance.toLocaleString()}P</dd></div>
+        </dl>
         <form noValidate onSubmit={submit}>
           <label className="wallet-amount-label">
             충전 금액
@@ -115,18 +117,23 @@ export default function WalletChargeDialog({
               <button
                 key={value}
                 type="button"
-                className={amount === value ? 'active' : ''}
-                onClick={() => updateAmount(value)}
+                onClick={() => updateAmount(amount + value)}
                 disabled={chargeMutation.isPending}
               >
                 +{(value / 10_000).toLocaleString()}만원
               </button>
             ))}
           </div>
-          <div className="wallet-after">
-            <span>충전 후 포인트</span>
-            <b>{(balance + Math.max(amount, 0)).toLocaleString()}P</b>
-          </div>
+          <dl className="wallet-after-values">
+            <div>
+              <dt>충전 후 총 잔액</dt>
+              <dd>{(wallet.totalBalance + Math.max(amount, 0)).toLocaleString()}P</dd>
+            </div>
+            <div>
+              <dt>충전 후 가용 잔액</dt>
+              <dd>{(wallet.availableBalance + Math.max(amount, 0)).toLocaleString()}P</dd>
+            </div>
+          </dl>
           {errorMessage && (
             <p className="wallet-transaction-error" role="alert">{errorMessage}</p>
           )}
