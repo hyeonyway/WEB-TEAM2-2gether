@@ -7,9 +7,10 @@ import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dbidding.account.authentication.AuthenticatedAccount;
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.domain.AccountStatus;
-import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.domain.Authentication;
 import com.dbidding.account.dto.LoginRequest;
 import com.dbidding.account.dto.LoginResponse;
@@ -18,10 +19,10 @@ import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
-import com.dbidding.account.exception.InvalidCredentialsException;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.password.PasswordHasher;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.repository.AuthenticationRepository;
 import com.dbidding.account.token.IssuedTokens;
 import com.dbidding.account.token.JwtTokenProvider;
@@ -34,14 +35,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AuthService {
 
-	private static final String DUMMY_PASSWORD_HASH = "0".repeat(64);
-	private static final String DUMMY_PASSWORD_SALT = "0".repeat(32);
 	private final AccountRepository accountRepository;
 	private final PasswordHasher passwordHasher;
 	private final AuthenticationRepository authenticationRepository;
 	private final JwtTokenProvider jwtTokenProvider;
 	private final RefreshTokenHasher refreshTokenHasher;
 	private final AuthTransactionService authTransactionService;
+	private final CredentialAuthenticationService credentialAuthenticationService;
 
 	public SignupResponse signup(SignupRequest request) {
 		if (accountRepository.existsByEmail(request.email())) {
@@ -56,28 +56,13 @@ public class AuthService {
 	}
 
 	public LoginResult login(LoginRequest request) {
-		Account account = accountRepository.findByEmail(request.email()).orElse(null);
-		if (account == null) {
-			passwordHasher.matches(
-				request.password(),
-				DUMMY_PASSWORD_SALT,
-				DUMMY_PASSWORD_HASH
-			);
-			throw new InvalidCredentialsException();
-		}
-
-		boolean passwordMatches = passwordHasher.matches(
-			request.password(),
-			account.getSalt(),
-			account.getEncryptedPassword()
+		AuthenticatedAccount account = credentialAuthenticationService.authenticate(
+			request.email(),
+			request.password()
 		);
-		if (!passwordMatches || account.getStatus() != AccountStatus.ACTIVE) {
-			throw new InvalidCredentialsException();
-		}
-
-		IssuedTokens tokens = jwtTokenProvider.issue(account.getId(), account.getRole(), Instant.now());
+		IssuedTokens tokens = jwtTokenProvider.issue(account.userId(), account.role(), Instant.now());
 		String refreshTokenHash = refreshTokenHasher.hash(tokens.refreshToken());
-		authTransactionService.persistRefreshToken(account.getId(), refreshTokenHash);
+		authTransactionService.persistRefreshToken(account.userId(), refreshTokenHash);
 
 		return new LoginResult(
 			new LoginResponse(tokens.accessToken()),
@@ -124,5 +109,4 @@ public class AuthService {
 			storedHash.getBytes(StandardCharsets.US_ASCII)
 		);
 	}
-
 }

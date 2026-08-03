@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.domain.AccountStatus;
@@ -84,7 +85,8 @@ class AuthServiceLoginTest {
 			authenticationRepository,
 			jwtTokenProvider,
 			refreshTokenHasher,
-			authTransactionService
+			authTransactionService,
+			new CredentialAuthenticationService(accountRepository, passwordHasher)
 		);
 	}
 

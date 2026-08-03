@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.dbidding.account.domain.Account;
@@ -81,7 +83,8 @@ class AuthServiceRefreshTest {
 			authenticationRepository,
 			jwtTokenProvider,
 			refreshTokenHasher,
-			authTransactionService
+			authTransactionService,
+			new CredentialAuthenticationService(accountRepository, passwordHasher)
 		);
 	}
 

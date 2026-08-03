@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.password.PasswordHasher;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.port.WalletProvisioningPort;
@@ -56,7 +57,8 @@ class AuthServiceLogoutTest {
 			authenticationRepository,
 			jwtTokenProvider,
 			refreshTokenHasher,
-			authTransactionService
+			authTransactionService,
+			new CredentialAuthenticationService(accountRepository, passwordHasher)
 		);
 	}
 
