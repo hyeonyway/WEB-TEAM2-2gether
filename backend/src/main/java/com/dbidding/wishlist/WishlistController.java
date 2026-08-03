@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dbidding.global.security.CurrentUser;
+import com.dbidding.card.dto.CardResponses;
+import com.dbidding.card.service.CardPriceService;
 import com.dbidding.wishlist.dto.WishlistCreateRequest;
 import com.dbidding.wishlist.dto.WishlistResponse;
 
@@ -23,9 +25,11 @@ import jakarta.validation.Valid;
 public class WishlistController {
 
     private final WishlistService wishlistService;
+    private final CardPriceService cardPriceService;
 
-    public WishlistController(WishlistService wishlistService) {
+    public WishlistController(WishlistService wishlistService, CardPriceService cardPriceService) {
         this.wishlistService = wishlistService;
+        this.cardPriceService = cardPriceService;
     }
 
     @PostMapping
@@ -48,5 +52,10 @@ public class WishlistController {
         return wishlistService.findAll(userId).stream()
                 .map(WishlistResponse::from)
                 .toList();
+    }
+
+    @GetMapping("/cards")
+    public List<CardResponses.CardSummary> findAllCards(@CurrentUser Integer userId) {
+        return cardPriceService.getWishlistedCards(userId);
     }
 }

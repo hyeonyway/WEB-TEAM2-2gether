@@ -7,25 +7,26 @@ import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import type {CardSort} from '../../dto/auctionDto';
 import {useWishlist} from '../../hooks/useWishlist';
+import {wishlistQueries} from '../../queries/wishlistQueries';
 
 export default function CardsPage(){
   const[query,setQuery]=useState('');
   const[grade,setGrade]=useState('');
   const[sort,setSort]=useState<CardSort>('REGISTERED');
   const[favoriteOnly,setFavoriteOnly]=useState(false);
-  const{favoriteCardIds,isPending:wishlistPending}=useWishlist();
+  const{cacheKey,isLoggedIn}=useWishlist();
   const debouncedQuery=useDebouncedValue(query);
   const loadMoreRef=useRef<HTMLDivElement>(null);
   const cardQuery=cardQueries.infiniteList({keyword:debouncedQuery,psaGrade:grade||null,sort});
   const{data,isPending,error,hasNextPage,isFetchingNextPage,fetchNextPage}=useInfiniteQuery(cardQuery);
   const cards=data?.pages.flatMap(page=>page.content)??[];
   const favoriteCardsQuery=useQuery({
-    ...cardQueries.byIds(favoriteCardIds),
-    enabled:favoriteOnly&&favoriteCardIds.length>0,
+    ...wishlistQueries.cards(cacheKey),
+    enabled:favoriteOnly&&isLoggedIn,
   });
   const visibleCards=favoriteOnly?(favoriteCardsQuery.data??[]):cards;
   const catalogPending=favoriteOnly
-    ?wishlistPending||(favoriteCardIds.length>0&&favoriteCardsQuery.isPending)
+    ?favoriteCardsQuery.isPending
     :isPending;
   const catalogError=favoriteOnly?favoriteCardsQuery.error:error;
   const totalElements=data?.pages[0]?.total_elements??0;

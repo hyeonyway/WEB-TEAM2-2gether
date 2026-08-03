@@ -11,12 +11,12 @@ const money=(value:number)=>`${value.toLocaleString()}원`;
 export default function CardPriceDetailPage(){
   const cardId=Number(window.location.pathname.split('/').filter(Boolean).pop());
   const{data:card,isPending,error}=useQuery(cardQueries.detail(cardId));
-  const{favoriteCardIds,toggleFavorite,isPending:wishlistPending}=useWishlist();
+  const{isFavorite,toggleFavorite,isPending:wishlistPending}=useWishlist();
   if(isPending)return <CardPriceDetailSkeleton/>;
   if(error||!card)return <div className="detail-page price-detail-page"><Header/><main><p className="form-error">카드 시세를 불러오지 못했습니다.</p></main></div>;
 
   const image=card.image_url||'/assets/pikachu-promo-card.png';
-  const saved=favoriteCardIds.includes(card.id);
+  const saved=isFavorite(card.id);
   const priceRange=`${money(card.low_price)} - ${money(card.high_price)}`;
   const copyCurrentLink=async()=>{
     try{

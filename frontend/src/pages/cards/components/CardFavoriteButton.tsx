@@ -2,8 +2,8 @@ import {Bookmark} from 'lucide-react';
 import {useWishlist} from '../../../hooks/useWishlist';
 
 export default function CardFavoriteButton({cardId}:{cardId:number}){
-  const{favoriteCardIds,toggleFavorite,isPending}=useWishlist();
-  const active=favoriteCardIds.includes(cardId);
+  const{isFavorite,toggleFavorite,isPending}=useWishlist();
+  const active=isFavorite(cardId);
 
   return <button
     className={`favorite-button${active?' active':''}`}

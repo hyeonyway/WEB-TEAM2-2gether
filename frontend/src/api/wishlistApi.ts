@@ -1,6 +1,9 @@
 import {authenticatedRequest} from './authenticatedRequest';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {WishlistDto,WishlistResponseDto} from '../dto/wishlistDto';
+import type {CardDto,CardResponseDto} from '../dto/auctionDto';
+import {mapCard} from './auctionMapper';
+import {fetchCards} from './auctionApi';
 
 const MOCK_STORAGE_KEY='favorite-card-ids';
 
@@ -26,6 +29,15 @@ export async function fetchWishlists():Promise<WishlistDto[]>{
   if(isMockApiEnabled())return readMockCardIds().map(cardId=>({id:cardId,cardId}));
   const response=await authenticatedRequest<WishlistResponseDto[]>('/api/wishlists');
   return response.map(mapWishlist);
+}
+
+export async function fetchWishlistCards():Promise<CardDto[]>{
+  if(isMockApiEnabled()){
+    const favoriteIds=new Set(readMockCardIds());
+    return (await fetchCards({keyword:'',psaGrade:null})).filter(card=>favoriteIds.has(card.id));
+  }
+  const response=await authenticatedRequest<CardResponseDto[]>('/api/wishlists/cards');
+  return response.map(mapCard);
 }
 
 export async function addWishlist(cardId:number):Promise<WishlistDto>{

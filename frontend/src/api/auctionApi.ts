@@ -1,7 +1,7 @@
-import {HttpError,request} from './httpClient';
+import {request} from './httpClient';
 import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticatedRequest';
 import {fetchMockAuctions,fetchMockCards} from './mockAuctionApi';
-import {mapAuction,mapCard,mapCardLanguage,normalizePsaGrade,resolveImageUrl} from './auctionMapper';
+import {mapAuction,mapCard,normalizePsaGrade,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
 
@@ -38,39 +38,6 @@ export async function fetchCards(query:CardListRequestDto):Promise<CardDto[]>{
   if(isMockApiEnabled())return fetchMockCards(query);
   const response=await request<PageResponseDto<CardResponseDto>>(`/api/cards?${params(query)}`);
   return response.content.map(mapCard);
-}
-
-export async function fetchCardsByIds(cardIds:number[]):Promise<CardDto[]>{
-  if(!cardIds.length)return [];
-  if(isMockApiEnabled()){
-    const idSet=new Set(cardIds);
-    const cards=await fetchMockCards({keyword:'',psaGrade:null});
-    const cardsById=new Map(cards.filter(card=>idSet.has(card.id)).map(card=>[card.id,card]));
-    return cardIds.flatMap(cardId=>cardsById.get(cardId)??[]);
-  }
-  const search=new URLSearchParams({ids:cardIds.join(',')});
-  try{
-    const response=await request<CardResponseDto[]|PageResponseDto<CardResponseDto>>(
-      `/api/cards?${search}`,
-    );
-    if(Array.isArray(response))return response.map(mapCard);
-  }catch(error){
-    if(!(error instanceof HttpError)||error.status!==404)throw error;
-  }
-  const details=await Promise.all(cardIds.map(fetchCardDetail));
-  return details.map(card=>({
-    id:card.id,
-    name:card.name,
-    marketPrice:card.market_price,
-    lowPrice:card.low_price,
-    highPrice:card.high_price,
-    changeRate:card.change_rate,
-    theme:'gold',
-    bidCount:card.bid_count,
-    psaGrade:normalizePsaGrade(card.psa_grade),
-    language:mapCardLanguage(card.language),
-    imageUrl:card.image_url,
-  }));
 }
 
 export async function fetchCardPage(

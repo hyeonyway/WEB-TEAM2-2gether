@@ -46,8 +46,8 @@ public class CardPriceService {
         return new CardResponses.Page<>(content, page, size, cards.getTotalElements(), cards.hasNext());
     }
 
-    public List<CardResponses.CardSummary> getCardsByIds(List<Integer> cardIds) {
-        var orderedIds = cardIds.stream().distinct().toList();
+    public List<CardResponses.CardSummary> getWishlistedCards(Integer userId) {
+        var orderedIds = wishlistPort.findCardIdsByUserId(userId).stream().distinct().toList();
         var cardsById = cardRepository.findAllById(orderedIds).stream()
                 .collect(Collectors.toMap(CardMetadata::getId, Function.identity()));
         Map<Integer, Summary> statistics = statisticPort.getSummaries(orderedIds);

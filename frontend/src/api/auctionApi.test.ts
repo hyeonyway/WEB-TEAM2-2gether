@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {clearAccessToken,setAccessToken} from './accessTokenStore';
-import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardsByIds} from './auctionApi';
+import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions} from './auctionApi';
 
 const auctionResponse={
   id:10,
@@ -84,39 +84,6 @@ describe('auctionApi',()=>{
     const headers=new Headers(options?.headers);
     expect(headers.get('Authorization')).toBe('Bearer auction-access-token');
     expect(headers.get('Idempotency-Key')).toBe('bid-key');
-  });
-
-  it('찜 카드 ID를 일괄 조회한다',async()=>{
-    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse([
-      {
-        id:2,name:'리자몽',market_price:20000,low_price:18000,high_price:22000,
-        change_rate:0,theme:'gold',bid_count:1,psa_grade:'PSA 10',language:'Japanese',
-        thumbnail_url:null,
-      },
-    ]));
-
-    const cards=await fetchCardsByIds([2,7]);
-
-    expect(cards).toHaveLength(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/cards?ids=2%2C7');
-  });
-
-  it('ID 목록 조회를 지원하지 않는 서버에서는 기존 상세 API로 대체 조회한다',async()=>{
-    const fetchMock=vi.spyOn(globalThis,'fetch')
-      .mockResolvedValueOnce(new Response('Not Found',{status:404}))
-      .mockResolvedValueOnce(jsonResponse({
-        id:2,name:'리자몽',set_name:'포켓몬 카드',rarity:null,
-        market_price:20000,low_price:18000,high_price:22000,average_price:20000,
-        change_rate:0,weekly_change_rate:0,monthly_change_rate:0,bid_count:1,
-        ended_auction_count:1,active_auction_count:0,wishlist_count:1,
-        psa_grade:'PSA 10',language:'Japanese',image_url:null,history:[],
-      }));
-
-    const cards=await fetchCardsByIds([2]);
-
-    expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({id:2,psaGrade:'10',language:'JP'});
-    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/cards/2');
   });
 
   it('경매 상세와 입찰 이력은 공개로, 입찰 컨텍스트는 JWT로 조회한다',async()=>{
