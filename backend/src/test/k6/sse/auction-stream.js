@@ -68,14 +68,14 @@ export function subscribe() {
       });
 
       client.on('event', event => {
-        if (event.name !== 'auction-updated') {
+        if (!eventTypes.has(event.name)) {
           return;
         }
 
         auctionEvents.add(1);
         try {
           const payload = JSON.parse(event.data);
-          if (!isValidPayload(payload)) {
+          if (!isValidPayload(event.name, payload)) {
             invalidPayloads.add(1);
           }
         } catch {
@@ -104,10 +104,9 @@ export function publishEvents() {
   publishSuccess.add(response.status === 202);
 }
 
-function isValidPayload(payload) {
+function isValidPayload(eventName, payload) {
   const commonValid = payload !== null
     && typeof payload === 'object'
-    && eventTypes.has(payload.type)
     && Number.isInteger(payload.auction_id ?? payload.auctionId)
     && Number.isFinite(payload.start_price ?? payload.startPrice)
     && Number.isFinite(payload.bid_increment ?? payload.bidIncrement)
@@ -118,7 +117,7 @@ function isValidPayload(payload) {
   if (!commonValid) {
     return false;
   }
-  if (payload.type === 'BID_PLACED') {
+  if (eventName === 'BID_PLACED') {
     return Number.isInteger(payload.bidder_id ?? payload.bidderId);
   }
   return Number.isInteger(payload.card_id ?? payload.cardId)

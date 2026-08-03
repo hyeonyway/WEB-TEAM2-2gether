@@ -47,6 +47,12 @@ type UseAuctionStreamOptions={
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
 };
 
+type AuctionStreamSubscriber=(payload:AuctionStreamPayload)=>void;
+
+const subscribers=new Set<AuctionStreamSubscriber>();
+let sharedEventSource:EventSource|null=null;
+let sharedListeners:ReadonlyArray<readonly[AuctionStreamEventType,EventListener]>=[];
+
 function auctionStreamUrl(){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
   return `${apiBaseUrl}/api/auctions/stream`;
@@ -102,6 +108,36 @@ function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayl
   }
 }
 
+function connectSharedEventSource(){
+  if(sharedEventSource)return;
+
+  const eventSource=new EventSource(auctionStreamUrl());
+  sharedEventSource=eventSource;
+  sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
+    const listener:EventListener=event=>{
+      const payload=parsePayload(type,(event as MessageEvent<string>).data);
+      if(payload)subscribers.forEach(subscriber=>subscriber(payload));
+    };
+    eventSource.addEventListener(type,listener);
+    return [type,listener] as const;
+  });
+}
+
+function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
+  subscribers.add(subscriber);
+  connectSharedEventSource();
+
+  return ()=>{
+    subscribers.delete(subscriber);
+    if(subscribers.size>0||!sharedEventSource)return;
+
+    sharedListeners.forEach(([type,listener])=>sharedEventSource?.removeEventListener(type,listener));
+    sharedEventSource.close();
+    sharedEventSource=null;
+    sharedListeners=[];
+  };
+}
+
 export function useAuctionStream({
   enabled=true,
   onAuctionUpdated,
@@ -111,20 +147,6 @@ export function useAuctionStream({
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
-
-    const eventSource=new EventSource(auctionStreamUrl());
-    const listeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
-      const listener=(event:Event)=>{
-        const payload=parsePayload(type,(event as MessageEvent<string>).data);
-        if(payload)onAuctionUpdatedRef.current(payload);
-      };
-      eventSource.addEventListener(type,listener);
-      return [type,listener] as const;
-    });
-
-    return ()=>{
-      listeners.forEach(([type,listener])=>eventSource.removeEventListener(type,listener));
-      eventSource.close();
-    };
+    return subscribeToAuctionStream(payload=>onAuctionUpdatedRef.current(payload));
   },[enabled]);
 }

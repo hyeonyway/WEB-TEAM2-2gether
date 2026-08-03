@@ -50,7 +50,7 @@ describe('useAuctionStream',()=>{
     const onAuctionUpdated=vi.fn();
     renderHook(()=>useAuctionStream({onAuctionUpdated}));
 
-    act(()=>publish(type,{...data,type:'IGNORED_DATA_TYPE'}));
+    act(()=>publish(type,data));
 
     expect(onAuctionUpdated).toHaveBeenCalledWith(expect.objectContaining({type,auction_id:10}));
   });
@@ -75,5 +75,25 @@ describe('useAuctionStream',()=>{
 
     expect(eventSource.close).toHaveBeenCalledOnce();
     expect(onAuctionUpdated).not.toHaveBeenCalled();
+  });
+
+  it('여러 훅이 하나의 EventSource 연결을 공유한다',()=>{
+    const firstSubscriber=vi.fn();
+    const secondSubscriber=vi.fn();
+    const first=renderHook(()=>useAuctionStream({onAuctionUpdated:firstSubscriber}));
+    const second=renderHook(()=>useAuctionStream({onAuctionUpdated:secondSubscriber}));
+    const eventSource=EventSourceMock.instances[0];
+
+    expect(EventSourceMock.instances).toHaveLength(1);
+    first.unmount();
+    expect(eventSource.close).not.toHaveBeenCalled();
+
+    act(()=>publish('BID_PLACED',{...basePayload,bidder_id:7,previous_bidder_id:null}));
+
+    expect(firstSubscriber).not.toHaveBeenCalled();
+    expect(secondSubscriber).toHaveBeenCalledOnce();
+
+    second.unmount();
+    expect(eventSource.close).toHaveBeenCalledOnce();
   });
 });
