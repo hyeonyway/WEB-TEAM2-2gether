@@ -1,5 +1,7 @@
 package com.dbidding.wishlist;
 
+import java.util.List;
+
 import com.dbidding.card.port.CardWishlistPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,5 +16,12 @@ public class WishlistCardAdapter implements CardWishlistPort {
     @Override
     public int countWishlists(Integer cardId) {
         return Math.toIntExact(wishlistRepository.countByCardId(cardId));
+    }
+
+    @Override
+    public List<Integer> findCardIdsByUserId(Integer userId) {
+        return wishlistRepository.findByUserId(userId).stream()
+                .map(Wishlist::getCardId)
+                .toList();
     }
 }

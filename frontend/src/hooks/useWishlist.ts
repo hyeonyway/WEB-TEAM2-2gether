@@ -17,7 +17,7 @@ export function useWishlist(){
     if(status==='anonymous')queryClient.removeQueries({queryKey:wishlistQueryKeys.all});
   },[status,queryClient]);
   const{data,isLoading}=useQuery({...wishlistQueries.list(cacheKey),enabled:isLoggedIn});
-  const favoriteCardIds=(data??[]).map(item=>item.cardId);
+  const isFavorite=(cardId:number)=>(data??[]).some(item=>item.cardId===cardId);
 
   const addMutation=useMutation(wishlistMutations.add(queryClient,cacheKey));
   const removeMutation=useMutation(wishlistMutations.remove(queryClient,cacheKey));
@@ -29,9 +29,9 @@ export function useWishlist(){
       return;
     }
     if(isPending)return;
-    if(favoriteCardIds.includes(cardId))removeMutation.mutate(cardId);
+    if(isFavorite(cardId))removeMutation.mutate(cardId);
     else addMutation.mutate(cardId);
   };
 
-  return {favoriteCardIds,toggleFavorite,isPending};
+  return {isFavorite,toggleFavorite,isPending,cacheKey,isLoggedIn};
 }

@@ -11,7 +11,6 @@ import {
 import {useQueryClient} from '@tanstack/react-query';
 import {getAccessToken, subscribeAccessToken} from '../api/accessTokenStore';
 import {refreshAccessToken} from '../api/authApi';
-import {HttpError} from '../api/httpClient';
 
 export type AuthStatus = 'initializing' | 'authenticated' | 'anonymous';
 
@@ -34,20 +33,16 @@ export function AuthProvider({children}: AuthProviderProps) {
     getAccessToken,
   );
   const [initialized, setInitialized] = useState(false);
-  const [recoveryError, setRecoveryError] = useState(false);
   const initializationInFlightRef = useRef(false);
 
   const initialize = useCallback(async () => {
     if (initializationInFlightRef.current) return;
     initializationInFlightRef.current = true;
     setInitialized(false);
-    setRecoveryError(false);
     try {
       await refreshAccessToken();
-    } catch (error) {
-      if (!(error instanceof HttpError && error.status === 401)) {
-        setRecoveryError(true);
-      }
+    } catch {
+      // 인증 복구 실패는 anonymous 상태로 처리하고 전역 오류 UI는 노출하지 않는다.
     } finally {
       setInitialized(true);
       initializationInFlightRef.current = false;
@@ -80,12 +75,6 @@ export function AuthProvider({children}: AuthProviderProps) {
 
   return (
     <AuthContext.Provider value={contextValue}>
-      {recoveryError && (
-        <div role="alert">
-          <span>로그인 상태를 확인하지 못했습니다.</span>
-          <button type="button" onClick={() => void initialize()}>다시 시도</button>
-        </div>
-      )}
       {children}
     </AuthContext.Provider>
   );

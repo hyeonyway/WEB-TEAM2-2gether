@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 import com.dbidding.global.security.CurrentUserProvider;
+import com.dbidding.card.service.CardPriceService;
 
 @WebMvcTest(WishlistController.class)
 class WishlistControllerTest {
@@ -27,11 +28,25 @@ class WishlistControllerTest {
     private WishlistService wishlistService;
 
     @MockitoBean
+    private CardPriceService cardPriceService;
+
+    @MockitoBean
     private CurrentUserProvider currentUserProvider;
 
     @BeforeEach
     void setUp() {
         given(currentUserProvider.getCurrentUserId()).willReturn(1);
+    }
+
+    @Test
+    void 찜한_카드_목록은_인증_사용자_기준으로_조회한다() throws Exception {
+        given(cardPriceService.getWishlistedCards(1)).willReturn(List.of());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/wishlists/cards"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().json("[]"));
+
+        verify(cardPriceService).getWishlistedCards(1);
     }
 
     @Test

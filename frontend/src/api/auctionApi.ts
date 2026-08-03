@@ -1,7 +1,7 @@
 import {request} from './httpClient';
 import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticatedRequest';
 import {fetchMockAuctions,fetchMockCards} from './mockAuctionApi';
-import {mapAuction,mapCard,resolveImageUrl} from './auctionMapper';
+import {mapAuction,mapCard,normalizePsaGrade,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
 import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
 

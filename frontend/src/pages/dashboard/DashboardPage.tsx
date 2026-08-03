@@ -8,6 +8,7 @@ import {useAuctionStream} from '../../hooks/useAuctionStream';
 import type {AuctionDto} from '../../dto/auctionDto';
 import {HttpError} from '../../api/httpClient';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
+import AuctionCatalogSkeleton from '../auction/components/AuctionCatalogSkeleton';
 
 const sections=[
   ['participating','참여 중인 경매','현재 참여 중인 경매를 확인하세요.'],
@@ -70,7 +71,7 @@ export default function DashboardPage(){
     <section className={`cards-dash-section ${active==='participating'?'participating-section':''}`}>
       <div className="cards-dash-section-head"><div><h2>{section[1]}</h2><p>{section[2]}</p></div></div>
       {dashboard.isPending
-        ? <DashboardAuctionSkeleton/>
+        ? <AuctionCatalogSkeleton label="대시보드 경매 목록을 불러오는 중"/>
         : dashboard.isError
           ? <div className="filter-empty">
               <b>{authenticationRequired?'로그인이 필요합니다.':'대시보드를 불러오지 못했습니다.'}</b>
@@ -79,21 +80,4 @@ export default function DashboardPage(){
           : <AuctionCatalog auctions={visible}/>}
     </section>
   </main></div>;
-}
-
-function DashboardAuctionSkeleton(){
-  return <section className="card-grid dashboard-auction-skeleton" aria-label="참여 경매를 불러오는 중" aria-busy="true">
-    {Array.from({length:6},(_,index)=><article className="card-tile skeleton-card" key={index}>
-      <div className="dashboard-skeleton-art skeleton-pulse"/>
-      <div className="dashboard-skeleton-content">
-        <i className="skeleton-line short skeleton-pulse"/>
-        <i className="skeleton-line title skeleton-pulse"/>
-        <i className="skeleton-line medium skeleton-pulse"/>
-        <div className="dashboard-skeleton-values">
-          {Array.from({length:4},(_,valueIndex)=><i className="skeleton-pulse" key={valueIndex}/>)}
-        </div>
-        <div className="dashboard-skeleton-actions"><i className="skeleton-pulse"/><i className="skeleton-pulse"/></div>
-      </div>
-    </article>)}
-  </section>;
 }
