@@ -56,7 +56,15 @@ ON DUPLICATE KEY UPDATE
 
 -- Give the primary local account a reproducible wallet balance.
 INSERT INTO `wallets` (`user_id`, `point`)
-VALUES (1, 1000000)
+VALUES (1, 5000000)
+ON DUPLICATE KEY UPDATE
+  `point` = VALUES(`point`);
+
+-- Active auction fixtures use these deterministic users as leading bidders.
+INSERT INTO `wallets` (`user_id`, `point`)
+SELECT `id`, 5000000
+FROM `users`
+WHERE `id` BETWEEN 900001 AND 900030
 ON DUPLICATE KEY UPDATE
   `point` = VALUES(`point`);
 
@@ -66,12 +74,30 @@ INSERT INTO `point_records`
 SELECT
   `wallet`.`id`,
   NULL,
-  1000000,
-  1000000,
+  5000000,
+  5000000,
   'CHARGE',
   'seed-user-1-initial-charge'
 FROM `wallets` AS `wallet`
 WHERE `wallet`.`user_id` = 1
+ON DUPLICATE KEY UPDATE
+  `auction_id` = VALUES(`auction_id`),
+  `amount` = VALUES(`amount`),
+  `balance` = VALUES(`balance`),
+  `transaction_type` = VALUES(`transaction_type`);
+
+INSERT INTO `point_records`
+  (`wallet_id`, `auction_id`, `amount`, `balance`,
+   `transaction_type`, `idempotency_key`)
+SELECT
+  `wallet`.`id`,
+  NULL,
+  5000000,
+  5000000,
+  'CHARGE',
+  CONCAT('seed-user-', `wallet`.`user_id`, '-initial-charge')
+FROM `wallets` AS `wallet`
+WHERE `wallet`.`user_id` BETWEEN 900001 AND 900030
 ON DUPLICATE KEY UPDATE
   `auction_id` = VALUES(`auction_id`),
   `amount` = VALUES(`amount`),
