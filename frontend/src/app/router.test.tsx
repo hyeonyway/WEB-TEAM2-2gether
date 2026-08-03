@@ -45,6 +45,10 @@ describe('AppRoutes', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+    vi.stubGlobal('IntersectionObserver', class {
+      observe() {}
+      disconnect() {}
+    });
   });
 
   afterEach(() => {
@@ -53,6 +57,17 @@ describe('AppRoutes', () => {
     });
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('헤더의 카드 시세 링크는 SPA 내부에서 목록 경로로 이동한다', () => {
+    renderRoute('/', 'anonymous');
+
+    fireEvent.click(screen.getByRole('link', {name: '카드 시세'}));
+
+    expect(screen.getByTestId('router-path')).toHaveTextContent('/cards');
+    expect(screen.getByRole('heading', {name: '전체 카드 정보'}))
+      .toBeInTheDocument();
   });
 
   it('경매 목록은 anonymous 상태에서도 표시한다', () => {
