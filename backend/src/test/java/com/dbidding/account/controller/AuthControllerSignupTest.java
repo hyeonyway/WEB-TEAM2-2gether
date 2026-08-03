@@ -22,7 +22,7 @@ import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
-import com.dbidding.account.service.AuthService;
+import com.dbidding.account.service.SignupService;
 
 @WebMvcTest(AuthController.class)
 class AuthControllerSignupTest {
@@ -31,7 +31,7 @@ class AuthControllerSignupTest {
 	private MockMvc mockMvc;
 
 	@MockitoBean
-	private AuthService authService;
+	private SignupService signupService;
 
 	@MockitoBean
 	private RefreshCookieFactory refreshCookieFactory;
@@ -44,7 +44,7 @@ class AuthControllerSignupTest {
 
 	@Test
 	void 회원가입하면_201과_공개된_사용자_정보만_반환한다() throws Exception {
-		given(authService.signup(any(SignupRequest.class)))
+		given(signupService.signup(any(SignupRequest.class)))
 			.willReturn(new SignupResponse(
 				1,
 				"collector@example.com",
@@ -89,7 +89,7 @@ class AuthControllerSignupTest {
 
 	@Test
 	void 중복_이메일이면_409를_반환한다() throws Exception {
-		given(authService.signup(any(SignupRequest.class)))
+		given(signupService.signup(any(SignupRequest.class)))
 			.willThrow(new DuplicateEmailException());
 
 		mockMvc.perform(post("/api/auth/signup")
@@ -100,7 +100,7 @@ class AuthControllerSignupTest {
 
 	@Test
 	void 중복_닉네임이면_409를_반환한다() throws Exception {
-		given(authService.signup(any(SignupRequest.class)))
+		given(signupService.signup(any(SignupRequest.class)))
 			.willThrow(new DuplicateNicknameException());
 
 		mockMvc.perform(post("/api/auth/signup")
@@ -113,7 +113,7 @@ class AuthControllerSignupTest {
 	void UNIQUE가_아닌_무결성_위반은_409로_변환하지_않는다() {
 		DataIntegrityViolationException databaseError =
 			new DataIntegrityViolationException("not a duplicate");
-		given(authService.signup(any(SignupRequest.class)))
+		given(signupService.signup(any(SignupRequest.class)))
 			.willThrow(databaseError);
 
 		assertThatThrownBy(() -> mockMvc.perform(post("/api/auth/signup")

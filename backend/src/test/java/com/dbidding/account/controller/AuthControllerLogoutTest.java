@@ -26,7 +26,7 @@ import com.dbidding.account.config.JwtProperties;
 import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.cookie.RefreshCookieFactory;
-import com.dbidding.account.service.AuthService;
+import com.dbidding.account.service.SignupService;
 
 import jakarta.servlet.http.Cookie;
 
@@ -45,7 +45,7 @@ class AuthControllerLogoutTest {
 	private MockMvc mockMvc;
 
 	@MockitoBean
-	private AuthService authService;
+	private SignupService signupService;
 
 	@MockitoBean
 	private CredentialAuthenticationService credentialAuthenticationService;

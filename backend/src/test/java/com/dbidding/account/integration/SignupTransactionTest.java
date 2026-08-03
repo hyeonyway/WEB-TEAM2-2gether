@@ -13,7 +13,7 @@ import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.service.AuthService;
+import com.dbidding.account.service.SignupService;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.support.AccountMySqlIntegrationTest;
@@ -23,7 +23,7 @@ import com.dbidding.wallet.repository.WalletRepository;
 class SignupTransactionTest extends AccountMySqlIntegrationTest {
 
 	@Autowired
-	private AuthService authService;
+	private SignupService signupService;
 
 	@Autowired
 	private AccountRepository accountRepository;
@@ -45,7 +45,7 @@ class SignupTransactionTest extends AccountMySqlIntegrationTest {
 			"signup-success"
 		);
 
-		SignupResponse response = authService.signup(request);
+		SignupResponse response = signupService.signup(request);
 
 		Account account = accountRepository.findById(response.id()).orElseThrow();
 		Wallet wallet = walletRepository.findByUserId(response.id()).orElseThrow();
@@ -69,7 +69,7 @@ class SignupTransactionTest extends AccountMySqlIntegrationTest {
 			.when(walletProvisioningPort)
 			.createFor(any(Integer.class));
 
-		assertThatThrownBy(() -> authService.signup(request))
+		assertThatThrownBy(() -> signupService.signup(request))
 			.isInstanceOf(IllegalStateException.class);
 
 		assertThat(accountRepository.existsByEmail(request.email())).isFalse();

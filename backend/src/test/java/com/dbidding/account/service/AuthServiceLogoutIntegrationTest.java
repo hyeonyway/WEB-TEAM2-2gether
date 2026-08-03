@@ -8,22 +8,30 @@ import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mock.web.MockHttpServletRequest;
 
+import com.dbidding.account.authentication.jwt.JwtAuthenticationStrategy;
+import com.dbidding.account.authentication.jwt.JwtRefreshService;
+import com.dbidding.account.domain.Account;
+import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.domain.Authentication;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
-import com.dbidding.account.domain.AccountRole;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.repository.AuthenticationRepository;
+import com.dbidding.account.support.AccountMySqlIntegrationTest;
 import com.dbidding.account.token.IssuedTokens;
 import com.dbidding.account.token.JwtTokenProvider;
 import com.dbidding.account.token.RefreshTokenHasher;
-import com.dbidding.account.domain.Account;
-import com.dbidding.account.repository.AccountRepository;
-import com.dbidding.account.support.AccountMySqlIntegrationTest;
+
+import jakarta.servlet.http.Cookie;
 
 class AuthServiceLogoutIntegrationTest extends AccountMySqlIntegrationTest {
 
 	@Autowired
-	private AuthService authService;
+	private JwtAuthenticationStrategy jwtAuthenticationStrategy;
+
+	@Autowired
+	private JwtRefreshService jwtRefreshService;
 
 	@Autowired
 	private AuthenticationRepository authenticationRepository;
@@ -57,12 +65,14 @@ class AuthServiceLogoutIntegrationTest extends AccountMySqlIntegrationTest {
 
 	@Test
 	void 로그아웃하면_기존_refresh_token으로_재발급할_수_없다() {
-		authService.logout(refreshToken);
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.setCookies(new Cookie("refreshToken", refreshToken));
+		jwtAuthenticationStrategy.terminate(request);
 
 		assertThat(authenticationRepository.findByRefreshTokenHash(
 			refreshTokenHasher.hash(refreshToken)
 		)).isEmpty();
-		assertThatThrownBy(() -> authService.refresh(refreshToken))
+		assertThatThrownBy(() -> jwtRefreshService.refresh(refreshToken))
 			.isInstanceOf(InvalidRefreshTokenException.class);
 	}
 }
