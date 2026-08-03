@@ -50,25 +50,27 @@ export async function fetchCardsByIds(cardIds:number[]):Promise<CardDto[]>{
   }
   const search=new URLSearchParams({ids:cardIds.join(',')});
   try{
-    const response=await request<CardResponseDto[]>(`/api/cards/batch?${search}`);
-    return response.map(mapCard);
+    const response=await request<CardResponseDto[]|PageResponseDto<CardResponseDto>>(
+      `/api/cards?${search}`,
+    );
+    if(Array.isArray(response))return response.map(mapCard);
   }catch(error){
     if(!(error instanceof HttpError)||error.status!==404)throw error;
-    const details=await Promise.all(cardIds.map(fetchCardDetail));
-    return details.map(card=>({
-      id:card.id,
-      name:card.name,
-      marketPrice:card.market_price,
-      lowPrice:card.low_price,
-      highPrice:card.high_price,
-      changeRate:card.change_rate,
-      theme:'gold',
-      bidCount:card.bid_count,
-      psaGrade:normalizePsaGrade(card.psa_grade),
-      language:mapCardLanguage(card.language),
-      imageUrl:card.image_url,
-    }));
   }
+  const details=await Promise.all(cardIds.map(fetchCardDetail));
+  return details.map(card=>({
+    id:card.id,
+    name:card.name,
+    marketPrice:card.market_price,
+    lowPrice:card.low_price,
+    highPrice:card.high_price,
+    changeRate:card.change_rate,
+    theme:'gold',
+    bidCount:card.bid_count,
+    psaGrade:normalizePsaGrade(card.psa_grade),
+    language:mapCardLanguage(card.language),
+    imageUrl:card.image_url,
+  }));
 }
 
 export async function fetchCardPage(

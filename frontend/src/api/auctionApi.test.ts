@@ -98,10 +98,10 @@ describe('auctionApi',()=>{
     const cards=await fetchCardsByIds([2,7]);
 
     expect(cards).toHaveLength(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/cards/batch?ids=2%2C7');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/cards?ids=2%2C7');
   });
 
-  it('찜 카드 일괄 조회가 404이면 기존 상세 API로 대체 조회한다',async()=>{
+  it('ID 목록 조회를 지원하지 않는 서버에서는 기존 상세 API로 대체 조회한다',async()=>{
     const fetchMock=vi.spyOn(globalThis,'fetch')
       .mockResolvedValueOnce(new Response('Not Found',{status:404}))
       .mockResolvedValueOnce(jsonResponse({

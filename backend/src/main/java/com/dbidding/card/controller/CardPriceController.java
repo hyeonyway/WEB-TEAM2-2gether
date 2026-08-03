@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class CardPriceController {
     private final CardPriceService cardPriceService;
 
-    @GetMapping
+    @GetMapping(params = "!ids")
     public CardResponses.Page<CardResponses.CardSummary> getCards(
             @RequestParam(defaultValue = "") String keyword,
             @RequestParam(required = false) String psaGrade,
@@ -27,7 +27,7 @@ public class CardPriceController {
         return cardPriceService.getCards(keyword, psaGrade, sort, page, size);
     }
 
-    @GetMapping("/batch")
+    @GetMapping(params = "ids")
     public List<CardResponses.CardSummary> getCardsByIds(
             @RequestParam List<@Min(1) Integer> ids) {
         return cardPriceService.getCardsByIds(ids);
