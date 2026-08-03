@@ -1,4 +1,4 @@
-package com.dbidding.account.domain;
+package com.dbidding.account.authentication.jwt;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

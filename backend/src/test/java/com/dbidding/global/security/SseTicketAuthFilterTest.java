@@ -23,6 +23,9 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.dbidding.global.exception.UnauthorizedException;
+import com.dbidding.global.security.jwt.InMemoryTicketProvider;
+import com.dbidding.global.security.jwt.SseTicketAuthFilter;
+import com.dbidding.global.security.jwt.TicketProvider;
 
 @ExtendWith(MockitoExtension.class)
 class SseTicketAuthFilterTest {

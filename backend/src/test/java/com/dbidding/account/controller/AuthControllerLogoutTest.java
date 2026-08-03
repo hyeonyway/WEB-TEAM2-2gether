@@ -22,10 +22,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.dbidding.account.config.JwtProperties;
+import com.dbidding.account.authentication.jwt.JwtProperties;
 import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
-import com.dbidding.account.cookie.RefreshCookieFactory;
+import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
 import com.dbidding.account.service.SignupService;
 
 import jakarta.servlet.http.Cookie;

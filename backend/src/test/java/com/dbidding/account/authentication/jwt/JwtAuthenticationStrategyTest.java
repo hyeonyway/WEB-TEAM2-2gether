@@ -18,13 +18,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
-import com.dbidding.account.cookie.RefreshCookieFactory;
+import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.dto.LoginResponse;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.token.IssuedTokens;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.RefreshTokenHasher;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
+import com.dbidding.account.authentication.jwt.IssuedTokens;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.RefreshTokenHasher;
 
 import jakarta.servlet.http.Cookie;
 

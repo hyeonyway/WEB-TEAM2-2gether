@@ -1,4 +1,4 @@
-package com.dbidding.account.repository;
+package com.dbidding.account.authentication.jwt;
 
 import java.util.Optional;
 
@@ -7,8 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
-import com.dbidding.account.domain.Authentication;
 
 import jakarta.persistence.LockModeType;
 

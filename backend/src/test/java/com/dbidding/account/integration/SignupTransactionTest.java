@@ -12,7 +12,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.port.WalletProvisioningPort;
-import com.dbidding.account.repository.AuthenticationRepository;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.service.SignupService;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;

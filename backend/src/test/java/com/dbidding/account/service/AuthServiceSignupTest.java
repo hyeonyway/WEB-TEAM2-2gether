@@ -28,9 +28,9 @@ import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.password.PasswordHasher;
 import com.dbidding.account.port.WalletProvisioningPort;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.RefreshTokenHasher;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.RefreshTokenHasher;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceSignupTest {

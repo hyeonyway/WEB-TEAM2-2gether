@@ -20,11 +20,11 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.dbidding.account.config.JwtProperties;
+import com.dbidding.account.authentication.jwt.JwtProperties;
 import com.dbidding.account.authentication.jwt.JwtRefreshController;
 import com.dbidding.account.authentication.jwt.JwtRefreshResult;
 import com.dbidding.account.authentication.jwt.JwtRefreshService;
-import com.dbidding.account.cookie.RefreshCookieFactory;
+import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
 import com.dbidding.account.dto.RefreshResponse;
 import com.dbidding.account.exception.InvalidTokenException;
 

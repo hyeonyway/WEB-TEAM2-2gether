@@ -2,6 +2,8 @@ package com.dbidding.account.token;
 
 import org.junit.jupiter.api.Test;
 
+import com.dbidding.account.authentication.jwt.RefreshTokenHasher;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RefreshTokenHasherTest {

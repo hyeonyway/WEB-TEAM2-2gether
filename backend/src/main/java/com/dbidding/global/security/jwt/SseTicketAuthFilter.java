@@ -1,4 +1,4 @@
-package com.dbidding.global.security;
+package com.dbidding.global.security.jwt;
 
 import java.io.IOException;
 import java.util.List;
@@ -9,6 +9,7 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.global.exception.UnauthorizedException;
+import com.dbidding.global.security.RequestUserIdWriter;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

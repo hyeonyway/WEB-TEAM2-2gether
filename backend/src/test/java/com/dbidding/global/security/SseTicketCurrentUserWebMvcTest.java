@@ -14,11 +14,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.TokenClaims;
-import com.dbidding.account.token.TokenType;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.TokenClaims;
+import com.dbidding.account.authentication.jwt.TokenType;
 import com.dbidding.global.config.WebConfig;
 import com.dbidding.global.exception.UnauthorizedException;
+import com.dbidding.global.security.jwt.JwtAuthFilter;
+import com.dbidding.global.security.jwt.SseTicketAuthFilter;
+import com.dbidding.global.security.jwt.TicketProvider;
 
 @WebMvcTest(SseTicketTestController.class)
 @Import({

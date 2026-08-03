@@ -1,4 +1,4 @@
-package com.dbidding.global.security;
+package com.dbidding.global.security.jwt;
 
 import java.time.Clock;
 import java.time.Duration;

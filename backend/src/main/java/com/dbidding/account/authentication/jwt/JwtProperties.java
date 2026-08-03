@@ -1,4 +1,4 @@
-package com.dbidding.account.config;
+package com.dbidding.account.authentication.jwt;
 
 import java.nio.charset.StandardCharsets;
 

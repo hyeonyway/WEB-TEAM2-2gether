@@ -10,12 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.authentication.AuthenticationStrategy;
-import com.dbidding.account.cookie.RefreshCookieFactory;
 import com.dbidding.account.dto.LoginResponse;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.token.IssuedTokens;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.RefreshTokenHasher;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;

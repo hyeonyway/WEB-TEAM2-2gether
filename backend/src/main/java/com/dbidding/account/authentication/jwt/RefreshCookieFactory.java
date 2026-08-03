@@ -1,11 +1,9 @@
-package com.dbidding.account.cookie;
+package com.dbidding.account.authentication.jwt;
 
 import java.time.Duration;
 
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
-
-import com.dbidding.account.config.JwtProperties;
 
 import lombok.RequiredArgsConstructor;
 

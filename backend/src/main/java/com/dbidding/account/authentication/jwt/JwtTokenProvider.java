@@ -1,4 +1,4 @@
-package com.dbidding.account.token;
+package com.dbidding.account.authentication.jwt;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -10,7 +10,6 @@ import javax.crypto.SecretKey;
 import org.springframework.stereotype.Component;
 
 import com.dbidding.account.domain.AccountRole;
-import com.dbidding.account.config.JwtProperties;
 import com.dbidding.account.exception.ExpiredTokenException;
 import com.dbidding.account.exception.InvalidTokenException;
 import com.dbidding.account.exception.InvalidTokenRoleException;

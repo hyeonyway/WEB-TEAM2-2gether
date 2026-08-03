@@ -1,8 +1,10 @@
-package com.dbidding.global.security;
+package com.dbidding.global.security.jwt;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.dbidding.global.security.CurrentUser;
 
 import lombok.RequiredArgsConstructor;
 

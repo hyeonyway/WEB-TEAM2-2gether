@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.dbidding.account.cookie.RefreshCookieFactory;
 import com.dbidding.account.exception.InvalidTokenException;
 
 import lombok.RequiredArgsConstructor;

@@ -9,15 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.domain.AccountStatus;
-import com.dbidding.account.domain.Authentication;
 import com.dbidding.account.dto.RefreshResponse;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
 import com.dbidding.account.repository.AccountRepository;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.token.IssuedTokens;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.RefreshTokenHasher;
-import com.dbidding.account.token.TokenClaims;
 
 import lombok.RequiredArgsConstructor;
 

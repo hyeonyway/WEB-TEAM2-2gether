@@ -15,9 +15,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.dbidding.account.exception.InvalidTokenException;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.TokenClaims;
-import com.dbidding.account.token.TokenType;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.TokenClaims;
+import com.dbidding.account.authentication.jwt.TokenType;
+import com.dbidding.global.security.jwt.JwtAuthFilter;
 
 @ExtendWith(MockitoExtension.class)
 class JwtAuthFilterTest {
@@ -40,7 +41,7 @@ class JwtAuthFilterTest {
 		given(jwtTokenProvider.parseAccess("valid-access-token"))
 			.willReturn(new TokenClaims(7, TokenType.ACCESS));
 
-		filter.doFilterInternal(request, new MockHttpServletResponse(), chain);
+		filter.doFilter(request, new MockHttpServletResponse(), chain);
 
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE))
 			.isEqualTo(7);
@@ -52,7 +53,7 @@ class JwtAuthFilterTest {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		MockFilterChain chain = new MockFilterChain();
 
-		filter.doFilterInternal(request, new MockHttpServletResponse(), chain);
+		filter.doFilter(request, new MockHttpServletResponse(), chain);
 
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE)).isNull();
 		assertThat(chain.getRequest()).isSameAs(request);
@@ -66,7 +67,7 @@ class JwtAuthFilterTest {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
-		filter.doFilterInternal(request, response, chain);
+		filter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
 		assertThat(chain.getRequest()).isNull();
@@ -82,7 +83,7 @@ class JwtAuthFilterTest {
 		given(jwtTokenProvider.parseAccess("invalid-token"))
 			.willThrow(new InvalidTokenException());
 
-		filter.doFilterInternal(request, response, chain);
+		filter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE)).isNull();

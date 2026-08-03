@@ -4,6 +4,8 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
+import com.dbidding.account.authentication.jwt.IssuedTokens;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class IssuedTokensTest {

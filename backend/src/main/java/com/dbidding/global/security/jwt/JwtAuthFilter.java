@@ -1,4 +1,4 @@
-package com.dbidding.global.security;
+package com.dbidding.global.security.jwt;
 
 import java.io.IOException;
 
@@ -7,8 +7,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.account.exception.InvalidTokenException;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.TokenClaims;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.TokenClaims;
+import com.dbidding.global.security.RequestUserIdWriter;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

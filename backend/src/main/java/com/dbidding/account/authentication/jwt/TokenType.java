@@ -1,4 +1,4 @@
-package com.dbidding.account.token;
+package com.dbidding.account.authentication.jwt;
 
 public enum TokenType {
     ACCESS("access"),

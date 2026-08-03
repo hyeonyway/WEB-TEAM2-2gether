@@ -14,7 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.dbidding.account.domain.Authentication;
+import com.dbidding.account.authentication.jwt.Authentication;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.support.AccountMySqlIntegrationTest;

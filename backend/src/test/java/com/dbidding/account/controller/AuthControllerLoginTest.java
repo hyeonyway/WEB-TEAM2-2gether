@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
-import com.dbidding.account.cookie.RefreshCookieFactory;
+import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.dto.LoginRequest;
 import com.dbidding.account.dto.LoginResponse;

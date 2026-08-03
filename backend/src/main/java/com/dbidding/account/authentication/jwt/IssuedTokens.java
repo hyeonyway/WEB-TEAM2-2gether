@@ -1,4 +1,4 @@
-package com.dbidding.account.token;
+package com.dbidding.account.authentication.jwt;
 
 import java.time.Instant;
 
