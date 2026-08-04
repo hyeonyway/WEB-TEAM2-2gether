@@ -66,7 +66,7 @@
 | 5 | #116 | 구현 완료 | [Auction Wallet 접점](5-auction-wallet-integration.md) | 입찰 뒤 공통 Wallet Query 동기화 |
 | 6 | #117 | 백엔드 선행 | [Account와 배송지](6-account-and-address.md) | 현재 사용자 정보와 배송지 CRUD UI |
 | 7 | #136 | 구현 완료 | [보호 화면 토스트 Auth Gate](7-auth-access-toast-gate.md) | 판매 등록·나의 대시보드·마이페이지 비로그인 접근 차단 |
-| 8 | #112 | 최종 | 별도 공통 작업 | 전체 화면의 SPA 내부 이동 통일 |
+| 8 | #112 | 진행 중 | [React Router 내부 이동](8-react-router-navigation.md) | 전체 화면의 SPA 내부 이동 통일 |
 
 각 설계 문서를 하나의 이슈와 PR로 처리한다. #112는 위 연동이 모두 끝난 뒤
 Header, Home, Card, Auction, Dashboard, Sell의 `<a href>`와
