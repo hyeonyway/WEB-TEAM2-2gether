@@ -32,11 +32,17 @@ export default function WalletRefundDialog({
       onClose();
     },
     onError: error => {
-      setErrorMessage(
-        error instanceof HttpError && error.status === 409
-          ? '가용 잔액이 부족하거나 환불 요청이 충돌했습니다.'
-          : '환불에 실패했습니다. 같은 요청으로 다시 시도해 주세요.',
-      );
+      if (error instanceof HttpError && error.code === 'INSUFFICIENT_AVAILABLE_BALANCE') {
+        void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
+        setErrorMessage('가용 잔액이 부족합니다. 최신 잔액을 확인해 주세요.');
+        return;
+      }
+      if (error instanceof HttpError && error.code === 'IDEMPOTENCY_CONFLICT') {
+        setIdempotencyKey(crypto.randomUUID());
+        setErrorMessage('환불 요청이 충돌했습니다. 새 요청으로 다시 시도해 주세요.');
+        return;
+      }
+      setErrorMessage('환불에 실패했습니다. 같은 요청으로 다시 시도해 주세요.');
     },
   });
 

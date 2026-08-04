@@ -117,9 +117,12 @@ describe('WalletRefundDialog', () => {
     });
   });
 
-  it('409 뒤 입력과 멱등키를 유지해 명시적으로 재시도한다', async () => {
+  it('가용 잔액 부족이면 Wallet을 다시 조회하고 같은 멱등키로 재시도한다', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(jsonResponse({}, 409))
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'INSUFFICIENT_AVAILABLE_BALANCE',
+        message: '사용 가능한 잔액이 부족합니다.',
+      }, 409))
       .mockResolvedValueOnce(jsonResponse({
         transactionId: 4,
         transactionType: 'REFUND',
@@ -127,12 +130,15 @@ describe('WalletRefundDialog', () => {
         balance: 90_000,
       }));
     const user = userEvent.setup();
-    renderDialog();
+    const {invalidateQueries} = renderDialog();
 
     await user.click(screen.getByRole('button', {name: '10,000P 환불하기'}));
     expect(await screen.findByRole('alert'))
-      .toHaveTextContent('가용 잔액이 부족하거나 환불 요청이 충돌했습니다.');
+      .toHaveTextContent('가용 잔액이 부족합니다. 최신 잔액을 확인해 주세요.');
     expect(screen.getByLabelText('환불 금액')).toHaveValue(10_000);
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['wallet', 'balance'],
+    });
 
     await user.click(screen.getByRole('button', {name: '10,000P 환불하기'}));
     await waitFor(() => {
@@ -144,6 +150,42 @@ describe('WalletRefundDialog', () => {
     expect(new Set(keys)).toEqual(new Set([
       '22222222-2222-4222-8222-222222222222',
     ]));
+  });
+
+  it('멱등키 충돌이면 입력은 유지하고 새 멱등키로 재시도한다', async () => {
+    vi.mocked(globalThis.crypto.randomUUID)
+      .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
+      .mockReturnValueOnce('22222222-2222-4222-8222-222222222222');
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'IDEMPOTENCY_CONFLICT',
+        message: '같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.',
+      }, 409))
+      .mockResolvedValueOnce(jsonResponse({
+        transactionId: 5,
+        transactionType: 'REFUND',
+        amount: -10_000,
+        balance: 90_000,
+      }));
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByRole('button', {name: '10,000P 환불하기'}));
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('환불 요청이 충돌했습니다. 새 요청으로 다시 시도해 주세요.');
+    expect(screen.getByLabelText('환불 금액')).toHaveValue(10_000);
+
+    await user.click(screen.getByRole('button', {name: '10,000P 환불하기'}));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    const keys = fetchMock.mock.calls.map(([, options]) =>
+      new Headers(options?.headers).get('Idempotency-Key'));
+    expect(keys).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ]);
   });
 
   it('키보드 포커스를 가두고 Escape로 닫은 뒤 이전 포커스를 복원한다', async () => {
