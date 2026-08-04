@@ -3,7 +3,8 @@ package com.dbidding.sse.auction;
 import com.dbidding.sse.auction.AuctionSseTestAuctionReader.Snapshot;
 import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
 import com.dbidding.sse.auction.payload.BidPlacedPayload;
-import java.time.LocalDateTime;
+import com.dbidding.global.time.UtcTime;
+import java.time.Clock;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -22,6 +23,7 @@ public class AuctionSseTestEventController {
 
     private final AuctionSseConnectionManager connectionManager;
     private final AuctionSseTestAuctionReader auctionReader;
+    private final Clock clock;
     private final ConcurrentMap<Integer, SimulatedBid> simulatedBids = new ConcurrentHashMap<>();
     private final AtomicLong bidderSequence = new AtomicLong();
 
@@ -77,10 +79,10 @@ public class AuctionSseTestEventController {
                 bid.currentPrice(),
                 auction.bidIncrement(),
                 bid.bidCount(),
-                auction.endsAt(),
+                UtcTime.toInstant(auction.endsAt()),
                 AuctionPayloadStatus.valueOf(auction.status()),
                 bid.auctionVersion(),
-                LocalDateTime.now()
+                clock.instant()
         );
     }
 

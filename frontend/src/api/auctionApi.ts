@@ -16,7 +16,7 @@ const mockPriceHistory=(marketPrice:number,monthlyChangeRate:number)=>{
   const startPrice=Math.max(1,Math.round(marketPrice/(1+monthlyChangeRate/100)));
   return Array.from({length:30},(_,index)=>{
     const date=new Date(today);
-    date.setDate(today.getDate()-(30-index));
+    date.setUTCDate(today.getUTCDate()-(30-index));
     const progress=index/29;
     const wave=Math.sin(index*.75)*marketPrice*.018;
     const averagePrice=Math.max(1,Math.round(startPrice+(marketPrice-startPrice)*progress+wave));

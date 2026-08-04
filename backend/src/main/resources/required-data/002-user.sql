@@ -1,7 +1,7 @@
 -- Deterministic sellers and bidders for local service-flow data.
 
 SET NAMES utf8mb4;
-SET time_zone = '+09:00';
+SET time_zone = '+00:00';
 USE `dbidding`;
 START TRANSACTION;
 

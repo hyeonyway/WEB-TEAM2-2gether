@@ -2,19 +2,13 @@ import {useMemo} from 'react';
 import {Area,Bar,CartesianGrid,ComposedChart,Legend,Line,XAxis,YAxis} from 'recharts';
 import {ChartContainer,ChartTooltip,ChartTooltipContent} from '../../components/ui/chart';
 import type {CardPricePointResponseDto} from '../../dto/auctionDto';
+import {formatKoreanMonthDay} from '../../utils/dateTime';
 
 type Props={
   history:CardPricePointResponseDto[];
 };
 
-const dateLabel=(value:string)=>{
-  const date=new Date(value);
-  if(Number.isNaN(date.getTime()))return value;
-  return date.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})
-    .replaceAll('.','/')
-    .replaceAll(' ','')
-    .replace(/\/$/,'');
-};
+const dateLabel=(value:string)=>formatKoreanMonthDay(value);
 
 export default function PriceChangeAreaChart({history}:Props){
   const data=useMemo(()=>history

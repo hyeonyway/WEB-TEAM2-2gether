@@ -4,6 +4,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static com.dbidding.global.time.UtcTime.toInstant;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
@@ -456,8 +457,8 @@ public class AuctionCommandService {
         return AuctionCreateResponse.builder()
                 .id(auction.getId())
                 .status(auction.getStatus())
-                .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .startsAt(toInstant(auction.getOpenTime()))
+                .endsAt(toInstant(auction.getCloseTime()))
                 .version(auction.getVersion())
                 .build();
     }
@@ -472,7 +473,7 @@ public class AuctionCommandService {
                         bid.getId(),
                         bid.getBidPrice(),
                         bid.getStatus(),
-                        bid.getCreatedAt()
+                        toInstant(bid.getCreatedAt())
                 ),
                 new BidResponses.AuctionSnapshot(
                         auction.getId(),
@@ -480,7 +481,7 @@ public class AuctionCommandService {
                         auction.getCurrentPrice(),
                         auction.minimumBid(),
                         auction.getBidCount(),
-                        auction.getCloseTime()
+                        toInstant(auction.getCloseTime())
                 ),
                 new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance())
         );

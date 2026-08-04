@@ -6,8 +6,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.dbidding.dashboard.dto.DashboardResponse;
+import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.global.exception.UnauthorizedException;
 import com.dbidding.global.security.CurrentUserProvider;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +53,31 @@ class DashboardControllerTest {
         mockMvc.perform(get("/api/dashboard/participating-auctions")
                         .queryParam("sort", "PRICE_HIGH"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void 경매_종료시각은_UTC_오프셋을_포함한다() throws Exception {
+        given(currentUserProvider.getCurrentUserId()).willReturn(7);
+        given(dashboardService.getParticipatingAuctions(
+                7,
+                ParticipatingAuctionSort.ENDING_SOON
+        )).willReturn(List.of(new DashboardResponse.AuctionSnapshot(
+                1,
+                new DashboardResponse.CardSnapshot(1, "카드", "10", "KR", null),
+                10_000L,
+                12_000L,
+                1_000L,
+                2,
+                Instant.parse("2026-07-31T03:00:00Z"),
+                AuctionStatus.OPEN,
+                1L,
+                MyBidStatus.LEADING,
+                12_000L
+        )));
+
+        mockMvc.perform(get("/api/dashboard/participating-auctions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].ends_at").value("2026-07-31T03:00:00Z"));
     }
 
     @Test

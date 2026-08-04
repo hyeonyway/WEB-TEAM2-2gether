@@ -109,7 +109,7 @@ public class CardPriceService {
             DailyPrice current = byDate.get(date);
             Long price = current == null ? null : current.averagePrice();
             result.add(new CardResponses.PricePoint(
-                    date.atStartOfDay(), price,
+                    date, price,
                     value(current == null ? null : current.endedAuctionCount()),
                     ZERO_RATE, ZERO_RATE, ZERO_RATE));
         }

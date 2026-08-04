@@ -11,7 +11,7 @@ import com.dbidding.sse.auction.payload.AuctionPayload;
 import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
 import com.dbidding.sse.auction.payload.BidPlacedPayload;
 import java.io.IOException;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -50,11 +50,11 @@ class AuctionSseConnectionManagerTest {
     }
 
     private AuctionPayload event() {
-        LocalDateTime now = LocalDateTime.of(2026, 7, 30, 12, 0);
+        Instant now = Instant.parse("2026-07-30T12:00:00Z");
         return new BidPlacedPayload(
                 null,
                 1, 4, null,
-                40_000L, 41_000L, 1_000L, 1, now.plusHours(1),
+                40_000L, 41_000L, 1_000L, 1, now.plusSeconds(3600),
                 AuctionPayloadStatus.OPEN, 2L, now
         );
     }

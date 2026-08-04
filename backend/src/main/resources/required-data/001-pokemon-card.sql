@@ -3,7 +3,7 @@
 -- image_path is an S3 object key, not a public URL.
 
 SET NAMES utf8mb4;
-SET time_zone = '+09:00';
+SET time_zone = '+00:00';
 USE `dbidding`;
 START TRANSACTION;
 
