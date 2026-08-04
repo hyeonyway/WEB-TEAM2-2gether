@@ -6,11 +6,10 @@ import CardArtwork from '../../cards/components/CardArtwork';
 import {useAuthGate} from '../../../auth/useAuthGate';
 import {normalizePsaGrade} from '../../../api/auctionMapper';
 import {nowUtc,parseUtc} from '../../../utils/utc';
-import {t} from '../../../i18n';
 
 const remainingTime=(endsAt:string,now:number)=>{
   const total=Math.max(0,Math.ceil((parseUtc(endsAt)-now)/1000));
-  if(total===0)return t('auctionEnded');
+  if(total===0)return '경매 종료';
   const hours=Math.floor(total/3600);
   const minutes=Math.floor(total%3600/60);
   const seconds=total%60;

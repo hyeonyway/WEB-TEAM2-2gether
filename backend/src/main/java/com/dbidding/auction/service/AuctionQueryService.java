@@ -1,6 +1,7 @@
 package com.dbidding.auction.service;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static com.dbidding.global.time.UtcTime.toInstant;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
@@ -175,8 +176,8 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .startsAt(toInstant(auction.getOpenTime()))
+                .endsAt(toInstant(auction.getCloseTime()))
                 .status(auction.getStatus())
                 .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
@@ -199,8 +200,8 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .startsAt(toInstant(auction.getOpenTime()))
+                .endsAt(toInstant(auction.getCloseTime()))
                 .status(auction.getStatus())
                 .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
@@ -251,7 +252,7 @@ public class AuctionQueryService {
                 .amount(bid.getBidPrice())
                 .bidderAlias(bidderAlias(bid.getBidderId()))
                 .isHighest(Objects.equals(bid.getId(), highestBidId))
-                .createdAt(bid.getCreatedAt())
+                .createdAt(toInstant(bid.getCreatedAt()))
                 .build();
     }
 

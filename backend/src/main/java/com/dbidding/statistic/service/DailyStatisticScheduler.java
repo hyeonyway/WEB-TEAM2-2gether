@@ -3,6 +3,7 @@ package com.dbidding.statistic.service;
 import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
         matchIfMissing = true
 )
 public class DailyStatisticScheduler {
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final DailyStatisticAggregationService aggregationService;
     private final MarketDailyStatisticRepository marketStatisticRepository;
     private final Clock clock;
@@ -35,7 +37,7 @@ public class DailyStatisticScheduler {
     }
 
     public void aggregateMissingDates() {
-        LocalDate yesterday = LocalDate.now(clock).minusDays(1);
+        LocalDate yesterday = LocalDate.now(clock.withZone(SEOUL)).minusDays(1);
         LocalDate firstMissingDate = marketStatisticRepository
                 .findFirstByOrderByStatisticsDateDesc()
                 .map(statistic -> statistic.getStatisticsDate().plusDays(1))

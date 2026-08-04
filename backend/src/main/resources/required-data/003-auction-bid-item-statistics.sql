@@ -6,14 +6,17 @@
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 USE `dbidding`;
+
+-- Keep the DB session in UTC, but bucket daily statistics by the service's Seoul date.
+SET @service_date = DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+09:00'));
 START TRANSACTION;
 
 -- Rebuild only the reserved card/date ranges so rerunning stays idempotent.
 DELETE FROM `market_daily_statistics`
-WHERE `statistics_date` BETWEEN CURDATE() - INTERVAL 31 DAY AND CURDATE() - INTERVAL 1 DAY;
+WHERE `statistics_date` BETWEEN @service_date - INTERVAL 31 DAY AND @service_date - INTERVAL 1 DAY;
 DELETE FROM `item_daily_statistics`
 WHERE `item_id` BETWEEN 1 AND 804
-  AND `statistics_date` BETWEEN CURDATE() - INTERVAL 31 DAY AND CURDATE() - INTERVAL 1 DAY;
+  AND `statistics_date` BETWEEN @service_date - INTERVAL 31 DAY AND @service_date - INTERVAL 1 DAY;
 DELETE FROM `item_statistics`
 WHERE `item_id` BETWEEN 1 AND 804;
 
@@ -142,16 +145,16 @@ SELECT
     HOUR,
     -8,
     TIMESTAMP(
-      DATE_SUB(CURDATE(), INTERVAL (31 - `seed`.`day_index`) DAY),
+      DATE_SUB(@service_date, INTERVAL (31 - `seed`.`day_index`) DAY),
       '00:00:00'
     )
   ),
   TIMESTAMP(
-    DATE_SUB(CURDATE(), INTERVAL (31 - `seed`.`day_index`) DAY),
+    DATE_SUB(@service_date, INTERVAL (31 - `seed`.`day_index`) DAY),
     '00:00:00'
   ),
   TIMESTAMP(
-    DATE_SUB(CURDATE(), INTERVAL (31 - `seed`.`day_index`) DAY),
+    DATE_SUB(@service_date, INTERVAL (31 - `seed`.`day_index`) DAY),
     '00:00:00'
   ),
   `seed`.`number_of_bids`,
@@ -206,7 +209,7 @@ SELECT
     MINUTE,
     -((`seed`.`number_of_bids` - `steps`.`step_number` + 1) * 30),
     TIMESTAMP(
-      DATE_SUB(CURDATE(), INTERVAL (31 - `seed`.`day_index`) DAY),
+      DATE_SUB(@service_date, INTERVAL (31 - `seed`.`day_index`) DAY),
       '00:00:00'
     )
   ),
@@ -372,7 +375,7 @@ DROP TEMPORARY TABLE IF EXISTS `_seed_daily_statistics`;
 CREATE TEMPORARY TABLE `_seed_daily_statistics` AS
 SELECT
   `auction`.`item_id`,
-  DATE(`auction`.`close_time`) AS `statistics_day`,
+  DATE(CONVERT_TZ(`auction`.`close_time`, '+00:00', '+09:00')) AS `statistics_day`,
   SUBSTRING_INDEX(
     GROUP_CONCAT(
       `auction`.`current_price`
@@ -389,7 +392,7 @@ FROM `auctions` AS `auction`
 LEFT JOIN `bids` AS `bid` ON `bid`.`auction_id` = `auction`.`id`
 WHERE `auction`.`id` BETWEEN 1000100 AND 1080431
   AND `auction`.`status` = 'ENDED'
-GROUP BY `auction`.`item_id`, DATE(`auction`.`close_time`);
+GROUP BY `auction`.`item_id`, DATE(CONVERT_TZ(`auction`.`close_time`, '+00:00', '+09:00'));
 
 ALTER TABLE `_seed_daily_statistics`
   ADD PRIMARY KEY (`item_id`, `statistics_day`);
@@ -401,7 +404,7 @@ INSERT INTO `item_statistics`
    `daily_change_rate`, `weekly_change_rate`, `monthly_change_rate`)
 SELECT
   `calculated`.`item_id`,
-  CURDATE() - INTERVAL 1 DAY,
+  @service_date - INTERVAL 1 DAY,
   `calculated`.`latest_price`,
   `calculated`.`rolling_average_price`,
   `calculated`.`rolling_lowest_price`,
@@ -476,7 +479,7 @@ FROM (
     ) AS `rolling_ended_auction_count`
   FROM `_seed_daily_statistics` AS `daily`
 ) AS `calculated`
-WHERE `calculated`.`statistics_day` = CURDATE() - INTERVAL 1 DAY
+WHERE `calculated`.`statistics_day` = @service_date - INTERVAL 1 DAY
 ON DUPLICATE KEY UPDATE
   `as_of_date` = VALUES(`as_of_date`),
   `latest_price` = VALUES(`latest_price`),
@@ -497,7 +500,7 @@ SELECT
   `item_id`, `statistics_day`, `latest_price`, `avg_price`,
   `lowest_price`, `highest_price`, `bid_count`, 1
 FROM `_seed_daily_statistics`
-WHERE `statistics_day` < CURDATE()
+WHERE `statistics_day` < @service_date
 ON DUPLICATE KEY UPDATE
   `latest_price` = VALUES(`latest_price`),
   `average_price` = VALUES(`average_price`),
@@ -537,7 +540,7 @@ SELECT
   `daily`.`ended_auction_count`
 FROM (
   SELECT
-    DATE(`auction`.`close_time`) AS `statistics_date`,
+    DATE(CONVERT_TZ(`auction`.`close_time`, '+00:00', '+09:00')) AS `statistics_date`,
     ROUND(AVG(`auction`.`current_price`)) AS `average_price`,
     MIN(`auction`.`current_price`) AS `lowest_price`,
     MAX(`auction`.`current_price`) AS `highest_price`,
@@ -548,8 +551,8 @@ FROM (
   FROM `auctions` AS `auction`
   WHERE `auction`.`id` BETWEEN 1000100 AND 1080431
     AND `auction`.`status` = 'ENDED'
-    AND `auction`.`close_time` < CURDATE()
-  GROUP BY DATE(`auction`.`close_time`)
+    AND DATE(CONVERT_TZ(`auction`.`close_time`, '+00:00', '+09:00')) < @service_date
+  GROUP BY DATE(CONVERT_TZ(`auction`.`close_time`, '+00:00', '+09:00'))
 ) AS `daily`
 ON DUPLICATE KEY UPDATE
   `average_price` = VALUES(`average_price`),

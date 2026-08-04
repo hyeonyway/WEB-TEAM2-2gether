@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verify;
 
 import com.dbidding.notification.dto.NotificationResponse;
 import java.io.IOException;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -63,6 +63,6 @@ class NotificationSseConnectionManagerTest {
     }
 
     private NotificationResponse notification() {
-        return new NotificationResponse(1L, 100, "메시지", false, LocalDateTime.of(2026, 7, 30, 12, 0));
+        return new NotificationResponse(1L, 100, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
     }
 }
