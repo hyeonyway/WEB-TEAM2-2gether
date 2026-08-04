@@ -251,7 +251,8 @@ CREATE TABLE bids
 
     INDEX idx_bids_user_id (user_id),
     INDEX idx_bids_auction_id (auction_id),
-    INDEX idx_bids_auction_price (auction_id, bid_price)
+    INDEX idx_bids_auction_price (auction_id, bid_price),
+    INDEX idx_bids_status (status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -372,6 +373,7 @@ CREATE TABLE notification
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    INT          NOT NULL,
     auction_id INT          NOT NULL,
+    type       VARCHAR(32)  NOT NULL,
     message    VARCHAR(300) NOT NULL,
     is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
