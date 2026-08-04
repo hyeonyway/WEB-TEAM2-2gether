@@ -1,8 +1,19 @@
 import {getDebugUserId} from './debugAuthStorage';
 
 export class HttpError extends Error{
-  constructor(public status:number,message:string){
+  constructor(public status:number,message:string,public code?:string){
     super(message);
+  }
+}
+
+function parseErrorCode(body:string){
+  try{
+    const error=JSON.parse(body) as unknown;
+    if(typeof error!=='object'||error===null)return undefined;
+    const code=(error as {code?:unknown}).code;
+    return typeof code==='string'?code:undefined;
+  }catch{
+    return undefined;
   }
 }
 
@@ -19,7 +30,10 @@ export async function request<T>(path:string,options?:RequestInit):Promise<T>{
     ...options,
     headers,
   });
-  if(!response.ok)throw new HttpError(response.status,await response.text());
+  if(!response.ok){
+    const body=await response.text();
+    throw new HttpError(response.status,body,parseErrorCode(body));
+  }
   if(response.status===204)return undefined as T;
   return response.json() as Promise<T>;
 }

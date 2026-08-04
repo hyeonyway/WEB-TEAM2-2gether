@@ -11,7 +11,7 @@ public record AuctionSearchRequest(
         String psaGrade,
         AuctionSort sort,
         AuctionStatus status,
-        @Min(0) Integer page,
+        String cursor,
         @Min(1) @Max(100) Integer size
 ) {
     public String keywordOrDefault() {
@@ -31,10 +31,6 @@ public record AuctionSearchRequest(
             return List.of(status);
         }
         return List.of(AuctionStatus.OPEN, AuctionStatus.ENDING);
-    }
-
-    public int pageOrDefault() {
-        return page == null ? 0 : page;
     }
 
     public int sizeOrDefault() {

@@ -1,13 +1,20 @@
 package com.dbidding.auction.service;
 
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static com.dbidding.global.time.UtcTime.toInstant;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
+import com.dbidding.auction.domain.AuctionSort;
+import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.AuctionResponses;
+import com.dbidding.auction.dto.AuctionCursor;
+import com.dbidding.auction.dto.AuctionCursorCodec;
+import com.dbidding.auction.dto.AuctionCursorRevision;
 import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
@@ -16,6 +23,7 @@ import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,29 +46,112 @@ public class AuctionQueryService {
     private final BidRepository bidRepository;
     private final WalletPort walletPort;
     private final AuctionCardPort auctionCardPort;
+    private final AuctionCursorCodec auctionCursorCodec;
 
-    public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(Integer userId, AuctionSearchRequest request) {
-        var auctions = auctionRepository.search(
+    public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
+            Integer userId,
+            AuctionSearchRequest request
+    ) {
+        var sort = request.sortOrDefault();
+        AuctionCursor cursor = request.cursor() == null || request.cursor().isBlank()
+                ? null
+                : auctionCursorCodec.decode(request.cursor(), sort);
+        AuctionCursorRevision revision = mutableSort(sort) ? auctionRepository.findCursorRevision() : null;
+        validateRevision(cursor, revision);
+        int size = request.sizeOrDefault();
+        List<Auction> fetched = auctionRepository.searchByCursor(
                 request.keywordOrDefault(),
                 request.psaGrade(),
                 request.statusesOrDefault(),
-                request.sortOrDefault().name(),
-                PageRequest.of(request.pageOrDefault(), request.sizeOrDefault())
+                sort.name(),
+                bidCountCursor(cursor),
+                priceCursor(cursor),
+                changeRateCursor(cursor),
+                openTimeCursor(cursor),
+                cursor == null ? null : cursor.auctionId(),
+                activeOnly(request),
+                LocalDateTime.now(),
+                PageRequest.of(0, size + 1)
         );
-        List<Auction> content = auctions.getContent();
+        boolean hasNext = fetched.size() > size;
+        List<Auction> content = hasNext ? List.copyOf(fetched.subList(0, size)) : fetched;
         Map<Integer, AuctionCardPort.CardSnapshot> cards = cardSnapshots(content);
         Map<Integer, List<AuctionImage>> images = imagesByAuction(content);
         Map<Integer, Bid> myBids = myBids(userId, content);
         List<AuctionResponses.AuctionSummary> items = content.stream()
                 .map(auction -> summary(auction, cards.get(auction.getItemId()), firstImage(images, auction), myBids.get(auction.getId())))
                 .toList();
-        return new AuctionResponses.Page<>(
+        String nextCursor = hasNext
+                ? auctionCursorCodec.encode(cursorOf(content.getLast(), sort, revision))
+                : null;
+        return new AuctionResponses.CursorPage<>(
                 items,
-                auctions.getNumber(),
-                auctions.getSize(),
-                auctions.getTotalElements(),
-                auctions.hasNext()
+                nextCursor,
+                hasNext
         );
+    }
+
+    private Integer bidCountCursor(AuctionCursor cursor) {
+        return cursor != null && cursor.sort() == AuctionSort.BID_COUNT
+                ? Math.toIntExact(cursor.value())
+                : null;
+    }
+
+    private Long priceCursor(AuctionCursor cursor) {
+        return cursor != null && (cursor.sort() == AuctionSort.PRICE_HIGH
+                || cursor.sort() == AuctionSort.PRICE_LOW)
+                ? cursor.value()
+                : null;
+    }
+
+    private LocalDateTime openTimeCursor(AuctionCursor cursor) {
+        return cursor != null && cursor.sort() == AuctionSort.LATEST
+                ? cursor.timeValue()
+                : null;
+    }
+
+    private Long changeRateCursor(AuctionCursor cursor) {
+        return cursor != null && cursor.sort() == AuctionSort.CHANGE_HIGH
+                ? cursor.value()
+                : null;
+    }
+
+    private AuctionCursor cursorOf(Auction auction, AuctionSort sort, AuctionCursorRevision revision) {
+        Long value = switch (sort) {
+            case LATEST -> null;
+            case BID_COUNT -> auction.getBidCount().longValue();
+            case PRICE_HIGH, PRICE_LOW -> auction.getCurrentPrice();
+            case CHANGE_HIGH -> auction.getChangeRateBasisPoints();
+        };
+        LocalDateTime timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
+        return new AuctionCursor(
+                sort,
+                value,
+                timeValue,
+                auction.getId(),
+                revision == null ? null : revision.auctionCount(),
+                revision == null ? null : revision.versionSum()
+        );
+    }
+
+    private boolean mutableSort(AuctionSort sort) {
+        return sort != AuctionSort.LATEST;
+    }
+
+    private void validateRevision(AuctionCursor cursor, AuctionCursorRevision currentRevision) {
+        if (cursor == null || currentRevision == null) {
+            return;
+        }
+        if (!Objects.equals(cursor.auctionCount(), currentRevision.auctionCount())
+                || !Objects.equals(cursor.versionSum(), currentRevision.versionSum())) {
+            throw new ResponseStatusException(CONFLICT, "경매 목록이 변경되었습니다. 첫 페이지부터 다시 조회해 주세요.");
+        }
+    }
+
+    private boolean activeOnly(AuctionSearchRequest request) {
+        return request.status() == null
+                || request.status() == AuctionStatus.OPEN
+                || request.status() == AuctionStatus.ENDING;
     }
 
     public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
@@ -175,8 +266,8 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .startsAt(toInstant(auction.getOpenTime()))
+                .endsAt(toInstant(auction.getCloseTime()))
                 .status(auction.getStatus())
                 .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
@@ -199,8 +290,8 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .startsAt(toInstant(auction.getOpenTime()))
+                .endsAt(toInstant(auction.getCloseTime()))
                 .status(auction.getStatus())
                 .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
@@ -251,7 +342,7 @@ public class AuctionQueryService {
                 .amount(bid.getBidPrice())
                 .bidderAlias(bidderAlias(bid.getBidderId()))
                 .isHighest(Objects.equals(bid.getId(), highestBidId))
-                .createdAt(bid.getCreatedAt())
+                .createdAt(toInstant(bid.getCreatedAt()))
                 .build();
     }
 

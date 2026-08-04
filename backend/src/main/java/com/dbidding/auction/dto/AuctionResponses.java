@@ -3,7 +3,7 @@ package com.dbidding.auction.dto;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import lombok.Builder;
 
@@ -20,6 +20,13 @@ public final class AuctionResponses {
     ) {
     }
 
+    public record CursorPage<T>(
+            List<T> content,
+            @JsonProperty("next_cursor") String nextCursor,
+            @JsonProperty("has_next") boolean hasNext
+    ) {
+    }
+
     @Builder
     public record AuctionSummary(
             Integer id,
@@ -30,8 +37,8 @@ public final class AuctionResponses {
             @JsonProperty("bid_increment") Long bidIncrement,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_count") Integer bidCount,
-            @JsonProperty("starts_at") LocalDateTime startsAt,
-            @JsonProperty("ends_at") LocalDateTime endsAt,
+            @JsonProperty("starts_at") Instant startsAt,
+            @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
             Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
@@ -49,8 +56,8 @@ public final class AuctionResponses {
             @JsonProperty("bid_increment") Long bidIncrement,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_count") Integer bidCount,
-            @JsonProperty("starts_at") LocalDateTime startsAt,
-            @JsonProperty("ends_at") LocalDateTime endsAt,
+            @JsonProperty("starts_at") Instant startsAt,
+            @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
             Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,

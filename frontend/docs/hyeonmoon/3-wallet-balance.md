@@ -80,12 +80,14 @@ const walletQueryKeys = {
 
 ### Header
 
-- 총잔액을 축약하지 않고 천 단위 구분으로 표시한다.
+- 가용 잔액을 축약하지 않고 천 단위 구분으로 표시한다.
 - `initializing`과 `anonymous` 상태에서는 전자지갑 영역 전체를 렌더링하지
   않는다.
 - `authenticated`로 확정된 뒤 Wallet 조회 중에는 레이아웃 크기를 유지하는
   skeleton을 표시한다.
-- 로그인 뒤에만 Wallet 총잔액과 충전 진입점을 표시한다.
+- 로그인 뒤에만 Wallet 가용 잔액과 충전 진입점을 표시한다.
+- 화면 폭이 760px 이하로 줄어들어도 가용 잔액과 `충전하기`는 유지한다.
+  공간이 부족하면 지갑 아이콘과 `내 전자지갑` 보조 문구만 숨긴다.
 
 ### 마이페이지
 
@@ -117,6 +119,7 @@ const walletQueryKeys = {
 - anonymous 상태에서 Wallet API를 호출하지 않는다.
 - initializing·anonymous 상태에서 Header 전자지갑이 렌더링되지 않는다.
 - authenticated 상태에서만 Header 전자지갑과 충전 진입점이 보인다.
+- 760px 이하에서도 Header 가용 잔액이 숨겨지지 않는다.
 - Header와 마이페이지가 같은 Query cache 값을 표시한다.
 - 총잔액·동결액·가용액의 각 label이 올바른 필드와 연결된다.
 - 로그아웃 시 Wallet Query가 제거된다.

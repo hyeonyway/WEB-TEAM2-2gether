@@ -5,11 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import com.dbidding.account.domain.Authentication;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
@@ -20,9 +18,9 @@ import com.dbidding.account.token.JwtTokenProvider;
 import com.dbidding.account.token.RefreshTokenHasher;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
+import com.dbidding.account.support.AccountMySqlIntegrationTest;
 
-@SpringBootTest
-class AuthServiceLogoutIntegrationTest {
+class AuthServiceLogoutIntegrationTest extends AccountMySqlIntegrationTest {
 
 	@Autowired
 	private AuthService authService;
@@ -55,12 +53,6 @@ class AuthServiceLogoutIntegrationTest {
 			account.getId(),
 			refreshTokenHasher.hash(refreshToken)
 		));
-	}
-
-	@AfterEach
-	void cleanUp() {
-		authenticationRepository.deleteAll();
-		accountRepository.deleteAll();
 	}
 
 	@Test

@@ -11,6 +11,9 @@ RUN ./gradlew --no-daemon bootJar
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+ENV TZ=UTC
+ENV JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends default-mysql-client gzip \
     && rm -rf /var/lib/apt/lists/*

@@ -5,9 +5,10 @@ import type {AuctionDto} from '../../../dto/auctionDto';
 import CardArtwork from '../../cards/components/CardArtwork';
 import {useAuthGate} from '../../../auth/useAuthGate';
 import {normalizePsaGrade} from '../../../api/auctionMapper';
+import {nowUtc,parseUtc} from '../../../utils/utc';
 
 const remainingTime=(endsAt:string,now:number)=>{
-  const total=Math.max(0,Math.ceil((new Date(endsAt).getTime()-now)/1000));
+  const total=Math.max(0,Math.ceil((parseUtc(endsAt)-now)/1000));
   if(total===0)return '경매 종료';
   const hours=Math.floor(total/3600);
   const minutes=Math.floor(total%3600/60);
@@ -48,9 +49,9 @@ function AnimatedAuctionPrice({price}:{price:number}){
 export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
   const authGate=useAuthGate();
   const[selectedAuction,setSelectedAuction]=useState<AuctionDto|null>(null);
-  const[now,setNow]=useState(Date.now());
+  const[now,setNow]=useState(nowUtc());
   useEffect(()=>{
-    const timer=window.setInterval(()=>setNow(Date.now()),1000);
+    const timer=window.setInterval(()=>setNow(nowUtc()),1000);
     return()=>window.clearInterval(timer);
   },[]);
   if(!auctions.length)return <div className="filter-empty"><Search/><b>조건에 맞는 경매가 없습니다.</b><span>검색어나 필터를 변경해 보세요.</span></div>;

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.dbidding.sse.auction.AuctionSseTestAuctionReader.Snapshot;
 import com.dbidding.sse.auction.payload.BidPlacedPayload;
 import java.time.LocalDateTime;
+import java.time.Clock;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +18,7 @@ class AuctionSseTestEventControllerTest {
     private final AuctionSseTestAuctionReader auctionReader =
             org.mockito.Mockito.mock(AuctionSseTestAuctionReader.class);
     private final AuctionSseTestEventController controller =
-            new AuctionSseTestEventController(connectionManager, auctionReader);
+            new AuctionSseTestEventController(connectionManager, auctionReader, Clock.systemUTC());
 
     @Test
     void publishesIncreasingBidsForRandomActiveAuction() {

@@ -63,7 +63,7 @@
 | 2 | #113 | 구현 완료 | [인증 세션과 API Client](2-auth-session-and-api-client.md) | 앱 시작 Refresh, Bearer와 단일 401 갱신 |
 | 3 | #114 | 구현 완료 | [Wallet 잔액](3-wallet-balance.md) | Header·마이페이지의 실제 총액·동결액·가용액 |
 | 4 | #115 | 구현 완료 | [Wallet 충전·환불](4-wallet-charge-and-refund.md) | 멱등 모의 거래와 서버 잔액 동기화 |
-| 5 | #116 | **다음** | [Auction Wallet 접점](5-auction-wallet-integration.md) | 입찰 화면에 Wallet·Auth 계약 전달 |
+| 5 | #116 | 구현 완료 | [Auction Wallet 접점](5-auction-wallet-integration.md) | 입찰 뒤 공통 Wallet Query 동기화 |
 | 6 | #117 | 백엔드 선행 | [Account와 배송지](6-account-and-address.md) | 현재 사용자 정보와 배송지 CRUD UI |
 | 7 | #136 | 구현 완료 | [보호 화면 토스트 Auth Gate](7-auth-access-toast-gate.md) | 판매 등록·나의 대시보드·마이페이지 비로그인 접근 차단 |
 | 8 | #112 | 최종 | 별도 공통 작업 | 전체 화면의 SPA 내부 이동 통일 |
@@ -98,7 +98,7 @@ Header, Home, Card, Auction, Dashboard, Sell의 `<a href>`와
 | 401, Refresh | 메모리 토큰과 인증 Query를 지우고 anonymous 전환 |
 | 404 | Wallet·사용자·배송지 없음 표시 |
 | 409, 회원가입 | 이메일 또는 닉네임 중복 안내 |
-| 409, Wallet | 잔액 부족 또는 멱등키 충돌 안내, 자동 재시도 금지 |
+| 409, Wallet | 오류 코드로 잔액 부족과 멱등키 충돌을 구분하고 명시적 재시도 안내 |
 | 네트워크·5xx | 입력을 유지하고 사용자 재시도 제공 |
 
 백엔드 오류 본문이 아직 공통 코드로 구조화되지 않은 범위는 HTTP 상태를

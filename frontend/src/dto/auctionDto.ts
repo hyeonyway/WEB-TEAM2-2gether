@@ -1,7 +1,7 @@
 export type CardTheme='gold'|'water'|'dark'|'multi'|'sketch';
-export type AuctionStatus='SCHEDULED'|'OPEN'|'ENDING'|'ENDED'|'CANCELLED'|'FAILED';
+export type AuctionStatus='OPEN'|'ENDING'|'ENDED'|'CANCELLED'|'FAILED';
 export type MyBidStatus='LEADING'|'OUTBID'|'NONE';
-export type AuctionSort='BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
+export type AuctionSort='LATEST'|'BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
 export type CardSort='PRICE'|'FAVORITE'|'REGISTERED';
 
 export type CardListRequestDto={
@@ -12,7 +12,6 @@ export type CardListRequestDto={
 
 export type AuctionListRequestDto=Omit<CardListRequestDto,'sort'>&{
   sort:AuctionSort;
-  page:number;
   size:number;
 };
 
@@ -152,11 +151,17 @@ export type PageResponseDto<T>={
   has_next:boolean;
 };
 
+export type CursorPageResponseDto<T>={
+  content:T[];
+  next_cursor:string|null;
+  has_next:boolean;
+};
+
 export type BidCreateResponseDto={
   bid:{
     id:number;
     amount:number;
-    status:'LEADING'|'OUTBID'|'WON'|'LOST'|'WITHDRAWN';
+    status:'LEADING'|'OUTBID'|'WON'|'CANCELLED';
     created_at:string;
   };
   auction:{
@@ -194,6 +199,7 @@ export type AuctionDto={
   currentPrice:number;
   bidIncrement:number;
   bidCount:number;
+  startsAt?:string;
   endsAt:string;
   status:AuctionStatus;
   myBidStatus:MyBidStatus;

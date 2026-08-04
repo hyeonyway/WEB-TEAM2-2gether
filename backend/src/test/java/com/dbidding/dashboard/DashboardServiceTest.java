@@ -13,12 +13,19 @@ import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.dashboard.dto.DashboardResponse;
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class DashboardServiceTest {
+    private static final Clock CLOCK = Clock.fixed(
+            Instant.parse("2026-07-31T03:00:00Z"),
+            ZoneOffset.UTC
+    );
     private BidRepository bidRepository;
     private AuctionImageRepository auctionImageRepository;
     private AuctionCardPort auctionCardPort;
@@ -32,13 +39,14 @@ class DashboardServiceTest {
         dashboardService = new DashboardService(
                 bidRepository,
                 auctionImageRepository,
-                auctionCardPort
+                auctionCardPort,
+                CLOCK
         );
     }
 
     @Test
     void 경매별_최신_입찰만_참여_목록에_표시한다() {
-        Auction openAuction = auction(1, 101, AuctionStatus.OPEN, LocalDateTime.now().plusDays(1));
+        Auction openAuction = auction(1, 101, AuctionStatus.OPEN, LocalDateTime.now(CLOCK).plusDays(1));
         Bid latest = bid(openAuction, BidStatus.LEADING, 150_000L);
         Bid older = bid(openAuction, BidStatus.OUTBID, 130_000L);
         given(bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(7))
@@ -95,8 +103,8 @@ class DashboardServiceTest {
 
     @Test
     void 참여중인_경매를_현재가_높은순으로_정렬한다() {
-        Auction cheaper = auction(1, 101, AuctionStatus.OPEN, LocalDateTime.now().plusDays(1));
-        Auction expensive = auction(2, 102, AuctionStatus.OPEN, LocalDateTime.now().plusDays(2));
+        Auction cheaper = auction(1, 101, AuctionStatus.OPEN, LocalDateTime.now(CLOCK).plusDays(1));
+        Auction expensive = auction(2, 102, AuctionStatus.OPEN, LocalDateTime.now(CLOCK).plusDays(2));
         given(cheaper.getCurrentPrice()).willReturn(120_000L);
         given(expensive.getCurrentPrice()).willReturn(300_000L);
         Bid cheaperBid = bid(cheaper, BidStatus.LEADING, 120_000L);
@@ -121,7 +129,7 @@ class DashboardServiceTest {
                 1,
                 101,
                 AuctionStatus.OPEN,
-                LocalDateTime.now().minusMinutes(1)
+                LocalDateTime.now(CLOCK).minusMinutes(1)
         );
         Bid expiredBid = bid(expired, BidStatus.LEADING, 150_000L);
         given(bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(7))

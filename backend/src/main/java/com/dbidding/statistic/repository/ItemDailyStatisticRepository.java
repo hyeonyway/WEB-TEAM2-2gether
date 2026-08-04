@@ -28,7 +28,7 @@ public interface ItemDailyStatisticRepository extends JpaRepository<ItemDailySta
             with ranked_prices as (
                 select s.item_id,
                        s.statistics_date,
-                       coalesce(nullif(s.latest_price, 0), nullif(s.average_price, 0)) as price,
+                       s.latest_price as price,
                        s.bid_count,
                        row_number() over (
                            partition by s.item_id
@@ -37,7 +37,8 @@ public interface ItemDailyStatisticRepository extends JpaRepository<ItemDailySta
                 from item_daily_statistics s
                 where s.statistics_date >= :from
                   and s.statistics_date < :to
-                  and coalesce(nullif(s.latest_price, 0), nullif(s.average_price, 0)) is not null
+                  and s.latest_price is not null
+                  and s.latest_price > 0
             )
             select current_price.item_id as cardId,
                    current_price.statistics_date as currentDate,

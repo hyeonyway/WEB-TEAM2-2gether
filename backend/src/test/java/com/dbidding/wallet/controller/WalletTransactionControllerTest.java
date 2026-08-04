@@ -120,6 +120,25 @@ class WalletTransactionControllerTest {
 	}
 
 	@ParameterizedTest
+	@MethodSource("walletConflictResponses")
+	void Wallet_충돌_예외를_구분할_수_있는_코드로_반환한다(
+		RuntimeException exception,
+		String expectedCode,
+		String expectedMessage
+	) throws Exception {
+		given(walletService.refund(1, 3_000L, "refund-key"))
+			.willThrow(exception);
+
+		mockMvc.perform(post("/api/wallet/refunds")
+				.header("Idempotency-Key", "refund-key")
+				.contentType(APPLICATION_JSON)
+				.content("{\"amount\":3000}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value(expectedCode))
+			.andExpect(jsonPath("$.message").value(expectedMessage));
+	}
+
+	@ParameterizedTest
 	@MethodSource("domainExceptionMappings")
 	void Wallet_도메인_예외를_약속한_HTTP_상태로_반환한다(
 		RuntimeException exception,
@@ -145,6 +164,21 @@ class WalletTransactionControllerTest {
 			Arguments.of(new WalletNotFoundException(), HttpStatus.NOT_FOUND),
 			Arguments.of(new InsufficientAvailableBalanceException(), HttpStatus.CONFLICT),
 			Arguments.of(new IdempotencyConflictException(), HttpStatus.CONFLICT)
+		);
+	}
+
+	private static Stream<Arguments> walletConflictResponses() {
+		return Stream.of(
+			Arguments.of(
+				new InsufficientAvailableBalanceException(),
+				"INSUFFICIENT_AVAILABLE_BALANCE",
+				"사용 가능한 잔액이 부족합니다."
+			),
+			Arguments.of(
+				new IdempotencyConflictException(),
+				"IDEMPOTENCY_CONFLICT",
+				"같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다."
+			)
 		);
 	}
 }

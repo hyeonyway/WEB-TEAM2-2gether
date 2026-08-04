@@ -7,7 +7,7 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +16,7 @@ class AuctionResponseJsonTest {
 
     @Test
     void 경매_목록_응답은_snake_case로_직렬화된다() throws Exception {
-        LocalDateTime now = LocalDateTime.of(2026, 7, 30, 12, 0);
+        Instant now = Instant.parse("2026-07-30T12:00:00Z");
         var summary = new AuctionResponses.AuctionSummary(
                 1,
                 new AuctionResponses.CardSummary(2, "카드", "세트", "10", "JP", "/card.png"),
@@ -27,19 +27,21 @@ class AuctionResponseJsonTest {
                 13_000L,
                 2,
                 now,
-                now.plusHours(1),
+                now.plusSeconds(3600),
                 AuctionStatus.OPEN,
                 2L,
                 MyBidStatus.LEADING,
                 12_000L
         );
-        var response = new AuctionResponses.Page<>(List.of(summary), 0, 20, 1, false);
+        var response = new AuctionResponses.CursorPage<>(List.of(summary), "next-token", true);
 
         JsonNode json = objectMapper.valueToTree(response);
 
-        assertThat(json.has("total_elements")).isTrue();
+        assertThat(json.has("next_cursor")).isTrue();
         assertThat(json.has("has_next")).isTrue();
-        assertThat(json.has("totalElements")).isFalse();
+        assertThat(json.has("page")).isFalse();
+        assertThat(json.has("size")).isFalse();
+        assertThat(json.has("total_elements")).isFalse();
         JsonNode item = json.path("content").get(0);
         assertThat(item.has("current_price")).isTrue();
         assertThat(item.has("minimum_bid")).isTrue();
@@ -50,10 +52,10 @@ class AuctionResponseJsonTest {
 
     @Test
     void 입찰_응답은_입찰_경매_지갑_스냅샷을_snake_case로_직렬화한다() {
-        LocalDateTime now = LocalDateTime.of(2026, 7, 30, 12, 0);
+        Instant now = Instant.parse("2026-07-30T12:00:00Z");
         var response = new BidResponses.BidResult(
                 new BidResponses.BidDetail(10L, 13_000L, BidStatus.LEADING, now),
-                new BidResponses.AuctionSnapshot(1, 2L, 13_000L, 14_000L, 3, now.plusHours(1)),
+                new BidResponses.AuctionSnapshot(1, 2L, 13_000L, 14_000L, 3, now.plusSeconds(3600)),
                 new BidResponses.WalletSummary(87_000L, 13_000L)
         );
 
@@ -70,9 +72,9 @@ class AuctionResponseJsonTest {
 
     @Test
     void 경매_생성_응답은_snake_case로_직렬화된다() {
-        LocalDateTime now = LocalDateTime.of(2026, 7, 30, 12, 0);
+        Instant now = Instant.parse("2026-07-30T12:00:00Z");
         JsonNode created = objectMapper.valueToTree(
-                new AuctionCreateResponse(1, AuctionStatus.OPEN, now, now.plusHours(1), 1L)
+                new AuctionCreateResponse(1, AuctionStatus.OPEN, now, now.plusSeconds(3600), 1L)
         );
 
         assertThat(created.has("starts_at")).isTrue();

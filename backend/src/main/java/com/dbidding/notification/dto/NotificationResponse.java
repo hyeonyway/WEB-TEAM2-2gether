@@ -1,15 +1,16 @@
 package com.dbidding.notification.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import com.dbidding.notification.Notification;
+import com.dbidding.global.time.UtcTime;
 
 public record NotificationResponse(
         Long id,
         Integer auctionId,
         String message,
         boolean isRead,
-        LocalDateTime createdAt
+        Instant createdAt
 ) {
 
     public static NotificationResponse from(Notification notification) {
@@ -18,7 +19,7 @@ public record NotificationResponse(
                 notification.getAuctionId(),
                 notification.getMessage(),
                 notification.isRead(),
-                notification.getCreatedAt()
+                UtcTime.toInstant(notification.getCreatedAt())
         );
     }
 }

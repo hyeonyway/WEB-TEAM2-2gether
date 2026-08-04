@@ -8,6 +8,7 @@ import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import type {CardSort} from '../../dto/auctionDto';
 import {useWishlist} from '../../hooks/useWishlist';
 import {wishlistQueries} from '../../queries/wishlistQueries';
+import {useAuthGate} from '../../auth/useAuthGate';
 
 export default function CardsPage(){
   const[query,setQuery]=useState('');
@@ -15,6 +16,7 @@ export default function CardsPage(){
   const[sort,setSort]=useState<CardSort>('REGISTERED');
   const[favoriteOnly,setFavoriteOnly]=useState(false);
   const{cacheKey,isLoggedIn}=useWishlist();
+  const authGate=useAuthGate();
   const debouncedQuery=useDebouncedValue(query);
   const loadMoreRef=useRef<HTMLDivElement>(null);
   const cardQuery=cardQueries.infiniteList({keyword:debouncedQuery,psaGrade:grade||null,sort});
@@ -26,7 +28,7 @@ export default function CardsPage(){
   });
   const visibleCards=favoriteOnly?(favoriteCardsQuery.data??[]):cards;
   const catalogPending=favoriteOnly
-    ?favoriteCardsQuery.isPending
+    ?isLoggedIn&&favoriteCardsQuery.isPending
     :isPending;
   const catalogError=favoriteOnly?favoriteCardsQuery.error:error;
   const totalElements=data?.pages[0]?.total_elements??0;
@@ -59,7 +61,10 @@ export default function CardsPage(){
           <button className={!favoriteOnly&&sort==='REGISTERED'?'active':''} onClick={()=>{setFavoriteOnly(false);setSort('REGISTERED')}}>등록순</button>
           <button className={!favoriteOnly&&sort==='PRICE'?'active':''} onClick={()=>{setFavoriteOnly(false);setSort('PRICE')}}>가격순</button>
           <button className={!favoriteOnly&&sort==='FAVORITE'?'active':''} onClick={()=>{setFavoriteOnly(false);setSort('FAVORITE')}}>찜 많은 순</button>
-          <button className={favoriteOnly?'active':''} onClick={()=>setFavoriteOnly(true)}>나의 찜</button>
+          <button className={favoriteOnly?'active':''} onClick={()=>{
+            if(!authGate.requestNavigation())return;
+            setFavoriteOnly(true);
+          }}>나의 찜</button>
         </div>
       </div>
       <p className="catalog-count">{favoriteOnly?`나의 찜 ${visibleCards.length.toLocaleString()}개`:`전체 ${totalElements.toLocaleString()}개 · ${cards.length.toLocaleString()}개 표시 중`}</p>

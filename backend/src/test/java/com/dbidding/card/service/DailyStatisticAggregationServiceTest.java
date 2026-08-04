@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import com.dbidding.statistic.repository.StatisticAggregationRepository;
 import com.dbidding.statistic.service.DailyStatisticAggregationService;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
@@ -17,16 +18,20 @@ class DailyStatisticAggregationServiceTest {
 
     @Test
     void 서울_기준_어제의_일간_시장_요약을_순서대로_갱신한다() {
-        LocalDate yesterday = LocalDate.of(2026, 7, 27);
-        service.aggregate(yesterday);
+        LocalDate date = LocalDate.of(2026, 8, 4);
+        service.aggregate(date);
         InOrder order = inOrder(repository);
         order.verify(repository).aggregateItems(
-                yesterday, yesterday.atStartOfDay(), yesterday.plusDays(1).atStartOfDay());
+                date,
+                LocalDateTime.of(2026, 8, 3, 15, 0),
+                LocalDateTime.of(2026, 8, 4, 15, 0));
         order.verify(repository).aggregateMarket(
-                yesterday, yesterday.atStartOfDay(), yesterday.plusDays(1).atStartOfDay());
+                date,
+                LocalDateTime.of(2026, 8, 3, 15, 0),
+                LocalDateTime.of(2026, 8, 4, 15, 0));
         order.verify(repository).refreshRollingSnapshots(
-                yesterday.minusDays(29), yesterday);
+                date.minusDays(29), date);
         order.verify(repository).refreshChangeRates(
-                yesterday.minusDays(1), yesterday.minusDays(7), yesterday.minusDays(30));
+                date.minusDays(1), date.minusDays(7), date.minusDays(30));
     }
 }

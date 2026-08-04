@@ -1,8 +1,8 @@
 import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
 import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
-import type {AuctionDto,AuctionListRequestDto,BidContextResponseDto,CardListRequestDto,PageResponseDto} from '../dto/auctionDto';
+import type {AuctionListRequestDto,BidContextResponseDto,CardListRequestDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
-import {applyAuctionEvent,eventToAuction,sortAuctions} from './auctionStreamCache';
+import {myBidStatusAfterEvent} from './auctionStreamCache';
 
 export type AuctionViewerScope='public'|'self';
 
@@ -23,10 +23,11 @@ export const cardQueryKeys={
 };
 
 export const auctionQueries={
-  list:(query:AuctionListRequestDto,viewerScope:AuctionViewerScope)=>queryOptions({
+  list:(query:AuctionListRequestDto,viewerScope:AuctionViewerScope)=>infiniteQueryOptions({
     queryKey:auctionQueryKeys.list(query,viewerScope),
-    queryFn:()=>fetchAuctions(query),
-    placeholderData:keepPreviousData,
+    queryFn:({pageParam})=>fetchAuctions(query,pageParam),
+    initialPageParam:undefined as string|undefined,
+    getNextPageParam:lastPage=>lastPage.has_next?lastPage.next_cursor??undefined:undefined,
     staleTime:30_000,
   }),
   detail:(auctionId:number,viewerScope:AuctionViewerScope)=>queryOptions({
@@ -67,41 +68,6 @@ export const cardQueries={
   }),
 };
 
-const matchesAuctionQuery=(auction:AuctionDto,query:AuctionListRequestDto)=>
-  auction.card.name.toLowerCase().includes(query.keyword.trim().toLowerCase())
-  &&(query.psaGrade===null||auction.card.psaGrade===query.psaGrade);
-
-export function applyAuctionListEvent(
-  page:PageResponseDto<AuctionDto>|undefined,
-  event:AuctionStreamPayload,
-  query:AuctionListRequestDto,
-):PageResponseDto<AuctionDto>|undefined{
-  if(!page)return page;
-  if(event.type==='BID_PLACED'){
-    return {...page,content:sortAuctions(applyAuctionEvent(page.content,event),query.sort)};
-  }
-  if(event.type==='AUCTION_CREATED'){
-    const created=eventToAuction(event);
-    if(!matchesAuctionQuery(created,query))return page;
-    const content=query.page===0
-      ?sortAuctions([created,...page.content.filter(auction=>auction.id!==created.id)],query.sort).slice(0,query.size)
-      :page.content;
-    const totalElements=page.total_elements+1;
-    return {...page,content,total_elements:totalElements,has_next:(query.page+1)*query.size<totalElements};
-  }
-  const closedCard={
-    ...eventToAuction({...event,type:'AUCTION_CREATED'}),
-    status:event.status,
-  };
-  if(!matchesAuctionQuery(closedCard,query))return page;
-  return {
-    ...page,
-    content:page.content.filter(auction=>auction.id!==event.auction_id),
-    total_elements:Math.max(0,page.total_elements-1),
-    has_next:(query.page+1)*query.size<Math.max(0,page.total_elements-1),
-  };
-}
-
 export function applyBidContextEvent(
   context:BidContextResponseDto|undefined,
   event:AuctionStreamPayload,
@@ -124,6 +90,7 @@ export function applyBidContextEvent(
     current_price:currentPrice,
     minimum_bid:currentPrice+event.bid_increment,
     bid_increment:event.bid_increment,
+    my_bid_status:myBidStatusAfterEvent(context.my_bid_status,event),
     recent_bids:recentBids,
   };
 }

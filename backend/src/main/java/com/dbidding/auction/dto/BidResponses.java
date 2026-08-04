@@ -4,7 +4,7 @@ import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import lombok.Builder;
 
@@ -39,7 +39,7 @@ public final class BidResponses {
             Long amount,
             @JsonProperty("bidder_alias") String bidderAlias,
             @JsonProperty("is_highest") boolean isHighest,
-            @JsonProperty("created_at") LocalDateTime createdAt
+            @JsonProperty("created_at") Instant createdAt
     ) {
     }
 
@@ -54,7 +54,7 @@ public final class BidResponses {
             Long id,
             Long amount,
             BidStatus status,
-            @JsonProperty("created_at") LocalDateTime createdAt
+            @JsonProperty("created_at") Instant createdAt
     ) {
     }
 
@@ -64,7 +64,7 @@ public final class BidResponses {
             @JsonProperty("current_price") Long currentPrice,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_count") Integer bidCount,
-            @JsonProperty("ends_at") LocalDateTime endsAt
+            @JsonProperty("ends_at") Instant endsAt
     ) {
     }
 }

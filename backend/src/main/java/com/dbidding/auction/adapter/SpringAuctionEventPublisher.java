@@ -4,11 +4,11 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.notification.event.AuctionCreatedEvent;
 import com.dbidding.sse.auction.payload.AuctionClosedPayload;
 import com.dbidding.sse.auction.payload.AuctionCreatedPayload;
 import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
 import com.dbidding.sse.auction.payload.BidPlacedPayload;
+import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
@@ -22,12 +22,7 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
 
     @Override
     public void publishOpened(AuctionOpenedEvent event) {
-        applicationEventPublisher.publishEvent(new AuctionCreatedEvent(
-                event.auctionId(),
-                event.itemId(),
-                event.cardName(),
-                event.sellerId()
-        ));
+        applicationEventPublisher.publishEvent(event);
         applicationEventPublisher.publishEvent(new AuctionCreatedPayload(
                 null,
                 event.auctionId(),
@@ -41,15 +36,16 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
                 event.currentPrice(),
                 event.bidIncrement(),
                 event.bidCount(),
-                event.closeTime(),
+                event.closeTime().toInstant(ZoneOffset.UTC),
                 AuctionPayloadStatus.valueOf(event.status().name()),
                 event.version(),
-                event.occurredAt()
+                event.occurredAt().toInstant(ZoneOffset.UTC)
         ));
     }
 
     @Override
     public void publishBidPlaced(BidPlacedEvent event) {
+        applicationEventPublisher.publishEvent(event);
         applicationEventPublisher.publishEvent(new BidPlacedPayload(
                 null,
                 event.auctionId(),
@@ -59,23 +55,16 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
                 event.currentPrice(),
                 event.bidIncrement(),
                 event.bidCount(),
-                event.closeTime(),
+                event.closeTime().toInstant(ZoneOffset.UTC),
                 AuctionPayloadStatus.valueOf(event.status().name()),
                 event.version(),
-                event.occurredAt()
+                event.occurredAt().toInstant(ZoneOffset.UTC)
         ));
     }
 
     @Override
     public void publishClosed(AuctionClosedEvent event) {
-        applicationEventPublisher.publishEvent(new com.dbidding.notification.event.AuctionClosedEvent(
-                event.auctionId(),
-                event.itemId(),
-                event.cardName(),
-                event.winnerId(),
-                event.sellerId(),
-                event.winningPrice()
-        ));
+        applicationEventPublisher.publishEvent(event);
         applicationEventPublisher.publishEvent(new AuctionClosedPayload(
                 null,
                 event.auctionId(),
@@ -90,11 +79,11 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
                 event.currentPrice(),
                 event.bidIncrement(),
                 event.bidCount(),
-                event.closeTime(),
+                event.closeTime().toInstant(ZoneOffset.UTC),
                 AuctionPayloadStatus.valueOf(event.status().name()),
                 event.version(),
-                event.closeTime(),
-                event.occurredAt()
+                event.closeTime().toInstant(ZoneOffset.UTC),
+                event.occurredAt().toInstant(ZoneOffset.UTC)
         ));
     }
 }

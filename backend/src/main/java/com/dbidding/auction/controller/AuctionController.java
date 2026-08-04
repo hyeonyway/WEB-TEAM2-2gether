@@ -53,7 +53,7 @@ public class AuctionController {
     }
 
     @GetMapping
-    public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(
+    public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
             @CurrentUser(required = false) Integer userId,
             @Valid @ModelAttribute AuctionSearchRequest request
     ) {

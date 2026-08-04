@@ -1,5 +1,8 @@
 package com.dbidding.wallet.controller;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -7,8 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dbidding.global.security.CurrentUser;
+import com.dbidding.wallet.dto.WalletErrorResponse;
 import com.dbidding.wallet.dto.WalletTransactionRequest;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
+import com.dbidding.wallet.exception.IdempotencyConflictException;
+import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.service.WalletService;
 
 import jakarta.validation.Valid;
@@ -49,5 +55,25 @@ public class WalletTransactionController {
 			request.amount(),
 			idempotencyKey
 		);
+	}
+
+	@ExceptionHandler(InsufficientAvailableBalanceException.class)
+	public ResponseEntity<WalletErrorResponse> handleInsufficientAvailableBalance(
+		InsufficientAvailableBalanceException exception
+	) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(new WalletErrorResponse(
+			"INSUFFICIENT_AVAILABLE_BALANCE",
+			exception.getMessage()
+		));
+	}
+
+	@ExceptionHandler(IdempotencyConflictException.class)
+	public ResponseEntity<WalletErrorResponse> handleIdempotencyConflict(
+		IdempotencyConflictException exception
+	) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(new WalletErrorResponse(
+			"IDEMPOTENCY_CONFLICT",
+			exception.getMessage()
+		));
 	}
 }

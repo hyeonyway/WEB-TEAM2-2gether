@@ -5,17 +5,16 @@ import {resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
 
 const mockRankingHistory=(price:number,changeRate:number,cardId:number)=>{
-  const yesterday=new Date();
-  yesterday.setDate(yesterday.getDate()-1);
+  const yesterday=new Date(Date.now()-86400000);
   const previousPrice=Math.max(1,Math.round(price/(1+changeRate/100)));
   const monthStartPrice=Math.max(1,Math.round(
     previousPrice*(1+((cardId%5)-2)*.025),
   ));
   return Array.from({length:30},(_,index)=>{
     const date=new Date(yesterday);
-    date.setDate(yesterday.getDate()-(29-index));
+    date.setUTCDate(yesterday.getUTCDate()-(29-index));
     if(index===29)return {
-      date:`${String(date.getMonth()+1).padStart(2,'0')}/${String(date.getDate()).padStart(2,'0')}`,
+      date:`${String(date.getUTCMonth()+1).padStart(2,'0')}/${String(date.getUTCDate()).padStart(2,'0')}`,
       price,
     };
     const progress=index/28;
@@ -24,7 +23,7 @@ const mockRankingHistory=(price:number,changeRate:number,cardId:number)=>{
       *price
       *.018;
     return {
-      date:`${String(date.getMonth()+1).padStart(2,'0')}/${String(date.getDate()).padStart(2,'0')}`,
+      date:`${String(date.getUTCMonth()+1).padStart(2,'0')}/${String(date.getUTCDate()).padStart(2,'0')}`,
       price:index===28
         ?previousPrice
         :Math.max(1,Math.round(
@@ -88,10 +87,9 @@ export async function fetchStatisticMarket(days=30):Promise<StatisticMarketDto>{
 }
 
 export async function fetchStatisticPriceMovers(limit=5):Promise<StatisticPriceMoversDto>{
-  const yesterday=new Date();
-  yesterday.setDate(yesterday.getDate()-1);
+  const yesterday=new Date(Date.now()-86400000);
   const previous=new Date(yesterday);
-  previous.setDate(previous.getDate()-1);
+  previous.setUTCDate(previous.getUTCDate()-1);
   const isoDate=(date:Date)=>date.toISOString().slice(0,10);
   const source=mockupData.home.topGainers.slice(0,limit);
   const response:StatisticPriceMoversDto=isMockApiEnabled()?{

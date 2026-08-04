@@ -3,6 +3,7 @@ package com.dbidding.card.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.repository.PriceMovementCandidate;
 import com.dbidding.statistic.service.DailyStatisticAggregationService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,7 +80,7 @@ class StatisticAggregationMySqlIntegrationTest {
                 """);
         jdbcTemplate.update("""
                 insert into bids (id, user_id, auction_id, bid_price, created_at, status)
-                values (1, 2, 1, 100000, '2026-07-27 12:00:00', 'LOST'),
+                values (1, 2, 1, 100000, '2026-07-27 12:00:00', 'OUTBID'),
                        (2, 2, 1, 120000, '2026-07-27 17:00:00', 'WON')
                 """);
     }
@@ -134,8 +135,11 @@ class StatisticAggregationMySqlIntegrationTest {
                     item_id, statistics_date, latest_price, average_price,
                     lowest_price, highest_price, bid_count, ended_auction_count
                 ) values
+                    (1, '2026-07-24', null, 90000, 90000, 90000, 2, 1),
                     (1, '2026-07-25', 100000, 100000, 100000, 100000, 3, 1),
-                    (1, '2026-07-27', 120000, 120000, 120000, 120000, 5, 1)
+                    (1, '2026-07-26', 0, 110000, 110000, 110000, 4, 1),
+                    (1, '2026-07-27', 120000, 120000, 120000, 120000, 5, 1),
+                    (2, '2026-07-27', 130000, 130000, 130000, 130000, 2, 1)
                 """);
 
         var candidates = dailyStatisticRepository.findPriceMovementCandidates(
@@ -145,6 +149,8 @@ class StatisticAggregationMySqlIntegrationTest {
         assertThat(candidates.getFirst().getCurrentPrice()).isEqualTo(120_000L);
         assertThat(candidates.getFirst().getPreviousPrice()).isEqualTo(100_000L);
         assertThat(candidates.getFirst().getBidCount()).isEqualTo(5);
+        assertThat(candidates.stream().map(PriceMovementCandidate::getCardId))
+                .doesNotContain(2);
     }
 
     private long count(String table) {

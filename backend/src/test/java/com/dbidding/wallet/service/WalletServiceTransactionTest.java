@@ -29,6 +29,8 @@ import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import com.dbidding.wallet.metrics.WalletMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 class WalletServiceTransactionTest {
@@ -46,7 +48,12 @@ class WalletServiceTransactionTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new WalletService(walletRepository, pointRecordRepository, walletHoldRepository);
+		service = new WalletService(
+			walletRepository,
+			pointRecordRepository,
+			walletHoldRepository,
+			new WalletMetrics(new SimpleMeterRegistry())
+		);
 	}
 
 	@Test

@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class StatisticQueryService {
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter MONTH_DAY = DateTimeFormatter.ofPattern("MM/dd");
     private static final BigDecimal ZERO_RATE = BigDecimal.ZERO.setScale(2);
 
@@ -59,7 +61,7 @@ public class StatisticQueryService {
     }
 
     public StatisticResponses.Market getMarket(int days) {
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = LocalDate.now(clock.withZone(SEOUL));
         LocalDate fromDate = today.minusDays(days);
         Map<LocalDate, MarketDailyStatistic> aggregates =
                 marketStatisticRepository
@@ -103,7 +105,7 @@ public class StatisticQueryService {
     }
 
     public StatisticResponses.PriceMovers getPriceMovers(int limit) {
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = LocalDate.now(clock.withZone(SEOUL));
         LocalDate from = today.minusDays(30);
         var priceCandidates = dailyStatisticRepository.findPriceMovementCandidates(from, today);
         Map<Integer, CardSnapshot> cards = cardPort.getCards(
@@ -191,8 +193,7 @@ public class StatisticQueryService {
 
     private long price(ItemDailyStatistic statistic) {
         if (statistic == null) return 0;
-        if (statistic.getLatestPrice() != null) return statistic.getLatestPrice();
-        return statistic.getAveragePrice() == null ? 0 : statistic.getAveragePrice();
+        return statistic.getLatestPrice() == null ? 0 : statistic.getLatestPrice();
     }
 
     private BigDecimal changeRate(long current, long previous) {

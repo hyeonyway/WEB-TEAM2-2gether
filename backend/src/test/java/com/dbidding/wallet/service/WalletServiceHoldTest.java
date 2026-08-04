@@ -23,9 +23,11 @@ import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
+import com.dbidding.wallet.metrics.WalletMetrics;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 class WalletServiceHoldTest {
@@ -40,13 +42,16 @@ class WalletServiceHoldTest {
 	private PointRecordRepository pointRecordRepository;
 
 	private WalletService service;
+	private SimpleMeterRegistry meterRegistry;
 
 	@BeforeEach
 	void setUp() {
+		meterRegistry = new SimpleMeterRegistry();
 		service = new WalletService(
 			walletRepository,
 			pointRecordRepository,
-			walletHoldRepository
+			walletHoldRepository,
+			new WalletMetrics(meterRegistry)
 		);
 	}
 
@@ -72,6 +77,8 @@ class WalletServiceHoldTest {
 					&& hold.getStatus() == HoldStatus.HELD
 			)
 		);
+		assertThat(operationTimerCount("hold", "success")).isEqualTo(1);
+		assertThat(lockTimerCount("hold")).isEqualTo(1);
 	}
 
 	@Test
@@ -108,6 +115,7 @@ class WalletServiceHoldTest {
 			.isInstanceOf(InsufficientAvailableBalanceException.class);
 		assertThat(hold.getAmount()).isEqualTo(11_000L);
 		then(walletHoldRepository).should(never()).save(org.mockito.ArgumentMatchers.any());
+		assertThat(operationTimerCount("hold", "rejected")).isEqualTo(1);
 	}
 
 	@Test
@@ -188,5 +196,20 @@ class WalletServiceHoldTest {
 		given(wallet.getId()).willReturn(10);
 		wallet.credit(point);
 		return wallet;
+	}
+
+	private double operationTimerCount(String operation, String result) {
+		return meterRegistry.get("dbidding.wallet.operation.duration")
+			.tag("operation", operation)
+			.tag("result", result)
+			.timer()
+			.count();
+	}
+
+	private double lockTimerCount(String operation) {
+		return meterRegistry.get("dbidding.wallet.lock.wait")
+			.tag("operation", operation)
+			.timer()
+			.count();
 	}
 }

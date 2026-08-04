@@ -24,9 +24,13 @@ import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
 import com.dbidding.wallet.exception.WalletAlreadyExistsException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
+import com.dbidding.wallet.metrics.WalletMetrics;
+import com.dbidding.wallet.metrics.WalletMetrics.Operation;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+
+import io.micrometer.core.instrument.Timer;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,6 +45,7 @@ public class WalletService {
 	private final WalletRepository walletRepository;
 	private final PointRecordRepository pointRecordRepository;
 	private final WalletHoldRepository walletHoldRepository;
+	private final WalletMetrics walletMetrics;
 
 	@Transactional(readOnly = true)
 	public WalletBalanceResponse getBalance(Integer userId) {
@@ -104,7 +109,14 @@ public class WalletService {
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletBalanceResponse hold(Integer userId, Integer auctionId, long totalAmount) {
-		Wallet wallet = lockWallet(userId);
+		return walletMetrics.observe(
+			Operation.HOLD,
+			() -> holdObserved(userId, auctionId, totalAmount)
+		);
+	}
+
+	private WalletBalanceResponse holdObserved(Integer userId, Integer auctionId, long totalAmount) {
+		Wallet wallet = lockWallet(userId, Operation.HOLD);
 		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
 		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
 		long currentAmount = latest.filter(WalletHold::isHeld)
@@ -131,7 +143,14 @@ public class WalletService {
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletBalanceResponse release(Integer userId, Integer auctionId) {
-		Wallet wallet = lockWallet(userId);
+		return walletMetrics.observe(
+			Operation.RELEASE,
+			() -> releaseObserved(userId, auctionId)
+		);
+	}
+
+	private WalletBalanceResponse releaseObserved(Integer userId, Integer auctionId) {
+		Wallet wallet = lockWallet(userId, Operation.RELEASE);
 		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
 		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
 		long releasedAmount = latest.filter(WalletHold::isHeld)
@@ -144,7 +163,14 @@ public class WalletService {
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletBalanceResponse capture(Integer userId, Integer auctionId, long amount) {
-		Wallet wallet = lockWallet(userId);
+		return walletMetrics.observe(
+			Operation.CAPTURE,
+			() -> captureObserved(userId, auctionId, amount)
+		);
+	}
+
+	private WalletBalanceResponse captureObserved(Integer userId, Integer auctionId, long amount) {
+		Wallet wallet = lockWallet(userId, Operation.CAPTURE);
 		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
 		WalletHold hold = latestHold(wallet.getId(), auctionId)
 			.orElseThrow(InvalidWalletHoldStateException::new);
@@ -175,6 +201,15 @@ public class WalletService {
 	private Wallet lockWallet(Integer userId) {
 		return walletRepository.findByUserIdForUpdate(userId)
 			.orElseThrow(WalletNotFoundException::new);
+	}
+
+	private Wallet lockWallet(Integer userId, Operation operation) {
+		Timer.Sample sample = walletMetrics.start();
+		try {
+			return lockWallet(userId);
+		} finally {
+			walletMetrics.finishLockWait(sample, operation);
+		}
 	}
 
 	private Optional<WalletHold> latestHold(Integer walletId, Integer auctionId) {
