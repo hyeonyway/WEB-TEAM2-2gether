@@ -40,13 +40,11 @@ describe('auctionApi',()=>{
     setAccessToken('auction-access-token');
   });
 
-  it('인증 헤더 없이 경매 목록과 페이지 정보를 조회한다',async()=>{
+  it('인증 헤더 없이 경매 목록을 cursor로 조회한다',async()=>{
     clearAccessToken();
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({
       content:[auctionResponse],
-      page:1,
-      size:12,
-      total_elements:25,
+      next_cursor:'next-token',
       has_next:true,
     }));
 
@@ -54,18 +52,15 @@ describe('auctionApi',()=>{
       keyword:'',
       psaGrade:null,
       sort:'BID_COUNT',
-      page:1,
       size:12,
-    });
+    },'current-token');
 
     expect(auctions.content).toHaveLength(1);
     expect(auctions).toMatchObject({
-      page:1,
-      size:12,
-      total_elements:25,
+      next_cursor:'next-token',
       has_next:true,
     });
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('page=1');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('cursor=current-token');
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('size=12');
     const headers=new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
     expect(headers.get('Authorization')).toBeNull();

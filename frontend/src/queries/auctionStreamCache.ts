@@ -72,13 +72,14 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
 
 export function sortAuctions(auctions:AuctionDto[],sort:AuctionSort):AuctionDto[]{
   return [...auctions].sort((left,right)=>{
-    if(sort==='PRICE_HIGH')return right.currentPrice-left.currentPrice;
-    if(sort==='PRICE_LOW')return left.currentPrice-right.currentPrice;
+    if(sort==='LATEST')return right.id-left.id;
+    if(sort==='PRICE_HIGH')return right.currentPrice-left.currentPrice||right.id-left.id;
+    if(sort==='PRICE_LOW')return left.currentPrice-right.currentPrice||right.id-left.id;
     if(sort==='CHANGE_HIGH'){
       const leftChange=(left.currentPrice-left.startPrice)/left.startPrice;
       const rightChange=(right.currentPrice-right.startPrice)/right.startPrice;
-      return rightChange-leftChange;
+      return rightChange-leftChange||right.id-left.id;
     }
-    return right.bidCount-left.bidCount;
+    return right.bidCount-left.bidCount||right.id-left.id;
   });
 }

@@ -3,7 +3,7 @@ import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticat
 import {fetchMockAuctions,fetchMockCards} from './mockAuctionApi';
 import {mapAuction,mapCard,normalizePsaGrade,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
-import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,PageResponseDto} from '../dto/auctionDto';
+import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,CursorPageResponseDto,PageResponseDto} from '../dto/auctionDto';
 
 const params=(query:{keyword:string;psaGrade:string|null;sort?:string})=>new URLSearchParams({
   keyword:query.keyword,
@@ -88,23 +88,26 @@ export async function fetchCardDetail(cardId:number):Promise<CardDetailResponseD
   return {...response,image_url:resolveImageUrl(response.image_url)};
 }
 
-export async function fetchAuctions(query:AuctionListRequestDto):Promise<PageResponseDto<AuctionDto>>{
+export async function fetchAuctions(
+  query:AuctionListRequestDto,
+  cursor?:string,
+):Promise<CursorPageResponseDto<AuctionDto>>{
   if(isMockApiEnabled()){
     const auctions=await fetchMockAuctions(query);
-    const start=query.page*query.size;
+    const start=cursor===undefined?0:Number(cursor);
+    const content=auctions.slice(start,start+query.size);
+    const hasNext=start+query.size<auctions.length;
     return {
-      content:auctions.slice(start,start+query.size),
-      page:query.page,
-      size:query.size,
-      total_elements:auctions.length,
-      has_next:start+query.size<auctions.length,
+      content,
+      next_cursor:hasNext?String(start+query.size):null,
+      has_next:hasNext,
     };
   }
   const search=params(query);
   search.set('sort',query.sort);
-  search.set('page',String(query.page));
   search.set('size',String(query.size));
-  const response=await optionallyAuthenticatedRequest<PageResponseDto<AuctionResponseDto>>(`/api/auctions?${search}`);
+  if(cursor!==undefined)search.set('cursor',cursor);
+  const response=await optionallyAuthenticatedRequest<CursorPageResponseDto<AuctionResponseDto>>(`/api/auctions?${search}`);
   return {...response,content:response.content.map(mapAuction)};
 }
 
