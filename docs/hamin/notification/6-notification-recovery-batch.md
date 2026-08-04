@@ -1,6 +1,8 @@
 # 알림 저장 소실 복구 배치 설계
 
-담당: D(임하민). [4-realtime-sse.md](4-realtime-sse.md)에 이어지는 라운드. 설계 논의만 끝난 상태이고 아직 구현 전이다 — 이 문서는 결정 사항과 근거를 남기기 위한 설계 문서다.
+담당: D(임하민). [4-realtime-sse.md](4-realtime-sse.md)에 이어지는 라운드. 설계 논의 후 구현까지 진행했다 — 이 문서는 결정 사항과 근거를 남기기 위한 설계 문서다.
+
+설계 논의 당시엔 `AuctionStatus`를 `ACTIVE`/`CLOSED`라는 가상의 이름으로 표기했는데, 실제 구현하며 확인한 진짜 enum은 `OPEN`/`ENDING`(진행 중 — `ENDING`은 앤티스나이핑 연장이 걸린 상태로, 입찰은 여전히 가능)과 `ENDED`/`FAILED`(각각 낙찰/유찰로 종료)다. 아래 모든 내용은 실제 enum 이름으로 맞췄다.
 
 ## 배경: 왜 필요한가
 
@@ -19,7 +21,7 @@
 - 스케줄러 interval/window 결정.
 - 필요 인덱스 검토.
 
-범위 밖: 실제 구현 코드, `BidStatus.LOST`/`WITHDRAWN` 활용(현재 미사용, 아래 결정 9), 낙찰 못 한 입찰자에 대한 경매 종료 알림(현재 세팅에서 원래 안 보냄, 이번 라운드에서 새로 추가하지 않음), 경매 생성 알림 fan-out insert 자체의 성능 개선(결정 10, 별도 이슈로 분리).
+범위 밖: `BidStatus.CANCELLED` 활용(현재 미사용, 아래 결정 9), 낙찰 못 한 입찰자에 대한 경매 종료 알림(현재 세팅에서 원래 안 보냄, 이번 라운드에서 새로 추가하지 않음), 경매 생성 알림 fan-out insert 자체의 성능 개선(결정 8, 별도 이슈 #190으로 분리).
 
 ## 결정 1: `Notification`에 `type` 컬럼을 추가한다
 
@@ -27,25 +29,29 @@
 
 이 변경은 `NotificationService.save(userId, auctionId, message)`(4단계 기존 구현)의 시그니처에 `type`을 추가해야 한다는 뜻이기도 하다 — 라이브 이벤트 경로인 `NotificationEventListener`의 세 핸들러(`handleAuctionOpened`/`handleBidPlaced`/`handleAuctionClosed`)도 각자 맞는 `type`을 넘기도록 같이 고쳐야 한다. 새 컬럼 하나 추가하는 게 기존 라이브 경로 코드까지 건드리는 변경이라, 별개 작업으로 나누지 않고 `type` 컬럼 추가와 같은 이슈/커밋 단위로 묶는다.
 
-## 결정 2: dedup 전략은 타입마다 다르다 — 1회성 이벤트는 unique 제약, 반복 가능한 이벤트는 시간 비교
+## 결정 2: dedup은 DB 유니크 제약 없이 4개 타입 전부 "존재 체크 → insert"로 통일한다
 
-`AUCTION_OPENED`/`AUCTION_WON`/`AUCTION_UNSOLD`는 경매당 유저당 정확히 한 번만 발생하는 이벤트라 `(user_id, auction_id, type)` unique 제약으로 DB 레벨에서 완전히 dedup할 수 있다.
+처음엔 `AUCTION_OPENED`/`AUCTION_WON`/`AUCTION_UNSOLD`(경매당 유저당 1회성 이벤트)만 `(user_id, auction_id, type)` unique 제약으로 DB 레벨 dedup을 걸고, 반복 가능한 `OUTBID`만 시간 비교로 판단하는 방향을 검토했다. 이 경우 OUTBID는 unique 제약을 걸면 재입찰→재outbid의 정당한 반복 알림까지 막혀버리므로 **"내 최신 bid가 OUTBID 상태인데, 그 bid의 `created_at` 이후로 생성된 OUTBID 알림이 없다"**는 시간 비교로만 판단해야 했다.
 
-`OUTBID`는 다르다. 한 유저가 같은 경매에서 재입찰 → 또 outbid를 여러 번 반복할 수 있어서, `(user_id, auction_id, type)`에 unique 제약을 걸면 두 번째 이후의 정당한 outbid 알림이 막혀버린다. 그래서 OUTBID는 unique 제약 대신 **"내 최신 bid가 OUTBID 상태인데, 그 bid의 `created_at` 이후로 생성된 OUTBID 알림이 없다"**는 시간 비교로 판단한다. 이 방식의 대가는 이벤트 경로와 배치 경로 사이에 드물게 중복 알림이 갈 수 있다는 것인데(레이스 컨디션), 유실보다는 훨씬 나은 실패 모드라 허용하기로 했다.
+이 unique 제약을 MySQL에서 실제로 구현하려면(OUTBID만 제외하는) 생성 컬럼(`CASE WHEN type='OUTBID' THEN NULL ELSE type END`) 같은 우회가 필요했는데, 이 정도 스키마 트릭을 감수할 가치가 없다고 판단해 최종적으로는 **unique 제약 자체를 없애고 4개 타입 전부 OUTBID와 같은 방식(존재 체크 → 없으면 insert, 레이스로 인한 드문 중복은 감수)으로 통일했다.**
 
-**unique 제약이 있는 세 타입(`AUCTION_OPENED`/`AUCTION_WON`/`AUCTION_UNSOLD`)은 반대로 레이스를 막는 게 아니라 처리해야 한다.** 복구 로직은 "존재 여부 체크 → 없으면 insert" 순서인데, 체크와 insert 사이에 라이브 이벤트 경로가 끼어들면(레이스) 배치의 insert가 unique 제약 위반으로 예외를 던진다. 이건 버그가 아니라 "이미 라이브 경로가 방금 막 처리했다"는 정상 상황이므로, 배치 쪽 insert는 `DataIntegrityViolationException`을 잡아서 무시하거나(이미 누가 보냈다는 뜻이니 그냥 스킵) `INSERT IGNORE`/`ON DUPLICATE KEY UPDATE` 형태로 구현해 예외가 나머지 후보들의 처리를 막지 않도록 한다.
+이 결정에 이르기까지 검토했던 대안들:
+- **인-프로세스 락**: 라이브 이벤트 경로와 배치가 현재 같은 JVM에서 돌아서(단일 인스턴스), `(user_id, auction_id, type)` 키로 in-process 락을 걸면 스키마 변경 없이 레이스를 완전히 없앨 수 있었다. 하지만 다중 인스턴스로 스케일아웃할 계획이 실제로 있어서, 인스턴스마다 따로 노는 락은 그 시점에 무의미해지는 임시방편이라 채택하지 않았다.
+- **별도 dedup 테이블**(`notification_dedup_key(user_id, auction_id, type)` PK): DB 레벨에서 크로스 인스턴스로 안전하게 dedup할 수 있는 방법이었지만, 테이블과 트랜잭션을 하나 더 추가하는 비용이 "가끔 중복 알림 하나 더 가는" 리스크를 막는 데 비해 과하다고 판단해 채택하지 않았다.
+
+결과적으로 4개 타입 모두 레이스가 나면 드물게 중복 알림이 갈 수 있다는 걸 감수한다 — 유실보다는 훨씬 나은 실패 모드이고, 스키마는 `type` 컬럼 하나 추가하는 것으로 단순하게 유지된다.
 
 ## 결정 3: 타입별 복구 쿼리
 
 **경매 생성 (`AUCTION_OPENED`)**
-1. `auctions` WHERE `status = 'ACTIVE' AND open_time >= :windowStart` (최근 window 안에 열린 경매만, 전체 활성 경매 아님)
+1. `auctions` WHERE `status IN ('OPEN', 'ENDING') AND open_time >= :windowStart` (최근 window 안에 열린 경매만, 전체 활성 경매 아님)
 2. 각 경매의 `item_id`로 `wishlists`에서 찜 유저 조회
 3. `(userId, auctionId, AUCTION_OPENED)` 알림 존재 여부 체크 → 없으면 생성
 
 2번은 스캔 시점 기준 찜 유저를 조회한다 — 라이브 이벤트 경로는 경매가 열리는 순간의 찜 유저 스냅샷에만 보내지만, 배치는 그 이후(예: window 안에서) 새로 찜한 유저에게도 "경매 등록" 알림을 보낸다. 라이브 경로와 완전히 동일하게 재현하려면 "찜한 시점이 `open_time` 이전"이라는 조건을 추가해야 하지만, 의도적으로 넣지 않기로 했다 — 새로 찜한 유저 입장에서도 "지금 활성 경매가 있다"는 정보 자체는 여전히 유효하고 유용하므로, 굳이 막을 이유가 없다고 판단했다.
 
 **경매 종료 (`AUCTION_WON` / `AUCTION_UNSOLD`)**
-1. `auctions` WHERE `status = 'CLOSED' AND close_time >= :windowStart`
+1. `auctions` WHERE `status IN ('ENDED', 'FAILED') AND close_time >= :windowStart` (`ENDED`=낙찰, `FAILED`=유찰)
 2. `sellerId`는 auction에서, 낙찰자는 `bids` WHERE `auction_id = ? AND status = 'WON'`으로 조회(별도 낙찰 테이블 불필요 — 이미 `BidStatus.WON`이 있음)
 3. `(sellerId/winnerId, auctionId, type)` 알림 존재 여부 체크 → 없으면 생성
 
@@ -56,9 +62,9 @@
 
 "유저별 최신 bid"를 가릴 때 `created_at`이 아니라 `id`(AUTO_INCREMENT PK)로 그룹핑한다. `id`는 입찰 순서를 그대로 반영하면서(`created_at`과 동일한 정보) 항상 유일해 동시각 충돌 걱정이 없고, InnoDB는 모든 세컨더리 인덱스 leaf에 PK(`id`)를 자동으로 붙이기 때문에 `(auction_id, user_id)` 같은 복합 인덱스만 있으면 `MAX(id)`가 인덱스만으로 바로 해결된다(`created_at`은 이 혜택이 없어 별도로 복합 인덱스에 명시해야만 정렬 기준으로 쓸 수 있다). 3번 단계의 "그 bid 이후 알림이 있는지" 비교는 여전히 그 row의 `created_at` 값을 그대로 쓴다 — 그룹핑 기준만 `id`로 바뀌는 것이고, `select b1.*`로 가져온 row엔 `created_at`도 같이 들어있다.
 
-경매 생성/종료는 "최근 window 안의 활동"만 스캔하도록 설계했다 — 이 두 쿼리는 `auctions` 테이블에서 필터링하는데, `open_time`/`close_time` 기준 없이 상태만 걸면 결과 집합이 계속 쌓이는 이력(특히 `CLOSED`)까지 다 딸려오기 때문이다.
+경매 생성/종료는 "최근 window 안의 활동"만 스캔하도록 설계했다 — 이 두 쿼리는 `auctions` 테이블에서 필터링하는데, `open_time`/`close_time` 기준 없이 상태만 걸면 결과 집합이 계속 쌓이는 이력(특히 `ENDED`/`FAILED`)까지 다 딸려오기 때문이다.
 
-상회 입찰은 다르다. `markOutbid()`/`markWon()` 로직상 `status = 'LEADING'`인 row는 **경매당 최대 1개**로 자연스럽게 제한된다(현재 리더). 즉 이 결과 집합 크기는 `bids` 테이블 총량이 아니라 **"현재 활성 경매 수"**에 이미 비례한다 — `auctions.status='ACTIVE'`와 같은 성격이다. 그래서 여기는 굳이 `created_at` window로 더 좁힐 필요가 없고, 매 사이클마다 활성 경매 전체를 재확인해도 비용이 커지지 않는다(결정 7에서 다시 다룸).
+상회 입찰은 다르다. `markOutbid()`/`markWon()` 로직상 `status = 'LEADING'`인 row는 **경매당 최대 1개**로 자연스럽게 제한된다(현재 리더). 즉 이 결과 집합 크기는 `bids` 테이블 총량이 아니라 **"현재 활성 경매 수"**에 이미 비례한다 — `auctions.status IN ('OPEN', 'ENDING')`과 같은 성격이다. 그래서 여기는 굳이 `created_at` window로 더 좁힐 필요가 없고, 매 사이클마다 활성 경매 전체를 재확인해도 비용이 커지지 않는다(결정 7에서 다시 다룸).
 
 ## 결정 4: 구현 위치는 `notification`도 `auction`/`wishlist`도 아닌 `batch` 도메인
 
@@ -102,10 +108,10 @@ window는 항상 interval의 2~3배 이상으로 잡는다 — job 실행이 한
 
 | 용도 | 필요 인덱스 | 기존 상태 |
 |---|---|---|
-| 경매 종료 window (`status='CLOSED' AND close_time >= ...`) | `(status, close_time)` | ✅ `idx_auctions_status_close_time` 이미 있음 |
+| 경매 종료 window (`status IN ('ENDED','FAILED') AND close_time >= ...`) | `(status, close_time)` | ✅ `idx_auctions_status_close_time` 이미 있음 |
 | 경매 생성 fan-out (`item_id`로 찜 유저 조회) | `item_id` | ✅ `idx_wishlists_item_id` 이미 있음 |
 | 상회 입찰 1단계 (`status='LEADING'`) | `bids(status)` | ❌ 없음 — `bids`엔 `user_id`/`auction_id`/`(auction_id, bid_price)`만 인덱스됨 |
-| 경매 생성 window (`status='ACTIVE' AND open_time >= ...`) | `auctions.status`만으로 충분, 복합 인덱스 불필요 (아래 설명) | ✅ `idx_auctions_status` 이미 있음 |
+| 경매 생성 window (`status IN ('OPEN','ENDING') AND open_time >= ...`) | `auctions.status`만으로 충분, 복합 인덱스 불필요 (아래 설명) | ✅ `idx_auctions_status` 이미 있음 |
 | 알림 존재 체크 (`user_id, auction_id, type`) | `notification.user_id`만으로 충분, 복합 인덱스 불필요 (아래 설명) | ✅ `idx_notification_user_id` 이미 있음 |
 
 예정 마이그레이션:
@@ -118,7 +124,7 @@ ALTER TABLE bids ADD INDEX idx_bids_status (status);
 `auctions(status, open_time)` 복합 인덱스도 같은 이유로 뺐다. `bids.status`와 달리:
 
 - `bids`는 `status`에 인덱스가 **아예 없어서** `WHERE status='LEADING'`만 걸어도 계속 커지는 `bids` 테이블 전체를 스캔해야 한다 — 결과 집합은 작아도, 인덱스가 없으면 그 작은 결과를 찾는 비용이 **테이블 총량**에 비례한다. 그래서 `status` 단일 인덱스라도 반드시 필요.
-- `auctions`는 `idx_auctions_status`가 **이미 있다.** `WHERE status='ACTIVE'`만으로도 이미 "현재 활성 경매 수"만큼만 읽어오고, 여기서 `open_time` 필터를 DB에서 더 좁히든 서버 메모리에서 거르든 차이가 미미하다. 그래서 `(status, open_time)` 복합 인덱스는 지금 스케일에서 마이그레이션 비용 대비 이득이 작다고 판단해 뺐다. 나중에 동시 활성 경매 수 자체가 크게 늘면 그때 다시 검토한다.
+- `auctions`는 `idx_auctions_status`가 **이미 있다.** `WHERE status IN ('OPEN','ENDING')`만으로도 이미 "현재 활성 경매 수"만큼만 읽어오고, 여기서 `open_time` 필터를 DB에서 더 좁히든 서버 메모리에서 거르든 차이가 미미하다. 그래서 `(status, open_time)` 복합 인덱스는 지금 스케일에서 마이그레이션 비용 대비 이득이 작다고 판단해 뺐다. 나중에 동시 활성 경매 수 자체가 크게 늘면 그때 다시 검토한다.
 
 `bids(status)`는 사실 배치 전용도 아니다. `AuctionCommandService.java:437`의 `findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auctionId, LEADING)`(입찰마다 도는 라이브 쿼리)도 지금 `status` 인덱스가 없어서 `idx_bids_auction_id`만 타고 나머지는 메모리 필터링 중이었다 — 이번에 배치를 계기로 기존 갭을 같이 메꾸는 셈이다.
 
@@ -128,7 +134,7 @@ ALTER TABLE bids ADD INDEX idx_bids_status (status);
 
 ### Q&A: 복합 인덱스가 없으면 `open_time` 필터를 DB WHERE절과 서버 코드 중 어디서 걸러야 하나
 
-복합 인덱스를 안 만들기로 했다고 해서 "그럼 `open_time` 조건은 서버에서 거르자"는 결론이 되는 건 아니다. `WHERE status='ACTIVE' AND open_time >= ?`처럼 **DB의 WHERE절에 그대로 두는 쪽이 항상 같거나 더 싸다.**
+복합 인덱스를 안 만들기로 했다고 해서 "그럼 `open_time` 조건은 서버에서 거르자"는 결론이 되는 건 아니다. `WHERE status IN ('OPEN','ENDING') AND open_time >= ?`처럼 **DB의 WHERE절에 그대로 두는 쪽이 항상 같거나 더 싸다.**
 
 이유: `idx_auctions_status`만 있는 상태에서 이 쿼리를 돌리면 MySQL은 (1) `status` 인덱스로 ACTIVE row를 좁히고, (2) `open_time`은 인덱스에 없으니 좁혀진 각 row를 실제로 읽어서 그 자리에서 걸러낸다(`Using where`). "DB가 ACTIVE 전부를 주고 서버가 걸러라"로 바꿔도 (1)(2) 과정 자체는 동일하게 발생한다 — 차이는 그다음이다.
 
@@ -147,9 +153,9 @@ ALTER TABLE bids ADD INDEX idx_bids_status (status);
 
 이건 이번 복구 배치 설계와는 별개의 **기존 이슈**로 판단해 이번 라운드 범위에서 제외했다. 나중에 `saveAll` + JDBC batch 설정 또는 bulk insert로 개선하는 걸 별도 이슈로 다룬다.
 
-## 결정 9 (참고, 이번 라운드에서 다루지 않음): `BidStatus.LOST`/`WITHDRAWN` 미사용
+## 결정 9 (참고, 이번 라운드에서 다루지 않음): `BidStatus.CANCELLED` 미사용
 
-`BidStatus`에 `LOST`/`WITHDRAWN`이 정의만 돼 있고 실제로 세팅되는 곳이 없다(`Bid.java`, 전체 검색 결과). 경매가 끝나도 낙찰 못 한 나머지 bid는 그냥 `OUTBID` 상태로 남는다. 이번 복구 설계는 "낙찰자/판매자"만 종료 알림을 받는 기존 동작을 그대로 전제하며, "낙찰 실패자에게도 종료를 알린다"는 기능 확장은 다루지 않는다. 나중에 그 기능이 필요해지면 `closeLockedAuction`에서 나머지 bid들의 상태 처리(`LOST` 세팅)부터 다시 설계해야 한다.
+`BidStatus`는 `LEADING`/`OUTBID`/`WON`/`CANCELLED` 4개인데, `CANCELLED`가 정의만 돼 있고 실제로 세팅되는 곳이 없다(`Bid.java`, 전체 검색 결과 — 설계 논의 당시엔 이 값이 `LOST`/`WITHDRAWN` 두 개였으나 이후 `CANCELLED` 하나로 리팩터링됐고, 미사용이라는 결론 자체는 그대로다). 경매가 끝나도 낙찰 못 한 나머지 bid는 그냥 `OUTBID` 상태로 남는다. 이번 복구 설계는 "낙찰자/판매자"만 종료 알림을 받는 기존 동작을 그대로 전제하며, "낙찰 실패자에게도 종료를 알린다"는 기능 확장은 다루지 않는다. 나중에 그 기능이 필요해지면 `closeLockedAuction`에서 나머지 bid들의 상태 처리(`CANCELLED` 세팅)부터 다시 설계해야 한다.
 
 ## 미결정/다음 단계
 
