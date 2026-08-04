@@ -1,5 +1,5 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor, within} from '@testing-library/react';
+import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -309,6 +309,55 @@ describe('Header Wallet 잔액', () => {
     expect(screen.queryByRole('dialog', {name: '전자지갑 포인트 충전'}))
       .not.toBeInTheDocument();
     expect(screen.queryByText('70,000P')).not.toBeInTheDocument();
+  });
+
+  it('Wallet 재조회 실패 뒤 성공해도 충전창을 자동으로 다시 열지 않는다', async () => {
+    let walletRequestCount = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      if (String(input).includes('/api/wallet')) {
+        walletRequestCount += 1;
+        return walletRequestCount === 1
+          ? jsonResponse({code: 'WALLET_QUERY_FAILED'}, 500)
+          : jsonResponse({
+            totalBalance: 120_000,
+            frozenBalance: 20_000,
+            availableBalance: 100_000,
+          });
+      }
+      return jsonResponse({count: 0});
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: {retry: false},
+        queries: {retry: false, staleTime: Infinity},
+      },
+    });
+    queryClient.setQueryData(walletQueryKeys.balance(), {
+      totalBalance: 100_000,
+      frozenBalance: 30_000,
+      availableBalance: 70_000,
+    });
+    renderHeaderWithAuthenticatedContext(queryClient);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', {name: /전자지갑.*70,000P.*충전하기/}));
+    expect(screen.getByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .toBeInTheDocument();
+
+    await act(async () => {
+      await queryClient.refetchQueries({queryKey: walletQueryKeys.balance()});
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', {name: '전자지갑 포인트 충전'}))
+        .not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', {name: '전자지갑 잔액 다시 시도'}));
+    expect(await screen.findByRole('button', {
+      name: /전자지갑.*100,000P.*충전하기/,
+    })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .not.toBeInTheDocument();
   });
 });
 
