@@ -14,6 +14,7 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
 import com.dbidding.auction.port.WalletPort;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,9 +55,11 @@ class AuctionServiceBidTest {
             ZoneId.of("Asia/Seoul")
     );
     private AuctionCommandService auctionService;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
         auctionService = new AuctionCommandService(
                 auctionRepository,
                 null,
@@ -66,7 +70,8 @@ class AuctionServiceBidTest {
                 auctionCardStatisticPort,
                 auctionEventPort,
                 clock,
-                eventPublisher
+                eventPublisher,
+                new AuctionMetrics(meterRegistry)
         );
     }
 
@@ -87,6 +92,10 @@ class AuctionServiceBidTest {
         verify(walletPort, never()).holdBidAmount(any(), any(), any(Long.class));
         verify(bidRepository, never()).save(any(Bid.class));
         verifyNoInteractions(auctionEventPort);
+        assertThat(meterRegistry.get("dbidding.auction.lock.wait")
+                .tag("operation", "bid")
+                .timer()
+                .count()).isEqualTo(1);
     }
 
     @Test

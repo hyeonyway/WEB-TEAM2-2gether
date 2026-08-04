@@ -20,6 +20,7 @@ import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
@@ -35,6 +36,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -88,9 +90,11 @@ class AuctionServiceTest {
                         auctionCardStatisticPort,
                         auctionEventPort,
                         clock,
-                        eventPublisher
+                        eventPublisher,
+                        new AuctionMetrics(new SimpleMeterRegistry())
                 ),
-                mock(AuctionQueryService.class)
+                mock(AuctionQueryService.class),
+                new AuctionMetrics(new SimpleMeterRegistry())
         );
         lenient().when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> {
             Auction auction = invocation.getArgument(0);
