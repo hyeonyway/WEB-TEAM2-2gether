@@ -25,6 +25,7 @@ const auction=(id:number,name:string):AuctionDto=>({
 
 let intersectionCallback:IntersectionObserverCallback;
 let onAuctionUpdated:(event:unknown)=>void;
+let observeCount=0;
 
 class TestIntersectionObserver implements IntersectionObserver{
   readonly root=null;
@@ -33,7 +34,7 @@ class TestIntersectionObserver implements IntersectionObserver{
   readonly thresholds=[0];
   constructor(callback:IntersectionObserverCallback){intersectionCallback=callback;}
   disconnect=vi.fn();
-  observe=vi.fn();
+  observe=vi.fn(()=>{observeCount++;});
   takeRecords=()=>[];
   unobserve=vi.fn();
 }
@@ -52,6 +53,7 @@ function renderPage(){
 
 describe('AuctionPage',()=>{
   beforeEach(()=>{
+    observeCount=0;
     apiMocks.fetchAuctions.mockReset()
       .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:'next-token',has_next:true})
       .mockResolvedValueOnce({content:[auction(1,'리자몽')],next_cursor:null,has_next:false});
@@ -103,9 +105,11 @@ describe('AuctionPage',()=>{
   });
 
   it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{
+    let rejectNextPage:(reason?:unknown)=>void=()=>{};
+    const nextPage=new Promise((_,reject)=>{rejectNextPage=reject;});
     apiMocks.fetchAuctions.mockReset()
       .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:'next-token',has_next:true})
-      .mockRejectedValueOnce(new Error('next page failed'))
+      .mockReturnValueOnce(nextPage)
       .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:null,has_next:false});
     const user=userEvent.setup();
     renderPage();
@@ -114,9 +118,13 @@ describe('AuctionPage',()=>{
     await act(async()=>intersectionCallback([
       {isIntersecting:true} as IntersectionObserverEntry,
     ],{} as IntersectionObserver));
+    await waitFor(()=>expect(observeCount).toBeGreaterThan(1));
+    const observeCountBeforeFailure=observeCount;
+    await act(async()=>rejectNextPage(new Error('next page failed')));
 
     const retry=await screen.findByRole('button',{name:'목록 새로고침'});
     expect(screen.getByText('피카츄')).toBeInTheDocument();
+    expect(observeCount).toBe(observeCountBeforeFailure);
     await user.click(retry);
     await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
       expect.objectContaining({sort:'BID_COUNT'}),

@@ -199,6 +199,7 @@ export type AuctionDto={
   currentPrice:number;
   bidIncrement:number;
   bidCount:number;
+  startsAt?:string;
   endsAt:string;
   status:AuctionStatus;
   myBidStatus:MyBidStatus;

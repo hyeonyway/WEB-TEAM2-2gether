@@ -49,7 +49,7 @@ export default function AuctionPage(){
 
   useEffect(()=>{
     const target=loadMoreRef.current;
-    if(!target||!hasNextPage)return;
+    if(!target||!hasNextPage||isFetchNextPageError)return;
     const observer=new IntersectionObserver(entries=>{
       if(entries.some(entry=>entry.isIntersecting)&&!isFetchingNextPage){
         void fetchNextPage();
@@ -57,7 +57,7 @@ export default function AuctionPage(){
     },{rootMargin:'240px 0px'});
     observer.observe(target);
     return()=>observer.disconnect();
-  },[fetchNextPage,hasNextPage,isFetchingNextPage]);
+  },[fetchNextPage,hasNextPage,isFetchingNextPage,isFetchNextPageError]);
 
   return <div className="cards-page enhanced-cards"><Header/><main>
     <div className="card-page-title"><h2>카드 경매</h2><span>전체 경매</span></div>

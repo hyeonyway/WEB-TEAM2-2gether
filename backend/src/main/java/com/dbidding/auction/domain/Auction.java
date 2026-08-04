@@ -15,6 +15,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Formula;
 
 @Getter
 @Entity
@@ -42,6 +43,9 @@ public class Auction {
 
     @Column(name = "current_price", nullable = false)
     private Long currentPrice;
+
+    @Formula("floor((current_price - start_price) * 10000.0 / start_price)")
+    private Long changeRateBasisPoints;
 
     @Column(name = "buy_now_price", nullable = false)
     private Long buyNowPrice;

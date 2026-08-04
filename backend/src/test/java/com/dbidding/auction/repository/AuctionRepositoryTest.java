@@ -22,6 +22,7 @@ class AuctionRepositoryTest {
                 String.class,
                 Integer.class,
                 Long.class,
+                Long.class,
                 LocalDateTime.class,
                 Integer.class,
                 boolean.class,
@@ -39,9 +40,12 @@ class AuctionRepositoryTest {
                 .contains("a.bidCount < :bidCountCursor")
                 .contains("a.currentPrice < :priceCursor")
                 .contains("a.currentPrice > :priceCursor")
+                .contains("a.changeRateBasisPoints < :changeRateCursor")
+                .contains("a.changeRateBasisPoints = :changeRateCursor and a.id < :cursorId")
                 .contains("a.openTime < :openTimeCursor")
                 .contains("a.openTime = :openTimeCursor and a.id < :cursorId")
                 .contains("case when :sort = 'LATEST' then a.openTime end desc")
+                .contains("case when :sort = 'CHANGE_HIGH' then a.changeRateBasisPoints end desc")
                 .contains("a.id < :cursorId");
     }
 }

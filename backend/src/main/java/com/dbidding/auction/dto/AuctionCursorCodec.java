@@ -69,6 +69,9 @@ public class AuctionCursorCodec {
             }
             return;
         }
+        if (sort == AuctionSort.BID_COUNT && (value == null || value < 0 || value > Integer.MAX_VALUE)) {
+            throw invalidCursor();
+        }
         if (value == null || timeValue != null || auctionCount == null || auctionCount < 0
                 || versionSum == null || versionSum < 0) {
             throw invalidCursor();

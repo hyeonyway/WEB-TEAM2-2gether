@@ -66,6 +66,7 @@ public class AuctionQueryService {
                 sort.name(),
                 bidCountCursor(cursor),
                 priceCursor(cursor),
+                changeRateCursor(cursor),
                 openTimeCursor(cursor),
                 cursor == null ? null : cursor.auctionId(),
                 activeOnly(request),
@@ -109,12 +110,18 @@ public class AuctionQueryService {
                 : null;
     }
 
+    private Long changeRateCursor(AuctionCursor cursor) {
+        return cursor != null && cursor.sort() == AuctionSort.CHANGE_HIGH
+                ? cursor.value()
+                : null;
+    }
+
     private AuctionCursor cursorOf(Auction auction, AuctionSort sort, AuctionCursorRevision revision) {
         Long value = switch (sort) {
             case LATEST -> null;
             case BID_COUNT -> auction.getBidCount().longValue();
             case PRICE_HIGH, PRICE_LOW -> auction.getCurrentPrice();
-            case CHANGE_HIGH -> auction.getId().longValue();
+            case CHANGE_HIGH -> auction.getChangeRateBasisPoints();
         };
         LocalDateTime timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
         return new AuctionCursor(

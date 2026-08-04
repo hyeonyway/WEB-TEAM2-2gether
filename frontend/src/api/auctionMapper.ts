@@ -54,6 +54,7 @@ export const mapAuction=(dto:AuctionResponseDto):AuctionDto=>({
   currentPrice:dto.current_price,
   bidIncrement:dto.bid_increment,
   bidCount:dto.bid_count,
+  startsAt:dto.starts_at,
   endsAt:dto.ends_at,
   status:dto.status,
   myBidStatus:dto.my_bid_status,

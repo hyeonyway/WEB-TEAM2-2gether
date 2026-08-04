@@ -73,7 +73,7 @@ class AuctionQueryServiceTest {
         when(auctionRepository.findCursorRevision()).thenReturn(new AuctionCursorRevision(3L, 8L));
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(true), any(LocalDateTime.class),
+                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(LocalDateTime.class),
                 eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(first, second, extra));
         when(auctionCardPort.getCardSnapshots(List.of(1))).thenReturn(Map.of(
@@ -106,6 +106,30 @@ class AuctionQueryServiceTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(409);
+    }
+
+    @Test
+    void 상승률순_cursor는_마지막_경매의_상승률_정렬값을_사용한다() {
+        Auction first = auction(2, AuctionStatus.OPEN, 15_000L, 1);
+        Auction extra = auction(1, AuctionStatus.OPEN, 12_000L, 1);
+        ReflectionTestUtils.setField(first, "changeRateBasisPoints", 5_000L);
+        when(auctionRepository.findCursorRevision()).thenReturn(new AuctionCursorRevision(2L, 2L));
+        when(auctionRepository.searchByCursor(
+                eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
+                eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
+                any(LocalDateTime.class), eq(PageRequest.of(0, 2))
+        )).thenReturn(List.of(first, extra));
+        when(auctionCardPort.getCardSnapshots(List.of(1))).thenReturn(Map.of(
+                1, new AuctionCardPort.CardSnapshot(1, "Mock Card", "Mock Set", "10", "JP", "/card.png")
+        ));
+        when(auctionImageRepository.findByAuctionIdInOrderById(List.of(2))).thenReturn(List.of());
+
+        var response = auctionQueryService.search(
+                null,
+                new AuctionSearchRequest("", null, AuctionSort.CHANGE_HIGH, null, null, 1)
+        );
+
+        assertThat(cursorCodec.decode(response.nextCursor(), AuctionSort.CHANGE_HIGH).value()).isEqualTo(5_000L);
     }
 
     @Test

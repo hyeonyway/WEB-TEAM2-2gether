@@ -1,6 +1,7 @@
 import mockupData from '../mocks/mockup-data.json';
 import {mapAuction,mapCard} from './auctionMapper';
 import type {AuctionListRequestDto,AuctionResponseDto,CardListRequestDto,CardResponseDto,MockAuctionResponseDto} from '../dto/auctionDto';
+import {sortAuctions} from '../queries/auctionStreamCache';
 
 const cards=(mockupData.cards as CardResponseDto[]).map(mapCard);
 const cardResponses=mockupData.cards as CardResponseDto[];
@@ -36,5 +37,5 @@ export async function fetchMockCards(query:CardListRequestDto){
 
 export async function fetchMockAuctions(query:AuctionListRequestDto){
   const result=auctions.filter(item=>item.card.name.includes(query.keyword)&&(query.psaGrade===null||item.card.psaGrade===query.psaGrade));
-  return [...result].sort((a,b)=>query.sort==='LATEST'?b.id-a.id:query.sort==='PRICE_HIGH'?b.currentPrice-a.currentPrice:query.sort==='PRICE_LOW'?a.currentPrice-b.currentPrice:query.sort==='CHANGE_HIGH'?b.card.changeRate-a.card.changeRate:b.bidCount-a.bidCount);
+  return sortAuctions(result,query.sort);
 }

@@ -82,6 +82,24 @@ class AuctionCursorCodecTest {
                 .hasMessageContaining("400 BAD_REQUEST");
     }
 
+    @Test
+    void 입찰수순_cursor가_음수이면_거부한다() {
+        String encoded = encodeRaw("v2|BID_COUNT|-1||17|20|35");
+
+        assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("400 BAD_REQUEST");
+    }
+
+    @Test
+    void 입찰수순_cursor가_int_범위를_벗어나면_거부한다() {
+        String encoded = encodeRaw("v2|BID_COUNT|2147483648||17|20|35");
+
+        assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("400 BAD_REQUEST");
+    }
+
     private String encodeRaw(String raw) {
         return Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
