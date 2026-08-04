@@ -1,9 +1,8 @@
 import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
 import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
-import type {InfiniteData} from '@tanstack/react-query';
-import type {AuctionDto,AuctionListRequestDto,BidContextResponseDto,CardListRequestDto,CursorPageResponseDto} from '../dto/auctionDto';
+import type {AuctionListRequestDto,BidContextResponseDto,CardListRequestDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
-import {applyAuctionEvent,eventToAuction,myBidStatusAfterEvent,sortAuctions} from './auctionStreamCache';
+import {myBidStatusAfterEvent} from './auctionStreamCache';
 
 export type AuctionViewerScope='public'|'self';
 
@@ -68,53 +67,6 @@ export const cardQueries={
     staleTime:60_000,
   }),
 };
-
-const matchesAuctionQuery=(auction:AuctionDto,query:AuctionListRequestDto)=>
-  auction.card.name.toLowerCase().includes(query.keyword.trim().toLowerCase())
-  &&(query.psaGrade===null||auction.card.psaGrade===query.psaGrade);
-
-export function applyAuctionListEvent(
-  data:InfiniteData<CursorPageResponseDto<AuctionDto>,string|undefined>|undefined,
-  event:AuctionStreamPayload,
-  query:AuctionListRequestDto,
-):InfiniteData<CursorPageResponseDto<AuctionDto>,string|undefined>|undefined{
-  if(!data)return data;
-  if(event.type==='BID_PLACED'){
-    return {
-      ...data,
-      pages:data.pages.map(page=>({
-        ...page,
-        content:sortAuctions(applyAuctionEvent(page.content,event),query.sort),
-      })),
-    };
-  }
-  if(event.type==='AUCTION_CREATED'){
-    const created=eventToAuction(event);
-    if(!matchesAuctionQuery(created,query))return data;
-    return {
-      ...data,
-      pages:data.pages.map((page,index)=>index===0?{
-        ...page,
-        content:sortAuctions(
-          [created,...page.content.filter(auction=>auction.id!==created.id)],
-          query.sort,
-        ).slice(0,query.size),
-      }:page),
-    };
-  }
-  const closedCard={
-    ...eventToAuction({...event,type:'AUCTION_CREATED'}),
-    status:event.status,
-  };
-  if(!matchesAuctionQuery(closedCard,query))return data;
-  return {
-    ...data,
-    pages:data.pages.map(page=>({
-      ...page,
-      content:page.content.filter(auction=>auction.id!==event.auction_id),
-    })),
-  };
-}
 
 export function applyBidContextEvent(
   context:BidContextResponseDto|undefined,

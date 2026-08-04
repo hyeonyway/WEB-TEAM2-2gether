@@ -8,12 +8,13 @@ import type {AuctionDto} from '../../dto/auctionDto';
 import AuctionPage from './AuctionPage';
 
 const apiMocks=vi.hoisted(()=>({fetchAuctions:vi.fn()}));
+const streamMocks=vi.hoisted(()=>({useAuctionStream:vi.fn()}));
 
 vi.mock('../../api/auctionApi',async importOriginal=>({
   ...await importOriginal<typeof import('../../api/auctionApi')>(),
   fetchAuctions:apiMocks.fetchAuctions,
 }));
-vi.mock('../../hooks/useAuctionStream',()=>({useAuctionStream:vi.fn()}));
+vi.mock('../../hooks/useAuctionStream',()=>({useAuctionStream:streamMocks.useAuctionStream}));
 
 const auction=(id:number,name:string):AuctionDto=>({
   id,
@@ -23,6 +24,7 @@ const auction=(id:number,name:string):AuctionDto=>({
 });
 
 let intersectionCallback:IntersectionObserverCallback;
+let onAuctionUpdated:(event:unknown)=>void;
 
 class TestIntersectionObserver implements IntersectionObserver{
   readonly root=null;
@@ -38,13 +40,14 @@ class TestIntersectionObserver implements IntersectionObserver{
 
 function renderPage(){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
-  return render(<QueryClientProvider client={queryClient}>
+  const result=render(<QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={['/auction']}>
       <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
         <AuctionPage/>
       </AuthContext.Provider>
     </MemoryRouter>
   </QueryClientProvider>);
+  return {...result,queryClient};
 }
 
 describe('AuctionPage',()=>{
@@ -52,6 +55,9 @@ describe('AuctionPage',()=>{
     apiMocks.fetchAuctions.mockReset()
       .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:'next-token',has_next:true})
       .mockResolvedValueOnce({content:[auction(1,'리자몽')],next_cursor:null,has_next:false});
+    streamMocks.useAuctionStream.mockImplementation(({onAuctionUpdated:callback})=>{
+      onAuctionUpdated=callback;
+    });
     vi.stubGlobal('IntersectionObserver',TestIntersectionObserver);
   });
 
@@ -79,6 +85,41 @@ describe('AuctionPage',()=>{
 
     await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenCalledWith(
       expect.objectContaining({sort:'LATEST'}),
+      undefined,
+    ));
+  });
+
+  it('SSE 이벤트를 받으면 페이지 경계를 유지하도록 목록을 다시 조회한다',async()=>{
+    renderPage();
+    expect(await screen.findByText('피카츄')).toBeInTheDocument();
+
+    await act(async()=>onAuctionUpdated({type:'BID_PLACED'}));
+
+    await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenCalledTimes(2));
+    expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
+      expect.objectContaining({sort:'BID_COUNT'}),
+      undefined,
+    );
+  });
+
+  it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{
+    apiMocks.fetchAuctions.mockReset()
+      .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:'next-token',has_next:true})
+      .mockRejectedValueOnce(new Error('next page failed'))
+      .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:null,has_next:false});
+    const user=userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText('피카츄')).toBeInTheDocument();
+    await act(async()=>intersectionCallback([
+      {isIntersecting:true} as IntersectionObserverEntry,
+    ],{} as IntersectionObserver));
+
+    const retry=await screen.findByRole('button',{name:'목록 새로고침'});
+    expect(screen.getByText('피카츄')).toBeInTheDocument();
+    await user.click(retry);
+    await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
+      expect.objectContaining({sort:'BID_COUNT'}),
       undefined,
     ));
   });

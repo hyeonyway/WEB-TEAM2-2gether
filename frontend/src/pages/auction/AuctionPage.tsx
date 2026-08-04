@@ -1,10 +1,10 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {type InfiniteData,useInfiniteQuery,useQueryClient} from '@tanstack/react-query';
+import {useInfiniteQuery,useQueryClient} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {useSearchParams} from 'react-router-dom';
 import {AuctionCatalog,AuctionCatalogSkeleton} from './components';
-import type {AuctionDto,AuctionListRequestDto,CursorPageResponseDto} from '../../dto/auctionDto';
-import {applyAuctionListEvent,auctionQueries} from '../../queries/auctionQueries';
+import type {AuctionDto,AuctionListRequestDto} from '../../dto/auctionDto';
+import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
@@ -27,21 +27,19 @@ export default function AuctionPage(){
   const[grade,setGrade]=useState('');
   const[sort,setSort]=useState<AuctionListRequestDto['sort']>(initialSort);
   const listRequest={keyword:debouncedQuery,psaGrade:grade||null,sort,size:PAGE_SIZE};
+  const listOptions=auctionQueries.list(listRequest,viewerScope);
 
   useEffect(()=>{
     setQuery(requestedKeyword);
   },[requestedKeyword]);
   useAuctionStream({
-    onAuctionUpdated:event=>{
-      queryClient.setQueryData<InfiniteData<CursorPageResponseDto<AuctionDto>,string|undefined>>(
-        auctionQueries.list(listRequest,viewerScope).queryKey,
-        current=>applyAuctionListEvent(current,event,listRequest),
-      );
+    onAuctionUpdated:()=>{
+      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
     },
   });
   const{
     data,isPending,error,fetchNextPage,hasNextPage,isFetchingNextPage,isFetchNextPageError,
-  }=useInfiniteQuery(auctionQueries.list(listRequest,viewerScope));
+  }=useInfiniteQuery(listOptions);
   const auctions=useMemo(()=>{
     const unique=new Map<number,AuctionDto>();
     data?.pages.flatMap(page=>page.content).forEach(auction=>unique.set(auction.id,auction));
@@ -69,11 +67,11 @@ export default function AuctionPage(){
         <option value="">PSA 등급</option>{Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
       </select></label>
     </div>
-    {isPending?<AuctionCatalogSkeleton/>:error?<p className="form-error">경매 정보를 불러오지 못했습니다.</p>:<>
+    {isPending?<AuctionCatalogSkeleton/>:error&&!data?<p className="form-error">경매 정보를 불러오지 못했습니다.</p>:<>
       <p className="catalog-count">{auctions.length.toLocaleString()}개 표시 중</p>
       <AuctionCatalog auctions={auctions}/>
       {isFetchingNextPage&&<AuctionCatalogSkeleton count={3} label="다음 경매 목록을 불러오는 중"/>}
-      {isFetchNextPageError&&<button className="auction-list-retry" type="button" onClick={()=>void fetchNextPage()}>다시 불러오기</button>}
+      {isFetchNextPageError&&<button className="auction-list-retry" type="button" onClick={()=>void queryClient.resetQueries({queryKey:listOptions.queryKey,exact:true})}>목록 새로고침</button>}
       <div className="auction-scroll-sentinel" ref={loadMoreRef} aria-hidden="true"/>
     </>}
   </main></div>;
