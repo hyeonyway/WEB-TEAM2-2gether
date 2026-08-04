@@ -8,6 +8,7 @@ import com.dbidding.sse.auction.payload.AuctionClosedPayload;
 import com.dbidding.sse.auction.payload.AuctionCreatedPayload;
 import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
 import com.dbidding.sse.auction.payload.BidPlacedPayload;
+import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
@@ -35,10 +36,10 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
                 event.currentPrice(),
                 event.bidIncrement(),
                 event.bidCount(),
-                event.closeTime(),
+                event.closeTime().toInstant(ZoneOffset.UTC),
                 AuctionPayloadStatus.valueOf(event.status().name()),
                 event.version(),
-                event.occurredAt()
+                event.occurredAt().toInstant(ZoneOffset.UTC)
         ));
     }
 
@@ -54,10 +55,10 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
                 event.currentPrice(),
                 event.bidIncrement(),
                 event.bidCount(),
-                event.closeTime(),
+                event.closeTime().toInstant(ZoneOffset.UTC),
                 AuctionPayloadStatus.valueOf(event.status().name()),
                 event.version(),
-                event.occurredAt()
+                event.occurredAt().toInstant(ZoneOffset.UTC)
         ));
     }
 
@@ -78,11 +79,11 @@ public class SpringAuctionEventPublisher implements AuctionEventPort {
                 event.currentPrice(),
                 event.bidIncrement(),
                 event.bidCount(),
-                event.closeTime(),
+                event.closeTime().toInstant(ZoneOffset.UTC),
                 AuctionPayloadStatus.valueOf(event.status().name()),
                 event.version(),
-                event.closeTime(),
-                event.occurredAt()
+                event.closeTime().toInstant(ZoneOffset.UTC),
+                event.occurredAt().toInstant(ZoneOffset.UTC)
         ));
     }
 }

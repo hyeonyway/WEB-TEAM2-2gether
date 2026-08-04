@@ -3,16 +3,19 @@ import {Bell} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {showAuthRequiredToast} from '../auth/useAuthGate';
 import {useNotifications} from '../hooks/useNotifications';
+import {formatLocalizedDate} from '../utils/dateTime';
+import {t} from '../i18n';
+import {showToast} from './Toast';
 import type {NotificationDto} from '../dto/notificationDto';
 
 function formatRelativeTime(iso:string):string{
   const diffMs=Date.now()-new Date(iso).getTime();
   const minute=60_000,hour=60*minute,day=24*hour;
-  if(diffMs<minute)return'방금 전';
-  if(diffMs<hour)return`${Math.floor(diffMs/minute)}분 전`;
-  if(diffMs<day)return`${Math.floor(diffMs/hour)}시간 전`;
-  if(diffMs<7*day)return`${Math.floor(diffMs/day)}일 전`;
-  return new Date(iso).toLocaleDateString();
+  if(diffMs<minute)return t('justNow');
+  if(diffMs<hour)return`${Math.floor(diffMs/minute)}${t('minute')}`;
+  if(diffMs<day)return`${Math.floor(diffMs/hour)}${t('hour')}`;
+  if(diffMs<7*day)return`${Math.floor(diffMs/day)}${t('day')}`;
+  return formatLocalizedDate(iso);
 }
 
 function NotificationItem({notification,onRead,onNavigate}:{notification:NotificationDto;onRead:(id:number)=>void;onNavigate:(notification:NotificationDto)=>void}){
