@@ -6,6 +6,17 @@ import {setAccessToken} from '../../api/accessTokenStore';
 import ToastContainer from '../Toast';
 import WalletRefundDialog from './WalletRefundDialog';
 
+class BroadcastChannelMock extends EventTarget {
+  static instances: BroadcastChannelMock[] = [];
+  postMessage = vi.fn();
+  close = vi.fn();
+
+  constructor(public name: string) {
+    super();
+    BroadcastChannelMock.instances.push(this);
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -39,6 +50,8 @@ function renderDialog(onClose = vi.fn()) {
 describe('WalletRefundDialog', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    BroadcastChannelMock.instances = [];
+    vi.stubGlobal('BroadcastChannel', BroadcastChannelMock);
     setAccessToken('wallet-access-token');
     vi.spyOn(globalThis.crypto, 'randomUUID')
       .mockReturnValue('22222222-2222-4222-8222-222222222222');
@@ -98,6 +111,10 @@ describe('WalletRefundDialog', () => {
     const [, options] = fetchMock.mock.calls[0] ?? [];
     expect(new Headers(options?.headers).get('Idempotency-Key'))
       .toBe('22222222-2222-4222-8222-222222222222');
+    expect(BroadcastChannelMock.instances).toHaveLength(1);
+    expect(BroadcastChannelMock.instances[0]?.postMessage).toHaveBeenCalledWith({
+      type: 'WALLET_CHANGED',
+    });
   });
 
   it('409 뒤 입력과 멱등키를 유지해 명시적으로 재시도한다', async () => {

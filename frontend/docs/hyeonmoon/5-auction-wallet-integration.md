@@ -94,6 +94,19 @@ Auction 입찰 mutation 성공
 기존 공개 Auction 스트림을 소비해 `walletQueryKeys.balance()`만 무효화하며,
 실제 Wallet 값은 항상 서버 API에서 다시 조회한다.
 
+### 충전·환불의 탭 간 동기화
+
+충전과 환불은 Auction SSE 이벤트가 아니므로 같은 사용자가 다른 탭에서 거래해도
+기존 탭은 이를 알 수 없다. 성공한 탭은 `dbidding-wallet` BroadcastChannel에
+`WALLET_CHANGED` 신호만 발행하고, 인증된 다른 탭은 이를 받으면
+`walletQueryKeys.balance()`를 무효화한다.
+
+- 메시지에는 잔액, 사용자 ID, Access Token을 포함하지 않는다.
+- 현재 탭은 mutation 성공 처리에서 직접 Query를 무효화한다.
+- 다른 탭은 메시지에 실린 값을 신뢰하지 않고 Wallet API를 다시 조회한다.
+- BroadcastChannel을 지원하지 않는 환경에서는 현재 탭의 기존 갱신만 유지한다.
+- 구독은 인증 상태에서만 유지하고 해제 시 채널을 닫는다.
+
 ## 다른 도메인 변경 절차
 
 1. Account·Wallet 브랜치에서 공통 hook과 Query key를 먼저 구현한다.

@@ -7,6 +7,17 @@ import {clearAccessToken, getAccessToken} from '../api/accessTokenStore';
 import {AuthProvider} from './AuthProvider';
 import {useAuth} from './useAuth';
 
+class BroadcastChannelMock extends EventTarget {
+  static instances: BroadcastChannelMock[] = [];
+  postMessage = vi.fn();
+  close = vi.fn();
+
+  constructor(public name: string) {
+    super();
+    BroadcastChannelMock.instances.push(this);
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -50,6 +61,8 @@ function renderAuthProvider() {
 describe('AuthProvider 앱 시작 인증 복구', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    BroadcastChannelMock.instances = [];
+    vi.stubGlobal('BroadcastChannel', BroadcastChannelMock);
     clearAccessToken();
   });
 
@@ -146,5 +159,29 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     expect(queryClient.getQueryData(['account', 'profile'])).toBeUndefined();
     expect(queryClient.getQueryData(['wallet', 'balance'])).toBeUndefined();
     expect(queryClient.getQueryData(['auction', 'catalog'])).toEqual([{id: 1}]);
+  });
+
+  it('다른 탭의 Wallet 변경 신호를 받으면 Wallet 잔액을 다시 조회한다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({accessToken: 'restored-access-token'}));
+    const {queryClient} = renderAuthProvider();
+    queryClient.setQueryData(['wallet', 'balance'], {
+      totalBalance: 100_000,
+      frozenBalance: 20_000,
+      availableBalance: 80_000,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('authenticated');
+    });
+    expect(BroadcastChannelMock.instances).toHaveLength(1);
+
+    BroadcastChannelMock.instances[0]?.dispatchEvent(new MessageEvent('message', {
+      data: {type: 'WALLET_CHANGED'},
+    }));
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(['wallet', 'balance'])?.isInvalidated).toBe(true);
+    });
   });
 });

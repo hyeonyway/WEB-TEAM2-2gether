@@ -6,6 +6,17 @@ import {setAccessToken} from '../../api/accessTokenStore';
 import ToastContainer from '../Toast';
 import WalletChargeDialog from './WalletChargeDialog';
 
+class BroadcastChannelMock extends EventTarget {
+  static instances: BroadcastChannelMock[] = [];
+  postMessage = vi.fn();
+  close = vi.fn();
+
+  constructor(public name: string) {
+    super();
+    BroadcastChannelMock.instances.push(this);
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -39,6 +50,8 @@ function renderDialog(onClose = vi.fn()) {
 describe('WalletChargeDialog', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    BroadcastChannelMock.instances = [];
+    vi.stubGlobal('BroadcastChannel', BroadcastChannelMock);
     setAccessToken('wallet-access-token');
     vi.spyOn(globalThis.crypto, 'randomUUID')
       .mockReturnValue('11111111-1111-4111-8111-111111111111');
@@ -129,6 +142,10 @@ describe('WalletChargeDialog', () => {
     const [, options] = fetchMock.mock.calls[0] ?? [];
     expect(new Headers(options?.headers).get('Idempotency-Key'))
       .toBe('11111111-1111-4111-8111-111111111111');
+    expect(BroadcastChannelMock.instances).toHaveLength(1);
+    expect(BroadcastChannelMock.instances[0]?.postMessage).toHaveBeenCalledWith({
+      type: 'WALLET_CHANGED',
+    });
   });
 
   it('네트워크 실패를 재시도할 때 같은 멱등키를 유지한다', async () => {

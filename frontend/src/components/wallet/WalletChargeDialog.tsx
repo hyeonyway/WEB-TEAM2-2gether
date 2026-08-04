@@ -2,6 +2,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {Wallet} from 'lucide-react';
 import {type FormEvent, useState} from 'react';
 import {HttpError} from '../../api/httpClient';
+import {publishWalletChanged} from '../../api/walletSyncChannel';
 import type {WalletBalanceDto} from '../../dto/walletDto';
 import {useModalFocusTrap} from '../../hooks/useModalFocusTrap';
 import {walletMutations} from '../../queries/walletMutations';
@@ -28,6 +29,7 @@ export default function WalletChargeDialog({
     ...walletMutations.charge(),
     onSuccess: transaction => {
       void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
+      publishWalletChanged();
       showToast(`${transaction.amount.toLocaleString()}P가 충전되었습니다.`);
       onClose();
     },

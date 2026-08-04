@@ -2,6 +2,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {Wallet} from 'lucide-react';
 import {type FormEvent, useState} from 'react';
 import {HttpError} from '../../api/httpClient';
+import {publishWalletChanged} from '../../api/walletSyncChannel';
 import {useModalFocusTrap} from '../../hooks/useModalFocusTrap';
 import {walletMutations} from '../../queries/walletMutations';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
@@ -26,6 +27,7 @@ export default function WalletRefundDialog({
     ...walletMutations.refund(),
     onSuccess: transaction => {
       void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
+      publishWalletChanged();
       showToast(`${Math.abs(transaction.amount).toLocaleString()}P가 환불 처리되었습니다.`);
       onClose();
     },
