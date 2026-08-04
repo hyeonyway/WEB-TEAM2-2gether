@@ -3,6 +3,7 @@ package com.dbidding.statistic.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
@@ -123,6 +124,26 @@ class StatisticQueryServiceTest {
 
         assertThat(result.gainers()).extracting("cardId").containsExactly(3, 1);
         assertThat(result.losers()).extracting("cardId").containsExactly(4, 2);
+    }
+
+    @Test
+    void 유효한_가격이_두개_미만인_후보는_가격_변동에서_제외한다() {
+        LocalDate from = LocalDate.of(2026, 6, 28);
+        LocalDate today = LocalDate.of(2026, 7, 28);
+        var candidate = candidate(1, 120_000L, 0L);
+        given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
+                .willReturn(List.of(candidate));
+        var card = card(1);
+        given(cardPort.getCards(List.of(1))).willReturn(Map.of(1, card));
+
+        var result = statisticQueryService.getPriceMovers(5);
+
+        assertThat(result.gainers()).isEmpty();
+        assertThat(result.losers()).isEmpty();
+        verify(dailyStatisticRepository, never()).findHistory(
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(from),
+                org.mockito.ArgumentMatchers.eq(today));
     }
 
     private PriceMovementCandidate candidate(Integer id, Long current, Long previous) {

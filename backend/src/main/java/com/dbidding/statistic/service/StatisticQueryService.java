@@ -191,8 +191,7 @@ public class StatisticQueryService {
 
     private long price(ItemDailyStatistic statistic) {
         if (statistic == null) return 0;
-        if (statistic.getLatestPrice() != null) return statistic.getLatestPrice();
-        return statistic.getAveragePrice() == null ? 0 : statistic.getAveragePrice();
+        return statistic.getLatestPrice() == null ? 0 : statistic.getLatestPrice();
     }
 
     private BigDecimal changeRate(long current, long previous) {
