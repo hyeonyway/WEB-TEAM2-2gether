@@ -20,6 +20,13 @@ public final class AuctionResponses {
     ) {
     }
 
+    public record CursorPage<T>(
+            List<T> content,
+            @JsonProperty("next_cursor") String nextCursor,
+            @JsonProperty("has_next") boolean hasNext
+    ) {
+    }
+
     @Builder
     public record AuctionSummary(
             Integer id,

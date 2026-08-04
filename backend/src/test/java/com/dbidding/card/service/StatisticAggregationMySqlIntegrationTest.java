@@ -80,7 +80,7 @@ class StatisticAggregationMySqlIntegrationTest {
                 """);
         jdbcTemplate.update("""
                 insert into bids (id, user_id, auction_id, bid_price, created_at, status)
-                values (1, 2, 1, 100000, '2026-07-27 12:00:00', 'LOST'),
+                values (1, 2, 1, 100000, '2026-07-27 12:00:00', 'OUTBID'),
                        (2, 2, 1, 120000, '2026-07-27 17:00:00', 'WON')
                 """);
     }

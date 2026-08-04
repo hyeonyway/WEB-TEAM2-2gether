@@ -4,6 +4,5 @@ public enum BidStatus {
     LEADING,
     OUTBID,
     WON,
-    LOST,
-    WITHDRAWN
+    CANCELLED
 }

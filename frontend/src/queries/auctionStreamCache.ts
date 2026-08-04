@@ -4,6 +4,10 @@ import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 
 const themes:AuctionDto['card']['theme'][]=['gold','water','dark','multi','sketch'];
 
+const changeRateBasisPoints=(auction:AuctionDto)=>Math.floor(
+  (auction.currentPrice-auction.startPrice)*10_000/auction.startPrice,
+);
+
 export function myBidStatusAfterEvent(
   current:MyBidStatus,
   event:AuctionStreamPayload,
@@ -62,6 +66,7 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
     currentPrice,
     bidIncrement:event.bid_increment,
     bidCount:event.bid_count,
+    startsAt:event.occurred_at,
     endsAt:event.ends_at,
     status:event.status,
     version:event.auction_version,
@@ -72,13 +77,17 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
 
 export function sortAuctions(auctions:AuctionDto[],sort:AuctionSort):AuctionDto[]{
   return [...auctions].sort((left,right)=>{
-    if(sort==='PRICE_HIGH')return right.currentPrice-left.currentPrice;
-    if(sort==='PRICE_LOW')return left.currentPrice-right.currentPrice;
-    if(sort==='CHANGE_HIGH'){
-      const leftChange=(left.currentPrice-left.startPrice)/left.startPrice;
-      const rightChange=(right.currentPrice-right.startPrice)/right.startPrice;
-      return rightChange-leftChange;
+    if(sort==='LATEST'){
+      const timeOrder=Date.parse(right.startsAt??'')-Date.parse(left.startsAt??'');
+      return (Number.isNaN(timeOrder)?0:timeOrder)||right.id-left.id;
     }
-    return right.bidCount-left.bidCount;
+    if(sort==='PRICE_HIGH')return right.currentPrice-left.currentPrice||right.id-left.id;
+    if(sort==='PRICE_LOW')return left.currentPrice-right.currentPrice||right.id-left.id;
+    if(sort==='CHANGE_HIGH'){
+      const leftChange=changeRateBasisPoints(left);
+      const rightChange=changeRateBasisPoints(right);
+      return rightChange-leftChange||right.id-left.id;
+    }
+    return right.bidCount-left.bidCount||right.id-left.id;
   });
 }
