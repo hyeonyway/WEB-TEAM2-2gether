@@ -24,13 +24,16 @@ class AuctionRepositoryTest {
                 Long.class,
                 LocalDateTime.class,
                 Integer.class,
+                boolean.class,
+                LocalDateTime.class,
                 Pageable.class
         );
         String query = method.getAnnotation(Query.class).value();
 
         assertThat(query)
                 .contains("replace(upper(trim(c.psaGrade)), 'PSA ', '')")
-                .contains("replace(upper(trim(:psaGrade)), 'PSA ', '')");
+                .contains("replace(upper(trim(:psaGrade)), 'PSA ', '')")
+                .contains(":activeOnly = false or a.closeTime > :now");
         assertThat(method.getReturnType()).isEqualTo(List.class);
         assertThat(query)
                 .contains("a.bidCount < :bidCountCursor")
