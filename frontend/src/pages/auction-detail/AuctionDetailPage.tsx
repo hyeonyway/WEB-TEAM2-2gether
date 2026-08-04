@@ -6,6 +6,8 @@ import {AuctionBidDialog,Header} from '../../components';
 import {mapAuction,mapCardLanguage,normalizePsaGrade} from '../../api/auctionMapper';
 import {auctionQueries} from '../../queries/auctionQueries';
 import {useAuthGate} from '../../auth/useAuthGate';
+import AuctionDetailSkeleton from './AuctionDetailSkeleton';
+import AuctionImageGallery from './AuctionImageGallery';
 
 function useAuctionNow(){
   const[now,setNow]=useState(Date.now());
@@ -60,7 +62,7 @@ export default function AuctionDetailPage(){
     return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell"><p className="form-error">잘못된 경매 번호입니다.</p></main></div>;
   }
   if(detailQuery.isPending||bidsQuery.isPending||(authenticated&&contextQuery.isPending)){
-    return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell"><p>경매 정보를 불러오는 중...</p></main></div>;
+    return <div className="detail-page auction-detail-page"><Header/><AuctionDetailSkeleton/></div>;
   }
   if(detailQuery.error||bidsQuery.error||!detailQuery.data||!bidsQuery.data){
     return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell"><p className="form-error">경매 정보를 불러오지 못했습니다.</p></main></div>;
@@ -76,9 +78,6 @@ export default function AuctionDetailPage(){
   const language=mapCardLanguage(detail.card.language);
   const remaining=formatRemaining(detail.ends_at,now);
   const ended=!['OPEN','ENDING'].includes(detail.status)||remaining==='경매 종료';
-  const image=detail.photos.find(photo=>photo.representative)?.url
-    ??detail.photos[0]?.url
-    ??detail.card.thumbnail_url;
   const increaseRate=detail.start_price>0
     ?(currentPrice-detail.start_price)/detail.start_price*100
     :0;
@@ -86,13 +85,15 @@ export default function AuctionDetailPage(){
   return <div className="detail-page auction-detail-page"><Header/><main className="auction-detail-shell">
     <div className="auction-detail-layout">
       <section className="auction-detail-product">
-        {image&&<img src={image} alt={detail.card.name}/>}
-        <div className="detail-grades"><span className="grade">PSA {grade}</span><span className="grade">{language}</span></div>
-        <h1>{detail.card.name}</h1>
-        <p>{detail.card.set_name} · {detail.card.language}</p>
-        <small>경매번호 AUCTION-{String(detail.id).padStart(4,'0')}</small>
+        <AuctionImageGallery cardName={detail.card.name} cardImage={detail.card.thumbnail_url} photos={detail.photos}/>
       </section>
       <section className="auction-bid-panel">
+        <div className="auction-detail-title">
+          <div className="detail-grades"><span className="grade">PSA {grade}</span><span className="grade">{language}</span></div>
+          <h1>{detail.card.name}</h1>
+          <p>{detail.card.set_name} · {detail.card.language}</p>
+          <small>경매번호 AUCTION-{String(detail.id).padStart(4,'0')}</small>
+        </div>
         <div className="auction-live-label"><i/> {ended?'종료된 경매':'LIVE 경매'} <span><Clock3/>{remaining}</span></div>
         <div className="auction-current-price"><small>현재 입찰가</small><strong>{currentPrice.toLocaleString()}원</strong><em>+{increaseRate.toFixed(1)}%</em></div>
         <div className="auction-bid-summary">

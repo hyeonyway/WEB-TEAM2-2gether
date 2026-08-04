@@ -50,10 +50,13 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const bidIncrement=context?.bid_increment??auction.bidIncrement;
   const minimum=context?.minimum_bid??currentPrice+bidIncrement;
   const[amount,setAmount]=useState<number|string>(minimum);
-  const previousMinimum=useRef(minimum);
   useEffect(()=>{
-    setAmount(current=>Number(current)===previousMinimum.current?minimum:current);
-    previousMinimum.current=minimum;
+    setAmount(current=>{
+      const currentValue=Number(current);
+      return current===''||!Number.isFinite(currentValue)||currentValue<minimum
+        ?minimum
+        :current;
+    });
   },[minimum]);
   const amountValue=Number(amount);
   const belowMinimum=amount===''||amountValue<minimum;
