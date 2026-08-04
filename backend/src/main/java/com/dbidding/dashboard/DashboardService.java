@@ -158,7 +158,7 @@ public class DashboardService {
     private MyBidStatus myBidStatus(Bid bid) {
         return switch (bid.getStatus()) {
             case LEADING, WON -> MyBidStatus.LEADING;
-            case OUTBID, LOST, WITHDRAWN -> MyBidStatus.OUTBID;
+            case OUTBID, CANCELLED -> MyBidStatus.OUTBID;
         };
     }
 }

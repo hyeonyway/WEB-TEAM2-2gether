@@ -1,15 +1,22 @@
 package com.dbidding.auction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.domain.AuctionSort;
+import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.PageRequestDto;
+import com.dbidding.auction.dto.AuctionCursor;
+import com.dbidding.auction.dto.AuctionCursorCodec;
+import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.WalletPort;
 import com.dbidding.auction.repository.AuctionImageRepository;
@@ -17,6 +24,7 @@ import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +49,7 @@ class AuctionQueryServiceTest {
     private AuctionCardPort auctionCardPort;
 
     private AuctionQueryService auctionQueryService;
+    private final AuctionCursorCodec cursorCodec = new AuctionCursorCodec();
 
     @BeforeEach
     void setUp() {
@@ -49,8 +58,36 @@ class AuctionQueryServiceTest {
                 auctionImageRepository,
                 bidRepository,
                 walletPort,
-                auctionCardPort
+                auctionCardPort,
+                cursorCodec
         );
+    }
+
+    @Test
+    void 경매_목록은_size보다_하나_더_조회하고_마지막_항목으로_다음_cursor를_만든다() {
+        Auction first = auction(3, AuctionStatus.OPEN, 50_000L, 7);
+        Auction second = auction(2, AuctionStatus.OPEN, 45_000L, 5);
+        Auction extra = auction(1, AuctionStatus.OPEN, 40_000L, 3);
+        when(auctionRepository.searchByCursor(
+                eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
+                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null),
+                eq(PageRequest.of(0, 3))
+        )).thenReturn(List.of(first, second, extra));
+        when(auctionCardPort.getCardSnapshots(List.of(1))).thenReturn(Map.of(
+                1, new AuctionCardPort.CardSnapshot(1, "Mock Card", "Mock Set", "10", "JP", "/card.png")
+        ));
+        when(auctionImageRepository.findByAuctionIdInOrderById(List.of(3, 2)))
+                .thenReturn(List.of());
+
+        var response = auctionQueryService.search(
+                null,
+                new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 2)
+        );
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(3, 2);
+        assertThat(response.hasNext()).isTrue();
+        assertThat(cursorCodec.decode(response.nextCursor(), AuctionSort.BID_COUNT))
+                .isEqualTo(new AuctionCursor(AuctionSort.BID_COUNT, 5L, null, 2));
     }
 
     @Test
@@ -131,6 +168,10 @@ class AuctionQueryServiceTest {
     }
 
     private Auction auction(AuctionStatus status) {
+        return auction(1, status, 45_000L, 0);
+    }
+
+    private Auction auction(Integer id, AuctionStatus status, Long currentPrice, Integer bidCount) {
         LocalDateTime closeTime = LocalDateTime.now().minusMinutes(1);
         Auction auction = Auction.builder()
                 .sellerId(2)
@@ -146,9 +187,10 @@ class AuctionQueryServiceTest {
                 .bidPriceUnit(1_000L)
                 .hyped(false)
                 .build();
-        ReflectionTestUtils.setField(auction, "id", 1);
+        ReflectionTestUtils.setField(auction, "id", id);
         ReflectionTestUtils.setField(auction, "status", status);
-        ReflectionTestUtils.setField(auction, "currentPrice", 45_000L);
+        ReflectionTestUtils.setField(auction, "currentPrice", currentPrice);
+        ReflectionTestUtils.setField(auction, "bidCount", bidCount);
         return auction;
     }
 

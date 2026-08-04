@@ -7,7 +7,6 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Collection;
 import java.util.List;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -24,17 +23,42 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
                     where replace(upper(trim(c.psaGrade)), 'PSA ', '') =
                           replace(upper(trim(:psaGrade)), 'PSA ', '')
               ))
+              and (
+                    :cursorId is null
+                    or (:sort = 'LATEST' and (
+                        a.openTime < :openTimeCursor
+                        or (a.openTime = :openTimeCursor and a.id < :cursorId)
+                    ))
+                    or (:sort = 'BID_COUNT' and (
+                        a.bidCount < :bidCountCursor
+                        or (a.bidCount = :bidCountCursor and a.id < :cursorId)
+                    ))
+                    or (:sort = 'PRICE_HIGH' and (
+                        a.currentPrice < :priceCursor
+                        or (a.currentPrice = :priceCursor and a.id < :cursorId)
+                    ))
+                    or (:sort = 'PRICE_LOW' and (
+                        a.currentPrice > :priceCursor
+                        or (a.currentPrice = :priceCursor and a.id < :cursorId)
+                    ))
+                    or (:sort = 'CHANGE_HIGH' and a.id < :cursorId)
+              )
             order by
+              case when :sort = 'LATEST' then a.openTime end desc,
               case when :sort = 'BID_COUNT' then a.bidCount end desc,
               case when :sort = 'PRICE_HIGH' then a.currentPrice end desc,
               case when :sort = 'PRICE_LOW' then a.currentPrice end asc,
               a.id desc
             """)
-    Page<Auction> search(
+    List<Auction> searchByCursor(
             @Param("keyword") String keyword,
             @Param("psaGrade") String psaGrade,
             @Param("statuses") Collection<AuctionStatus> statuses,
             @Param("sort") String sort,
+            @Param("bidCountCursor") Integer bidCountCursor,
+            @Param("priceCursor") Long priceCursor,
+            @Param("openTimeCursor") LocalDateTime openTimeCursor,
+            @Param("cursorId") Integer cursorId,
             Pageable pageable
     );
 

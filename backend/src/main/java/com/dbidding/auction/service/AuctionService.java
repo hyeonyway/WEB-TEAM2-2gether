@@ -32,7 +32,10 @@ public class AuctionService {
         return auctionCommandService.participate(userId, auctionId, request, idempotencyKey);
     }
 
-    public AuctionResponses.Page<AuctionResponses.AuctionSummary> search(Integer userId, AuctionSearchRequest request) {
+    public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
+            Integer userId,
+            AuctionSearchRequest request
+    ) {
         return auctionQueryService.search(userId, request);
     }
 
