@@ -19,6 +19,8 @@ import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
@@ -38,6 +40,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -64,6 +67,7 @@ public class AuctionCommandService {
     private final AuctionEventPort auctionEventPort;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuctionMetrics auctionMetrics;
 
     @Transactional
     public AuctionCreateResponse create(Integer userId, AuctionCreateRequest request, String idempotencyKey) {
@@ -140,7 +144,7 @@ public class AuctionCommandService {
     ) {
         validateIdempotencyKey(idempotencyKey);
         String requestHash = bidRequestHash(request);
-        Auction auction = auctionRepository.findByIdForUpdate(auctionId)
+        Auction auction = findByIdForUpdate(auctionId, LockOperation.BID)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
         Optional<BidResponses.BidResult> idempotentResponse = findIdempotentBidResponse(
                 userId,
@@ -194,7 +198,7 @@ public class AuctionCommandService {
     @Transactional
     public AuctionCloseResponse closeAuction(Integer auctionId) {
         LocalDateTime now = now();
-        Auction auction = auctionRepository.findByIdForUpdate(auctionId)
+        Auction auction = findByIdForUpdate(auctionId, LockOperation.CLOSE)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
         if (auction.getStatus() == AuctionStatus.ENDED || auction.getStatus() == AuctionStatus.FAILED) {
             return closeResponse(auction, closedWinningBid(auction.getId()).orElse(null));
@@ -209,11 +213,17 @@ public class AuctionCommandService {
             throw new ResponseStatusException(BAD_REQUEST, "종료 처리 개수는 1 이상이어야 합니다.");
         }
         log.debug("event=auction.close.batch.finding now={} limit={}", now, limit);
-        List<Auction> auctions = auctionRepository.findCloseTargetsForUpdate(
-                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
-                now,
-                PageRequest.of(0, limit)
-        );
+        Timer.Sample lockSample = auctionMetrics.start();
+        List<Auction> auctions;
+        try {
+            auctions = auctionRepository.findCloseTargetsForUpdate(
+                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
+                    now,
+                    PageRequest.of(0, limit)
+            );
+        } finally {
+            auctionMetrics.finishAuctionLockWait(lockSample, LockOperation.CLOSE);
+        }
         if (auctions.isEmpty()) {
             log.debug("event=auction.close.batch.empty now={} limit={}", now, limit);
         } else {
@@ -235,6 +245,15 @@ public class AuctionCommandService {
         }
         if (idempotencyKey.length() > 64) {
             throw new ResponseStatusException(BAD_REQUEST, "Idempotency-Key는 64자 이하여야 합니다.");
+        }
+    }
+
+    private Optional<Auction> findByIdForUpdate(Integer auctionId, LockOperation operation) {
+        Timer.Sample sample = auctionMetrics.start();
+        try {
+            return auctionRepository.findByIdForUpdate(auctionId);
+        } finally {
+            auctionMetrics.finishAuctionLockWait(sample, operation);
         }
     }
 

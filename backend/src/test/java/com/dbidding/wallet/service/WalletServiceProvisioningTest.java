@@ -24,6 +24,8 @@ import com.dbidding.wallet.exception.WalletAlreadyExistsException;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import com.dbidding.wallet.metrics.WalletMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 class WalletServiceProvisioningTest {
@@ -44,7 +46,8 @@ class WalletServiceProvisioningTest {
 		walletService = new WalletService(
 			walletRepository,
 			pointRecordRepository,
-			walletHoldRepository
+			walletHoldRepository,
+			new WalletMetrics(new SimpleMeterRegistry())
 		);
 	}
 

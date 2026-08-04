@@ -23,9 +23,11 @@ import com.dbidding.wallet.domain.WalletHold;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletHoldStateException;
+import com.dbidding.wallet.metrics.WalletMetrics;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 class WalletServiceCaptureTest {
@@ -46,7 +48,8 @@ class WalletServiceCaptureTest {
 		service = new WalletService(
 			walletRepository,
 			pointRecordRepository,
-			walletHoldRepository
+			walletHoldRepository,
+			new WalletMetrics(new SimpleMeterRegistry())
 		);
 	}
 

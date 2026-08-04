@@ -15,6 +15,7 @@ import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.AuctionEventPort;
@@ -26,6 +27,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,9 +59,11 @@ class AuctionServiceCloseTest {
             ZoneId.of("Asia/Seoul")
     );
     private AuctionCommandService auctionService;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
         auctionService = new AuctionCommandService(
                 auctionRepository,
                 null,
@@ -70,7 +74,8 @@ class AuctionServiceCloseTest {
                 auctionCardStatisticPort,
                 auctionEventPort,
                 clock,
-                eventPublisher
+                eventPublisher,
+                new AuctionMetrics(meterRegistry)
         );
         lenient().when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
                 1,
@@ -110,6 +115,10 @@ class AuctionServiceCloseTest {
                 && closed.winningPrice().equals(45_000L)
                 && closed.currentPrice().equals(45_000L)
                 && closed.status() == AuctionStatus.ENDED));
+        assertThat(meterRegistry.get("dbidding.auction.lock.wait")
+                .tag("operation", "close")
+                .timer()
+                .count()).isEqualTo(1);
     }
 
     @Test
