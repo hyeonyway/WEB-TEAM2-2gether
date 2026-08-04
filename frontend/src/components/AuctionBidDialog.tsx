@@ -5,6 +5,7 @@ import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import {createAuctionBid} from '../api/auctionApi';
 import {applyBidContextEvent,auctionQueries,auctionQueryKeys} from '../queries/auctionQueries';
 import {useAuctionStream} from '../hooks/useAuctionStream';
+import {walletQueryKeys} from '../queries/walletQueryKeys';
 
 function AnimatedBidValue({value}:{value:number}){
   const[displayValue,setDisplayValue]=useState(value);
@@ -33,7 +34,6 @@ function AnimatedBidValue({value}:{value:number}){
 
   return <>{displayValue.toLocaleString()}원</>;
 }
-
 export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;onClose:()=>void}){
   const queryClient=useQueryClient();
   const contextQuery=useQuery(auctionQueries.bidContext(auction.id));
@@ -69,6 +69,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       await Promise.all([
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
+        queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()}),
       ]);
       onClose();
     },

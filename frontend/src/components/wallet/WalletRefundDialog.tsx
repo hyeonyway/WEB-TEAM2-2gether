@@ -2,6 +2,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {Wallet} from 'lucide-react';
 import {type FormEvent, useState} from 'react';
 import {HttpError} from '../../api/httpClient';
+import {publishWalletChanged} from '../../api/walletSyncChannel';
 import {useModalFocusTrap} from '../../hooks/useModalFocusTrap';
 import {walletMutations} from '../../queries/walletMutations';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
@@ -26,15 +27,22 @@ export default function WalletRefundDialog({
     ...walletMutations.refund(),
     onSuccess: transaction => {
       void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
+      publishWalletChanged();
       showToast(`${Math.abs(transaction.amount).toLocaleString()}P가 환불 처리되었습니다.`);
       onClose();
     },
     onError: error => {
-      setErrorMessage(
-        error instanceof HttpError && error.status === 409
-          ? '가용 잔액이 부족하거나 환불 요청이 충돌했습니다.'
-          : '환불에 실패했습니다. 같은 요청으로 다시 시도해 주세요.',
-      );
+      if (error instanceof HttpError && error.code === 'INSUFFICIENT_AVAILABLE_BALANCE') {
+        void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
+        setErrorMessage('가용 잔액이 부족합니다. 최신 잔액을 확인해 주세요.');
+        return;
+      }
+      if (error instanceof HttpError && error.code === 'IDEMPOTENCY_CONFLICT') {
+        setIdempotencyKey(crypto.randomUUID());
+        setErrorMessage('환불 요청이 충돌했습니다. 새 요청으로 다시 시도해 주세요.');
+        return;
+      }
+      setErrorMessage('환불에 실패했습니다. 같은 요청으로 다시 시도해 주세요.');
     },
   });
 
@@ -126,10 +134,12 @@ export default function WalletRefundDialog({
           >
             환불 가능액 전부 입력
           </button>
-          <div className="wallet-after">
-            <span>환불 후 총 포인트</span>
-            <b>{Math.max(totalBalance - Math.max(amount, 0), 0).toLocaleString()}P</b>
-          </div>
+          <dl className="wallet-after-values">
+            <div>
+              <dt>환불 후 총 포인트</dt>
+              <dd>{Math.max(totalBalance - Math.max(amount, 0), 0).toLocaleString()}P</dd>
+            </div>
+          </dl>
           {errorMessage && (
             <p className="wallet-transaction-error" role="alert">{errorMessage}</p>
           )}

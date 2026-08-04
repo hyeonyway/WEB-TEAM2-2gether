@@ -49,6 +49,14 @@ availableBalance = totalBalance - frozenBalance
 
 충전·환불은 실제 PG를 호출하지 않는다. 동일 `Idempotency-Key`와 동일 요청은 최초 결과를 반환하며, 같은 key를 다른 금액이나 거래 유형으로 재사용하면 409다.
 
+Wallet 거래의 409 응답은 프론트가 원인을 안정적으로 구분할 수 있도록 다음
+오류 코드를 제공한다.
+
+| code | 조건 |
+|---|---|
+| `INSUFFICIENT_AVAILABLE_BALANCE` | 활성 hold를 제외한 가용 잔액보다 환불액이 큼 |
+| `IDEMPOTENCY_CONFLICT` | 같은 멱등키를 다른 금액이나 거래 유형에 재사용 |
+
 ## 동시성 원칙
 
 - 충전·환불·홀드·해제·낙찰 차감은 모두 대상 wallet row를 `PESSIMISTIC_WRITE`로 잠근다.

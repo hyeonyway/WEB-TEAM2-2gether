@@ -1,5 +1,5 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor, within} from '@testing-library/react';
+import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -221,7 +221,7 @@ describe('Header Wallet 잔액', () => {
     expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
   });
 
-  it('Wallet 조회 성공 시 서버 totalBalance와 충전 진입점을 표시한다', async () => {
+  it('Wallet 조회 성공 시 hold를 제외한 availableBalance와 충전 진입점을 표시한다', async () => {
     setAccessToken('access-token');
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       if (String(input).includes('/api/wallet')) {
@@ -236,8 +236,8 @@ describe('Header Wallet 잔액', () => {
 
     renderHeader('/');
 
-    expect(await screen.findByText('987,654P')).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: /전자지갑.*987,654P.*충전하기/}))
+    expect(await screen.findByText('867,654P')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /전자지갑.*867,654P.*충전하기/}))
       .toBeInTheDocument();
   });
 
@@ -262,6 +262,102 @@ describe('Header Wallet 잔액', () => {
     const walletCalls = vi.mocked(globalThis.fetch).mock.calls
       .filter(([input]) => String(input).includes('/api/wallet'));
     expect(walletCalls).toHaveLength(2);
+  });
+
+  it('인증 상태가 해제되면 열려 있던 충전창과 이전 Wallet 잔액을 숨긴다', async () => {
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+    const queryClient = new QueryClient({
+      defaultOptions: {queries: {retry: false}},
+    });
+    queryClient.setQueryData(walletQueryKeys.balance(), {
+      totalBalance: 100_000,
+      frozenBalance: 30_000,
+      availableBalance: 70_000,
+    });
+    const authenticatedContext = {
+      status: 'authenticated' as const,
+      retryInitialization: vi.fn(),
+    };
+    const {rerender} = render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AuthContext.Provider value={authenticatedContext}>
+            <Header/>
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', {name: /전자지갑.*70,000P.*충전하기/}));
+    expect(screen.getByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AuthContext.Provider value={{
+            status: 'anonymous',
+            retryInitialization: vi.fn(),
+          }}>
+            <Header/>
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText('70,000P')).not.toBeInTheDocument();
+  });
+
+  it('Wallet 재조회 실패 뒤 성공해도 충전창을 자동으로 다시 열지 않는다', async () => {
+    let walletRequestCount = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+      if (String(input).includes('/api/wallet')) {
+        walletRequestCount += 1;
+        return walletRequestCount === 1
+          ? jsonResponse({code: 'WALLET_QUERY_FAILED'}, 500)
+          : jsonResponse({
+            totalBalance: 120_000,
+            frozenBalance: 20_000,
+            availableBalance: 100_000,
+          });
+      }
+      return jsonResponse({count: 0});
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: {retry: false},
+        queries: {retry: false, staleTime: Infinity},
+      },
+    });
+    queryClient.setQueryData(walletQueryKeys.balance(), {
+      totalBalance: 100_000,
+      frozenBalance: 30_000,
+      availableBalance: 70_000,
+    });
+    renderHeaderWithAuthenticatedContext(queryClient);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', {name: /전자지갑.*70,000P.*충전하기/}));
+    expect(screen.getByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .toBeInTheDocument();
+
+    await act(async () => {
+      await queryClient.refetchQueries({queryKey: walletQueryKeys.balance()});
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', {name: '전자지갑 포인트 충전'}))
+        .not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', {name: '전자지갑 잔액 다시 시도'}));
+    expect(await screen.findByRole('button', {
+      name: /전자지갑.*100,000P.*충전하기/,
+    })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .not.toBeInTheDocument();
   });
 });
 
@@ -618,7 +714,7 @@ describe('Header 로그아웃', () => {
     setAccessToken('user-a-access-token');
     renderHeaderWithAuthenticatedContext(queryClient);
     const user = userEvent.setup();
-    expect(screen.getByText('850,000P')).toBeInTheDocument();
+    expect(screen.getByText('730,000P')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', {name: '로그아웃'}));
     await waitFor(() => expect(getAccessToken()).toBeNull());
@@ -628,7 +724,7 @@ describe('Header 로그아웃', () => {
     setAccessToken('user-b-access-token');
 
     await waitFor(() => {
-      expect(screen.queryByText('850,000P')).not.toBeInTheDocument();
+      expect(screen.queryByText('730,000P')).not.toBeInTheDocument();
       expect(screen.getByRole('status', {name: '전자지갑 잔액 불러오는 중'}))
         .toBeInTheDocument();
     });
