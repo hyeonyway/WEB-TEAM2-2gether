@@ -1,6 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 import {Bookmark,Share2} from 'lucide-react';
-import {Link} from 'react-router-dom';
+import {Link,useParams} from 'react-router-dom';
 import {Header,showToast} from '../../components';
 import {cardQueries} from '../../queries/auctionQueries';
 import {useWishlist} from '../../hooks/useWishlist';
@@ -9,7 +9,8 @@ import PriceChangeAreaChart from './PriceChangeAreaChart';
 const money=(value:number)=>`${value.toLocaleString()}원`;
 
 export default function CardPriceDetailPage(){
-  const cardId=Number(window.location.pathname.split('/').filter(Boolean).pop());
+  const params=useParams();
+  const cardId=Number(params.cardId);
   const{data:card,isPending,error}=useQuery(cardQueries.detail(cardId));
   const{isFavorite,toggleFavorite,isPending:wishlistPending}=useWishlist();
   if(isPending)return <CardPriceDetailSkeleton/>;

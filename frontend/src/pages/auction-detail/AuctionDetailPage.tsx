@@ -1,7 +1,7 @@
 import {useEffect,useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {ChevronRight,Clock3,Info,Wallet} from 'lucide-react';
-import {useParams} from 'react-router-dom';
+import {Link,useParams} from 'react-router-dom';
 import {AuctionBidDialog,Header} from '../../components';
 import {mapAuction,mapCardLanguage,normalizePsaGrade} from '../../api/auctionMapper';
 import {auctionQueries} from '../../queries/auctionQueries';
@@ -105,7 +105,7 @@ export default function AuctionDetailPage(){
         <button className="auction-detail-bid-button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setBidOpen(true)}}>
           {ended?'경매 종료':`${minimumBid.toLocaleString()}원부터 입찰하기`}
         </button>
-        <a className="auction-card-price-link" href={`/cards/${detail.card.id}`}>카드 시세 상세 <ChevronRight/></a>
+        <Link className="auction-card-price-link" to={`/cards/${detail.card.id}`}>카드 시세 상세 <ChevronRight/></Link>
         <section className="auction-detail-history"><h2>최근 입찰 내역</h2>
           {recentBids.length===0
             ?<p>아직 입찰 내역이 없습니다.</p>

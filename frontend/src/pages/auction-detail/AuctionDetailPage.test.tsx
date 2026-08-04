@@ -39,7 +39,10 @@ function renderAnonymousDetail(){
   return render(<QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={['/auction/10']}>
       <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
-        <Routes><Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/></Routes>
+        <Routes>
+          <Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/>
+          <Route path="/cards/:cardId" element={<h1>카드 시세 Route</h1>}/>
+        </Routes>
         <ToastContainer/>
       </AuthContext.Provider>
     </MemoryRouter>
@@ -111,5 +114,14 @@ describe('AuctionDetailPage',()=>{
     expect(screen.getByRole('button',{name:'1번째 이미지 보기'}))
       .toHaveAttribute('aria-current','true');
     expect(screen.queryByRole('button',{name:'다음 이미지'})).not.toBeInTheDocument();
+  });
+
+  it('카드 시세 상세 링크는 해당 Card Route로 SPA 이동한다',async()=>{
+    renderAnonymousDetail();
+    const user=userEvent.setup();
+
+    await user.click(await screen.findByRole('link',{name:'카드 시세 상세'}));
+
+    expect(screen.getByRole('heading',{name:'카드 시세 Route'})).toBeInTheDocument();
   });
 });

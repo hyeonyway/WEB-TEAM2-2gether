@@ -1,6 +1,7 @@
 import {useQuery} from '@tanstack/react-query';
 import {CalendarDays,Diamond,Flame,Info,TrendingUp} from 'lucide-react';
 import {useEffect,useState} from 'react';
+import {Link} from 'react-router-dom';
 import {Area,Bar,CartesianGrid,ComposedChart,Legend,Line,XAxis,YAxis} from 'recharts';
 import {Header} from '../../components';
 import {ChartContainer,ChartTooltip,ChartTooltipContent} from '../../components/ui/chart';
@@ -71,12 +72,11 @@ function RankingSkeleton(){
 
 function Insight({insight}:{insight:StatisticInsightDto}){
   const Icon=insight.id==='RISING'?Flame:insight.id==='NEW_BIDS'?TrendingUp:Diamond;
-  const openAuctions=()=>{window.location.href=`/auction?sort=${insight.sort}`};
-  return <article className={`insight ${insight.id==='NEW_BIDS'?'rise':insight.id==='ACTIVE'?'volume':'fire'} insight-action`} role="link" tabIndex={0} onClick={openAuctions} onKeyDown={event=>(event.key==='Enter'||event.key===' ')&&openAuctions()}>
+  return <Link to={`/auction?sort=${insight.sort}`} className={`insight ${insight.id==='NEW_BIDS'?'rise':insight.id==='ACTIVE'?'volume':'fire'} insight-action`}>
     <div className="insight-title"><span><Icon/></span><b>{insight.title}</b></div>
     <div className="insight-value"><strong><AnimatedNumber value={insight.value} suffix="건"/></strong>{insight.changeRate!==null&&<em>+{insight.changeRate.toFixed(1)}%</em>}</div>
     <p>{insight.note}</p>
-  </article>;
+  </Link>;
 }
 
 function Chart({history}:{history:StatisticMarketPointDto[]}){
@@ -204,11 +204,11 @@ function Ranking({gainers,losers}:{gainers:StatisticRankingDto[];losers:Statisti
     <button className={tab==='loss'?'active loss':''} role="tab" aria-selected={tab==='loss'} onClick={()=>setTab('loss')}>하락 TOP5</button>
   </div></div>
   {items.length===0?<div className="ranking ranking-empty">최근 30일 내 비교 가능한 {tab==='gain'?'상승':'하락'} 카드가 없습니다.</div>
-    :<div className="ranking">{items.map((item,index)=><a className={`rank rank-action ${tab}`} key={item.cardId} href={`/cards/${item.cardId}`}>
+    :<div className="ranking">{items.map((item,index)=><Link className={`rank rank-action ${tab}`} key={item.cardId} to={`/cards/${item.cardId}`}>
     <b className="number">{index+1}</b><CardThumbnail item={item}/>
     <div className="rank-info"><p>{item.name}</p><strong>{item.price.toLocaleString()}원 <em>{item.changeRate>0?'+':''}{item.changeRate.toFixed(1)}%</em></strong><small>최근 거래일 입찰 {item.bidCount.toLocaleString()}건</small></div>
     <PriceSparkline history={item.priceHistory} direction={tab}/>
-  </a>)}</div>}</aside>;
+  </Link>)}</div>}</aside>;
 }
 
 export default function HomePage(){

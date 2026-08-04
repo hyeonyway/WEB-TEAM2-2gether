@@ -1,4 +1,5 @@
 import {Search} from 'lucide-react';
+import {Link} from 'react-router-dom';
 import {normalizePsaGrade} from '../../../api/auctionMapper';
 import type {CardDto} from '../../../dto/auctionDto';
 import CardArtwork from './CardArtwork';
@@ -11,7 +12,7 @@ export default function CardCatalog({cards}:{cards:CardDto[]}){
   if(!cards.length)return <div className="filter-empty"><Search/><b>조건에 맞는 카드가 없습니다.</b></div>;
   return <section className="catalog-grid">{cards.map(card=>{
     const psaGrade=normalizePsaGrade(card.psaGrade);
-    return <a className="catalog-card" href={`/cards/${card.id}`} key={card.id}>
+    return <Link className="catalog-card" to={`/cards/${card.id}`} key={card.id}>
       <CardFavoriteButton cardId={card.id}/>
       <div className="catalog-art"><div className="catalog-image-viewport"><CardArtwork theme={card.theme} imageUrl={card.imageUrl} name={card.name}/></div></div>
       <div className="catalog-card-body">
@@ -21,6 +22,6 @@ export default function CardCatalog({cards}:{cards:CardDto[]}){
           <span>최근 30일 입찰 건수<strong>{card.bidCount.toLocaleString()}건</strong></span>
         </div>
       </div>
-    </a>;
+    </Link>;
   })}</section>;
 }
