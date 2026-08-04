@@ -23,10 +23,11 @@ WHERE `user_id` = 1
   );
 
 -- Auction-created notifications (for cards user 1 has wishlisted).
-INSERT INTO `notification` (`user_id`, `auction_id`, `message`, `is_read`, `created_at`)
+INSERT INTO `notification` (`user_id`, `auction_id`, `type`, `message`, `is_read`, `created_at`)
 SELECT
   1,
   `auctions`.`id`,
+  'AUCTION_OPENED',
   CONCAT(`card_metadata`.`name`, ' 카드의 경매가 등록되었습니다.'),
   `auctions`.`id` <= 3000003,
   TIMESTAMPADD(HOUR, -(`auctions`.`id` - 3000000), NOW(6))
@@ -35,10 +36,11 @@ JOIN `card_metadata` ON `card_metadata`.`id` = `auctions`.`item_id`
 WHERE `auctions`.`id` IN (3000001, 3000002, 3000003, 3000004, 3000005);
 
 -- Outbid notifications (user 1 was the previous leading bidder).
-INSERT INTO `notification` (`user_id`, `auction_id`, `message`, `is_read`, `created_at`)
+INSERT INTO `notification` (`user_id`, `auction_id`, `type`, `message`, `is_read`, `created_at`)
 SELECT
   1,
   `auctions`.`id`,
+  'OUTBID',
   CONCAT(`card_metadata`.`name`, ' 카드 경매에 상회 입찰이 발생했습니다.'),
   FALSE,
   TIMESTAMPADD(MINUTE, -(30 * (`auctions`.`id` - 3000000)), NOW(6))
@@ -47,10 +49,11 @@ JOIN `card_metadata` ON `card_metadata`.`id` = `auctions`.`item_id`
 WHERE `auctions`.`id` IN (3000004, 3000007, 3000010);
 
 -- Win notifications (user 1 is the final bidder on these ended auctions).
-INSERT INTO `notification` (`user_id`, `auction_id`, `message`, `is_read`, `created_at`)
+INSERT INTO `notification` (`user_id`, `auction_id`, `type`, `message`, `is_read`, `created_at`)
 SELECT
   1,
   `auctions`.`id`,
+  'AUCTION_WON',
   CONCAT(`card_metadata`.`name`, ' 카드 경매에 낙찰되었습니다.'),
   `auctions`.`id` <= 3000103,
   `auctions`.`close_time`
