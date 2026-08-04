@@ -26,7 +26,7 @@ public class NotificationEventListener {
     public void handleAuctionOpened(AuctionOpenedEvent event) {
         String message = event.cardName() + " 카드의 경매가 등록되었습니다.";
         wishlistUserFinder.findUserIdsByCardId(event.itemId())
-                .forEach(userId -> notifyAndPush(userId, event.auctionId(), message));
+                .forEach(userId -> notifyAndPush(userId, event.auctionId(), NotificationType.AUCTION_OPENED, message));
     }
 
     @Async
@@ -37,23 +37,24 @@ public class NotificationEventListener {
         }
         String cardName = cardNameFinder.findNameById(event.itemId());
         String message = cardName + " 카드 경매에 " + "%,d".formatted(event.currentPrice()) + "원에 상회 입찰이 발생했습니다.";
-        notifyAndPush(event.previousBidderId(), event.auctionId(), message);
+        notifyAndPush(event.previousBidderId(), event.auctionId(), NotificationType.OUTBID, message);
     }
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleAuctionClosed(AuctionClosedEvent event) {
         boolean won = event.winnerId() != null;
+        NotificationType type = won ? NotificationType.AUCTION_WON : NotificationType.AUCTION_UNSOLD;
         if (won) {
             String winnerMessage = event.cardName() + " 카드 경매에 낙찰되었습니다.";
-            notifyAndPush(event.winnerId(), event.auctionId(), winnerMessage);
+            notifyAndPush(event.winnerId(), event.auctionId(), type, winnerMessage);
         }
         String sellerMessage = event.cardName() + " 카드 경매가 " + (won ? "낙찰되었습니다." : "유찰되었습니다.");
-        notifyAndPush(event.sellerId(), event.auctionId(), sellerMessage);
+        notifyAndPush(event.sellerId(), event.auctionId(), type, sellerMessage);
     }
 
-    private void notifyAndPush(Integer userId, Integer auctionId, String message) {
-        Notification saved = notificationService.save(userId, auctionId, message);
+    private void notifyAndPush(Integer userId, Integer auctionId, NotificationType type, String message) {
+        Notification saved = notificationService.save(userId, auctionId, type, message);
         notificationSseConnectionManager.push(userId, NotificationResponse.from(saved));
     }
 }

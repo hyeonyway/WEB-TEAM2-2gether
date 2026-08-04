@@ -23,8 +23,8 @@ public class NotificationService {
     }
 
     @Transactional
-    public Notification save(Integer userId, Integer auctionId, String message) {
-        return notificationRepository.save(Notification.of(userId, auctionId, message));
+    public Notification save(Integer userId, Integer auctionId, NotificationType type, String message) {
+        return notificationRepository.save(Notification.of(userId, auctionId, type, message));
     }
 
     public NotificationPage findPage(Integer userId, Long cursor, int size, boolean unreadOnly) {

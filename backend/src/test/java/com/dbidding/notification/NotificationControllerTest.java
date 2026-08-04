@@ -37,8 +37,8 @@ class NotificationControllerTest {
     void 알림_목록을_조회하면_200과_아이템_및_페이지_정보를_반환한다() throws Exception {
         given(notificationService.findPage(1, null, 20, false)).willReturn(new NotificationPage(
                 List.of(
-                        Notification.of(1, 10, "메시지1"),
-                        Notification.of(1, 20, "메시지2")
+                        Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지1"),
+                        Notification.of(1, 20, NotificationType.AUCTION_OPENED, "메시지2")
                 ),
                 null,
                 false
@@ -65,7 +65,7 @@ class NotificationControllerTest {
     @Test
     void read_false_파라미터면_안읽은_알림만_조회한다() throws Exception {
         given(notificationService.findPage(1, null, 20, true))
-                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, "메시지1")), null, false));
+                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지1")), null, false));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications").param("read", "false"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -75,7 +75,7 @@ class NotificationControllerTest {
     @Test
     void cursor와_size_파라미터를_그대로_전달한다() throws Exception {
         given(notificationService.findPage(1, 42L, 5, false))
-                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, "메시지1")), 10L, true));
+                .willReturn(new NotificationPage(List.of(Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지1")), 10L, true));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications")
                         .param("cursor", "42")
