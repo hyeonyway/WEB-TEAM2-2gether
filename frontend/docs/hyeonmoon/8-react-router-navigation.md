@@ -2,8 +2,8 @@
 
 ## 구현 상태
 
-설계 완료, 구현 진행 중. GitHub 이슈 #112에서 공통 Header와 Home, Card,
-Auction, Dashboard, Sell 화면의 내부 이동을 React Router 계약으로 통일한다.
+구현 완료. GitHub 이슈 #112에서 공통 Header와 Home, Card, Auction,
+Dashboard, Sell 화면의 내부 이동을 React Router 계약으로 통일했다.
 
 ## 배경
 
@@ -166,12 +166,12 @@ Router 이동을 인증 유지 수단으로 사용하지 않는다. 앱 최초 �
 
 ## 완료 기준
 
-- [ ] 서비스 내부 이동에 일반 `<a href>`가 남아 있지 않다.
-- [ ] 내부 이동을 위한 `window.location.href` 대입이 남아 있지 않다.
-- [ ] Card 상세 ID는 Router parameter를 사용한다.
-- [ ] 내부 이동 중 Access Token과 Query cache가 유지된다.
-- [ ] 직접 URL 접근과 인증 보호 Route가 회귀하지 않는다.
-- [ ] 다른 도메인의 API·비즈니스 로직을 변경하지 않는다.
-- [ ] TypeScript 검사, 전체 Vitest와 프로덕션 빌드를 통과한다.
+- [x] 서비스 내부 이동에 일반 `<a href>`가 남아 있지 않다.
+- [x] 내부 이동을 위한 `window.location.href` 대입이 남아 있지 않다.
+- [x] Card 상세 ID는 Router parameter를 사용한다.
+- [x] 내부 이동 중 Access Token과 Query cache가 유지된다.
+- [x] 직접 URL 접근과 인증 보호 Route가 회귀하지 않는다.
+- [x] 다른 도메인의 API·비즈니스 로직을 변경하지 않는다.
+- [x] TypeScript 검사, 전체 Vitest와 프로덕션 빌드를 통과한다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다
