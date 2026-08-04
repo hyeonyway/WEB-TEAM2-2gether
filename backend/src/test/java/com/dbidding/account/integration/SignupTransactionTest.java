@@ -5,10 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.dbidding.account.dto.SignupRequest;
@@ -18,11 +16,11 @@ import com.dbidding.account.repository.AuthenticationRepository;
 import com.dbidding.account.service.AuthService;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
+import com.dbidding.account.support.AccountMySqlIntegrationTest;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.repository.WalletRepository;
 
-@SpringBootTest
-class SignupTransactionTest {
+class SignupTransactionTest extends AccountMySqlIntegrationTest {
 
 	@Autowired
 	private AuthService authService;
@@ -38,13 +36,6 @@ class SignupTransactionTest {
 
 	@MockitoSpyBean
 	private WalletProvisioningPort walletProvisioningPort;
-
-	@AfterEach
-	void cleanUp() {
-		authenticationRepository.deleteAll();
-		walletRepository.deleteAll();
-		accountRepository.deleteAll();
-	}
 
 	@Test
 	void 회원가입하면_사용자와_잔액_0원_지갑만_함께_생성된다() {

@@ -10,19 +10,17 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.dbidding.account.domain.Authentication;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
+import com.dbidding.account.support.AccountMySqlIntegrationTest;
 
-@SpringBootTest
-class AuthenticationLockConcurrencyTest {
+class AuthenticationLockConcurrencyTest extends AccountMySqlIntegrationTest {
 
 	private static final String ORIGINAL_HASH = "a".repeat(64);
 	private static final String ROTATED_HASH = "b".repeat(64);
@@ -48,12 +46,6 @@ class AuthenticationLockConcurrencyTest {
 		));
 		userId = account.getId();
 		authenticationRepository.saveAndFlush(Authentication.issue(userId, ORIGINAL_HASH));
-	}
-
-	@AfterEach
-	void cleanUp() {
-		authenticationRepository.deleteAll();
-		accountRepository.deleteAll();
 	}
 
 	@Test
