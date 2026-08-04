@@ -22,13 +22,16 @@ vi.mock('../../api/auctionApi',async importOriginal=>({
 
 const detail={
   id:10,
-  card:{id:1,name:'피카츄',set_name:'151',psa_grade:'10',language:'JP',thumbnail_url:null},
+  card:{id:1,name:'피카츄',set_name:'151',psa_grade:'10',language:'JP',thumbnail_url:'/cards/pikachu.png'},
   seller:{id:2,nickname:'판매자',trade_count:3,trust_score:95},
   start_price:10000,current_price:12000,bid_increment:1000,minimum_bid:13000,bid_count:1,
   starts_at:'2026-08-01T10:00:00',ends_at:'2099-08-01T20:00:00',status:'OPEN' as const,
   my_bid_status:'NONE' as const,my_bid_amount:null,version:1,
   description:'상태 좋음',seller_memo:null,shipping_fee:3000,buy_now_price:20000,
-  photos:[],psa_certification:null,
+  photos:[
+    {id:11,url:'/uploads/front.png',order:0,representative:true},
+    {id:12,url:'/uploads/back.png',order:1,representative:false},
+  ],psa_certification:null,
 };
 
 function renderAnonymousDetail(){
@@ -70,5 +73,43 @@ describe('AuctionDetailPage',()=>{
 
     await waitFor(()=>expect(screen.getByText('로그인이 필요합니다')).toBeInTheDocument());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('상세 정보를 기다리는 동안 실제 레이아웃 스켈레톤을 표시한다',()=>{
+    apiMocks.detail.mockReturnValue(new Promise(()=>{}));
+    apiMocks.bids.mockReturnValue(new Promise(()=>{}));
+
+    const{container}=renderAnonymousDetail();
+
+    expect(screen.getByRole('status',{name:'경매 상세 정보를 불러오는 중'}))
+      .toHaveAttribute('aria-busy','true');
+    expect(container.querySelector('.auction-detail-skeleton-stage'))
+      .toContainElement(container.querySelector('.auction-detail-skeleton-card'));
+  });
+
+  it('카드 이미지와 판매자 사진을 순서대로 넘겨 본다',async()=>{
+    renderAnonymousDetail();
+    const user=userEvent.setup();
+    const image=await screen.findByRole('img',{name:'피카츄 이미지 1 / 3'});
+
+    expect(image).toHaveAttribute('src','/cards/pikachu.png');
+    await user.click(screen.getByRole('button',{name:'다음 이미지'}));
+    expect(screen.getByRole('img',{name:'피카츄 이미지 2 / 3'}))
+      .toHaveAttribute('src','/uploads/front.png');
+    await user.click(screen.getByRole('button',{name:'3번째 이미지 보기'}));
+    expect(screen.getByRole('img',{name:'피카츄 이미지 3 / 3'}))
+      .toHaveAttribute('src','/uploads/back.png');
+  });
+
+  it('카드 대표 이미지만 있어도 하단 썸네일을 표시한다',async()=>{
+    apiMocks.detail.mockResolvedValue({...detail,photos:[]});
+
+    renderAnonymousDetail();
+
+    expect(await screen.findByRole('img',{name:'피카츄 이미지 1 / 1'}))
+      .toHaveAttribute('src','/cards/pikachu.png');
+    expect(screen.getByRole('button',{name:'1번째 이미지 보기'}))
+      .toHaveAttribute('aria-current','true');
+    expect(screen.queryByRole('button',{name:'다음 이미지'})).not.toBeInTheDocument();
   });
 });
