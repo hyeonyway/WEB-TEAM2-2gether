@@ -134,10 +134,12 @@ export default function WalletRefundDialog({
           >
             환불 가능액 전부 입력
           </button>
-          <div className="wallet-after">
-            <span>환불 후 총 포인트</span>
-            <b>{Math.max(totalBalance - Math.max(amount, 0), 0).toLocaleString()}P</b>
-          </div>
+          <dl className="wallet-after-values">
+            <div>
+              <dt>환불 후 총 포인트</dt>
+              <dd>{Math.max(totalBalance - Math.max(amount, 0), 0).toLocaleString()}P</dd>
+            </div>
+          </dl>
           {errorMessage && (
             <p className="wallet-transaction-error" role="alert">{errorMessage}</p>
           )}

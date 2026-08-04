@@ -263,6 +263,53 @@ describe('Header Wallet 잔액', () => {
       .filter(([input]) => String(input).includes('/api/wallet'));
     expect(walletCalls).toHaveLength(2);
   });
+
+  it('인증 상태가 해제되면 열려 있던 충전창과 이전 Wallet 잔액을 숨긴다', async () => {
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+    const queryClient = new QueryClient({
+      defaultOptions: {queries: {retry: false}},
+    });
+    queryClient.setQueryData(walletQueryKeys.balance(), {
+      totalBalance: 100_000,
+      frozenBalance: 30_000,
+      availableBalance: 70_000,
+    });
+    const authenticatedContext = {
+      status: 'authenticated' as const,
+      retryInitialization: vi.fn(),
+    };
+    const {rerender} = render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AuthContext.Provider value={authenticatedContext}>
+            <Header/>
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', {name: /전자지갑.*70,000P.*충전하기/}));
+    expect(screen.getByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AuthContext.Provider value={{
+            status: 'anonymous',
+            retryInitialization: vi.fn(),
+          }}>
+            <Header/>
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByRole('dialog', {name: '전자지갑 포인트 충전'}))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText('70,000P')).not.toBeInTheDocument();
+  });
 });
 
 describe('AuthModal 회원가입', () => {

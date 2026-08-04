@@ -25,6 +25,15 @@ export default function WalletChargeDialog({
   const [amount, setAmount] = useState(0);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [errorMessage, setErrorMessage] = useState('');
+  const isSafeAmount = Number.isSafeInteger(amount);
+  const projectedTotalBalance = isSafeAmount
+    && Number.isSafeInteger(wallet.totalBalance + amount)
+    ? wallet.totalBalance + amount
+    : null;
+  const projectedAvailableBalance = isSafeAmount
+    && Number.isSafeInteger(wallet.availableBalance + amount)
+    ? wallet.availableBalance + amount
+    : null;
   const chargeMutation = useMutation({
     ...walletMutations.charge(),
     onSuccess: transaction => {
@@ -34,13 +43,17 @@ export default function WalletChargeDialog({
       onClose();
     },
     onError: error => {
-      const isConflict = error instanceof HttpError && error.status === 409;
-      if (isConflict) setIdempotencyKey(crypto.randomUUID());
-      setErrorMessage(
-        isConflict
-          ? '충전 요청이 충돌했습니다. 새 요청으로 다시 시도해 주세요.'
-          : '충전에 실패했습니다. 같은 요청으로 다시 시도해 주세요.',
-      );
+      if (error instanceof HttpError && error.code === 'INSUFFICIENT_AVAILABLE_BALANCE') {
+        void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
+        setErrorMessage('가용 잔액이 부족합니다. 최신 잔액을 확인해 주세요.');
+        return;
+      }
+      if (error instanceof HttpError && error.code === 'IDEMPOTENCY_CONFLICT') {
+        setIdempotencyKey(crypto.randomUUID());
+        setErrorMessage('충전 요청이 충돌했습니다. 새 요청으로 다시 시도해 주세요.');
+        return;
+      }
+      setErrorMessage('충전에 실패했습니다. 같은 요청으로 다시 시도해 주세요.');
     },
   });
 
@@ -53,8 +66,16 @@ export default function WalletChargeDialog({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (chargeMutation.isPending) return;
-    if (!Number.isSafeInteger(amount) || amount < minimumChargeAmount) {
+    if (!Number.isSafeInteger(amount)) {
+      setErrorMessage('충전 금액은 안전한 정수로 입력해 주세요.');
+      return;
+    }
+    if (amount < minimumChargeAmount) {
       setErrorMessage('충전 금액은 1,000원 이상이어야 합니다.');
+      return;
+    }
+    if (projectedTotalBalance === null || projectedAvailableBalance === null) {
+      setErrorMessage('충전 후 잔액이 안전한 범위를 초과합니다.');
       return;
     }
     setErrorMessage('');
@@ -129,11 +150,15 @@ export default function WalletChargeDialog({
           <dl className="wallet-after-values">
             <div>
               <dt>충전 후 총 잔액</dt>
-              <dd>{(wallet.totalBalance + Math.max(amount, 0)).toLocaleString()}P</dd>
+              <dd>{projectedTotalBalance === null
+                ? '계산 불가'
+                : `${projectedTotalBalance.toLocaleString()}P`}</dd>
             </div>
             <div>
               <dt>충전 후 가용 잔액</dt>
-              <dd>{(wallet.availableBalance + Math.max(amount, 0)).toLocaleString()}P</dd>
+              <dd>{projectedAvailableBalance === null
+                ? '계산 불가'
+                : `${projectedAvailableBalance.toLocaleString()}P`}</dd>
             </div>
           </dl>
           {errorMessage && (
@@ -146,7 +171,9 @@ export default function WalletChargeDialog({
           >
             {chargeMutation.isPending
               ? '충전 중...'
-              : `${amount.toLocaleString()}P 충전하기`}
+              : isSafeAmount
+                ? `${amount.toLocaleString()}P 충전하기`
+                : '충전 금액 확인'}
           </button>
         </form>
         <p>모의 충전이며 실제 결제는 진행되지 않습니다.</p>

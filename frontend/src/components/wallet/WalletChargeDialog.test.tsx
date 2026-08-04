@@ -1,5 +1,5 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor, within} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {setAccessToken} from '../../api/accessTokenStore';
@@ -178,13 +178,16 @@ describe('WalletChargeDialog', () => {
     ]);
   });
 
-  it('409 충돌 뒤에는 새 멱등키로 재시도한다', async () => {
+  it('멱등키 충돌 뒤에는 새 멱등키로 재시도한다', async () => {
     vi.mocked(globalThis.crypto.randomUUID)
       .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
       .mockReturnValueOnce('22222222-2222-4222-8222-222222222222')
       .mockReturnValueOnce('33333333-3333-4333-8333-333333333333');
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(jsonResponse({}, 409))
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'IDEMPOTENCY_CONFLICT',
+        message: '같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.',
+      }, 409))
       .mockResolvedValueOnce(jsonResponse({
         transactionId: 3,
         transactionType: 'CHARGE',
@@ -210,6 +213,85 @@ describe('WalletChargeDialog', () => {
       '22222222-2222-4222-8222-222222222222',
       '33333333-3333-4333-8333-333333333333',
     ]);
+  });
+
+  it('가용 잔액 충돌은 Wallet을 다시 조회하고 같은 멱등키로 재시도한다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'INSUFFICIENT_AVAILABLE_BALANCE',
+        message: '사용 가능한 잔액이 부족합니다.',
+      }, 409))
+      .mockResolvedValueOnce(jsonResponse({
+        transactionId: 4,
+        transactionType: 'CHARGE',
+        amount: 50_000,
+        balance: 150_000,
+      }));
+    const user = userEvent.setup();
+    const {invalidateQueries} = renderDialog();
+
+    await user.click(screen.getByRole('button', {name: '+5만원'}));
+    await user.click(screen.getByRole('button', {name: '50,000P 충전하기'}));
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('가용 잔액이 부족합니다. 최신 잔액을 확인해 주세요.');
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['wallet', 'balance'],
+    });
+
+    await user.click(screen.getByRole('button', {name: '50,000P 충전하기'}));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const keys = fetchMock.mock.calls.map(([, options]) =>
+      new Headers(options?.headers).get('Idempotency-Key'));
+    expect(new Set(keys)).toEqual(new Set([
+      '11111111-1111-4111-8111-111111111111',
+    ]));
+  });
+
+  it('충전 후 잔액이 안전한 정수 범위를 넘으면 요청과 예상 합계를 막는다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const queryClient = new QueryClient({
+      defaultOptions: {mutations: {retry: false}},
+    });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WalletChargeDialog
+          wallet={{
+            totalBalance: Number.MAX_SAFE_INTEGER - 10_000,
+            frozenBalance: 0,
+            availableBalance: Number.MAX_SAFE_INTEGER - 10_000,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('button', {name: '+5만원'}));
+
+    expect(screen.getAllByText('계산 불가')).toHaveLength(2);
+    await user.click(screen.getByRole('button', {name: '50,000P 충전하기'}));
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('충전 후 잔액이 안전한 범위를 초과합니다.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('유한하지 않은 입력값은 금액으로 표시하거나 요청하지 않는다', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    renderDialog();
+
+    fireEvent.change(screen.getByLabelText('충전 금액'), {
+      target: {value: '1e308'},
+    });
+
+    expect(screen.queryByText('∞P')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: '충전 금액 확인'}))
+      .toBeInTheDocument();
+    expect(screen.getAllByText('계산 불가')).toHaveLength(2);
+    await userEvent.setup().click(screen.getByRole('button', {name: '충전 금액 확인'}));
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('충전 금액은 안전한 정수로 입력해 주세요.');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('키보드 포커스를 가두고 Escape로 닫은 뒤 이전 포커스를 복원한다', async () => {

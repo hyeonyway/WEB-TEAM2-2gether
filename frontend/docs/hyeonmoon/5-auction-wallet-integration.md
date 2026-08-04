@@ -58,7 +58,7 @@ Header와 마이페이지가 사용하므로 입찰 성공 시 동일한 Query k
 → useAuthGate로 인증 확인
 → anonymous면 이동하지 않고 로그인 필요 토스트 표시
 → authenticated면 bid-context의 최신 Wallet snapshot 확인
-→ 입찰가와 availableBalance 비교 안내
+→ 입찰가와 available_balance 비교 안내
 ```
 
 프론트 비교는 빠른 안내를 위한 것이며 서버 입찰 요청의 검증을 대체하지 않는다.
