@@ -2,7 +2,7 @@ import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/reac
 import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
 import type {AuctionDto,AuctionListRequestDto,BidContextResponseDto,CardListRequestDto,PageResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
-import {applyAuctionEvent,eventToAuction,sortAuctions} from './auctionStreamCache';
+import {applyAuctionEvent,eventToAuction,myBidStatusAfterEvent,sortAuctions} from './auctionStreamCache';
 
 export type AuctionViewerScope='public'|'self';
 
@@ -124,6 +124,7 @@ export function applyBidContextEvent(
     current_price:currentPrice,
     minimum_bid:currentPrice+event.bid_increment,
     bid_increment:event.bid_increment,
+    my_bid_status:myBidStatusAfterEvent(context.my_bid_status,event),
     recent_bids:recentBids,
   };
 }

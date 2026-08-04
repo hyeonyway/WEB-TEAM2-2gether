@@ -11,7 +11,7 @@ const auction=(id:number,currentPrice:number,version=1):AuctionDto=>({
 const page=(content:AuctionDto[]):PageResponseDto<AuctionDto>=>({content,page:0,size:12,total_elements:content.length,has_next:false});
 
 const bidEvent:AuctionStreamPayload={
-  type:'BID_PLACED',auction_id:1,bidder_id:2,previous_bidder_id:null,start_price:1_000,current_price:30_000,bid_increment:2_000,bid_count:3,ends_at:'2026-08-04T11:00:00Z',status:'ENDING',auction_version:2,occurred_at:'2026-08-03T06:00:00Z',
+  type:'BID_PLACED',auction_id:1,bidder_id:2,previous_bidder_id:7,start_price:1_000,current_price:30_000,bid_increment:2_000,bid_count:3,ends_at:'2026-08-04T11:00:00Z',status:'ENDING',auction_version:2,occurred_at:'2026-08-03T06:00:00Z',
 };
 
 const createdEvent:AuctionStreamPayload={
@@ -68,6 +68,16 @@ describe('auctionQueryKeys',()=>{
     });
     expect(result?.recent_bids[0]).toMatchObject({
       id:-2,amount:30_000,bidder_alias:'user-2***',is_highest:true,
+    });
+  });
+
+  it('다른 사용자의 입찰 SSE가 오면 열린 팝업의 내 상태도 상회로 바꾼다',()=>{
+    const leading={...bidContext,my_bid_status:'LEADING' as const,my_bid_amount:10_000};
+
+    expect(applyBidContextEvent(leading,bidEvent)).toMatchObject({
+      my_bid_status:'OUTBID',
+      my_bid_amount:10_000,
+      minimum_bid:32_000,
     });
   });
 

@@ -1,8 +1,18 @@
 import {mapCardLanguage,normalizePsaGrade,resolveImageUrl} from '../api/auctionMapper';
-import type {AuctionDto,AuctionSort} from '../dto/auctionDto';
+import type {AuctionDto,AuctionSort,MyBidStatus} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 
 const themes:AuctionDto['card']['theme'][]=['gold','water','dark','multi','sketch'];
+
+export function myBidStatusAfterEvent(
+  current:MyBidStatus,
+  event:AuctionStreamPayload,
+):MyBidStatus{
+  const outbidByAnotherUser=event.type==='BID_PLACED'
+    &&event.previous_bidder_id!==null
+    &&event.previous_bidder_id!==event.bidder_id;
+  return current==='LEADING'&&outbidByAnotherUser?'OUTBID':current;
+}
 
 export function applyAuctionEvent(
   auctions:AuctionDto[]|undefined,
@@ -22,6 +32,7 @@ export function applyAuctionEvent(
       endsAt:event.ends_at,
       status:event.status,
       version:event.auction_version,
+      myBidStatus:myBidStatusAfterEvent(auction.myBidStatus,event),
       card:{...auction.card,bidCount:event.bid_count},
     };
   });
