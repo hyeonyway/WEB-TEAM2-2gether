@@ -11,8 +11,10 @@ import com.dbidding.notification.NotificationService;
 import com.dbidding.notification.NotificationType;
 import com.dbidding.wishlist.WishlistService;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -82,13 +84,19 @@ public class NotificationReconciliationService {
         }
     }
 
-    public void recoverOutbidNotifications() {
-        List<Integer> activeAuctionIds = bidRepository.findAuctionIdsByStatus(BidStatus.LEADING);
-        if (activeAuctionIds.isEmpty()) {
+    public void recoverOutbidNotifications(LocalDateTime windowStart) {
+        Set<Integer> candidateAuctionIds = new LinkedHashSet<>(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING));
+        // 상회입찰 직후~다음 스캔 사이에 경매가 종료되면 낙찰 bid가 LEADING→WON으로 바뀌면서
+        // 위 조회에서 빠져버린다. 그 경매의 outbid된 유저들이 영영 복구 대상에서 누락되는 걸
+        // 막기 위해, 최근 종료된 경매도 후보에 포함한다(낙찰자는 status=WON이라 아래에서 스킵됨).
+        for (Auction recentlyClosed : auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(CLOSED_STATUSES, windowStart)) {
+            candidateAuctionIds.add(recentlyClosed.getId());
+        }
+        if (candidateAuctionIds.isEmpty()) {
             return;
         }
 
-        for (Bid latestBid : bidRepository.findLatestBidPerBidderByAuctionIdIn(activeAuctionIds)) {
+        for (Bid latestBid : bidRepository.findLatestBidPerBidderByAuctionIdIn(candidateAuctionIds)) {
             if (latestBid.getStatus() != BidStatus.OUTBID) {
                 continue;
             }

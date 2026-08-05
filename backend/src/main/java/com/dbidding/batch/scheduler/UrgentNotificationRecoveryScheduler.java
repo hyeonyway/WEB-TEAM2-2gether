@@ -28,6 +28,7 @@ public class UrgentNotificationRecoveryScheduler {
     private final NotificationReconciliationService notificationReconciliationService;
     private final Clock clock;
 
+    // 1분 30초에 한번 -> 10분 윈도분
     @Scheduled(
             fixedDelayString = "${notification.recovery.urgent.fixed-delay-ms:90000}",
             scheduler = "notificationRecoveryTaskScheduler"
@@ -37,7 +38,7 @@ public class UrgentNotificationRecoveryScheduler {
         LocalDateTime auctionOpenedWindowStart = now.minus(Duration.ofMinutes(10));
         try {
             notificationReconciliationService.recoverAuctionOpenedNotifications(auctionOpenedWindowStart);
-            notificationReconciliationService.recoverOutbidNotifications();
+            notificationReconciliationService.recoverOutbidNotifications(auctionOpenedWindowStart);
         } catch (RuntimeException exception) {
             log.error("event=notification.recovery.urgent.failed now={}", now, exception);
             throw exception;

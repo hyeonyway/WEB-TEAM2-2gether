@@ -57,8 +57,11 @@
 
 **상회 입찰 (`OUTBID`)**
 1. `bids` WHERE `status = 'LEADING'` → 현재 활성 경매들의 리더 bid 집합 추출 (window 없이 매 사이클 전체 스캔, 아래 설명)
-2. 그 경매들에서 유저별 최신 bid(`MAX(id) GROUP BY bidder_id, auction_id`)가 `status = 'OUTBID'`인 것만 추출
-3. 각 row에 대해 `(bidderId, auctionId, OUTBID)` 알림이 그 bid의 `created_at` 이후로 존재하는지 체크 → 없으면 생성
+2. **+ `auctions` WHERE `status IN ('ENDED','FAILED') AND close_time >= :windowStart`인 경매도 후보에 합친다** (아래 "종료 경계" 설명 참고)
+3. 그 경매들에서 유저별 최신 bid(`MAX(id) GROUP BY bidder_id, auction_id`)가 `status = 'OUTBID'`인 것만 추출
+4. 각 row에 대해 `(bidderId, auctionId, OUTBID)` 알림이 그 bid의 `created_at` 이후로 존재하는지 체크 → 없으면 생성
+
+**종료 경계 버그(코드 리뷰로 발견, 수정 완료)**: 처음 구현은 1번만으로 후보를 뽑았는데, 이러면 "상회입찰 직후 ~ 다음 스캔 사이에 경매가 종료되는" 경우를 놓친다 — `closeLockedAuction`이 낙찰 bid를 `LEADING → WON`으로 바꾸는 순간 그 경매엔 더 이상 LEADING bid가 없어져서, `findAuctionIdsByStatus(LEADING)`가 그 경매를 아예 안 돌려준다. 경매 종료 복구는 낙찰자/판매자에게만 알리므로(결정 9), outbid된 나머지 유저는 세 복구 로직 어디에도 안 걸려 **영구 유실**된다. 그래서 2번처럼 최근 종료된 경매도 후보 집합에 합치도록 고쳤다 — 낙찰자는 그 경매에서 `status=WON`이라 3~4번에서 자연히 스킵되고, 나머지 outbid된 유저만 잡힌다. 추가 비용은 `recoverAuctionClosedNotifications`가 이미 쓰는 것과 동일한 인덱스(`idx_auctions_status_close_time`) 기반 쿼리 하나뿐이라 미미하다(호출 빈도만 7분→90초로 늘어남).
 
 "유저별 최신 bid"를 가릴 때 `created_at`이 아니라 `id`(AUTO_INCREMENT PK)로 그룹핑한다. `id`는 입찰 순서를 그대로 반영하면서(`created_at`과 동일한 정보) 항상 유일해 동시각 충돌 걱정이 없고, InnoDB는 모든 세컨더리 인덱스 leaf에 PK(`id`)를 자동으로 붙이기 때문에 `(auction_id, user_id)` 같은 복합 인덱스만 있으면 `MAX(id)`가 인덱스만으로 바로 해결된다(`created_at`은 이 혜택이 없어 별도로 복합 인덱스에 명시해야만 정렬 기준으로 쓸 수 있다). 3번 단계의 "그 bid 이후 알림이 있는지" 비교는 여전히 그 row의 `created_at` 값을 그대로 쓴다 — 그룹핑 기준만 `id`로 바뀌는 것이고, `select b1.*`로 가져온 row엔 `created_at`도 같이 들어있다.
 

@@ -28,6 +28,7 @@ public class AuctionResultNotificationRecoveryScheduler {
     private final NotificationReconciliationService notificationReconciliationService;
     private final Clock clock;
 
+    // 7분에 한번 -> 윈도우 20분
     @Scheduled(
             fixedDelayString = "${notification.recovery.result.fixed-delay-ms:420000}",
             scheduler = "notificationRecoveryTaskScheduler"

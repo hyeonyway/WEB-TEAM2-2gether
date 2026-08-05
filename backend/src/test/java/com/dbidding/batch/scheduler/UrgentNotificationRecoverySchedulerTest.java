@@ -26,6 +26,7 @@ class UrgentNotificationRecoverySchedulerTest {
 
         verify(notificationReconciliationService)
                 .recoverAuctionOpenedNotifications(LocalDateTime.of(2026, 7, 29, 9, 50));
-        verify(notificationReconciliationService).recoverOutbidNotifications();
+        verify(notificationReconciliationService)
+                .recoverOutbidNotifications(LocalDateTime.of(2026, 7, 29, 9, 50));
     }
 }
