@@ -20,6 +20,7 @@ const resultFile = __ENV.K6_RESULT_FILE;
 const sseVUs = positiveInteger(__ENV.SSE_VUS, 300);
 const sseDuration = __ENV.SSE_DURATION || '2m45s';
 const loadTestUserIdStart = positiveInteger(__ENV.LOAD_TEST_USER_ID_START, 910001);
+const loadTestUserNumberWidth = positiveInteger(__ENV.LOAD_TEST_USER_NUMBER_WIDTH, 5);
 
 const bidAccepted = new Rate('bid_accepted');
 const bidAcceptedOrContended = new Rate('bid_accepted_or_contended');
@@ -301,7 +302,7 @@ function loginAndGetAccessTokens() {
 
 function loadTestUsers() {
   return Array.from({length: loadTestUserCount}, (_, index) => ({
-    email: `${loadTestEmailPrefix}${String(index + 1).padStart(3, '0')}@${loadTestEmailDomain}`,
+    email: `${loadTestEmailPrefix}${String(index + 1).padStart(loadTestUserNumberWidth, '0')}@${loadTestEmailDomain}`,
     password: loadTestPassword,
   }));
 }

@@ -21,22 +21,23 @@ ON DUPLICATE KEY UPDATE
   `salt` = VALUES(`salt`);
 
 -- k6 bid load-test accounts.
--- Credentials: k6-user001@dbidding.local .. k6-user300@dbidding.local
+-- Credentials: k6-user00001@dbidding.local .. k6-user50000@dbidding.local
 -- Password (all accounts): K6LoadTest123!
 -- The hash below is PBKDF2WithHmacSHA256 (600,000 iterations, 256 bits),
 -- matching PasswordHasher. MySQL SHA2 is not compatible with application login.
+SET SESSION cte_max_recursion_depth = 50000;
 INSERT INTO `users`
   (`id`, `email`, `nickname`, `created_at`, `role`, `status`,
    `encrypted_password`, `salt`)
 WITH RECURSIVE `numbers` (`number`) AS (
   SELECT 1
   UNION ALL
-  SELECT `number` + 1 FROM `numbers` WHERE `number` < 300
+  SELECT `number` + 1 FROM `numbers` WHERE `number` < 50000
 )
 SELECT
   910000 + `number`,
-  CONCAT('k6-user', LPAD(`number`, 3, '0'), '@dbidding.local'),
-  CONCAT('부하테스트', LPAD(`number`, 3, '0')),
+  CONCAT('k6-user', LPAD(`number`, 5, '0'), '@dbidding.local'),
+  CONCAT('부하테스트', LPAD(`number`, 5, '0')),
   TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '09:00:00'),
   'USER',
   'ACTIVE',
@@ -103,7 +104,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `wallets` (`user_id`, `point`)
 SELECT `id`, 5000000
 FROM `users`
-WHERE `id` BETWEEN 910001 AND 910300
+WHERE `id` BETWEEN 910001 AND 960000
 ON DUPLICATE KEY UPDATE
   `point` = VALUES(`point`);
 
@@ -154,7 +155,7 @@ SELECT
   'CHARGE',
   CONCAT('seed-k6-user-', `wallet`.`user_id`, '-initial-charge')
 FROM `wallets` AS `wallet`
-WHERE `wallet`.`user_id` BETWEEN 910001 AND 910300
+WHERE `wallet`.`user_id` BETWEEN 910001 AND 960000
 ON DUPLICATE KEY UPDATE
   `auction_id` = VALUES(`auction_id`),
   `amount` = VALUES(`amount`),
