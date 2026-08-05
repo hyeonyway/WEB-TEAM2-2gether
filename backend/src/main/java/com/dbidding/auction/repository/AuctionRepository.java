@@ -2,7 +2,6 @@ package com.dbidding.auction.repository;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
-import com.dbidding.auction.dto.AuctionCursorRevision;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -70,14 +69,6 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             @Param("now") LocalDateTime now,
             Pageable pageable
     );
-
-    @Query("""
-            select new com.dbidding.auction.dto.AuctionCursorRevision(
-                count(a), coalesce(sum(a.version), 0)
-            )
-            from Auction a
-            """)
-    AuctionCursorRevision findCursorRevision();
 
     Optional<Auction> findByIdAndStatusNot(Integer id, AuctionStatus status);
 

@@ -1,6 +1,5 @@
 package com.dbidding.auction.service;
 
-import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static com.dbidding.global.time.UtcTime.toInstant;
 
@@ -14,7 +13,6 @@ import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.AuctionResponses;
 import com.dbidding.auction.dto.AuctionCursor;
 import com.dbidding.auction.dto.AuctionCursorCodec;
-import com.dbidding.auction.dto.AuctionCursorRevision;
 import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
@@ -56,8 +54,6 @@ public class AuctionQueryService {
         AuctionCursor cursor = request.cursor() == null || request.cursor().isBlank()
                 ? null
                 : auctionCursorCodec.decode(request.cursor(), sort);
-        AuctionCursorRevision revision = mutableSort(sort) ? auctionRepository.findCursorRevision() : null;
-        validateRevision(cursor, revision);
         int size = request.sizeOrDefault();
         List<Auction> fetched = auctionRepository.searchByCursor(
                 request.keywordOrDefault(),
@@ -82,7 +78,7 @@ public class AuctionQueryService {
                 .map(auction -> summary(auction, cards.get(auction.getItemId()), firstImage(images, auction), myBids.get(auction.getId())))
                 .toList();
         String nextCursor = hasNext
-                ? auctionCursorCodec.encode(cursorOf(content.getLast(), sort, revision))
+                ? auctionCursorCodec.encode(cursorOf(content.getLast(), sort))
                 : null;
         return new AuctionResponses.CursorPage<>(
                 items,
@@ -116,7 +112,7 @@ public class AuctionQueryService {
                 : null;
     }
 
-    private AuctionCursor cursorOf(Auction auction, AuctionSort sort, AuctionCursorRevision revision) {
+    private AuctionCursor cursorOf(Auction auction, AuctionSort sort) {
         Long value = switch (sort) {
             case LATEST -> null;
             case BID_COUNT -> auction.getBidCount().longValue();
@@ -124,28 +120,7 @@ public class AuctionQueryService {
             case CHANGE_HIGH -> auction.getChangeRateBasisPoints();
         };
         LocalDateTime timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
-        return new AuctionCursor(
-                sort,
-                value,
-                timeValue,
-                auction.getId(),
-                revision == null ? null : revision.auctionCount(),
-                revision == null ? null : revision.versionSum()
-        );
-    }
-
-    private boolean mutableSort(AuctionSort sort) {
-        return sort != AuctionSort.LATEST;
-    }
-
-    private void validateRevision(AuctionCursor cursor, AuctionCursorRevision currentRevision) {
-        if (cursor == null || currentRevision == null) {
-            return;
-        }
-        if (!Objects.equals(cursor.auctionCount(), currentRevision.auctionCount())
-                || !Objects.equals(cursor.versionSum(), currentRevision.versionSum())) {
-            throw new ResponseStatusException(CONFLICT, "경매 목록이 변경되었습니다. 첫 페이지부터 다시 조회해 주세요.");
-        }
+        return new AuctionCursor(sort, value, timeValue, auction.getId());
     }
 
     private boolean activeOnly(AuctionSearchRequest request) {
