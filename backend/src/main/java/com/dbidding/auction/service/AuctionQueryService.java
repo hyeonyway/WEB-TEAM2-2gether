@@ -306,7 +306,7 @@ public class AuctionQueryService {
                         auction.getPsaCertification(),
                         card.psaGrade(),
                         null,
-                        isVerifiedPsaCertification(card.psaGrade(), auction.getPsaCertification())
+                        Boolean.TRUE.equals(auction.getPsaVerified())
                 ))
                 .build();
     }

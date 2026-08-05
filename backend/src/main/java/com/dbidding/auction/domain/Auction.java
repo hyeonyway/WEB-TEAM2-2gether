@@ -59,6 +59,9 @@ public class Auction {
     @Column(name = "self_grade", length = 32)
     private String selfGrade;
 
+    @Column(name = "psa_verified", nullable = false)
+    private Boolean psaVerified;
+
     @Column(name = "delivery_fee", nullable = false)
     private Long deliveryFee;
 
@@ -103,6 +106,7 @@ public class Auction {
             String sellerMemo,
             String psaCertification,
             String selfGrade,
+            Boolean psaVerified,
             Long startPrice,
             Long buyNowPrice,
             Long deliveryFee,
@@ -119,6 +123,7 @@ public class Auction {
         this.sellerMemo = sellerMemo;
         this.psaCertification = psaCertification;
         this.selfGrade = selfGrade;
+        this.psaVerified = psaVerified == null ? Boolean.FALSE : psaVerified;
         this.startPrice = startPrice;
         this.currentPrice = startPrice;
         this.buyNowPrice = buyNowPrice;

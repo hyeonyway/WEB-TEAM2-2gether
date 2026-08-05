@@ -85,7 +85,7 @@ public class AuctionCommandService {
         }
 
         AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(request.itemId());
-        validatePsaCertification(request.gradeType(), request.psaCertification());
+        boolean psaVerified = validatePsaCertification(card, request);
         List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
         validateImages(images);
 
@@ -99,6 +99,7 @@ public class AuctionCommandService {
                 .sellerMemo(request.sellerMemo())
                 .psaCertification(request.psaCertification())
                 .selfGrade(request.selfGrade())
+                .psaVerified(psaVerified)
                 .startPrice(request.startPrice())
                 .buyNowPrice(request.buyNowPrice())
                 .deliveryFee(request.shippingFee())
@@ -279,11 +280,21 @@ public class AuctionCommandService {
         }
     }
 
-    private void validatePsaCertification(String gradeType, String psaCertification) {
-        if ("psa".equalsIgnoreCase(gradeType)
-                && (psaCertification == null || !psaCertification.matches("\\d{7,10}"))) {
+    private boolean validatePsaCertification(AuctionCardPort.CardSnapshot card, AuctionCreateRequest request) {
+        if (!"psa".equalsIgnoreCase(request.gradeType())) {
+            return false;
+        }
+        if (request.psaCertification() == null || !request.psaCertification().matches("\\d{7,10}")) {
             throw new ResponseStatusException(BAD_REQUEST, "PSA 등급 카드는 7~10자리 PSA 인증번호가 필요합니다.");
         }
+        if (!normalizePsaGrade(card.psaGrade()).equals(normalizePsaGrade(request.psaGrade()))) {
+            throw new ResponseStatusException(BAD_REQUEST, "PSA 인증 등급과 선택한 카드 등급이 일치하지 않습니다.");
+        }
+        return true;
+    }
+
+    private String normalizePsaGrade(String grade) {
+        return grade == null ? "" : grade.trim().toUpperCase().replaceFirst("^PSA\\s*", "");
     }
 
     private Optional<AuctionCreateResponse> findIdempotentCreateResponse(

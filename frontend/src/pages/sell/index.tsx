@@ -57,6 +57,9 @@ export default function SellPage({Header}){
   const submittingRef=useRef(false);
   const cardNameInputRef=useRef<HTMLInputElement>(null);
   const photosRef=useRef<SellPhoto[]>([]);
+  const selectedCardIdRef=useRef<number|null>(null);
+  const psaNumberRef=useRef('');
+  const psaLookupSequence=useRef(0);
   const registerAuction=useMutation(sellMutations.register(registrationSubmission));
   const setField=(key,value)=>setForm(current=>({...current,[key]:value}));
   const validYear=!form.year||/^\d{4}$/.test(form.year);
@@ -87,7 +90,7 @@ export default function SellPage({Header}){
     return()=>{cancelled=true;window.clearTimeout(timer)};
   },[form.cardName,selectedCard]);
 
-  const clearSelectedCard=()=>{setSelectedCard(null);setCardVariants([]);setPsaMismatch(false)};
+  const clearSelectedCard=()=>{selectedCardIdRef.current=null;setSelectedCard(null);setCardVariants([]);setPsaMismatch(false)};
   const resetCardSelection=()=>{
     clearSelectedCard();
     setCardResults([]);
@@ -99,8 +102,11 @@ export default function SellPage({Header}){
   const scan=async()=>{if(!ocrFile)return;setOcrStatus('loading');const recognized=await scanCardImage(ocrFile);clearSelectedCard();setForm(current=>({...current,...recognized}));setOcrStatus('success')};
   const lookupPsa=async()=>{
     if(!validPsa)return;
+    const requestedNumber=psaNumber;
+    const sequence=++psaLookupSequence.current;
     setPsaStatus('loading');
     const certification=await lookupPsaCertification(psaNumber);
+    if(sequence!==psaLookupSequence.current||psaNumberRef.current!==requestedNumber)return;
     const matchingVariant=cardVariants.find(card=>
       isPsaGrade(card.psaGrade)&&psaValue(card.psaGrade)===certification.psaGrade
     );
@@ -121,6 +127,7 @@ export default function SellPage({Header}){
     setCardResults([]);
     setCardSearchStatus('idle');
     setPsaMismatch(false);
+    selectedCardIdRef.current=card.id;
     setSelectedCard({id:card.id,name:card.name,set_name:card.setName??'세트 정보 확인 중',psa_grade:grade,language:card.language});
     setForm(current=>({...current,
       cardName:card.name,
@@ -131,7 +138,7 @@ export default function SellPage({Header}){
     }));
     void fetchCardDetail(card.id).then(detail=>{
       setSelectedCard(current=>current?.id===card.id?detail:current);
-      setForm(current=>current.cardName===card.name?{...current,setName:detail.set_name}:current);
+      setForm(current=>selectedCardIdRef.current===card.id?{...current,setName:detail.set_name}:current);
     }).catch(()=>{});
   };
   const selectCard=(candidate:CardCandidate)=>{
@@ -184,7 +191,7 @@ export default function SellPage({Header}){
   return <div className="sell-page">{Header&&<Header/>}<main><SellPageHeader/>
     <SellProgress step={step}/>
     <section className="sell-step-card">
-      {step===1&&<StepOne form={form} setField={setField} panel={panel} setPanel={setPanel} ocrFile={ocrFile} chooseOcr={chooseOcr} scan={scan} ocrStatus={ocrStatus} psaNumber={psaNumber} setPsaNumber={value=>{setPsaNumber(digits(value));setPsaStatus('idle')}} validPsa={validPsa} lookupPsa={lookupPsa} psaStatus={psaStatus} validYear={validYear} validPopulation={validPopulation} selectedCard={selectedCard} psaMismatch={psaMismatch} cardResults={groupCards(cardResults)} cardSearchStatus={cardSearchStatus} clearSelectedCard={clearSelectedCard} resetCardSelection={resetCardSelection} selectCard={selectCard} selectSelfGrade={selectSelfGrade} selectGradeType={selectGradeType} psaVerified={psaVerified} cardNameInputRef={cardNameInputRef}/>} 
+      {step===1&&<StepOne form={form} setField={setField} panel={panel} setPanel={setPanel} ocrFile={ocrFile} chooseOcr={chooseOcr} scan={scan} ocrStatus={ocrStatus} psaNumber={psaNumber} setPsaNumber={value=>{const next=digits(value);psaNumberRef.current=next;psaLookupSequence.current++;setPsaNumber(next);setPsaStatus('idle')}} validPsa={validPsa} lookupPsa={lookupPsa} psaStatus={psaStatus} validYear={validYear} validPopulation={validPopulation} selectedCard={selectedCard} psaMismatch={psaMismatch} cardResults={groupCards(cardResults)} cardSearchStatus={cardSearchStatus} clearSelectedCard={clearSelectedCard} resetCardSelection={resetCardSelection} selectCard={selectCard} selectSelfGrade={selectSelfGrade} selectGradeType={selectGradeType} psaVerified={psaVerified} cardNameInputRef={cardNameInputRef}/>} 
       {step===2&&<StepTwo form={form} setField={setField} photos={photos} addPhotos={addPhotos} removePhoto={removePhoto} photoError={photoError}/>}
       {step===3&&<StepThree form={form} setField={setField}/>}
       {step===4&&<Review form={form} photos={photos} psaStatus={psaStatus} psaNumber={psaNumber} review={review} submitStatus={submitStatus} submitError={submitError}/>}

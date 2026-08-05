@@ -83,6 +83,7 @@ describe('sellApi',()=>{
       psaCertification:null,
       gradeType:'psa',
       selfGrade:null,
+      psaGrade:'10',
       imageUploadTokens:['upload/2026/07/31/front.jpg'],
       startPrice:10000,
       bidIncrement:1000,
@@ -114,6 +115,7 @@ describe('sellApi',()=>{
       psaCertification:'12345678',
       gradeType:'psa',
       selfGrade:null,
+      psaGrade:'10',
       buyNowPrice:null,
     });
   });

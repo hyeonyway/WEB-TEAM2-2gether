@@ -75,6 +75,7 @@ export async function createAuction(payload:AuctionPayload,idempotencyKey:string
       psaCertification:payload.psaCertification,
       gradeType:form.gradeType,
       selfGrade:form.gradeType==='self'?form.selfGrade:null,
+      psaGrade:form.gradeType==='psa'?form.psaGrade:null,
       imageUploadTokens:[...payload.photos]
         .sort((left,right)=>left.order-right.order)
         .map(photo=>photo.uploadToken),

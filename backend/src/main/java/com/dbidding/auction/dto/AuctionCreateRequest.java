@@ -22,7 +22,8 @@ public record AuctionCreateRequest(
         @NotNull @Min(1) @Max(24) Integer durationHours,
         @NotNull @Min(0) Long shippingFee,
         @Size(max = 16) String gradeType,
-        @Size(max = 32) String selfGrade
+        @Size(max = 32) String selfGrade,
+        @Size(max = 8) String psaGrade
 ) {
     public AuctionCreateRequest(
             Integer itemId,
@@ -38,6 +39,6 @@ public record AuctionCreateRequest(
             Long shippingFee
     ) {
         this(itemId, auctionName, description, sellerMemo, psaCertification, imageUploadTokens,
-                startPrice, bidIncrement, buyNowPrice, durationHours, shippingFee, null, null);
+                startPrice, bidIncrement, buyNowPrice, durationHours, shippingFee, null, null, null);
     }
 }

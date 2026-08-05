@@ -41,6 +41,7 @@ class AuctionRegistrationDetailContractTest {
                 .sellerMemo("구매자에게 전달할 메모")
                 .psaCertification("12345678")
                 .selfGrade(null)
+                .psaVerified(true)
                 .startPrice(10_000L)
                 .buyNowPrice(null)
                 .deliveryFee(3_000L)
