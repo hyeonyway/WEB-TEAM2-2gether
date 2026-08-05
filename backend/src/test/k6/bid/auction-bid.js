@@ -7,6 +7,14 @@ const requestRate = positiveNumber(__ENV.RATE, 100);
 const duration = __ENV.DURATION || '1m';
 const preAllocatedVUs = positiveNumber(__ENV.PRE_ALLOCATED_VUS, 100);
 const maxVUs = positiveNumber(__ENV.MAX_VUS, 300);
+const warmupRate = positiveNumber(__ENV.WARMUP_RATE, 20);
+const warmupDuration = __ENV.WARMUP_DURATION || '30s';
+const mainStartTime = __ENV.MAIN_START_TIME || '35s';
+const loadTestUserCount = positiveInteger(__ENV.LOAD_TEST_USER_COUNT, 10);
+const loadTestEmailPrefix = __ENV.LOAD_TEST_EMAIL_PREFIX || 'k6-user';
+const loadTestEmailDomain = __ENV.LOAD_TEST_EMAIL_DOMAIN || 'dbidding.local';
+const loadTestPassword = __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!';
+const loginBatchSize = positiveInteger(__ENV.LOGIN_BATCH_SIZE, 10);
 
 const bidAccepted = new Rate('bid_accepted');
 const bidAcceptedOrContended = new Rate('bid_accepted_or_contended');
@@ -15,9 +23,23 @@ const bidRejected = new Counter('bid_rejected');
 const bidEndToEndDuration = new Trend('bid_end_to_end_duration', true);
 
 export const options = {
+  setupTimeout: __ENV.SETUP_TIMEOUT || '10m',
+  batchPerHost: loginBatchSize,
   scenarios: {
+    warmupAuctionBids: {
+      executor: 'ramping-arrival-rate',
+      exec: 'warmup',
+      startRate: 1,
+      timeUnit: '1s',
+      stages: [{target: warmupRate, duration: warmupDuration}],
+      preAllocatedVUs: Math.min(preAllocatedVUs, 20),
+      maxVUs,
+      gracefulStop: '5s',
+    },
     realAuctionBids: {
       executor: 'constant-arrival-rate',
+      exec: 'bid',
+      startTime: mainStartTime,
       rate: requestRate,
       timeUnit: '1s',
       duration,
@@ -27,11 +49,11 @@ export const options = {
     },
   },
   thresholds: {
-    checks: ['rate>0.99'],
-    bid_accepted_or_contended: ['rate>0.99'],
-    http_req_failed: ['rate<0.01'],
-    'http_req_duration{name:GET /api/auctions/:id/bid-context}': ['p(95)<500'],
-    'http_req_duration{name:POST /api/auctions/:id/bids}': ['p(95)<1000'],
+    'checks{scenario:realAuctionBids}': ['rate>0.99'],
+    'bid_accepted_or_contended{scenario:realAuctionBids}': ['rate>0.99'],
+    'http_req_failed{scenario:realAuctionBids}': ['rate<0.01'],
+    'http_req_duration{name:GET /api/auctions/:id/bid-context,scenario:realAuctionBids}': ['p(95)<500'],
+    'http_req_duration{name:POST /api/auctions/:id/bids,scenario:realAuctionBids}': ['p(95)<1000'],
   },
 };
 
@@ -49,7 +71,19 @@ export function setup() {
   return {tokens, auctionIds};
 }
 
-export default function ({tokens, auctionIds}) {
+export function warmup(data) {
+  performBid(data);
+}
+
+export function bid(data) {
+  performBid(data);
+}
+
+export default function (data) {
+  performBid(data);
+}
+
+function performBid({tokens, auctionIds}) {
   const token = tokens[(__VU - 1) % tokens.length];
   const auctionId = auctionIds[Math.floor(Math.random() * auctionIds.length)];
   const headers = {Authorization: `Bearer ${token}`};
@@ -122,28 +156,57 @@ function loginAndGetAccessTokens() {
     }
   } else if (__ENV.EMAIL && __ENV.PASSWORD) {
     users = [{email: __ENV.EMAIL, password: __ENV.PASSWORD}];
+  } else if (__ENV.ACCESS_TOKENS) {
+    return csv(__ENV.ACCESS_TOKENS);
+  } else {
+    users = loadTestUsers();
   }
 
   if (!Array.isArray(users) || users.length === 0) {
-    // 이미 발급된 토큰은 로그인 API를 사용할 수 없는 환경을 위한 예외 경로다.
-    return csv(__ENV.ACCESS_TOKENS);
+    throw new Error('로그인 계정 목록이 비어 있습니다.');
   }
 
-  return users.map((user, index) => {
-    const response = http.post(
-      `${baseUrl}/api/auth/login`,
-      JSON.stringify({email: user.email, password: user.password}),
-      {
+  const tokens = [];
+  const loginStartedAt = Date.now();
+  const totalBatches = Math.ceil(users.length / loginBatchSize);
+  console.log(`[setup/login] 시작: ${users.length}명, 배치 크기 ${loginBatchSize}, 총 ${totalBatches}단계`);
+
+  for (let start = 0; start < users.length; start += loginBatchSize) {
+    const batchUsers = users.slice(start, start + loginBatchSize);
+    const responses = http.batch(batchUsers.map(user => ({
+      method: 'POST',
+      url: `${baseUrl}/api/auth/login`,
+      body: JSON.stringify({email: user.email, password: user.password}),
+      params: {
         headers: {'Content-Type': 'application/json'},
         tags: {name: 'POST /api/auth/login (setup)'},
+        responseCallback: http.expectedStatuses(200),
       },
-    );
-    const accessToken = response.json('accessToken');
-    if (response.status !== 200 || typeof accessToken !== 'string' || accessToken.length === 0) {
-      throw new Error(`로그인 계정 ${index + 1} 토큰 발급 실패 (status=${response.status})`);
-    }
-    return accessToken;
-  });
+    })));
+
+    responses.forEach((response, batchIndex) => {
+      const accessToken = response.json('accessToken');
+      if (response.status !== 200 || typeof accessToken !== 'string' || accessToken.length === 0) {
+        const userIndex = start + batchIndex + 1;
+        throw new Error(`로그인 계정 ${userIndex} 토큰 발급 실패 (status=${response.status})`);
+      }
+      tokens.push(accessToken);
+    });
+
+    const completed = Math.min(start + batchUsers.length, users.length);
+    const progress = ((completed / users.length) * 100).toFixed(1);
+    const elapsedSeconds = ((Date.now() - loginStartedAt) / 1000).toFixed(1);
+    console.log(`[setup/login] ${completed}/${users.length}명 완료 (${progress}%, ${elapsedSeconds}초)`);
+  }
+  console.log(`[setup/login] 완료: ${tokens.length}개 Access Token 발급`);
+  return tokens;
+}
+
+function loadTestUsers() {
+  return Array.from({length: loadTestUserCount}, (_, index) => ({
+    email: `${loadTestEmailPrefix}${String(index + 1).padStart(3, '0')}@${loadTestEmailDomain}`,
+    password: loadTestPassword,
+  }));
 }
 
 function loadAuctionIds(token) {
@@ -181,4 +244,9 @@ function csv(value) {
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
