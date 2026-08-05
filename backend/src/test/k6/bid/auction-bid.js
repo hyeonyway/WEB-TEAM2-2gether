@@ -25,6 +25,7 @@ const bidEndToEndDuration = new Trend('bid_end_to_end_duration', true);
 export const options = {
   setupTimeout: __ENV.SETUP_TIMEOUT || '10m',
   batchPerHost: loginBatchSize,
+  summaryTrendStats: ['avg', 'min', 'med', 'p(85)', 'p(95)', 'p(99)', 'max'],
   scenarios: {
     warmupAuctionBids: {
       executor: 'ramping-arrival-rate',

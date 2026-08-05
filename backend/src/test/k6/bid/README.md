@@ -113,6 +113,10 @@ threshold에는 포함되지 않는다. 웜업 시간을 변경할 때는 다음
 
 ## 결과 지표
 
+최종 콘솔 요약과 `--summary-export` JSON의 Trend 지표에는 `avg`, `min`, `med`,
+`p(85)`, `p(95)`, `p(99)`, `max`가 출력된다. 이를 통해 일반 요청 구간과 느린
+상위 15%, 5%, 1% 요청의 응답시간을 함께 비교할 수 있다.
+
 - `bid_accepted`: 실제 `201 Created` 비율
 - `bid_contentions`: 가격 조회 후 다른 요청이 선점해 발생한 `409 Conflict` 수
 - `bid_accepted_or_contended`: `201`과 정상 경쟁 `409`의 합산 비율
