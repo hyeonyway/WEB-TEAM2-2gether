@@ -16,7 +16,6 @@ import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.PageRequestDto;
 import com.dbidding.auction.dto.AuctionCursor;
 import com.dbidding.auction.dto.AuctionCursorCodec;
-import com.dbidding.auction.dto.AuctionCursorRevision;
 import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.WalletPort;
@@ -35,7 +34,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class AuctionQueryServiceTest {
@@ -70,7 +68,6 @@ class AuctionQueryServiceTest {
         Auction first = auction(3, AuctionStatus.OPEN, 50_000L, 7);
         Auction second = auction(2, AuctionStatus.OPEN, 45_000L, 5);
         Auction extra = auction(1, AuctionStatus.OPEN, 40_000L, 3);
-        when(auctionRepository.findCursorRevision()).thenReturn(new AuctionCursorRevision(3L, 8L));
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
                 eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(LocalDateTime.class),
@@ -90,22 +87,30 @@ class AuctionQueryServiceTest {
         assertThat(response.content()).extracting(item -> item.id()).containsExactly(3, 2);
         assertThat(response.hasNext()).isTrue();
         assertThat(cursorCodec.decode(response.nextCursor(), AuctionSort.BID_COUNT))
-                .isEqualTo(new AuctionCursor(AuctionSort.BID_COUNT, 5L, null, 2, 3L, 8L));
+                .isEqualTo(new AuctionCursor(AuctionSort.BID_COUNT, 5L, null, 2));
     }
 
     @Test
-    void 변동_정렬_cursor의_스냅샷이_달라지면_목록_재시작을_요구한다() {
-        AuctionCursor staleCursor = new AuctionCursor(AuctionSort.PRICE_HIGH, 45_000L, null, 2, 3L, 8L);
-        when(auctionRepository.findCursorRevision()).thenReturn(new AuctionCursorRevision(3L, 9L));
+    void 변동_정렬_cursor는_목록이_변경되어도_409없이_다음_페이지를_조회한다() {
+        AuctionCursor staleCursor = new AuctionCursor(AuctionSort.PRICE_HIGH, 45_000L, null, 2);
+        Auction next = auction(1, AuctionStatus.OPEN, 40_000L, 1);
+        when(auctionRepository.searchByCursor(
+                eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
+                eq(AuctionSort.PRICE_HIGH.name()), eq(null), eq(45_000L), eq(null), eq(null), eq(2), eq(true),
+                any(LocalDateTime.class), eq(PageRequest.of(0, 3))
+        )).thenReturn(List.of(next));
+        when(auctionCardPort.getCardSnapshots(List.of(1))).thenReturn(Map.of(
+                1, new AuctionCardPort.CardSnapshot(1, "Mock Card", "Mock Set", "10", "JP", "/card.png")
+        ));
+        when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
 
         var request = new AuctionSearchRequest(
                 "", null, AuctionSort.PRICE_HIGH, null, cursorCodec.encode(staleCursor), 2
         );
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> auctionQueryService.search(null, request))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
-                .isEqualTo(409);
+        var response = auctionQueryService.search(null, request);
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(1);
     }
 
     @Test
@@ -113,7 +118,6 @@ class AuctionQueryServiceTest {
         Auction first = auction(2, AuctionStatus.OPEN, 15_000L, 1);
         Auction extra = auction(1, AuctionStatus.OPEN, 12_000L, 1);
         ReflectionTestUtils.setField(first, "changeRateBasisPoints", 5_000L);
-        when(auctionRepository.findCursorRevision()).thenReturn(new AuctionCursorRevision(2L, 2L));
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
                 eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
