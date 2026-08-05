@@ -47,11 +47,13 @@ class WalletControllerTest {
 	}
 
 	@Test
-	void 손상된_잔액_상태는_500으로_반환한다() throws Exception {
+	void 손상된_잔액_상태는_구조화된_409로_반환한다() throws Exception {
 		given(walletService.getBalance(1))
 			.willThrow(new InvalidWalletBalanceException());
 
 		mockMvc.perform(get("/api/wallet"))
-			.andExpect(status().isInternalServerError());
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("INVALID_WALLET_BALANCE"))
+			.andExpect(jsonPath("$.message").value("지갑 잔액 상태가 올바르지 않습니다."));
 	}
 }
