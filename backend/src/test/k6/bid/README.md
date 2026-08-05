@@ -6,7 +6,9 @@ SSE·알림 후처리까지 포함한 경로에 부하를 준다. 테스트 데�
 
 ## 실행
 
-백엔드 실행 후 로그인 계정과 대상 경매를 지정한다. k6의 `setup()`이
+`002-user.sql` 적용 후 백엔드와 스크립트를 실행한다. k6의 `setup()`이 기본으로
+`k6-user001@dbidding.local`부터 `k6-user300@dbidding.local`까지 300개 계정을
+공통 비밀번호 `K6LoadTest123!`로 로그인한다. 이후
 `POST /api/auth/login`을 호출해 액세스 토큰을 발급받고, 이후 모든 입찰 요청에
 `Authorization: Bearer ...` 헤더를 자동으로 붙인다. 기본 부하는
 **초당 100회, 1분, 최대 300 VU**다.
@@ -16,13 +18,13 @@ cd backend
 
 ./src/test/k6/sse/k6-sse run \
   -e BASE_URL=http://localhost:8080 \
-  -e EMAIL='bidder@example.com' \
-  -e PASSWORD='password' \
   -e AUCTION_IDS='101,102,103' \
   src/test/k6/bid/auction-bid.js
 ```
 
 `AUCTION_IDS`를 생략하면 진행 중인 경매를 최대 100개까지 자동 조회한다.
+본 부하 전에는 30초 동안 초당 1회에서 20회까지 점진적으로 높이는 웜업을
+실행하며, 본 측정은 35초 뒤 시작한다. 웜업 결과는 본 테스트 임계치에서 제외된다.
 강한 경쟁 부하에는 여러 계정 로그인을 권장하며 JSON 배열을 사용한다.
 
 ```bash
@@ -57,6 +59,14 @@ cd backend
 - `DURATION`: 테스트 지속 시간. 기본값 `1m`
 - `PRE_ALLOCATED_VUS`: 미리 확보할 VU. 기본값 `100`
 - `MAX_VUS`: 최대 VU. 기본값 `300`
+- `WARMUP_RATE`: 웜업 마지막 초당 요청 수. 기본값 `20`
+- `WARMUP_DURATION`: 웜업 지속 시간. 기본값 `30s`
+- `MAIN_START_TIME`: 본 부하 시작 시점. 기본값 `35s`
+- `LOAD_TEST_USER_COUNT`: 자동 생성할 로그인 계정 수. 기본값 `300`
+- `LOAD_TEST_EMAIL_PREFIX`: 계정 이메일 접두사. 기본값 `k6-user`
+- `LOAD_TEST_EMAIL_DOMAIN`: 계정 이메일 도메인. 기본값 `dbidding.local`
+- `LOAD_TEST_PASSWORD`: 300개 계정의 공통 비밀번호. 기본값 `K6LoadTest123!`
+- `SETUP_TIMEOUT`: 300개 계정 로그인 제한 시간. 기본값 `10m`
 - `bid_accepted`: 실제 `201 Created` 비율
 - `bid_contentions`: 가격 조회 후 다른 요청이 선점해 발생한 `409 Conflict` 수
 - `bid_accepted_or_contended`: `201`과 정상 경쟁 `409`의 합산 비율
