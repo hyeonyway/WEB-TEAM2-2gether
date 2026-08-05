@@ -82,6 +82,7 @@ cd backend
 | `EMAIL` | 없음 | 단일 로그인 계정 이메일. `PASSWORD`와 함께 사용한다. |
 | `PASSWORD` | 없음 | 단일 로그인 계정 비밀번호. `EMAIL`과 함께 사용한다. |
 | `ACCESS_TOKENS` | 없음 | 쉼표로 구분한 사전 발급 Access Token. 지정하면 로그인 API를 호출하지 않는다. |
+| `K6_RESULT_FILE` | 없음 | 실행 파라미터와 최종 지표를 함께 저장할 JSON 파일 경로. 상위 디렉터리는 실행 전에 생성해야 한다. |
 
 `RATE=100`은 사용자 100명이라는 뜻이 아니라 초당 반복 100회를 의미한다.
 반복 한 번에 HTTP 요청이 2개이므로 모두 정상 처리되면 초당 요청은 대략 200개다.
@@ -113,9 +114,13 @@ threshold에는 포함되지 않는다. 웜업 시간을 변경할 때는 다음
 
 ## 결과 지표
 
-최종 콘솔 요약과 `--summary-export` JSON의 Trend 지표에는 `avg`, `min`, `med`,
+최종 콘솔 요약과 `K6_RESULT_FILE` JSON의 Trend 지표에는 `avg`, `min`, `med`,
 `p(85)`, `p(95)`, `p(99)`, `max`가 출력된다. 이를 통해 일반 요청 구간과 느린
 상위 15%, 5%, 1% 요청의 응답시간을 함께 비교할 수 있다.
+
+결과 JSON에는 k6 원본 summary와 함께 최상위 `generatedAt`, `testConfig`가
+저장된다. `testConfig`에는 URL, 경매 ID, 인증 입력 방식, 사용자·배치 수, 웜업,
+RATE, 지속 시간, VU 설정이 포함된다. 비밀번호와 Access Token은 저장하지 않는다.
 
 - `bid_accepted`: 실제 `201 Created` 비율
 - `bid_contentions`: 가격 조회 후 다른 요청이 선점해 발생한 `409 Conflict` 수

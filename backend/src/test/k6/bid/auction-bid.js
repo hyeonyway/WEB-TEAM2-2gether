@@ -15,6 +15,7 @@ const loadTestEmailPrefix = __ENV.LOAD_TEST_EMAIL_PREFIX || 'k6-user';
 const loadTestEmailDomain = __ENV.LOAD_TEST_EMAIL_DOMAIN || 'dbidding.local';
 const loadTestPassword = __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!';
 const loginBatchSize = positiveInteger(__ENV.LOGIN_BATCH_SIZE, 10);
+const resultFile = __ENV.K6_RESULT_FILE;
 
 const bidAccepted = new Rate('bid_accepted');
 const bidAcceptedOrContended = new Rate('bid_accepted_or_contended');
@@ -82,6 +83,35 @@ export function bid(data) {
 
 export default function (data) {
   performBid(data);
+}
+
+export function handleSummary(data) {
+  const result = {
+    generatedAt: new Date().toISOString(),
+    testConfig: {
+      baseUrl,
+      auctionIds: csv(__ENV.AUCTION_IDS),
+      auctionSelection: __ENV.AUCTION_IDS ? 'CONFIGURED' : 'AUTO_OPEN_AUCTIONS',
+      credentialSource: credentialSource(),
+      loadTestUserCount,
+      loginBatchSize,
+      warmupRate,
+      warmupDuration,
+      mainStartTime,
+      rate: requestRate,
+      duration,
+      preAllocatedVUs,
+      maxVUs,
+      setupTimeout: options.setupTimeout,
+      summaryTrendStats: options.summaryTrendStats,
+    },
+    ...data,
+  };
+  const output = {stdout: summaryText(data)};
+  if (resultFile) {
+    output[resultFile] = JSON.stringify(result, null, 2);
+  }
+  return output;
 }
 
 function performBid({tokens, auctionIds}) {
@@ -186,10 +216,14 @@ function loginAndGetAccessTokens() {
     })));
 
     responses.forEach((response, batchIndex) => {
+      const userIndex = start + batchIndex + 1;
+      if (response.status !== 200 || response.body === null) {
+        const cause = response.error || '응답 본문 없음';
+        throw new Error(`로그인 계정 ${userIndex} 요청 실패 (status=${response.status}, cause=${cause})`);
+      }
       const accessToken = response.json('accessToken');
-      if (response.status !== 200 || typeof accessToken !== 'string' || accessToken.length === 0) {
-        const userIndex = start + batchIndex + 1;
-        throw new Error(`로그인 계정 ${userIndex} 토큰 발급 실패 (status=${response.status})`);
+      if (typeof accessToken !== 'string' || accessToken.length === 0) {
+        throw new Error(`로그인 계정 ${userIndex} 응답에 Access Token이 없습니다.`);
       }
       tokens.push(accessToken);
     });
@@ -250,4 +284,29 @@ function positiveNumber(value, fallback) {
 function positiveInteger(value, fallback) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function credentialSource() {
+  if (__ENV.LOGIN_USERS) return 'LOGIN_USERS';
+  if (__ENV.EMAIL && __ENV.PASSWORD) return 'EMAIL_PASSWORD';
+  if (__ENV.ACCESS_TOKENS) return 'ACCESS_TOKENS';
+  return 'GENERATED_LOAD_TEST_USERS';
+}
+
+function summaryText(data) {
+  const requests = data.metrics.http_reqs?.values || {};
+  const failed = data.metrics.http_req_failed?.values || {};
+  const durationValues = data.metrics.http_req_duration?.values || {};
+  const saved = resultFile ? `\n결과 JSON: ${resultFile}` : '';
+  return [
+    '\n=== K6 FINAL SUMMARY ===',
+    `HTTP 요청: ${requests.count || 0} (${(requests.rate || 0).toFixed(2)} req/s)`,
+    `HTTP 실패율: ${((failed.rate || 0) * 100).toFixed(2)}%`,
+    `응답시간: p85=${formatMilliseconds(durationValues['p(85)'])}, p95=${formatMilliseconds(durationValues['p(95)'])}, p99=${formatMilliseconds(durationValues['p(99)'])}`,
+    `${saved}\n`,
+  ].join('\n');
+}
+
+function formatMilliseconds(value) {
+  return Number.isFinite(value) ? `${value.toFixed(2)}ms` : '-';
 }
