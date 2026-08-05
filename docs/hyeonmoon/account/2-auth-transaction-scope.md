@@ -4,9 +4,9 @@
 PBKDF2 해싱(CPU 작업)을 빼서, HikariCP 커넥션 점유 시간을 줄인다.
 
 **Architecture:** 계정 조회·비밀번호 검증/해싱·JWT 발급은 트랜잭션 밖에서
-수행한다. DB 쓰기(refresh token upsert, account 저장 + wallet 생성)만 별도의
-짧은 `@Transactional` 메서드로 감싼다. 외부 API 계약(`/api/auth/**` 요청/응답,
-JWT claim, 쿠키)은 변경하지 않는다.
+수행한다. DB 쓰기(refresh token upsert, account 저장 + wallet 생성)는 별도
+`AuthTransactionService`의 짧은 `@Transactional` 메서드로 감싼다. 외부 API
+계약(`/api/auth/**` 요청/응답, JWT claim, 쿠키)은 변경하지 않는다.
 
 **Tech Stack:** Java 21, Spring Boot 4.1, Spring Data JPA, JUnit 5, Mockito
 
@@ -33,14 +33,16 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
 
 **Files:**
 - Modify: `backend/src/main/java/com/dbidding/account/service/AuthService.java`
+- Create: `backend/src/main/java/com/dbidding/account/service/AuthTransactionService.java`
 - Modify: `backend/src/test/java/com/dbidding/account/service/AuthServiceLoginTest.java`
+- Create: `backend/src/test/java/com/dbidding/account/integration/AuthTransactionScopeTest.java`
 
 **Interfaces:**
-- Produces: `void AuthService.persistRefreshToken(Integer accountId, String refreshTokenHash)` (package-private, `@Transactional`)
+- Produces: `void AuthTransactionService.persistRefreshToken(Integer accountId, String refreshTokenHash)` (`@Transactional`)
 - Preserves: `LoginResult login(LoginRequest)` 시그니처와 예외 계약
   (`InvalidCredentialsException`)
 
-- [ ] **Step 1: 커넥션 점유 범위 검증 테스트를 작성한다**
+- [x] **Step 1: 커넥션 점유 범위 검증 테스트를 작성한다**
 
   `login()` 호출 중 `passwordHasher.matches()` 실행 시점에는 어떤
   Repository도 트랜잭션 참여 상태가 아님을 확인하는 테스트를 추가한다
@@ -48,16 +50,16 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
   `TransactionSynchronizationManager.isActualTransactionActive()`가
   `false`인지 검증).
 
-- [ ] **Step 2: 테스트가 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 실패하는지 확인한다**
 
   ```bash
   cd backend
-  ./gradlew test --tests com.dbidding.account.service.AuthServiceLoginTest
+  ./gradlew test --tests com.dbidding.account.integration.AuthTransactionScopeTest
   ```
 
   Expected: 현재 구조에서는 해싱 시점에도 트랜잭션이 활성 상태라 실패.
 
-- [ ] **Step 3: `login()`에서 `@Transactional`을 제거하고 쓰기 부분만
+- [x] **Step 3: `login()`에서 `@Transactional`을 제거하고 쓰기 부분만
   분리한다**
 
   ```java
@@ -75,21 +77,22 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
       }
       IssuedTokens tokens = jwtTokenProvider.issue(account.getId(), account.getRole(), Instant.now());
       String refreshTokenHash = refreshTokenHasher.hash(tokens.refreshToken());
-      persistRefreshToken(account.getId(), refreshTokenHash);
+      authTransactionService.persistRefreshToken(account.getId(), refreshTokenHash);
       return new LoginResult(new LoginResponse(tokens.accessToken()), tokens.refreshToken());
   }
 
+  // AuthTransactionService
   @Transactional
-  void persistRefreshToken(Integer accountId, String refreshTokenHash) {
+  public void persistRefreshToken(Integer accountId, String refreshTokenHash) {
       authenticationRepository.upsertRefreshTokenHash(accountId, refreshTokenHash);
   }
   ```
 
-  Same-class self-invocation은 Spring AOP 프록시를 안 타므로, 트랜잭션이
-  실제로 걸리는지 Step 1 테스트와 별도로 통합 테스트에서 재확인한다
-  (필요하면 `persistRefreshToken`을 별도 내부 컴포넌트로 분리).
+  Same-class self-invocation은 Spring AOP 프록시를 타지 않으므로
+  `AuthTransactionService`를 별도 Spring Bean으로 분리한다. 통합 테스트는
+  PBKDF2 구간의 트랜잭션 비활성과 upsert 구간의 활성 상태를 함께 확인한다.
 
-- [ ] **Step 4: 로그인 관련 테스트를 통과시키고 커밋한다**
+- [x] **Step 4: 로그인 관련 테스트를 통과시키고 커밋한다**
 
   ```bash
   ./gradlew test --tests 'com.dbidding.account.service.AuthService*Test'
@@ -102,23 +105,25 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
 
 **Files:**
 - Modify: `backend/src/main/java/com/dbidding/account/service/AuthService.java`
+- Create: `backend/src/main/java/com/dbidding/account/service/AuthTransactionService.java`
 - Modify: `backend/src/test/java/com/dbidding/account/service/AuthServiceSignupTest.java`
+- Create: `backend/src/test/java/com/dbidding/account/integration/AuthTransactionScopeTest.java`
 
 **Interfaces:**
 - Preserves: `SignupResponse signup(SignupRequest)` 시그니처, 원자성
   (`DuplicateEmailException`/`DuplicateNicknameException` 변환 포함),
   account 저장 + wallet 생성 원자성
 
-- [ ] **Step 1: 해싱이 트랜잭션 밖에서 실행되는지 검증하는 테스트를
+- [x] **Step 1: 해싱이 트랜잭션 밖에서 실행되는지 검증하는 테스트를
   추가한다** (Task 1의 Step 1과 동일한 방식)
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
   ```bash
-  ./gradlew test --tests com.dbidding.account.service.AuthServiceSignupTest
+  ./gradlew test --tests com.dbidding.account.integration.AuthTransactionScopeTest
   ```
 
-- [ ] **Step 3: 중복 체크·해싱을 트랜잭션 밖으로, 저장+지갑생성만 안으로
+- [x] **Step 3: 중복 체크·해싱을 트랜잭션 밖으로, 저장+지갑생성만 안으로
   재구성한다**
 
   ```java
@@ -126,11 +131,12 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
       if (accountRepository.existsByEmail(request.email())) throw new DuplicateEmailException();
       if (accountRepository.existsByNickname(request.nickname())) throw new DuplicateNicknameException();
       PasswordHash password = passwordHasher.hash(request.password());
-      return createAccountWithWallet(request, password);
+      return authTransactionService.createAccountWithWallet(request, password);
   }
 
+  // AuthTransactionService
   @Transactional
-  SignupResponse createAccountWithWallet(SignupRequest request, PasswordHash password) {
+  public SignupResponse createAccountWithWallet(SignupRequest request, PasswordHash password) {
       Account account = Account.create(request.email(), request.nickname(),
           password.encryptedPassword(), password.salt());
       try {
@@ -150,7 +156,7 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
   존재 체크는 이제 트랜잭션 밖의 참고용 빠른 실패일 뿐, 실제 무결성 보장은
   여전히 DB 제약이 한다.
 
-- [ ] **Step 4: 가입 관련 테스트와 원자성 통합 테스트를 통과시키고
+- [x] **Step 4: 가입 관련 테스트와 원자성 통합 테스트를 통과시키고
   커밋한다**
 
   ```bash
@@ -174,7 +180,7 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
 
   Expected: 실패 0건. 테스트 소스 없는 항목은 `NO-SOURCE`로 별도 보고.
 
-- [ ] **Step 2: 문서 인덱스 갱신 후 커밋**
+- [x] **Step 2: 문서 인덱스 갱신 후 커밋**
 
   ```bash
   git add docs/hyeonmoon/README.md docs/hyeonmoon/account/2-auth-transaction-scope.md
@@ -188,3 +194,5 @@ DB 커넥션을 붙잡는다. HikariCP 풀이 10개뿐인 환경(`hikaricp_conne
 - 회원가입의 account 저장 + wallet 생성 원자성, 로그인/가입 API 계약,
   JWT/쿠키 동작은 변경 없다.
 - 전체 Backend 테스트가 실패 없이 통과한다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다
