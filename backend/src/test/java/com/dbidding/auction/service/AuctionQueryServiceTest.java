@@ -209,6 +209,26 @@ class AuctionQueryServiceTest {
         verifyNoInteractions(bidRepository);
     }
 
+    @Test
+    void 상세_조회는_카드_원본_이미지와_판매자_업로드_사진을_분리한다() {
+        Auction auction = auction(AuctionStatus.OPEN);
+        AuctionImage first = new AuctionImage(auction, "/uploads/front.png");
+        AuctionImage second = new AuctionImage(auction, "/uploads/back.png");
+        ReflectionTestUtils.setField(first, "id", 11);
+        ReflectionTestUtils.setField(second, "id", 12);
+        when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
+        when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
+                1, "Mock Card", "Mock Set", "10", "JP", "/cards/original.png"
+        ));
+        when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of(first, second));
+
+        var response = auctionQueryService.getDetail(null, 1);
+
+        assertThat(response.card().thumbnailUrl()).isEqualTo("/cards/original.png");
+        assertThat(response.photos()).extracting(photo -> photo.url())
+                .containsExactly("/uploads/front.png", "/uploads/back.png");
+    }
+
     private Auction auction(AuctionStatus status) {
         return auction(1, status, 45_000L, 0);
     }

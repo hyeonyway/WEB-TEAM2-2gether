@@ -26,6 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
 import com.dbidding.wallet.domain.Wallet;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.repository.PointRecordRepository;
@@ -96,6 +97,20 @@ class WalletTransactionConcurrencyTest {
 			    bid_count, bid_price_unit, is_hyped, version
 			) VALUES (
 			    1, 1, 1, 'Wallet 동시성 경매', 'Wallet 동시성 테스트',
+			    1000, 1000, 10000, 3000,
+			    'OPEN', NOW(6), DATE_ADD(NOW(6), INTERVAL 1 HOUR),
+			    DATE_ADD(NOW(6), INTERVAL 1 HOUR),
+			    0, 1000, FALSE, 1
+			)
+			""");
+		jdbcTemplate.update("""
+			INSERT INTO auctions (
+			    id, user_id, item_id, auction_name, description,
+			    start_price, current_price, buy_now_price, delivery_fee,
+			    status, open_time, estimated_close_time, close_time,
+			    bid_count, bid_price_unit, is_hyped, version
+			) VALUES (
+			    2, 1, 1, 'Wallet 동시성 경매 2', 'Wallet 동시성 테스트 2',
 			    1000, 1000, 10000, 3000,
 			    'OPEN', NOW(6), DATE_ADD(NOW(6), INTERVAL 1 HOUR),
 			    DATE_ADD(NOW(6), INTERVAL 1 HOUR),
@@ -176,6 +191,78 @@ class WalletTransactionConcurrencyTest {
 			.extracting(Wallet::getPoint)
 			.isEqualTo(10_000L);
 		assertThat(pointRecordRepository.count()).isZero();
+	}
+
+	@Test
+	void 서로_다른_경매의_동시_hold는_총잔액을_초과할_수_없다() throws Exception {
+		jdbcTemplate.update("UPDATE wallets SET point = 10000 WHERE id = ?", walletId);
+		CountDownLatch snapshotReady = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+
+		Callable<WalletBalanceResponse> holdFirstAuction = concurrentHold(1, snapshotReady, start);
+		Callable<WalletBalanceResponse> holdSecondAuction = concurrentHold(2, snapshotReady, start);
+		List<Future<WalletBalanceResponse>> futures = List.of(
+			executor.submit(holdFirstAuction),
+			executor.submit(holdSecondAuction)
+		);
+
+		assertThat(snapshotReady.await(5, TimeUnit.SECONDS)).isTrue();
+		start.countDown();
+
+		int successCount = 0;
+		int insufficientBalanceCount = 0;
+		for (Future<WalletBalanceResponse> future : futures) {
+			try {
+				future.get(10, TimeUnit.SECONDS);
+				successCount++;
+			} catch (ExecutionException exception) {
+				assertThat(exception.getCause())
+					.isInstanceOf(InsufficientAvailableBalanceException.class);
+				insufficientBalanceCount++;
+			}
+		}
+
+		assertThat(successCount).isEqualTo(1);
+		assertThat(insufficientBalanceCount).isEqualTo(1);
+		assertThat(walletRepository.sumHeldAmount(walletId)).isEqualTo(6_000L);
+	}
+
+	@Test
+	void 같은_경매의_동시_hold는_HELD를_중복_생성하지_않는다() throws Exception {
+		jdbcTemplate.update("UPDATE wallets SET point = 20000 WHERE id = ?", walletId);
+		CountDownLatch snapshotReady = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+		List<Future<WalletBalanceResponse>> futures = List.of(
+			executor.submit(concurrentHold(1, snapshotReady, start)),
+			executor.submit(concurrentHold(1, snapshotReady, start))
+		);
+
+		assertThat(snapshotReady.await(5, TimeUnit.SECONDS)).isTrue();
+		start.countDown();
+		WalletBalanceResponse first = futures.get(0).get(10, TimeUnit.SECONDS);
+		WalletBalanceResponse second = futures.get(1).get(10, TimeUnit.SECONDS);
+
+		assertThat(first.frozenBalance()).isEqualTo(6_000L);
+		assertThat(second.frozenBalance()).isEqualTo(6_000L);
+		assertThat(walletRepository.sumHeldAmount(walletId)).isEqualTo(6_000L);
+		assertThat(jdbcTemplate.queryForObject("""
+			SELECT COUNT(*)
+			FROM wallet_holds
+			WHERE wallet_id = ? AND auction_id = 1 AND status = 'HELD'
+			""", Long.class, walletId)).isEqualTo(1L);
+	}
+
+	private Callable<WalletBalanceResponse> concurrentHold(
+		Integer auctionId,
+		CountDownLatch snapshotReady,
+		CountDownLatch start
+	) {
+		return () -> transactionTemplate.execute(status -> {
+			jdbcTemplate.queryForObject("SELECT COUNT(*) FROM bids", Long.class);
+			snapshotReady.countDown();
+			await(start);
+			return walletService.hold(1, auctionId, 6_000L);
+		});
 	}
 
 	private void await(CountDownLatch latch) {

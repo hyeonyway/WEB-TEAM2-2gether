@@ -91,7 +91,7 @@ public class CardPriceService {
         long price = statistic == null ? 0
                 : firstPrice(statistic.latestPrice(), statistic.averagePrice30d());
         return new CardResponses.CardSummary(
-                card.getId(), card.getName(), price,
+                card.getId(), card.getName(), card.getCardSet().getName(), price,
                 statistic == null ? price : firstPrice(statistic.lowestPrice30d(), price),
                 statistic == null ? price : firstPrice(statistic.highestPrice30d(), price),
                 rate(statistic == null ? null : statistic.dailyChangeRate()),

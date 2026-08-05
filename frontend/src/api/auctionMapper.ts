@@ -22,6 +22,7 @@ export const resolveImageUrl=(path?:string|null):string|null=>{
 export const mapCard=(dto:CardResponseDto):CardDto=>({
   id:dto.id,
   name:dto.name,
+  setName:dto.set_name??'',
   marketPrice:dto.market_price,
   lowPrice:dto.low_price??dto.market_price,
   highPrice:dto.high_price??dto.market_price,
@@ -36,6 +37,7 @@ export const mapCard=(dto:CardResponseDto):CardDto=>({
 const mapAuctionCard=(dto:AuctionCardResponseDto):CardDto=>({
   id:dto.id,
   name:dto.name,
+  setName:dto.set_name,
   marketPrice:0,
   lowPrice:0,
   highPrice:0,

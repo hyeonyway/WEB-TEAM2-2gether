@@ -1,10 +1,11 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {useInfiniteQuery,useQueryClient} from '@tanstack/react-query';
+import {useInfiniteQuery,useQueryClient,type InfiniteData} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {useSearchParams} from 'react-router-dom';
 import {AuctionCatalog,AuctionCatalogSkeleton} from './components';
-import type {AuctionDto,AuctionListRequestDto} from '../../dto/auctionDto';
-import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
+import type {AuctionDto,AuctionListRequestDto,CursorPageResponseDto} from '../../dto/auctionDto';
+import {auctionQueries} from '../../queries/auctionQueries';
+import {applyAuctionEvent} from '../../queries/auctionStreamCache';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
@@ -14,6 +15,8 @@ const PAGE_SIZE=12;
 const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
   ['최신순','LATEST'],['입찰 수 높은순','BID_COUNT'],['경매가 높은순','PRICE_HIGH'],['경매가 낮은순','PRICE_LOW'],['상승률 높은순','CHANGE_HIGH'],
 ];
+type AuctionListCache=InfiniteData<CursorPageResponseDto<AuctionDto>,string|undefined>;
+
 export default function AuctionPage(){
   const queryClient=useQueryClient();
   const{status:authStatus}=useAuth();
@@ -33,8 +36,15 @@ export default function AuctionPage(){
     setQuery(requestedKeyword);
   },[requestedKeyword]);
   useAuctionStream({
-    onAuctionUpdated:()=>{
-      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
+    onAuctionUpdated:event=>{
+      queryClient.setQueryData<AuctionListCache>(listOptions.queryKey,current=>{
+        if(!current)return current;
+        return {
+          ...current,
+          // 서버 커서 경계를 유지하기 위해 로드된 항목만 제자리에서 갱신한다.
+          pages:current.pages.map(page=>({...page,content:applyAuctionEvent(page.content,event)})),
+        };
+      });
     },
   });
   const{

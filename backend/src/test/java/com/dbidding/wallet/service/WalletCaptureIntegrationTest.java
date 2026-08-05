@@ -143,10 +143,13 @@ class WalletCaptureIntegrationTest {
 			.get()
 			.extracting(Wallet::getPoint)
 			.isEqualTo(4_000L);
-		assertThat(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
-			walletRepository.findByUserId(1).orElseThrow().getId(),
-			1
-		)).isPresent().get()
+		WalletHold latestHold = transactionTemplate.execute(status ->
+			walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
+				walletRepository.findByUserId(1).orElseThrow().getId(),
+				1
+			).orElseThrow()
+		);
+		assertThat(latestHold)
 			.extracting(WalletHold::getStatus)
 			.isEqualTo(HoldStatus.CAPTURED);
 		assertThat(pointRecordRepository.count()).isEqualTo(1L);

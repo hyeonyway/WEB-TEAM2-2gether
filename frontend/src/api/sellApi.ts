@@ -5,6 +5,7 @@ import {authenticatedRequest} from './authenticatedRequest';
 import {isMockApiEnabled} from './mockApiConfig';
 
 const wait=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
+const isLocalUploadEnabled=()=>import.meta.env.VITE_LOCAL_UPLOAD==='true';
 
 export async function scanCardImage(file:File):Promise<CardRecognition>{
   if(isMockApiEnabled()){await wait(700);return mockupData.card_recognition as CardRecognition}
@@ -23,6 +24,9 @@ export async function uploadSellImages(photos:SellPhoto[]):Promise<UploadedPhoto
   if(isMockApiEnabled()){
     await wait(450);
     return photos.map((photo,order)=>({order,uploadToken:photo.url}));
+  }
+  if(isLocalUploadEnabled()){
+    return photos.map((photo,order)=>({order,uploadToken:`local/${photo.id}`}));
   }
   const presigned=await authenticatedRequest<{
     uploads:Array<{
@@ -67,12 +71,17 @@ export async function createAuction(payload:AuctionPayload,idempotencyKey:string
       itemId:payload.itemId,
       auctionName:form.cardName.trim(),
       description:form.description.trim(),
+      sellerMemo:form.sellerMemo.trim()||null,
+      psaCertification:payload.psaCertification,
+      gradeType:form.gradeType,
+      selfGrade:form.gradeType==='self'?form.selfGrade:null,
+      psaGrade:form.gradeType==='psa'?form.psaGrade:null,
       imageUploadTokens:[...payload.photos]
         .sort((left,right)=>left.order-right.order)
         .map(photo=>photo.uploadToken),
       startPrice:Number(form.startPrice),
       bidIncrement:Number(form.bidIncrement),
-      buyNowPrice:Number(form.buyNowPrice),
+      buyNowPrice:form.buyNowEnabled?Number(form.buyNowPrice):null,
       durationHours:Number(form.duration),
       shippingFee:Number(form.shipping),
     }),

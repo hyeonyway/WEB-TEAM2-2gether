@@ -5,6 +5,8 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {AuthContext} from '../../auth/AuthProvider';
 import type {AuctionDto} from '../../dto/auctionDto';
+import type {AuctionStreamPayload} from '../../hooks/useAuctionStream';
+import {auctionQueryKeys} from '../../queries/auctionQueries';
 import AuctionPage from './AuctionPage';
 
 const apiMocks=vi.hoisted(()=>({fetchAuctions:vi.fn()}));
@@ -24,7 +26,7 @@ const auction=(id:number,name:string):AuctionDto=>({
 });
 
 let intersectionCallback:IntersectionObserverCallback;
-let onAuctionUpdated:(event:unknown)=>void;
+let onAuctionUpdated:(event:AuctionStreamPayload)=>void;
 let observeCount=0;
 
 class TestIntersectionObserver implements IntersectionObserver{
@@ -61,6 +63,7 @@ describe('AuctionPage',()=>{
       onAuctionUpdated=callback;
     });
     vi.stubGlobal('IntersectionObserver',TestIntersectionObserver);
+    vi.stubGlobal('matchMedia',vi.fn(()=>({matches:true})));
   });
 
   it('목록 하단이 보이면 다음 cursor를 조회해 경매를 누적한다',async()=>{
@@ -91,17 +94,21 @@ describe('AuctionPage',()=>{
     ));
   });
 
-  it('SSE 이벤트를 받으면 페이지 경계를 유지하도록 목록을 다시 조회한다',async()=>{
-    renderPage();
+  it('SSE 입찰 이벤트는 목록을 다시 조회하지 않고 캐시된 경매를 갱신한다',async()=>{
+    const{queryClient}=renderPage();
     expect(await screen.findByText('피카츄')).toBeInTheDocument();
 
-    await act(async()=>onAuctionUpdated({type:'BID_PLACED'}));
+    await act(async()=>onAuctionUpdated({
+      type:'BID_PLACED',auction_id:2,bidder_id:7,previous_bidder_id:null,
+      start_price:10_000,current_price:15_000,bid_increment:1_000,bid_count:2,
+      ends_at:'2099-08-04T10:00:00Z',status:'OPEN',auction_version:2,
+      occurred_at:'2026-08-04T10:00:00Z',
+    }));
 
-    await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenCalledTimes(2));
-    expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
-      expect.objectContaining({sort:'BID_COUNT'}),
-      undefined,
-    );
+    expect(apiMocks.fetchAuctions).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData<{pages:{content:AuctionDto[]}[]}>(
+      auctionQueryKeys.list({keyword:'',psaGrade:null,sort:'BID_COUNT',size:12},'public'),
+    )?.pages[0].content[0].currentPrice).toBe(15_000);
   });
 
   it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{

@@ -27,7 +27,7 @@ const detail={
   start_price:10000,current_price:12000,bid_increment:1000,minimum_bid:13000,bid_count:1,
   starts_at:'2026-08-01T10:00:00',ends_at:'2099-08-01T20:00:00',status:'OPEN' as const,
   my_bid_status:'NONE' as const,my_bid_amount:null,version:1,
-  description:'상태 좋음',seller_memo:null,shipping_fee:3000,buy_now_price:20000,
+  description:'상태 좋음',seller_memo:null,seller_grade:null,shipping_fee:3000,buy_now_price:20000,
   photos:[
     {id:11,url:'/uploads/front.png',order:0,representative:true},
     {id:12,url:'/uploads/back.png',order:1,representative:false},
@@ -39,7 +39,10 @@ function renderAnonymousDetail(){
   return render(<QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={['/auction/10']}>
       <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
-        <Routes><Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/></Routes>
+        <Routes>
+          <Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/>
+          <Route path="/cards/:cardId" element={<h1>카드 시세 Route</h1>}/>
+        </Routes>
         <ToastContainer/>
       </AuthContext.Provider>
     </MemoryRouter>
@@ -73,6 +76,15 @@ describe('AuctionDetailPage',()=>{
 
     await waitFor(()=>expect(screen.getByText('로그인이 필요합니다')).toBeInTheDocument());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('즉시 구매가가 없는 경매도 상세 정보를 표시한다',async()=>{
+    apiMocks.detail.mockResolvedValue({...detail,buy_now_price:null});
+
+    renderAnonymousDetail();
+
+    expect(await screen.findByRole('heading',{name:'피카츄'})).toBeInTheDocument();
+    expect(screen.getByText('즉시 구매가 없음')).toBeInTheDocument();
   });
 
   it('상세 정보를 기다리는 동안 실제 레이아웃 스켈레톤을 표시한다',()=>{
@@ -111,5 +123,14 @@ describe('AuctionDetailPage',()=>{
     expect(screen.getByRole('button',{name:'1번째 이미지 보기'}))
       .toHaveAttribute('aria-current','true');
     expect(screen.queryByRole('button',{name:'다음 이미지'})).not.toBeInTheDocument();
+  });
+
+  it('카드 시세 상세 링크는 해당 Card Route로 SPA 이동한다',async()=>{
+    renderAnonymousDetail();
+    const user=userEvent.setup();
+
+    await user.click(await screen.findByRole('link',{name:'카드 시세 상세'}));
+
+    expect(screen.getByRole('heading',{name:'카드 시세 Route'})).toBeInTheDocument();
   });
 });
