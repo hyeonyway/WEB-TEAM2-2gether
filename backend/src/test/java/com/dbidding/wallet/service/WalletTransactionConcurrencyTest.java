@@ -227,6 +227,31 @@ class WalletTransactionConcurrencyTest {
 		assertThat(walletRepository.sumHeldAmount(walletId)).isEqualTo(6_000L);
 	}
 
+	@Test
+	void 같은_경매의_동시_hold는_HELD를_중복_생성하지_않는다() throws Exception {
+		jdbcTemplate.update("UPDATE wallets SET point = 20000 WHERE id = ?", walletId);
+		CountDownLatch snapshotReady = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+		List<Future<WalletBalanceResponse>> futures = List.of(
+			executor.submit(concurrentHold(1, snapshotReady, start)),
+			executor.submit(concurrentHold(1, snapshotReady, start))
+		);
+
+		assertThat(snapshotReady.await(5, TimeUnit.SECONDS)).isTrue();
+		start.countDown();
+		WalletBalanceResponse first = futures.get(0).get(10, TimeUnit.SECONDS);
+		WalletBalanceResponse second = futures.get(1).get(10, TimeUnit.SECONDS);
+
+		assertThat(first.frozenBalance()).isEqualTo(6_000L);
+		assertThat(second.frozenBalance()).isEqualTo(6_000L);
+		assertThat(walletRepository.sumHeldAmount(walletId)).isEqualTo(6_000L);
+		assertThat(jdbcTemplate.queryForObject("""
+			SELECT COUNT(*)
+			FROM wallet_holds
+			WHERE wallet_id = ? AND auction_id = 1 AND status = 'HELD'
+			""", Long.class, walletId)).isEqualTo(1L);
+	}
+
 	private Callable<WalletBalanceResponse> concurrentHold(
 		Integer auctionId,
 		CountDownLatch snapshotReady,
