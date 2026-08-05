@@ -3,8 +3,10 @@ package com.dbidding.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,11 +27,14 @@ class NotificationServiceTest {
     @Mock
     private NotificationRepository notificationRepository;
 
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
     private NotificationService notificationService;
 
     @BeforeEach
     void setUp() {
-        notificationService = new NotificationService(notificationRepository);
+        notificationService = new NotificationService(notificationRepository, jdbcTemplate);
     }
 
     @Test
@@ -52,6 +58,42 @@ class NotificationServiceTest {
         assertThat(result.getUserId()).isEqualTo(1);
         assertThat(result.getAuctionId()).isEqualTo(10);
         assertThat(result.getBidId()).isEqualTo(42L);
+    }
+
+    @Test
+    void 여러_유저의_알림을_한번에_저장하고_존재하는_행까지_함께_조회한다() {
+        List<Integer> userIds = List.of(1, 2, 3);
+        List<Notification> existing = List.of(
+                Notification.of(1, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                Notification.of(2, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                Notification.of(3, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.")
+        );
+        given(notificationRepository.findByAuctionIdAndTypeAndBidIdAndUserIdIn(
+                10, NotificationType.AUCTION_OPENED, Notification.NO_BID, userIds
+        )).willReturn(existing);
+
+        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+                userIds, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        );
+
+        then(jdbcTemplate).should().update(
+                eq("INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)"),
+                eq(1), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다."),
+                eq(2), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다."),
+                eq(3), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다.")
+        );
+        assertThat(result).isEqualTo(existing);
+    }
+
+    @Test
+    void 대상_유저가_없으면_저장_없이_빈_목록을_반환한다() {
+        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+                List.of(), 10, NotificationType.AUCTION_OPENED, "메시지"
+        );
+
+        assertThat(result).isEmpty();
+        then(jdbcTemplate).shouldHaveNoInteractions();
+        then(notificationRepository).should(never()).findByAuctionIdAndTypeAndBidIdAndUserIdIn(any(), any(), any(), any());
     }
 
     @Test

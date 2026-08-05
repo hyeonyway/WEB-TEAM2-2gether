@@ -6,6 +6,7 @@ import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.notification.dto.NotificationResponse;
 import com.dbidding.notification.port.CardNameFinder;
 import com.dbidding.notification.port.WishlistUserFinder;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -35,8 +36,13 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleAuctionOpened(AuctionOpenedEvent event) {
         String message = event.cardName() + " 카드의 경매가 등록되었습니다.";
-        wishlistUserFinder.findUserIdsByCardId(event.itemId())
-                .forEach(userId -> saveAndPush(userId, event.auctionId(), NotificationType.AUCTION_OPENED, Notification.NO_BID, message));
+        List<Integer> userIds = wishlistUserFinder.findUserIdsByCardId(event.itemId());
+        if (userIds.isEmpty()) {
+            return;
+        }
+        notificationService.saveAllIgnoringDuplicates(userIds, event.auctionId(), NotificationType.AUCTION_OPENED, message)
+                .forEach(notification ->
+                        notificationSseConnectionManager.push(notification.getUserId(), NotificationResponse.from(notification)));
     }
 
     @Async

@@ -50,15 +50,15 @@ class NotificationEventListenerTest {
         Notification notification1 = Notification.of(1, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
         Notification notification2 = Notification.of(2, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
         Notification notification3 = Notification.of(3, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-        given(notificationService.save(1, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.")).willReturn(notification1);
-        given(notificationService.save(2, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.")).willReturn(notification2);
-        given(notificationService.save(3, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.")).willReturn(notification3);
+        given(notificationService.saveAllIgnoringDuplicates(
+                List.of(1, 2, 3), 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        )).willReturn(List.of(notification1, notification2, notification3));
 
         listener.handleAuctionOpened(openedEvent());
 
-        verify(notificationService).save(1, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-        verify(notificationService).save(2, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-        verify(notificationService).save(3, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
+        verify(notificationService).saveAllIgnoringDuplicates(
+                List.of(1, 2, 3), 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        );
         verify(notificationSseConnectionManager).push(1, NotificationResponse.from(notification1));
         verify(notificationSseConnectionManager).push(2, NotificationResponse.from(notification2));
         verify(notificationSseConnectionManager).push(3, NotificationResponse.from(notification3));
