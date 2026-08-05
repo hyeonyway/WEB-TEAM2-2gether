@@ -133,7 +133,7 @@ class NotificationEventListenerTest {
 
     private BidPlacedEvent bidPlacedEvent(Integer previousBidderId) {
         return new BidPlacedEvent(
-                100, 10, 1, previousBidderId,
+                100, 10, 1, previousBidderId, previousBidderId == null ? null : 5L,
                 40_000L, 51_000L, 1_000L, 1, now.plusHours(1), AuctionStatus.OPEN, 2L, now
         );
     }
