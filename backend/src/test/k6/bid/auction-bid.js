@@ -167,6 +167,10 @@ function loginAndGetAccessTokens() {
   }
 
   const tokens = [];
+  const loginStartedAt = Date.now();
+  const totalBatches = Math.ceil(users.length / loginBatchSize);
+  console.log(`[setup/login] 시작: ${users.length}명, 배치 크기 ${loginBatchSize}, 총 ${totalBatches}단계`);
+
   for (let start = 0; start < users.length; start += loginBatchSize) {
     const batchUsers = users.slice(start, start + loginBatchSize);
     const responses = http.batch(batchUsers.map(user => ({
@@ -188,7 +192,13 @@ function loginAndGetAccessTokens() {
       }
       tokens.push(accessToken);
     });
+
+    const completed = Math.min(start + batchUsers.length, users.length);
+    const progress = ((completed / users.length) * 100).toFixed(1);
+    const elapsedSeconds = ((Date.now() - loginStartedAt) / 1000).toFixed(1);
+    console.log(`[setup/login] ${completed}/${users.length}명 완료 (${progress}%, ${elapsedSeconds}초)`);
   }
+  console.log(`[setup/login] 완료: ${tokens.length}개 Access Token 발급`);
   return tokens;
 }
 
