@@ -25,6 +25,7 @@ export default function SellPage({Header}){
   const[submitStatus,setSubmitStatus]=useState('idle');
   const[submitError,setSubmitError]=useState('');
   const registrationSubmission=useRef(createRegistrationSubmission()).current;
+  const submittingRef=useRef(false);
   const registerAuction=useMutation(sellMutations.register(registrationSubmission));
   const setField=(key,value)=>setForm(current=>({...current,[key]:value}));
   const validYear=!form.year||/^\d{4}$/.test(form.year);
@@ -38,7 +39,26 @@ export default function SellPage({Header}){
   const lookupPsa=async()=>{if(!validPsa)return;setPsaStatus('loading');const certification=await lookupPsaCertification(psaNumber);setForm(current=>({...current,...certification}));setPsaStatus('success')};
   const addPhotos=event=>{const selected=[...(event.target.files||[])],accepted=selected.filter(file=>['image/png','image/jpeg'].includes(file.type)&&file.size<=10*1024*1024),room=8-photos.length;if(selected.length>room)setPhotoError('사진은 최대 8장까지 등록할 수 있습니다.');else if(accepted.length!==selected.length)setPhotoError('PNG, JPG 형식의 10MB 이하 이미지만 등록할 수 있습니다.');else setPhotoError('');setPhotos(current=>[...current,...accepted.slice(0,room).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))]);event.target.value=''};
   const removePhoto=id=>setPhotos(current=>{const target=current.find(item=>item.id===id);if(target)URL.revokeObjectURL(target.url);return current.filter(item=>item.id!==id)});
-  const submit=async()=>{if(!valid[1]||!valid[2]||!valid[3]){setSubmitError('입력 내용을 다시 확인해 주세요.');return}setSubmitStatus('loading');setSubmitError('');try{const auction=await registerAuction.mutateAsync({form,photos,psaCertification:psaStatus==='success'?psaNumber:null});setSubmitStatus('success');setTimeout(()=>navigate('/auction/'+auction.id),500)}catch{setSubmitStatus('error');setSubmitError('등록에 실패했습니다. 입력값은 유지되었습니다. 잠시 후 다시 시도해 주세요.')}};
+  const submit=async()=>{
+    if(submittingRef.current)return;
+    if(!valid[1]||!valid[2]||!valid[3]){
+      setSubmitError('입력 내용을 다시 확인해 주세요.');
+      return;
+    }
+    submittingRef.current=true;
+    setSubmitStatus('loading');
+    setSubmitError('');
+    try{
+      const auction=await registerAuction.mutateAsync({form,photos,psaCertification:psaStatus==='success'?psaNumber:null});
+      setSubmitStatus('success');
+      setTimeout(()=>navigate('/auction/'+auction.id),500);
+    }catch{
+      setSubmitStatus('error');
+      setSubmitError('등록에 실패했습니다. 입력값은 유지되었습니다. 잠시 후 다시 시도해 주세요.');
+    }finally{
+      submittingRef.current=false;
+    }
+  };
   const review=[['카드명',form.cardName],['세트명',form.setName||'-'],['발행 연도',form.year||'-'],['카드 번호',form.cardNumber||'-'],['언어',form.language],['등급',form.gradeType==='psa'?'PSA '+form.psaGrade:form.selfGrade],['시작가',money(form.startPrice)+'원'],['즉시 구매가',form.buyNowEnabled?money(form.buyNowPrice)+'원':'없음'],['호가 단위',money(form.bidIncrement)+'원'],['경매 시간',form.duration+'시간'],['배송비',money(form.shipping||'0')+'원'],['등록 사진',photos.length+'장']];
 
   return <div className="sell-page">{Header&&<Header/>}<main><SellPageHeader/>

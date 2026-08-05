@@ -148,6 +148,20 @@ describe('AppRoutes', () => {
     );
   });
 
+  it.each([
+    '/cards/not-a-number',
+    '/cards/0',
+    '/cards/-1',
+    '/cards/1.5',
+  ])('%s는 Card API를 호출하지 않고 잘못된 번호를 표시한다', path => {
+    renderRoute(path, 'anonymous');
+
+    expect(screen.getByText('잘못된 카드 번호입니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('status', {name: '카드 시세 상세를 불러오는 중'}))
+      .not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('경매 목록은 anonymous 상태에서도 표시한다', () => {
     renderRoute('/auction', 'anonymous');
 

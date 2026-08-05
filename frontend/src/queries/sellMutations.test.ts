@@ -1,6 +1,8 @@
+import {QueryClient} from '@tanstack/react-query';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {CardDto} from '../dto/auctionDto';
 import type {RegisterAuctionRequestDto} from '../dto/sellDto';
+import {auctionQueryKeys} from './auctionQueries';
 import {sellMutations} from './sellMutations';
 
 const mocks=vi.hoisted(()=>({
@@ -99,5 +101,26 @@ describe('sellMutations',()=>{
 
     expect(mocks.uploadSellImages).not.toHaveBeenCalled();
     expect(mocks.createAuction).not.toHaveBeenCalled();
+  });
+
+  it('등록 성공 시 기존 경매 목록 Query를 무효화한다',async()=>{
+    const queryClient=new QueryClient();
+    const auctionListKey=auctionQueryKeys.list({
+      keyword:'',psaGrade:null,size:12,sort:'LATEST',
+    },'public');
+    const unrelatedKey=['cards','list'] as const;
+    queryClient.setQueryData(auctionListKey,{content:[]});
+    queryClient.setQueryData(unrelatedKey,{content:[]});
+    const mutation=sellMutations.register();
+
+    await mutation.onSuccess?.(
+      {id:20},
+      request,
+      undefined,
+      {client:queryClient,meta:undefined,mutationKey:['sell','register']},
+    );
+
+    expect(queryClient.getQueryState(auctionListKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(unrelatedKey)?.isInvalidated).toBe(false);
   });
 });

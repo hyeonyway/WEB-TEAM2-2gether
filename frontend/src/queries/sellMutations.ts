@@ -3,6 +3,7 @@ import {fetchCardDetail,fetchCardPage} from '../api/auctionApi';
 import {createAuction,uploadSellImages} from '../api/sellApi';
 import type {CardDto} from '../dto/auctionDto';
 import type {AuctionPayload,RegisterAuctionRequestDto,SellForm} from '../dto/sellDto';
+import {auctionQueryKeys} from './auctionQueries';
 
 const normalized=(value:string)=>value.trim().toLocaleLowerCase().replace(/\s+/g,' ');
 const normalizedGrade=(value:string|null|undefined)=>normalized(value??'').replace(/^psa\s*/,'');
@@ -94,6 +95,9 @@ export const sellMutations={
       });
       return createAuction(prepared.payload,prepared.idempotencyKey);
     },
-    onSuccess:()=>submission.clear(),
+    onSuccess:(_data,_variables,_onMutateResult,context)=>{
+      submission.clear();
+      return context.client.invalidateQueries({queryKey:auctionQueryKeys.lists()});
+    },
   }),
 };
