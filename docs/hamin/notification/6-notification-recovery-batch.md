@@ -39,7 +39,29 @@
 - **인-프로세스 락**: 라이브 이벤트 경로와 배치가 현재 같은 JVM에서 돌아서(단일 인스턴스), `(user_id, auction_id, type)` 키로 in-process 락을 걸면 스키마 변경 없이 레이스를 완전히 없앨 수 있었다. 하지만 다중 인스턴스로 스케일아웃할 계획이 실제로 있어서, 인스턴스마다 따로 노는 락은 그 시점에 무의미해지는 임시방편이라 채택하지 않았다.
 - **별도 dedup 테이블**(`notification_dedup_key(user_id, auction_id, type)` PK): DB 레벨에서 크로스 인스턴스로 안전하게 dedup할 수 있는 방법이었지만, 테이블과 트랜잭션을 하나 더 추가하는 비용이 "가끔 중복 알림 하나 더 가는" 리스크를 막는 데 비해 과하다고 판단해 채택하지 않았다.
 
-결과적으로 4개 타입 모두 레이스가 나면 드물게 중복 알림이 갈 수 있다는 걸 감수한다 — 유실보다는 훨씬 나은 실패 모드이고, 스키마는 `type` 컬럼 하나 추가하는 것으로 단순하게 유지된다.
+결과적으로 4개 타입 모두 레이스가 나면 드물게 중복 알림이 갈 수 있다는 걸 감수하기로 했었다 — 유실보다는 훨씬 나은 실패 모드이고, 스키마는 `type` 컬럼 하나 추가하는 것으로 단순하게 유지된다. **다만 이 결정은 아래 결정 2-1에서 뒤집혔다.**
+
+## 결정 2-1 (PR #193 코드래빗 리뷰 이후 재설계): `bid_id`를 추가해 실제 유니크 제약으로 되돌아간다
+
+PR #193 리뷰에서 코드래빗이 결정 2의 판단에 대해 두 가지 문제를 지적했다.
+
+1. **`OUTBID`의 `createdAt` 비교 자체가 취약하다.** 라이브 이벤트 저장이 비동기(`@Async` 스레드풀)라 순서가 뒤바뀔 수 있다. 더 오래된 bid의 알림 저장이 지연돼서 최신 bid보다 늦게 DB에 들어가면, "이 bid 이후에 생성된 OUTBID 알림이 있다"는 시간 비교가 그 지연된(엉뚱한) 알림을 최신 bid의 알림으로 오인해서 진짜 필요한 복구를 건너뛴다. 코드래빗이 파이썬으로 반례까지 만들어 증명했다.
+2. **4개 타입 전부에서 존재 체크와 insert가 원자적이지 않다.** 라이브 리스너, 배치, (나중에) 여러 인스턴스가 동시에 처리하면 둘 다 insert할 수 있다.
+
+두 문제 모두 `Notification`에 "이 알림이 어떤 bid에 대한 것인지"를 저장해두면 한 번에 해결된다:
+
+- bid와 무관한 3개 타입(`AUCTION_OPENED`/`AUCTION_WON`/`AUCTION_UNSOLD`)은 `bid_id = 0`(sentinel, `Notification.NO_BID`)을 쓴다.
+- `OUTBID`는 실제 그 bid의 id — **상회입찰 "당한" bid**(`previousLeadingBid`/`latestBid`)의 id를 저장한다. "상회입찰 한 bid"(새로 리더가 된 쪽)가 아니라 "당한 bid"를 쓰는 이유는, 배치 복구(`recoverOutbidNotifications`)가 이미 그 bid를 순회하며 들고 있어서 추가 조회 없이 바로 키로 쓸 수 있기 때문이다. 반대로 "상회입찰 한 bid"를 쓰려면 "이 유저를 이긴 다음 bid가 뭐였는지"를 역으로 찾는 별도 조회가 필요하고, 그 관계를 저장하는 컬럼도 없다.
+- `UNIQUE (user_id, auction_id, type, bid_id)` 하나로 끝난다. MySQL 유니크 인덱스는 `NULL`만 서로 다른 값으로 취급하고 `0`은 일반 값과 동일하게 취급한다 — 그래서 1회성 3개 타입은 `bid_id=0` 고정이라 겹치면 그대로 막히고(원래 원하던 "경매당 유저당 1회"), `OUTBID`는 bid마다 값이 달라서 재입찰→재outbid의 정당한 반복은 안 막히면서 같은 bid에 대한 중복만 막힌다.
+
+이걸로 결정 2에서 검토했던 대안(인-프로세스 락, 별도 dedup 테이블)이 다시 불필요해졌다 — 인-프로세스 락은 여전히 다중 인스턴스 스케일아웃 계획 때문에 기각 상태고, 별도 dedup 테이블은 `bid_id` 컬럼 하나 추가로 같은 효과를 내서 테이블을 하나 더 만들 이유가 없어졌다.
+
+구현 변경 사항:
+- `BidPlacedEvent`에 `previousBidId` 필드 추가 — `AuctionCommandService.publishBidPlaced`가 이미 `previousLeadingBid`를 들고 있어서 `previousLeadingBid.getId()`만 추가하면 됐다(auction 도메인 담당자와 소통 후 직접 수정).
+- `Notification`에 `bidId` 필드/컬럼, `NO_BID = 0L` 상수, `ofBid(...)`/`NotificationService.saveForBid(...)` 신설(기존 `of`/`save`는 그대로 두고 `bid_id=NO_BID`로 위임).
+- `NotificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(...)`로 4개 타입 전부 같은 방식의 존재 체크. 기존 `existsByUserIdAndAuctionIdAndType`/`existsByUserIdAndAuctionIdAndTypeAndCreatedAtAfter`는 제거.
+- 실제 유니크 제약이 다시 생겼으므로, 배치(`NotificationReconciliationService.saveIgnoringDuplicate`)와 라이브 리스너(`NotificationEventListener`) 양쪽 다 `DataIntegrityViolationException`을 잡아 무시하는 코드가 다시 필요해졌다.
+- 라이브 리스너 쪽은 저장이 중복으로 실패해도 **SSE push는 그대로 보낸다** — `NotificationRepository.findByUserIdAndAuctionIdAndTypeAndBidId(...)`로 배치가 이미 저장해둔 알림을 찾아서 push한다. 배치는 저장만 하고 push를 안 하므로, 이 경우 push까지 스킵하면 지금 SSE로 연결돼 있는 유저가 실시간 알림을 놓친다. 네 핸들러를 `saveAndPush` 하나로 통일해 이 로직을 공유한다.
 
 ## 결정 3: 타입별 복구 쿼리
 
@@ -59,11 +81,17 @@
 1. `bids` WHERE `status = 'LEADING'` → 현재 활성 경매들의 리더 bid 집합 추출 (window 없이 매 사이클 전체 스캔, 아래 설명)
 2. **+ `auctions` WHERE `status IN ('ENDED','FAILED') AND close_time >= :windowStart`인 경매도 후보에 합친다** (아래 "종료 경계" 설명 참고)
 3. 그 경매들에서 유저별 최신 bid(`MAX(id) GROUP BY bidder_id, auction_id`)가 `status = 'OUTBID'`인 것만 추출
-4. 각 row에 대해 `(bidderId, auctionId, OUTBID)` 알림이 그 bid의 `created_at` 이후로 존재하는지 체크 → 없으면 생성
+4. 각 row에 대해 `(bidderId, auctionId, OUTBID, bidId)` 알림이 정확히 존재하는지 체크(`existsByUserIdAndAuctionIdAndTypeAndBidId`) → 없으면 생성 (결정 2-1 전에는 `created_at` 이후 존재 여부로 판단했으나, 비동기 저장 순서가 뒤바뀌는 레이스에 취약해 `bid_id` 정확 일치로 교체했다)
 
-**종료 경계 버그(코드 리뷰로 발견, 수정 완료)**: 처음 구현은 1번만으로 후보를 뽑았는데, 이러면 "상회입찰 직후 ~ 다음 스캔 사이에 경매가 종료되는" 경우를 놓친다 — `closeLockedAuction`이 낙찰 bid를 `LEADING → WON`으로 바꾸는 순간 그 경매엔 더 이상 LEADING bid가 없어져서, `findAuctionIdsByStatus(LEADING)`가 그 경매를 아예 안 돌려준다. 경매 종료 복구는 낙찰자/판매자에게만 알리므로(결정 9), outbid된 나머지 유저는 세 복구 로직 어디에도 안 걸려 **영구 유실**된다. 그래서 2번처럼 최근 종료된 경매도 후보 집합에 합치도록 고쳤다 — 낙찰자는 그 경매에서 `status=WON`이라 3~4번에서 자연히 스킵되고, 나머지 outbid된 유저만 잡힌다. 추가 비용은 `recoverAuctionClosedNotifications`가 이미 쓰는 것과 동일한 인덱스(`idx_auctions_status_close_time`) 기반 쿼리 하나뿐이라 미미하다(호출 빈도만 7분→90초로 늘어남).
+**종료 경계 버그(PR #193 코드래빗 리뷰로 발견, 수정 완료)**: 처음 구현은 1번만으로 후보를 뽑았는데, 이러면 "상회입찰 직후 ~ 다음 스캔 사이에 경매가 종료되는" 경우를 놓친다 — `closeLockedAuction`이 낙찰 bid를 `LEADING → WON`으로 바꾸는 순간 그 경매엔 더 이상 LEADING bid가 없어져서, `findAuctionIdsByStatus(LEADING)`가 그 경매를 아예 안 돌려준다. 경매 종료 복구는 낙찰자/판매자에게만 알리므로(결정 9), outbid된 나머지 유저는 세 복구 로직 어디에도 안 걸려 **영구 유실**된다. 그래서 2번처럼 최근 종료된 경매도 후보 집합에 합치도록 고쳤다 — 낙찰자는 그 경매에서 `status=WON`이라 3~4번에서 자연히 스킵되고, 나머지 outbid된 유저만 잡힌다. 추가 비용은 `recoverAuctionClosedNotifications`가 이미 쓰는 것과 동일한 인덱스(`idx_auctions_status_close_time`) 기반 쿼리 하나뿐이라 미미하다(호출 빈도만 7분→90초로 늘어남).
 
-"유저별 최신 bid"를 가릴 때 `created_at`이 아니라 `id`(AUTO_INCREMENT PK)로 그룹핑한다. `id`는 입찰 순서를 그대로 반영하면서(`created_at`과 동일한 정보) 항상 유일해 동시각 충돌 걱정이 없고, InnoDB는 모든 세컨더리 인덱스 leaf에 PK(`id`)를 자동으로 붙이기 때문에 `(auction_id, user_id)` 같은 복합 인덱스만 있으면 `MAX(id)`가 인덱스만으로 바로 해결된다(`created_at`은 이 혜택이 없어 별도로 복합 인덱스에 명시해야만 정렬 기준으로 쓸 수 있다). 3번 단계의 "그 bid 이후 알림이 있는지" 비교는 여전히 그 row의 `created_at` 값을 그대로 쓴다 — 그룹핑 기준만 `id`로 바뀌는 것이고, `select b1.*`로 가져온 row엔 `created_at`도 같이 들어있다.
+리뷰 스레드에서 "종료 임박 입찰은 앤티스나이핑으로 5분 연장되고, `UrgentNotificationRecoveryScheduler`가 90초 간격이니 그 안에 최소 2번은 복구가 돌아서 `WON` 전환 전에 이미 잡히지 않냐"는 반박이 나왔다. 이 반박 자체는 **"수정 전" 코드(1번만으로 후보를 뽑던 버전) 기준으로는 불충분한 논리였다** — `fixedDelay`는 이전 실행 완료 시점부터 다음 실행까지의 간격이라 5분 동안 정확히 2회 실행된다는 보장이 없고, 앱이 중단됐다 재기동하는 경우엔 재기동 시점에 이미 `WON`으로 전환돼 있어서 "종료 전에 잡힌다"는 전제 자체가 깨지기 때문이다.
+
+**다만 이건 "수정 전" 코드에 대한 반박이고, 지금 코드(2번: 최근 종료된 경매도 후보에 포함)는 앱이 얼마나 오래 멈췄다 재기동하든 상관없이 이 케이스를 잡는다.** 이유: `AuctionCommandService.closeLockedAuction(auction, closedAt)`의 `closedAt`은 항상 **실제로 종료 처리가 실행되는 시점의 `now()`**이고, `closeWithWinningBid`/`closeWithoutTrade`가 `closeTime`을 그 값으로 덮어쓴다 — 즉 `close_time`은 원래 예정된 마감 시각이 아니라 "언제 실제로 처리됐는가"를 반영한다. `AuctionDeadlineScheduler.scheduleOnStartup()`은 `ApplicationReadyEvent`에서 바로 밀린 경매를 즉시 닫기 때문에, 앱이 15분이든 1시간이든 멈췄다 재기동해도 재기동 직후 `close_time`이 "최근" 값으로 다시 찍히고, 90초 뒤 첫 복구 실행에서 `close_time >= now - 10분` 조건을 항상 통과한다.
+
+진짜 남는 잔여 리스크는 이 outage 시나리오가 아니라, 결정 5에서 이미 인지하고 감수하기로 한 것과 같다 — **복구 스케줄러 자체가 window(10분)보다 오래 다운되는 경우**(예: 경매는 정상적으로 닫혔는데 복구 스케줄러만 별도 설정 등으로 오래 멈춰서 그 window를 놓치는 경우)만 여전히 못 막는다. 회귀 테스트(`NotificationReconciliationServiceTest.상회입찰_직후_경매가_종료돼_LEADING이_사라져도_outbid_유저를_복구한다`)로 종료 경계 자체는 검증한다.
+
+"유저별 최신 bid"를 가릴 때 `created_at`이 아니라 `id`(AUTO_INCREMENT PK)로 그룹핑한다. `id`는 입찰 순서를 그대로 반영하면서(`created_at`과 동일한 정보) 항상 유일해 동시각 충돌 걱정이 없고, InnoDB는 모든 세컨더리 인덱스 leaf에 PK(`id`)를 자동으로 붙이기 때문에 `(auction_id, user_id)` 같은 복합 인덱스만 있으면 `MAX(id)`가 인덱스만으로 바로 해결된다(`created_at`은 이 혜택이 없어 별도로 복합 인덱스에 명시해야만 정렬 기준으로 쓸 수 있다). 이 그룹핑으로 뽑은 `latestBid`의 `id`는 결정 2-1의 `bid_id` dedup 키로도 그대로 재사용된다 — 별도 조회 없이 `latestBid.getId()`가 곧 존재 체크·저장 양쪽의 키다.
 
 경매 생성/종료는 "최근 window 안의 활동"만 스캔하도록 설계했다 — 이 두 쿼리는 `auctions` 테이블에서 필터링하는데, `open_time`/`close_time` 기준 없이 상태만 걸면 결과 집합이 계속 쌓이는 이력(특히 `ENDED`/`FAILED`)까지 다 딸려오기 때문이다.
 
@@ -77,10 +105,13 @@
 
 `backend/src/main/java/com/dbidding/batch`는 현재 `.gitkeep`만 있는 빈 패키지로, 정확히 이런 크로스 도메인 배치 작업을 위해 예약된 자리로 판단해 여기에 둔다. `batch`는 다른 도메인이 참조할 일이 없는 top-level 오케스트레이터라 각 도메인의 기존 public 서비스(`AuctionQueryService`, `WishlistService`, `BidRepository`, `NotificationService.save`)를 직접 호출해도 역방향 결합 문제가 없다.
 
-예정 구조:
+구현 구조:
 - `batch/service/NotificationReconciliationService.java` — 결정 3의 세 쿼리/생성 로직
 - `batch/scheduler/UrgentNotificationRecoveryScheduler.java` — 경매 생성 + 상회 입찰
 - `batch/scheduler/AuctionResultNotificationRecoveryScheduler.java` — 경매 종료
+- `batch/config/NotificationRecoverySchedulingConfig.java` — 전용 `TaskScheduler` 빈
+
+**PR #193 리뷰에서도 같은 논쟁이 나왔다.** 코드래빗이 "`batch`가 `Auction`/`Bid`/`AuctionRepository`/`BidRepository`/`WishlistService`를 직접 참조하니 소비자 소유 Port로 분리하라"고 지적했는데, "그러면 (auction/wishlist 담당자의) 어댑터 구현을 또 기다려야 해서 지연된다"고 반박하자 코드래빗이 리뷰를 철회했다 — 이 프로젝트 규모에서는 단순 조회를 위해 포트/어댑터를 미리 만드는 것보다 직접 호출하는 게 낫다는 판단과 같은 결론이다.
 
 ## 결정 5: 스케줄러는 "타입"이 아니라 "긴급도" 기준 2개로 나눈다
 
@@ -160,11 +191,17 @@ ALTER TABLE bids ADD INDEX idx_bids_status (status);
 
 `BidStatus`는 `LEADING`/`OUTBID`/`WON`/`CANCELLED` 4개인데, `CANCELLED`가 정의만 돼 있고 실제로 세팅되는 곳이 없다(`Bid.java`, 전체 검색 결과 — 설계 논의 당시엔 이 값이 `LOST`/`WITHDRAWN` 두 개였으나 이후 `CANCELLED` 하나로 리팩터링됐고, 미사용이라는 결론 자체는 그대로다). 경매가 끝나도 낙찰 못 한 나머지 bid는 그냥 `OUTBID` 상태로 남는다. 이번 복구 설계는 "낙찰자/판매자"만 종료 알림을 받는 기존 동작을 그대로 전제하며, "낙찰 실패자에게도 종료를 알린다"는 기능 확장은 다루지 않는다. 나중에 그 기능이 필요해지면 `closeLockedAuction`에서 나머지 bid들의 상태 처리(`CANCELLED` 세팅)부터 다시 설계해야 한다.
 
-## 미결정/다음 단계
+## 구현 완료 (이슈 #189, PR #193)
 
-- `type` 컬럼 추가 마이그레이션 및 `Notification` 엔티티 변경, `NotificationService.save(...)` 시그니처에 `type` 추가 및 `NotificationEventListener` 세 핸들러 호출부 수정(결정 1, 같은 이슈로 묶음)
-- `batch` 도메인 실제 구현(서비스/스케줄러), 배치 insert 시 unique 제약 위반 예외 처리(결정 2)
-- 결정 7의 인덱스(`bids(status)`) 마이그레이션
-- 결정 8(fan-out batch insert)은 별도 이슈로 트래킹할지 결정 필요
+- `type`/`bid_id` 컬럼 추가, `(user_id, auction_id, type, bid_id)` 유니크 제약(결정 1, 2, 2-1)
+- `NotificationService.save`/`saveForBid`, `NotificationEventListener` 네 핸들러를 `saveAndPush`로 통일 + 중복 레이스 시 SSE push 유지(결정 2-1)
+- `batch` 도메인 구현(`NotificationReconciliationService`, 스케줄러 2개, 전용 스케줄링 설정)(결정 4, 5)
+- `bids(status)` 인덱스 마이그레이션(결정 7)
+- 종료 경계 OUTBID 누락 버그 수정 + 회귀 테스트(결정 3, PR #193 리뷰로 발견)
+
+## 별도 이슈로 분리
+
+- 결정 8(경매 생성 fan-out batch insert 개선) — 이슈 #190
+- 결정 9(`BidStatus.CANCELLED`/낙찰 실패자 종료 알림) — 아직 이슈화 안 함, 필요해지면 별도 논의
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
