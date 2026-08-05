@@ -179,6 +179,7 @@ CREATE TABLE auctions
     buy_now_price        BIGINT       NULL,
     seller_memo          VARCHAR(1000) NULL,
     psa_certification    VARCHAR(32)  NULL,
+    self_grade           VARCHAR(32)  NULL,
     delivery_fee         BIGINT       NOT NULL,
     status               VARCHAR(255) NOT NULL,
     open_time            TIMESTAMP(6) NOT NULL,

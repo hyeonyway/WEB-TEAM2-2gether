@@ -81,6 +81,8 @@ describe('sellApi',()=>{
       description:'설명',
       sellerMemo:null,
       psaCertification:null,
+      gradeType:'psa',
+      selfGrade:null,
       imageUploadTokens:['upload/2026/07/31/front.jpg'],
       startPrice:10000,
       bidIncrement:1000,
@@ -110,6 +112,8 @@ describe('sellApi',()=>{
     expect(JSON.parse(String(options?.body))).toMatchObject({
       sellerMemo:'구매자에게 전달할 메모',
       psaCertification:'12345678',
+      gradeType:'psa',
+      selfGrade:null,
       buyNowPrice:null,
     });
   });

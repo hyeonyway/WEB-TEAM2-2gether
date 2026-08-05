@@ -102,6 +102,7 @@ export type AuctionPhotoResponseDto={
 export type AuctionDetailResponseDto=AuctionResponseDto&{
   description:string;
   seller_memo:string|null;
+  seller_grade:string|null;
   shipping_fee:number;
   buy_now_price:number|null;
   photos:AuctionPhotoResponseDto[];

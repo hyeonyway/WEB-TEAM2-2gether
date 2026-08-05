@@ -298,6 +298,7 @@ public class AuctionQueryService {
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .description(auction.getDescription())
                 .sellerMemo(auction.getSellerMemo())
+                .sellerGrade(auction.getSelfGrade())
                 .shippingFee(auction.getDeliveryFee())
                 .buyNowPrice(auction.getBuyNowPrice())
                 .photos(photos(images))

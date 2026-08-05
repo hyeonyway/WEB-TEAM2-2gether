@@ -27,12 +27,15 @@ async function resolveCard(form:SellForm){
     page++;
   }
   const details=await Promise.all(cards.map(card=>fetchCardDetail(card.id)));
-  const matches=details.filter(card=>
+  const baseMatches=details.filter(card=>
     normalized(card.name)===normalized(form.cardName)
     &&(!form.setName.trim()||normalized(card.set_name)===normalized(form.setName))
     && normalizedLanguage(card.language)===normalizedLanguage(form.language)
-    && normalizedGrade(card.psa_grade)===normalizedGrade(selectedGrade)
   );
+  const gradeMatches=baseMatches.filter(card=>
+    normalizedGrade(card.psa_grade)===normalizedGrade(selectedGrade)
+  );
+  const matches=form.gradeType==='psa'||gradeMatches.length>0?gradeMatches:baseMatches;
   if(matches.length===0)throw new Error('입력한 세트, 언어, 등급과 일치하는 카드 정보를 찾을 수 없습니다.');
   if(matches.length>1)throw new Error('카드 정보가 여러 건입니다. 세트, 언어, 등급을 더 정확히 입력해 주세요.');
   return matches[0];

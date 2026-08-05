@@ -75,6 +75,7 @@ export default function AuctionDetailPage(){
   const recentBids=bidsQuery.data.content;
   const auction=mapAuction(detail);
   const grade=normalizePsaGrade(detail.card.psa_grade);
+  const gradeLabel=detail.seller_grade??`PSA ${grade}`;
   const language=mapCardLanguage(detail.card.language);
   const remaining=formatRemaining(detail.ends_at,now);
   const ended=!['OPEN','ENDING'].includes(detail.status)||remaining==='경매 종료';
@@ -89,7 +90,7 @@ export default function AuctionDetailPage(){
       </section>
       <section className="auction-bid-panel">
         <div className="auction-detail-title">
-          <div className="detail-grades"><span className="grade">PSA {grade}</span><span className="grade">{language}</span></div>
+          <div className="detail-grades"><span className="grade">{gradeLabel}</span><span className="grade">{language}</span></div>
           <h1>{detail.card.name}</h1>
           <p>{detail.card.set_name} · {detail.card.language}</p>
           <small>경매번호 AUCTION-{String(detail.id).padStart(4,'0')}</small>
@@ -99,7 +100,7 @@ export default function AuctionDetailPage(){
         <div className="auction-bid-summary">
           <span>다음 최소 입찰가<b>{minimumBid.toLocaleString()}원</b></span>
           <span>누적 입찰 수<b>{detail.bid_count.toLocaleString()}건</b></span>
-          <span>PSA 등급<b>PSA {grade}</b></span>
+          <span>등급 및 상태<b>{gradeLabel}</b></span>
         </div>
         {context&&<div className="auction-wallet-summary"><span><Wallet/>보유 포인트</span><strong>{context.wallet.available_balance.toLocaleString()}P</strong></div>}
         <button className="auction-detail-bid-button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setBidOpen(true)}}>

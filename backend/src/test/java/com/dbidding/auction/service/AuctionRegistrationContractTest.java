@@ -107,7 +107,7 @@ class AuctionRegistrationContractTest {
     void 판매자_메모와_PSA_인증번호를_경매에_저장한다() {
         AuctionCreateRequest request = new AuctionCreateRequest(
                 1, "피카츄 경매", "설명", "구매자에게 전달할 메모", "12345678", List.of("upload-token"),
-                10_000L, 1_000L, 20_000L, 12, 3_000L
+                10_000L, 1_000L, 20_000L, 12, 3_000L, "psa", null
         );
 
         auctionService.create(1, request, "registration-metadata-key");
@@ -116,6 +116,43 @@ class AuctionRegistrationContractTest {
         verify(auctionRepository).save(captor.capture());
         assertThat(captor.getValue().getSellerMemo()).isEqualTo("구매자에게 전달할 메모");
         assertThat(captor.getValue().getPsaCertification()).isEqualTo("12345678");
+    }
+
+    @Test
+    void 자체_평가_등급을_경매에_저장한다() {
+        AuctionCreateRequest request = new AuctionCreateRequest(
+                1, "피카츄 경매", "설명", null, null, List.of("upload-token"),
+                10_000L, 1_000L, null, 12, 3_000L, "self", "민트"
+        );
+
+        auctionService.create(1, request, "self-grade-key");
+
+        ArgumentCaptor<Auction> captor = ArgumentCaptor.forClass(Auction.class);
+        verify(auctionRepository).save(captor.capture());
+        assertThat(captor.getValue().getSelfGrade()).isEqualTo("민트");
+    }
+
+    @Test
+    void 즉시_구매가는_첫_입찰_최소가_이상이어야_한다() {
+        reset(
+                auctionRepository,
+                auctionImageRepository,
+                bidRepository,
+                walletPort,
+                imageUploadPort,
+                auctionCardPort,
+                auctionCardStatisticPort,
+                auctionEventPort,
+                eventPublisher
+        );
+        AuctionCreateRequest request = new AuctionCreateRequest(
+                1, "피카츄 경매", "설명", null, null, List.of("upload-token"),
+                10_000L, 5_000L, 11_000L, 12, 3_000L, "self", "민트"
+        );
+
+        assertThatThrownBy(() -> auctionService.create(1, request, "buy-now-range-key"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("호가 단위");
     }
 
     @Test
@@ -136,7 +173,7 @@ class AuctionRegistrationContractTest {
         ));
         AuctionCreateRequest request = new AuctionCreateRequest(
                 1, "피카츄 경매", "설명", null, null, List.of("upload-token"),
-                10_000L, 1_000L, null, 12, 3_000L
+                10_000L, 1_000L, null, 12, 3_000L, "psa", null
         );
 
         assertThatThrownBy(() -> auctionService.create(1, request, "psa-required-key"))
@@ -153,7 +190,7 @@ class AuctionRegistrationContractTest {
         for (String certification : List.of("1234567", "1234567890")) {
             AuctionCreateRequest request = new AuctionCreateRequest(
                     1, "피카츄 경매", "설명", null, certification, List.of("upload-token"),
-                    10_000L, 1_000L, null, 12, 3_000L
+                    10_000L, 1_000L, null, 12, 3_000L, "psa", null
             );
 
             assertThatCode(() -> auctionService.create(1, request, "psa-" + certification))

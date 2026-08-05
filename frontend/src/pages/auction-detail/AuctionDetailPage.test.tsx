@@ -27,7 +27,7 @@ const detail={
   start_price:10000,current_price:12000,bid_increment:1000,minimum_bid:13000,bid_count:1,
   starts_at:'2026-08-01T10:00:00',ends_at:'2099-08-01T20:00:00',status:'OPEN' as const,
   my_bid_status:'NONE' as const,my_bid_amount:null,version:1,
-  description:'상태 좋음',seller_memo:null,shipping_fee:3000,buy_now_price:20000,
+  description:'상태 좋음',seller_memo:null,seller_grade:null,shipping_fee:3000,buy_now_price:20000,
   photos:[
     {id:11,url:'/uploads/front.png',order:0,representative:true},
     {id:12,url:'/uploads/back.png',order:1,representative:false},

@@ -56,6 +56,9 @@ public class Auction {
     @Column(name = "psa_certification", length = 32)
     private String psaCertification;
 
+    @Column(name = "self_grade", length = 32)
+    private String selfGrade;
+
     @Column(name = "delivery_fee", nullable = false)
     private Long deliveryFee;
 
@@ -99,6 +102,7 @@ public class Auction {
             String description,
             String sellerMemo,
             String psaCertification,
+            String selfGrade,
             Long startPrice,
             Long buyNowPrice,
             Long deliveryFee,
@@ -114,6 +118,7 @@ public class Auction {
         this.description = description;
         this.sellerMemo = sellerMemo;
         this.psaCertification = psaCertification;
+        this.selfGrade = selfGrade;
         this.startPrice = startPrice;
         this.currentPrice = startPrice;
         this.buyNowPrice = buyNowPrice;

@@ -85,7 +85,7 @@ public class AuctionCommandService {
         }
 
         AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(request.itemId());
-        validatePsaCertification(card, request.psaCertification());
+        validatePsaCertification(request.gradeType(), request.psaCertification());
         List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
         validateImages(images);
 
@@ -98,6 +98,7 @@ public class AuctionCommandService {
                 .description(request.description())
                 .sellerMemo(request.sellerMemo())
                 .psaCertification(request.psaCertification())
+                .selfGrade(request.selfGrade())
                 .startPrice(request.startPrice())
                 .buyNowPrice(request.buyNowPrice())
                 .deliveryFee(request.shippingFee())
@@ -269,16 +270,17 @@ public class AuctionCommandService {
     }
 
     private void validateCreateRequest(AuctionCreateRequest request) {
-        if (request.buyNowPrice() != null && request.buyNowPrice() <= request.startPrice()) {
-            throw new ResponseStatusException(BAD_REQUEST, "즉시구매가는 시작가보다 커야 합니다.");
+        if (request.buyNowPrice() != null
+                && request.buyNowPrice() - request.startPrice() < request.bidIncrement()) {
+            throw new ResponseStatusException(BAD_REQUEST, "즉시구매가는 시작가와 호가 단위의 합 이상이어야 합니다.");
         }
         if (request.imageUploadTokens().size() > MAX_IMAGE_COUNT) {
             throw new ResponseStatusException(BAD_REQUEST, "이미지는 최대 8장까지 등록할 수 있습니다.");
         }
     }
 
-    private void validatePsaCertification(AuctionCardPort.CardSnapshot card, String psaCertification) {
-        if (card.psaGrade() != null && card.psaGrade().trim().toUpperCase().startsWith("PSA")
+    private void validatePsaCertification(String gradeType, String psaCertification) {
+        if ("psa".equalsIgnoreCase(gradeType)
                 && (psaCertification == null || !psaCertification.matches("\\d{7,10}"))) {
             throw new ResponseStatusException(BAD_REQUEST, "PSA 등급 카드는 7~10자리 PSA 인증번호가 필요합니다.");
         }
@@ -536,6 +538,8 @@ public class AuctionCommandService {
                 request.description(),
                 request.sellerMemo(),
                 request.psaCertification(),
+                request.gradeType(),
+                request.selfGrade(),
                 request.imageUploadTokens(),
                 request.startPrice(),
                 request.bidIncrement(),
@@ -571,6 +575,6 @@ public class AuctionCommandService {
             }
             return;
         }
-        digest.update(String.valueOf(value).getBytes(StandardCharsets.UTF_8));
+        digest.update((value == null ? "" : String.valueOf(value)).getBytes(StandardCharsets.UTF_8));
     }
 }
