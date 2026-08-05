@@ -40,6 +40,18 @@ class NotificationServiceTest {
         assertThat(result.getUserId()).isEqualTo(1);
         assertThat(result.getAuctionId()).isEqualTo(10);
         assertThat(result.getMessage()).isEqualTo("찜한 카드의 경매가 등록되었습니다.");
+        assertThat(result.getBidId()).isEqualTo(Notification.NO_BID);
+    }
+
+    @Test
+    void bid에_연결된_알림을_저장한다() {
+        given(notificationRepository.save(any(Notification.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        Notification result = notificationService.saveForBid(1, 10, NotificationType.OUTBID, 42L, "상회 입찰이 발생했습니다.");
+
+        assertThat(result.getUserId()).isEqualTo(1);
+        assertThat(result.getAuctionId()).isEqualTo(10);
+        assertThat(result.getBidId()).isEqualTo(42L);
     }
 
     @Test

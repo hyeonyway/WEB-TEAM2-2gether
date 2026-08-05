@@ -1,6 +1,5 @@
 package com.dbidding.notification;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Pageable;
@@ -11,14 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    boolean existsByUserIdAndAuctionIdAndType(Integer userId, Integer auctionId, NotificationType type);
-
-    boolean existsByUserIdAndAuctionIdAndTypeAndCreatedAtAfter(
-            Integer userId,
-            Integer auctionId,
-            NotificationType type,
-            LocalDateTime after
-    );
+    boolean existsByUserIdAndAuctionIdAndTypeAndBidId(Integer userId, Integer auctionId, NotificationType type, Long bidId);
 
     List<Notification> findByUserIdOrderByIdDesc(Integer userId, Pageable pageable);
 

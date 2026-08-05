@@ -27,6 +27,11 @@ public class NotificationService {
         return notificationRepository.save(Notification.of(userId, auctionId, type, message));
     }
 
+    @Transactional
+    public Notification saveForBid(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {
+        return notificationRepository.save(Notification.ofBid(userId, auctionId, type, bidId, message));
+    }
+
     public NotificationPage findPage(Integer userId, Long cursor, int size, boolean unreadOnly) {
         if (size < MIN_PAGE_SIZE || size > MAX_PAGE_SIZE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "size는 %d에서 %d 사이여야 합니다.".formatted(MIN_PAGE_SIZE, MAX_PAGE_SIZE));

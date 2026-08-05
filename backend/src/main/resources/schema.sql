@@ -374,6 +374,12 @@ CREATE TABLE notification
     user_id    INT          NOT NULL,
     auction_id INT          NOT NULL,
     type       VARCHAR(32)  NOT NULL,
+    -- OUTBID는 실제 bid.id를 저장하고, bid와 무관한 나머지 타입(AUCTION_OPENED/WON/UNSOLD)은
+    -- 0(사용 안 함을 뜻하는 sentinel)을 저장한다. MySQL UNIQUE 인덱스는 NULL만 서로 다른 값으로
+    -- 취급하고 0은 일반 값과 동일하게 취급하므로, 이 컬럼 하나로 두 dedup 요구사항을 모두 만족한다:
+    -- 1회성 타입은 (user_id, auction_id, type, 0)로 경매당 유저당 1회 dedup, OUTBID는
+    -- (user_id, auction_id, type, bid_id)로 그 bid에 대해서만 dedup.
+    bid_id     BIGINT       NOT NULL DEFAULT 0,
     message    VARCHAR(300) NOT NULL,
     is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -381,6 +387,8 @@ CREATE TABLE notification
     CONSTRAINT pk_notification PRIMARY KEY (id),
     CONSTRAINT fk_notification_user
         FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT uk_notification_user_auction_type_bid
+        UNIQUE (user_id, auction_id, type, bid_id),
 
     INDEX idx_notification_user_id (user_id),
     INDEX idx_notification_user_id_is_read (user_id, is_read)

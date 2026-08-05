@@ -37,7 +37,10 @@ public class NotificationEventListener {
         }
         String cardName = cardNameFinder.findNameById(event.itemId());
         String message = cardName + " 카드 경매에 " + "%,d".formatted(event.currentPrice()) + "원에 상회 입찰이 발생했습니다.";
-        notifyAndPush(event.previousBidderId(), event.auctionId(), NotificationType.OUTBID, message);
+        Notification saved = notificationService.saveForBid(
+                event.previousBidderId(), event.auctionId(), NotificationType.OUTBID, event.previousBidId(), message
+        );
+        notificationSseConnectionManager.push(event.previousBidderId(), NotificationResponse.from(saved));
     }
 
     @Async

@@ -75,12 +75,12 @@ class NotificationEventListenerTest {
     void 상회_입찰이_발생하면_이전_최고_입찰자에게_금액과_함께_알림을_보내고_SSE로_push한다() {
         listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationSseConnectionManager);
         given(cardNameFinder.findNameById(10)).willReturn("리자몽 EX");
-        Notification notification = Notification.of(5, 100, NotificationType.OUTBID, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.");
-        given(notificationService.save(5, 100, NotificationType.OUTBID, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.")).willReturn(notification);
+        Notification notification = Notification.ofBid(5, 100, NotificationType.OUTBID, 5L, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.");
+        given(notificationService.saveForBid(5, 100, NotificationType.OUTBID, 5L, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.")).willReturn(notification);
 
         listener.handleBidPlaced(bidPlacedEvent(5));
 
-        verify(notificationService).save(5, 100, NotificationType.OUTBID, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.");
+        verify(notificationService).saveForBid(5, 100, NotificationType.OUTBID, 5L, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.");
         verify(notificationSseConnectionManager).push(5, NotificationResponse.from(notification));
     }
 
