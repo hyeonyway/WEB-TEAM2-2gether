@@ -1,6 +1,7 @@
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {render,screen,waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {MemoryRouter} from 'react-router-dom';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import SellPage from './index';
 
@@ -27,7 +28,7 @@ vi.mock('../../queries/sellMutations',()=>({
 
 function renderPage(){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
-  return render(<QueryClientProvider client={queryClient}><SellPage Header={()=>null}/></QueryClientProvider>);
+  return render(<QueryClientProvider client={queryClient}><MemoryRouter><SellPage Header={()=>null}/></MemoryRouter></QueryClientProvider>);
 }
 
 describe('SellPage card selection',()=>{
