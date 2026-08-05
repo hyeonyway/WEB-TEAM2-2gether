@@ -384,7 +384,7 @@ public class AuctionCommandService {
             return;
         }
         previousLeadingBid.markOutbid();
-        if (!previousLeadingBid.getBidderId().equals(currentBidderId)) {
+        if (requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)) {
             walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auction.getId());
             log.info(
                     "event=auction.bid.previous_hold.released auctionId={} previousBidId={} previousBidderId={} previousBidPrice={} currentBidderId={}",
@@ -397,9 +397,13 @@ public class AuctionCommandService {
         }
     }
 
-    private boolean shouldReleasePreviousHoldFirst(Bid previousLeadingBid, Integer currentBidderId) {
+    private boolean requiresPreviousHoldRelease(Bid previousLeadingBid, Integer currentBidderId) {
         return previousLeadingBid != null
-                && !previousLeadingBid.getBidderId().equals(currentBidderId)
+                && !previousLeadingBid.getBidderId().equals(currentBidderId);
+    }
+
+    private boolean shouldReleasePreviousHoldFirst(Bid previousLeadingBid, Integer currentBidderId) {
+        return requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)
                 && previousLeadingBid.getBidderId() < currentBidderId;
     }
 

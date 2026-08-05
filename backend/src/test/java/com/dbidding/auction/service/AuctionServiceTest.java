@@ -277,7 +277,7 @@ class AuctionServiceTest {
     @Test
     void 현재_입찰자_ID가_더_작으면_hold_후_release_순서로_지갑을_잠근다() {
         Auction auction = auction(11_000L, 1_000L);
-        Bid previousLeadingBid = Bid.leading(2, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
+        Bid previousLeadingBid = Bid.leading(3, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.of(previousLeadingBid));
@@ -287,9 +287,9 @@ class AuctionServiceTest {
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
         var walletOrder = inOrder(walletPort);
         walletOrder.verify(walletPort).holdBidAmount(1, 1, 12_000L);
-        walletOrder.verify(walletPort).releaseBidHold(2, 1);
+        walletOrder.verify(walletPort).releaseBidHold(3, 1);
         verify(auctionEventPort).publishBidPlaced(argThat(event ->
-                event.previousBidderId().equals(2)
+                event.previousBidderId().equals(3)
         ));
     }
 

@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.RepeatedTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -77,9 +77,10 @@ class AuctionBidWalletLockOrderConcurrencyTest {
 	void tearDown() throws InterruptedException {
 		executor.shutdownNow();
 		executor.awaitTermination(5, TimeUnit.SECONDS);
+		deleteFixtures();
 	}
 
-	@Test
+	@RepeatedTest(2)
 	void 서로_다른_경매의_교차_outbid는_지갑_데드락_없이_모두_성공한다() throws Exception {
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
@@ -105,6 +106,7 @@ class AuctionBidWalletLockOrderConcurrencyTest {
 
 		assertThat(first.get(10, TimeUnit.SECONDS).bid().amount()).isEqualTo(12_000L);
 		assertThat(second.get(10, TimeUnit.SECONDS).bid().amount()).isEqualTo(12_000L);
+		assertThat(walletPort.firstLockTargets()).containsExactly(1);
 	}
 
 	private Callable<BidResponses.BidResult> participate(
@@ -180,6 +182,16 @@ class AuctionBidWalletLockOrderConcurrencyTest {
 			""");
 	}
 
+	private void deleteFixtures() {
+		jdbcTemplate.update("DELETE FROM wallet_holds WHERE auction_id IN (1, 2)");
+		jdbcTemplate.update("DELETE FROM wallets WHERE user_id IN (1, 2)");
+		jdbcTemplate.update("DELETE FROM bids WHERE auction_id IN (1, 2)");
+		jdbcTemplate.update("DELETE FROM auctions WHERE id IN (1, 2)");
+		jdbcTemplate.update("DELETE FROM card_metadata WHERE id IN (1, 2)");
+		jdbcTemplate.update("DELETE FROM card_sets WHERE id = 1");
+		jdbcTemplate.update("DELETE FROM users WHERE id IN (1, 2, 3)");
+	}
+
 	private static void await(CountDownLatch latch) {
 		try {
 			if (!latch.await(5, TimeUnit.SECONDS)) {
@@ -217,6 +229,10 @@ class AuctionBidWalletLockOrderConcurrencyTest {
 			firstTargets.clear();
 			firstCallsReady = new CountDownLatch(2);
 			distinctFirstLocksAcquired = new CountDownLatch(2);
+		}
+
+		Set<Integer> firstLockTargets() {
+			return Set.copyOf(firstTargets);
 		}
 
 		@Override
