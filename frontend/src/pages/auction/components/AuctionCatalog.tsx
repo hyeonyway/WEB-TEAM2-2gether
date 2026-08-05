@@ -1,5 +1,6 @@
 import {CheckCircle2,Clock3,Search} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
+import {Link} from 'react-router-dom';
 import {AuctionBidDialog} from '../../../components';
 import type {AuctionDto} from '../../../dto/auctionDto';
 import CardArtwork from '../../cards/components/CardArtwork';
@@ -68,7 +69,7 @@ export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
         <span>총 입찰<b>{auction.bidCount.toLocaleString()}회</b></span>
       </div>
       <div className="card-actions">
-        <button className="card-detail-button" type="button" onClick={()=>window.location.href=`/auction/${auction.id}`}>상세보기</button>
+        <Link className="card-detail-button" to={`/auction/${auction.id}`}>상세보기</Link>
         <button className={`card-bid-button ${buttonState}`} type="button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setSelectedAuction(auction)}}>
           {ended?'경매 종료':auction.myBidStatus==='LEADING'?<><CheckCircle2/><span><b>내가 최고가 입찰 중</b><small>현재 1위 · 입찰 현황 보기</small></span></>:auction.myBidStatus==='OUTBID'?<><b>상회 입찰 필요</b><small>내 입찰 {(auction.myBidAmount??0).toLocaleString()}원</small></>:<b>입찰하기</b>}
         </button>

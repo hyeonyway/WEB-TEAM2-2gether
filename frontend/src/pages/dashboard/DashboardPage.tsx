@@ -1,6 +1,7 @@
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Search} from 'lucide-react';
 import {useState} from 'react';
+import {Link} from 'react-router-dom';
 import {Header} from '../../components';
 import type {ParticipatingAuctionSort,RecentWinSort} from '../../api/dashboardApi';
 import {applyDashboardAuctionEvent,dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries';
@@ -49,7 +50,7 @@ export default function DashboardPage(){
   return <div className="cards-mypage standalone-dashboard enhanced-cards"><Header/><main>
     <div className="cards-dash-title">
       <div><small>MY PAGE</small><h1>경매 대시보드</h1><p>내 카드 경매 현황을 빠르게 확인하세요.</p></div>
-      <a className="dashboard-all-auctions" href="/auction">전체 카드 경매 <ChevronRight/></a>
+      <Link className="dashboard-all-auctions" to="/auction">전체 카드 경매 <ChevronRight/></Link>
     </div>
     <label className="card-search"><Search/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="내 경매 카드 검색..."/></label>
     <div className="dashboard-filters" role="tablist" aria-label="대시보드 목록 필터">

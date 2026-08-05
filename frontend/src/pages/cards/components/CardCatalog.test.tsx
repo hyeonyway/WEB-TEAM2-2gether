@@ -1,5 +1,9 @@
+import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {render,screen} from '@testing-library/react';
-import {describe,expect,it,vi} from 'vitest';
+import userEvent from '@testing-library/user-event';
+import {MemoryRouter,useLocation} from 'react-router-dom';
+import {afterEach,describe,expect,it,vi} from 'vitest';
+import {clearAccessToken,getAccessToken,setAccessToken} from '../../../api/accessTokenStore';
 import type {CardDto} from '../../../dto/auctionDto';
 import CardCatalog from './CardCatalog';
 
@@ -10,13 +14,43 @@ const card:CardDto={
   theme:'gold',bidCount:0,psaGrade:'PSA 10',language:'JP',imageUrl:'/card.webp',
 };
 
+function LocationProbe(){
+  const location=useLocation();
+  return <output data-testid="catalog-path">{location.pathname}</output>;
+}
+
+function renderCatalog(queryClient=new QueryClient()){
+  return render(<QueryClientProvider client={queryClient}>
+    <MemoryRouter>
+      <CardCatalog cards={[card]}/>
+      <LocationProbe/>
+    </MemoryRouter>
+  </QueryClientProvider>);
+}
+
 describe('CardCatalog',()=>{
+  afterEach(()=>clearAccessToken());
+
   it('PSA 접두사가 포함된 등급도 접두사를 한 번만 표시한다',()=>{
-    const{container}=render(<CardCatalog cards={[card]}/>);
+    const{container}=renderCatalog();
 
     expect(screen.getAllByText(/PSA 10/)).toHaveLength(1);
     expect(screen.queryByText(/PSA PSA 10/)).not.toBeInTheDocument();
     expect(container.querySelector('.catalog-image-viewport .catalog-card-image'))
       .toBeInTheDocument();
+  });
+
+  it('카드 상세를 SPA로 이동하며 Access Token과 Query cache를 유지한다',async()=>{
+    const queryClient=new QueryClient();
+    queryClient.setQueryData(['navigation-state'],{preserved:true});
+    setAccessToken('memory-access-token');
+    const user=userEvent.setup();
+    renderCatalog(queryClient);
+
+    await user.click(screen.getByRole('link',{name:/피카츄/}));
+
+    expect(screen.getByTestId('catalog-path')).toHaveTextContent('/cards/1');
+    expect(getAccessToken()).toBe('memory-access-token');
+    expect(queryClient.getQueryData(['navigation-state'])).toEqual({preserved:true});
   });
 });
