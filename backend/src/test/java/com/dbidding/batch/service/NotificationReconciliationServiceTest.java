@@ -13,6 +13,7 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.notification.Notification;
 import com.dbidding.notification.NotificationRepository;
 import com.dbidding.notification.NotificationService;
 import com.dbidding.notification.NotificationType;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,8 +58,8 @@ class NotificationReconciliationServiceTest {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
         given(auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
         given(wishlistService.findUserIdsByCardId(auction.getItemId())).willReturn(List.of(1, 2));
-        given(notificationRepository.existsByUserIdAndAuctionIdAndType(1, 1, NotificationType.AUCTION_OPENED)).willReturn(true);
-        given(notificationRepository.existsByUserIdAndAuctionIdAndType(2, 1, NotificationType.AUCTION_OPENED)).willReturn(false);
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(1, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID)).willReturn(true);
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(2, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID)).willReturn(false);
 
         reconciliationService.recoverAuctionOpenedNotifications(now.minusMinutes(10));
 
@@ -66,12 +68,27 @@ class NotificationReconciliationServiceTest {
     }
 
     @Test
+    void 라이브_경로와_레이스가_나서_유니크_제약_위반이_나도_예외를_삼키고_계속한다() {
+        Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
+        given(auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
+        given(wishlistService.findUserIdsByCardId(auction.getItemId())).willReturn(List.of(1));
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(1, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID))
+                .willReturn(false);
+        given(notificationService.save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."))
+                .willThrow(new DataIntegrityViolationException("duplicate"));
+
+        reconciliationService.recoverAuctionOpenedNotifications(now.minusMinutes(10));
+
+        verify(notificationService).save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
+    }
+
+    @Test
     void 낙찰된_경매는_낙찰자와_판매자_모두에게_복구_알림을_보낸다() {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.ENDED);
         Bid winningBid = bid(10L, 5, auction, 50_000L, BidStatus.WON);
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
         given(bidRepository.findByAuctionIdAndStatus(1, BidStatus.WON)).willReturn(Optional.of(winningBid));
-        given(notificationRepository.existsByUserIdAndAuctionIdAndType(any(), any(), any())).willReturn(false);
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(any(), any(), any(), any())).willReturn(false);
 
         reconciliationService.recoverAuctionClosedNotifications(now.minusMinutes(20));
 
@@ -84,7 +101,7 @@ class NotificationReconciliationServiceTest {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.FAILED);
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
         given(bidRepository.findByAuctionIdAndStatus(1, BidStatus.WON)).willReturn(Optional.empty());
-        given(notificationRepository.existsByUserIdAndAuctionIdAndType(2, 1, NotificationType.AUCTION_UNSOLD)).willReturn(false);
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(2, 1, NotificationType.AUCTION_UNSOLD, Notification.NO_BID)).willReturn(false);
 
         reconciliationService.recoverAuctionClosedNotifications(now.minusMinutes(20));
 
@@ -121,13 +138,13 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of(1));
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
-        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndCreatedAtAfter(
-                3, 1, NotificationType.OUTBID, outbidBid.getCreatedAt()
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(
+                3, 1, NotificationType.OUTBID, outbidBid.getId()
         )).willReturn(false);
 
         reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
 
-        verify(notificationService).save(3, 1, NotificationType.OUTBID, "55,000원에 상회 입찰이 발생했습니다.");
+        verify(notificationService).saveForBid(3, 1, NotificationType.OUTBID, outbidBid.getId(), "55,000원에 상회 입찰이 발생했습니다.");
     }
 
     @Test
@@ -137,13 +154,13 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of(1));
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
-        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndCreatedAtAfter(
-                3, 1, NotificationType.OUTBID, outbidBid.getCreatedAt()
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(
+                3, 1, NotificationType.OUTBID, outbidBid.getId()
         )).willReturn(true);
 
         reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
 
-        verify(notificationService, never()).save(any(), any(), any(), any());
+        verify(notificationService, never()).saveForBid(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -153,13 +170,13 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of());
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
-        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndCreatedAtAfter(
-                3, 1, NotificationType.OUTBID, outbidBid.getCreatedAt()
+        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(
+                3, 1, NotificationType.OUTBID, outbidBid.getId()
         )).willReturn(false);
 
         reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
 
-        verify(notificationService).save(3, 1, NotificationType.OUTBID, "55,000원에 상회 입찰이 발생했습니다.");
+        verify(notificationService).saveForBid(3, 1, NotificationType.OUTBID, outbidBid.getId(), "55,000원에 상회 입찰이 발생했습니다.");
     }
 
     private Auction auction(Integer id, String auctionName, AuctionStatus status) {

@@ -6,6 +6,7 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.notification.Notification;
 import com.dbidding.notification.NotificationRepository;
 import com.dbidding.notification.NotificationService;
 import com.dbidding.notification.NotificationType;
@@ -16,14 +17,19 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
  * NotificationEventListener(라이브 이벤트 경로)가 비동기 처리 실패로 알림을 유실했을 때를 대비한
  * 백스톱. 이벤트 경로를 대체하지 않으며, 주기적으로 최근 상태를 다시 훑어 누락된 알림만 채운다.
- * 존재 체크와 insert 사이 레이스로 라이브 경로와 중복 알림이 갈 수 있으나, 유실보다 나은
- * 실패 모드로 보고 감수한다(설계 근거: docs/hamin/notification/6-notification-recovery-batch.md).
+ * 존재 체크와 insert 사이에 라이브 경로가 끼어들면 notification의
+ * (user_id, auction_id, type, bid_id) 유니크 제약 위반이 날 수 있다 — 이미 누가 보냈다는
+ * 정상 상황이므로 예외를 삼키고 다음 후보 처리를 이어간다(설계 근거:
+ * docs/hamin/notification/6-notification-recovery-batch.md).
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationReconciliationService {
@@ -102,25 +108,36 @@ public class NotificationReconciliationService {
             }
 
             Integer auctionId = latestBid.getAuction().getId();
-            boolean alreadyNotified = notificationRepository.existsByUserIdAndAuctionIdAndTypeAndCreatedAtAfter(
+            boolean alreadyNotified = notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(
                     latestBid.getBidderId(),
                     auctionId,
                     NotificationType.OUTBID,
-                    latestBid.getCreatedAt()
+                    latestBid.getId()
             );
             if (alreadyNotified) {
                 continue;
             }
 
             String message = "%,d원에 상회 입찰이 발생했습니다.".formatted(latestBid.getBidPrice());
-            notificationService.save(latestBid.getBidderId(), auctionId, NotificationType.OUTBID, message);
+            saveIgnoringDuplicate(() -> notificationService.saveForBid(
+                    latestBid.getBidderId(), auctionId, NotificationType.OUTBID, latestBid.getId(), message
+            ));
         }
     }
 
     private void ensureNotification(Integer userId, Integer auctionId, NotificationType type, String message) {
-        boolean alreadySent = notificationRepository.existsByUserIdAndAuctionIdAndType(userId, auctionId, type);
+        boolean alreadySent = notificationRepository
+                .existsByUserIdAndAuctionIdAndTypeAndBidId(userId, auctionId, type, Notification.NO_BID);
         if (!alreadySent) {
-            notificationService.save(userId, auctionId, type, message);
+            saveIgnoringDuplicate(() -> notificationService.save(userId, auctionId, type, message));
+        }
+    }
+
+    private void saveIgnoringDuplicate(Runnable save) {
+        try {
+            save.run();
+        } catch (DataIntegrityViolationException exception) {
+            log.debug("event=notification.recovery.duplicate_skipped", exception);
         }
     }
 }
