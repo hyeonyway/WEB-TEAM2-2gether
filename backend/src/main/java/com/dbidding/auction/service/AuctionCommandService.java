@@ -168,8 +168,14 @@ public class AuctionCommandService {
         LocalDateTime bidAt = now();
         LocalDateTime previousCloseTime = auction.getCloseTime();
         boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
-        WalletPort.WalletSnapshot wallet = holdBidAmount(userId, auction.getId(), request.price());
-        outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+        WalletPort.WalletSnapshot wallet;
+        if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
+            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+            wallet = holdBidAmount(userId, auction.getId(), request.price());
+        } else {
+            wallet = holdBidAmount(userId, auction.getId(), request.price());
+            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+        }
 
         Bid currentLeadingBid = bidRepository.save(Bid.leading(
                 userId,
@@ -389,6 +395,12 @@ public class AuctionCommandService {
             log.debug("event=auction.bid.previous_hold.kept auctionId={} previousBidId={} bidderId={}",
                     auction.getId(), previousLeadingBid.getId(), currentBidderId);
         }
+    }
+
+    private boolean shouldReleasePreviousHoldFirst(Bid previousLeadingBid, Integer currentBidderId) {
+        return previousLeadingBid != null
+                && !previousLeadingBid.getBidderId().equals(currentBidderId)
+                && previousLeadingBid.getBidderId() < currentBidderId;
     }
 
     private void validateCloseDue(Auction auction, LocalDateTime now) {
