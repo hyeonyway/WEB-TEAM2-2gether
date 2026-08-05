@@ -26,5 +26,14 @@ public interface WalletRepository extends JpaRepository<Wallet, Integer> {
 		""", nativeQuery = true)
 	long sumHeldAmount(@Param("walletId") Integer walletId);
 
+	@Query(value = """
+		SELECT COALESCE(SUM(wallet_hold.amount), 0)
+		FROM wallet_holds wallet_hold
+		WHERE wallet_hold.wallet_id = :walletId
+		  AND wallet_hold.status = 'HELD'
+		FOR UPDATE
+		""", nativeQuery = true)
+	long sumHeldAmountForUpdate(@Param("walletId") Integer walletId);
+
 	boolean existsByUserId(Integer userId);
 }

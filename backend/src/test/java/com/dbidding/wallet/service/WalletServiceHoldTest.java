@@ -59,7 +59,7 @@ class WalletServiceHoldTest {
 	void 신규_hold는_다른_경매_동결액을_포함해_가용잔액을_계산한다() {
 		Wallet wallet = walletWithPoint(20_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(3_000L);
+		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(3_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -86,7 +86,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(11_000L);
+		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(11_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -105,7 +105,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(19_000L);
+		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(19_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -123,7 +123,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(11_000L);
+		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(11_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -141,7 +141,7 @@ class WalletServiceHoldTest {
 		WalletHold released = WalletHold.held(wallet.getId(), 20, 11_000L);
 		released.release(Instant.parse("2026-07-29T00:00:00Z"));
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(0L);
+		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(0L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -165,7 +165,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(11_000L, 0L);
+		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(11_000L, 0L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20

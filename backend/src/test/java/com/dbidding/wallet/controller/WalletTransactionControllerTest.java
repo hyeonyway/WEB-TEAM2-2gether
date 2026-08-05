@@ -25,6 +25,7 @@ import com.dbidding.wallet.exception.IdempotencyConflictException;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
+import com.dbidding.wallet.exception.InvalidWalletBalanceException;
 import com.dbidding.wallet.exception.WalletNotFoundException;
 import com.dbidding.wallet.service.WalletService;
 
@@ -169,6 +170,11 @@ class WalletTransactionControllerTest {
 
 	private static Stream<Arguments> walletConflictResponses() {
 		return Stream.of(
+			Arguments.of(
+				new InvalidWalletBalanceException(),
+				"INVALID_WALLET_BALANCE",
+				"지갑 잔액 상태가 올바르지 않습니다."
+			),
 			Arguments.of(
 				new InsufficientAvailableBalanceException(),
 				"INSUFFICIENT_AVAILABLE_BALANCE",
