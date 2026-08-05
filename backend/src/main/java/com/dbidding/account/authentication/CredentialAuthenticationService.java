@@ -1,7 +1,6 @@
 package com.dbidding.account.authentication;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.domain.AccountStatus;
@@ -21,7 +20,6 @@ public class CredentialAuthenticationService {
 	private final AccountRepository accountRepository;
 	private final PasswordHasher passwordHasher;
 
-	@Transactional(readOnly = true)
 	public AuthenticatedAccount authenticate(String email, String rawPassword) {
 		Account account = accountRepository.findByEmail(email).orElse(null);
 		if (account == null) {

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dbidding.account.domain.Account;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
@@ -13,7 +14,6 @@ import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.repository.AccountRepository;
-import com.dbidding.account.repository.AuthenticationRepository;
 
 import lombok.RequiredArgsConstructor;
 
