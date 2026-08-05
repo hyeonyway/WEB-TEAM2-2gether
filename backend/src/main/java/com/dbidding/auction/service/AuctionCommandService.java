@@ -415,6 +415,7 @@ public class AuctionCommandService {
                 itemId,
                 bidderId,
                 previousLeadingBid == null ? null : previousLeadingBid.getBidderId(),
+                previousLeadingBid == null ? null : previousLeadingBid.getId(),
                 auction.getStartPrice(),
                 auction.getCurrentPrice(),
                 auction.getBidPriceUnit(),

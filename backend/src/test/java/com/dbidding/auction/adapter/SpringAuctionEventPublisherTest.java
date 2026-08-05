@@ -52,7 +52,7 @@ class SpringAuctionEventPublisherTest {
         LocalDateTime occurredAt = LocalDateTime.of(2026, 8, 3, 11, 0);
         LocalDateTime closeTime = occurredAt.plusMinutes(5);
         BidPlacedEvent event = new BidPlacedEvent(
-                1, 10, 3, 2, 42_000L, 45_000L, 1_000L, 2,
+                1, 10, 3, 2, 20L, 42_000L, 45_000L, 1_000L, 2,
                 closeTime, AuctionStatus.ENDING, 2L, occurredAt
         );
 
