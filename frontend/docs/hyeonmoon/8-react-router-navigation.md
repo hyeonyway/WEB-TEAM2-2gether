@@ -116,6 +116,29 @@ Router 이동을 인증 유지 수단으로 사용하지 않는다. 앱 최초 �
 새로고침에서는 기존 `AuthProvider`가 Refresh Token으로 Access Token을 복구한다.
 이번 작업은 불필요한 문서 재시작을 제거하는 역할만 담당한다.
 
+## PR 리뷰 보완 설계
+
+### Card 상세 Route ID 검증
+
+`useParams()`에서 변환한 `cardId`는 양의 정수일 때만 유효하다. 유효성 결과를
+Card 상세 Query의 `enabled`에 전달해 `NaN`, 0, 음수, 소수 ID로 API 요청을
+보내지 않는다. 비활성 Query도 `isPending`일 수 있으므로 잘못된 ID 화면을 로딩
+화면보다 먼저 렌더링한다.
+
+### Sell 등록 요청 직렬화
+
+버튼의 비활성 상태와 별개로 `submit` 진입 시 `useRef` 기반 동기 잠금을
+확인한다. 첫 호출은 API 요청 전에 잠금을 획득하고 요청이 끝나면 해제한다.
+동일 렌더 사이클에서 이어진 호출은 즉시 반환해 같은 멱등성 키를 사용하는
+불필요한 중복 요청을 만들지 않는다. 실패 후 재시도는 허용한다.
+
+### 등록 성공 후 Auction 목록 동기화
+
+경매 등록이 성공하면 기존 등록 준비 상태를 초기화하는 것과 함께
+`auctionQueryKeys.lists()`를 무효화한다. 이후 경매 목록으로 이동할 때
+`staleTime`이 남아 있어도 새 경매를 포함한 데이터를 다시 조회한다. 상세
+화면으로 이동하는 기존 500ms 성공 안내와 경로는 유지한다.
+
 ## 오류와 경계 조건
 
 - 유효하지 않은 카드·경매 ID 직접 접근은 기존 오류 화면을 유지한다.
@@ -150,6 +173,10 @@ Router 이동을 인증 유지 수단으로 사용하지 않는다. 앱 최초 �
 
 - `/cards/:cardId`는 브라우저 전역 pathname이 아니라 Router parameter로 API를
   조회한다.
+- 유효하지 않은 Card Route ID는 API를 호출하지 않고 오류 화면을 표시한다.
+- 연속된 Sell 등록 호출은 진행 중 한 번만 API를 실행하며 실패 뒤 재시도할 수
+  있다.
+- Sell 등록 성공 시 Auction 목록 Query를 무효화한다.
 - `/auction/:auctionId`와 기존 공개 Route 직접 접근이 유지된다.
 - `/sell`, `/dashboard`, `/mypage`의 인증 gate가 유지된다.
 - Header 활성 메뉴는 `useLocation()` 경로를 기준으로 유지된다.
