@@ -45,13 +45,18 @@ class AuthServiceLogoutTest {
 
 	@BeforeEach
 	void setUp() {
-		authService = new AuthService(
+		AuthTransactionService authTransactionService = new AuthTransactionService(
 			accountRepository,
 			walletProvisioningPort,
+			authenticationRepository
+		);
+		authService = new AuthService(
+			accountRepository,
 			passwordHasher,
 			authenticationRepository,
 			jwtTokenProvider,
-			refreshTokenHasher
+			refreshTokenHasher,
+			authTransactionService
 		);
 	}
 
