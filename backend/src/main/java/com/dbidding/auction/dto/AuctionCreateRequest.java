@@ -11,11 +11,11 @@ import java.util.List;
 
 public record AuctionCreateRequest(
         @NotNull Integer itemId,
-        @NotBlank String auctionName,
-        @NotBlank String description,
+        @NotBlank @Size(max = 255) String auctionName,
+        @NotBlank @Size(max = 255) String description,
         @Size(max = 1000) String sellerMemo,
         @Size(max = 32) String psaCertification,
-        @NotEmpty List<String> imageUploadTokens,
+        @NotEmpty List<@Size(max = 255) String> imageUploadTokens,
         @NotNull @Min(1) Long startPrice,
         @NotNull @Min(1) Long bidIncrement,
         @Positive Long buyNowPrice,
