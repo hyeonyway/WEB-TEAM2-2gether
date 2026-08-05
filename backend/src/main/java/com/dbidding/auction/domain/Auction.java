@@ -47,8 +47,14 @@ public class Auction {
     @Formula("floor((current_price - start_price) * 10000.0 / start_price)")
     private Long changeRateBasisPoints;
 
-    @Column(name = "buy_now_price", nullable = false)
+    @Column(name = "buy_now_price")
     private Long buyNowPrice;
+
+    @Column(name = "seller_memo", length = 1000)
+    private String sellerMemo;
+
+    @Column(name = "psa_certification", length = 32)
+    private String psaCertification;
 
     @Column(name = "delivery_fee", nullable = false)
     private Long deliveryFee;
@@ -91,6 +97,8 @@ public class Auction {
             Integer itemId,
             String auctionName,
             String description,
+            String sellerMemo,
+            String psaCertification,
             Long startPrice,
             Long buyNowPrice,
             Long deliveryFee,
@@ -104,6 +112,8 @@ public class Auction {
         this.itemId = itemId;
         this.auctionName = auctionName;
         this.description = description;
+        this.sellerMemo = sellerMemo;
+        this.psaCertification = psaCertification;
         this.startPrice = startPrice;
         this.currentPrice = startPrice;
         this.buyNowPrice = buyNowPrice;

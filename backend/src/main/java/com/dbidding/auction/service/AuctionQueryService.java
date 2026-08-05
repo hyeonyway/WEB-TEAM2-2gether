@@ -283,7 +283,7 @@ public class AuctionQueryService {
     ) {
         return AuctionResponses.AuctionDetail.builder()
                 .id(auction.getId())
-                .card(cardSummary(card, images.stream().findFirst().orElse(null)))
+                .card(cardSummary(card, null))
                 .seller(sellerSummary(auction.getSellerId()))
                 .startPrice(auction.getStartPrice())
                 .currentPrice(auction.getCurrentPrice())
@@ -297,12 +297,24 @@ public class AuctionQueryService {
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .description(auction.getDescription())
-                .sellerMemo(null)
+                .sellerMemo(auction.getSellerMemo())
                 .shippingFee(auction.getDeliveryFee())
                 .buyNowPrice(auction.getBuyNowPrice())
                 .photos(photos(images))
-                .psaCertification(new AuctionResponses.PsaCertification(null, card.psaGrade(), null, card.psaGrade() != null))
+                .psaCertification(new AuctionResponses.PsaCertification(
+                        auction.getPsaCertification(),
+                        card.psaGrade(),
+                        null,
+                        isVerifiedPsaCertification(card.psaGrade(), auction.getPsaCertification())
+                ))
                 .build();
+    }
+
+    private boolean isVerifiedPsaCertification(String psaGrade, String psaCertification) {
+        return psaGrade != null
+                && psaGrade.trim().toUpperCase().startsWith("PSA")
+                && psaCertification != null
+                && psaCertification.matches("\\d{7,10}");
     }
 
     private AuctionResponses.CardSummary cardSummary(AuctionCardPort.CardSnapshot card, AuctionImage representativeImage) {

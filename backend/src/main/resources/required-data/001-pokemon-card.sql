@@ -10,7 +10,7 @@ START TRANSACTION;
 INSERT INTO `card_sets`
   (`id`, `name`, `code`)
 VALUES
-  (1, 'Pokemon TCG PSA 10', 'POKEMON-PSA10')
+  (1, 'Pokemon TCG', 'POKEMON')
 ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `code` = VALUES(`code`);
@@ -901,6 +901,44 @@ VALUES
   (802, 1, '폭거북스 AR 스텔라미라클', 'Japanese', 'PSA 10', 'AR', 'pokemon-cards/card_a7bb95523eab5b2a5f45.webp'),
   (803, 1, '자크로 SAR VSTAR 유니버스 (한글판)', 'Korean', 'PSA 10', 'SAR', 'pokemon-cards/card_a9451c180ec305889b0a.webp'),
   (804, 1, '총지엔 ex SR 스노해저드', 'Japanese', 'PSA 10', 'SR', 'pokemon-cards/card_a8f1c0bcc001020f7151.webp')
+ON DUPLICATE KEY UPDATE
+  `card_set_id` = VALUES(`card_set_id`),
+  `name` = VALUES(`name`),
+  `language` = VALUES(`language`),
+  `psa_grade` = VALUES(`psa_grade`),
+  `rarity` = VALUES(`rarity`),
+  `image_path` = VALUES(`image_path`);
+
+-- Each card grade is an independent catalog item. The original 804 rows are PSA 10,
+-- and the variants below provide the grades selectable from the auction registration form.
+INSERT INTO `card_metadata` (`id`, `card_set_id`, `name`, `language`, `psa_grade`, `rarity`, `image_path`)
+SELECT
+  original.id + grade_variant.sort_order * 804,
+  original.card_set_id,
+  original.name,
+  original.language,
+  grade_variant.psa_grade,
+  original.rarity,
+  original.image_path
+FROM `card_metadata` original
+CROSS JOIN (
+  SELECT 1 AS sort_order, 'PSA 9' AS psa_grade
+  UNION ALL SELECT 2, 'PSA 8'
+  UNION ALL SELECT 3, 'PSA 7'
+  UNION ALL SELECT 4, 'PSA 6'
+  UNION ALL SELECT 5, 'PSA 5'
+  UNION ALL SELECT 6, 'PSA 4'
+  UNION ALL SELECT 7, 'PSA 3'
+  UNION ALL SELECT 8, 'PSA 2'
+  UNION ALL SELECT 9, 'PSA 1'
+  UNION ALL SELECT 10, '민트'
+  UNION ALL SELECT 11, '근민트'
+  UNION ALL SELECT 12, '우량'
+  UNION ALL SELECT 13, '양호'
+  UNION ALL SELECT 14, '보통'
+  UNION ALL SELECT 15, '하'
+) grade_variant
+WHERE original.id BETWEEN 1 AND 804
 ON DUPLICATE KEY UPDATE
   `card_set_id` = VALUES(`card_set_id`),
   `name` = VALUES(`name`),
