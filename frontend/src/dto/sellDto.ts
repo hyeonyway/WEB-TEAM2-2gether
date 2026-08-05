@@ -41,6 +41,7 @@ export type AuctionPayload={
 };
 
 export type RegisterAuctionRequestDto={
+  itemId?:number;
   form:SellForm;
   photos:SellPhoto[];
   psaCertification:string|null;

@@ -117,7 +117,7 @@ export default function AuctionDetailPage(){
       <div className="auction-seller-heading"><div className="auction-seller-avatar">{detail.seller.nickname.slice(0,2).toUpperCase()}</div><span><small>경매 등록자</small><b>{detail.seller.nickname}</b><em>거래 {detail.seller.trade_count}회 · 신뢰도 {detail.seller.trust_score}%</em></span></div>
       <div className="auction-seller-content"><small>SELLER NOTE</small><h2>경매 상품 설명</h2><p>{detail.description}</p>
         <dl>
-          <div><dt>즉시 구매가</dt><dd>{detail.buy_now_price.toLocaleString()}원</dd></div>
+          <div><dt>즉시 구매가</dt><dd>{detail.buy_now_price===null?'즉시 구매가 없음':`${detail.buy_now_price.toLocaleString()}원`}</dd></div>
           <div><dt>배송비</dt><dd>{detail.shipping_fee.toLocaleString()}원</dd></div>
           {detail.seller_memo&&<div><dt>판매자 메모</dt><dd>{detail.seller_memo}</dd></div>}
         </dl>

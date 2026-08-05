@@ -16,6 +16,7 @@ const normalizedLanguage=(value:string)=>{
 };
 
 async function resolveCard(form:SellForm){
+  const selectedGrade=form.gradeType==='psa'?form.psaGrade:form.selfGrade;
   const cards:CardDto[]=[];
   let page=0;
   let hasNext=true;
@@ -30,8 +31,7 @@ async function resolveCard(form:SellForm){
     normalized(card.name)===normalized(form.cardName)
     &&(!form.setName.trim()||normalized(card.set_name)===normalized(form.setName))
     && normalizedLanguage(card.language)===normalizedLanguage(form.language)
-    &&(form.gradeType!=='psa'||!form.psaGrade.trim()
-      ||normalizedGrade(card.psa_grade)===normalizedGrade(form.psaGrade))
+    && normalizedGrade(card.psa_grade)===normalizedGrade(selectedGrade)
   );
   if(matches.length===0)throw new Error('입력한 세트, 언어, 등급과 일치하는 카드 정보를 찾을 수 없습니다.');
   if(matches.length>1)throw new Error('카드 정보가 여러 건입니다. 세트, 언어, 등급을 더 정확히 입력해 주세요.');
@@ -84,7 +84,9 @@ export const sellMutations={
     mutationKey:['sell','register'],
     mutationFn:async(request:RegisterAuctionRequestDto)=>{
       const prepared=await submission.prepare(request,async()=>{
-        const card=await resolveCard(request.form);
+        const card=request.itemId===undefined
+          ?await resolveCard(request.form)
+          :{id:request.itemId};
         const photos=await uploadSellImages(request.photos);
         return {
           itemId:card.id,

@@ -32,7 +32,9 @@ export async function fetchMockCards(query:CardListRequestDto){
     ?b.bidCount-a.bidCount
     :query.sort==='REGISTERED'
       ?a.id-b.id
-      :b.marketPrice-a.marketPrice);
+      :query.sort==='NAME'
+        ?a.name.localeCompare(b.name)||b.id-a.id
+        :b.marketPrice-a.marketPrice);
 }
 
 export async function fetchMockAuctions(query:AuctionListRequestDto){
