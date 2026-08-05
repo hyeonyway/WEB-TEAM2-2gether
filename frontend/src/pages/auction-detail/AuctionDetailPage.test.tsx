@@ -78,6 +78,15 @@ describe('AuctionDetailPage',()=>{
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('즉시 구매가가 없는 경매도 상세 정보를 표시한다',async()=>{
+    apiMocks.detail.mockResolvedValue({...detail,buy_now_price:null});
+
+    renderAnonymousDetail();
+
+    expect(await screen.findByRole('heading',{name:'피카츄'})).toBeInTheDocument();
+    expect(screen.getByText('즉시 구매가 없음')).toBeInTheDocument();
+  });
+
   it('상세 정보를 기다리는 동안 실제 레이아웃 스켈레톤을 표시한다',()=>{
     apiMocks.detail.mockReturnValue(new Promise(()=>{}));
     apiMocks.bids.mockReturnValue(new Promise(()=>{}));

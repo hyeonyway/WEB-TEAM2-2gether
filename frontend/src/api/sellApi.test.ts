@@ -13,6 +13,7 @@ function jsonResponse(body:unknown,status=200){
 describe('sellApi',()=>{
   beforeEach(()=>{
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     clearAccessToken();
     setAccessToken('seller-access-token');
   });
@@ -43,6 +44,18 @@ describe('sellApi',()=>{
     ]);
   });
 
+  it('로컬 업로드 모드에서는 S3 요청 없이 로컬 토큰을 반환한다',async()=>{
+    vi.stubEnv('VITE_LOCAL_UPLOAD','true');
+    const file=new File(['image'],'front.jpg',{type:'image/jpeg'});
+    const photo:SellPhoto={id:'photo-1',file,url:'blob:front'};
+    const fetchMock=vi.spyOn(globalThis,'fetch');
+
+    await expect(uploadSellImages([photo])).resolves.toEqual([
+      {order:0,uploadToken:'local/photo-1'},
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('기존 카드 ID와 업로드 토큰으로 JWT 경매 생성 요청을 보낸다',async()=>{
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({id:20},201));
     const payload:AuctionPayload={
@@ -66,12 +79,38 @@ describe('sellApi',()=>{
       itemId:1,
       auctionName:'피카츄',
       description:'설명',
+      sellerMemo:null,
+      psaCertification:null,
       imageUploadTokens:['upload/2026/07/31/front.jpg'],
       startPrice:10000,
       bidIncrement:1000,
       buyNowPrice:20000,
       durationHours:12,
       shippingFee:3000,
+    });
+  });
+
+  it('즉시 구매를 설정하지 않으면 null과 등록 메타데이터를 전송한다',async()=>{
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({id:20},201));
+    const payload:AuctionPayload={
+      itemId:1,
+      form:{
+        cardName:'피카츄',setName:'세트',year:'2026',cardNumber:'1',language:'일본어',
+        gradeType:'psa',psaGrade:'10',population:'',selfGrade:'',description:'설명',
+        sellerMemo:'구매자에게 전달할 메모',startPrice:'10000',bidIncrement:'1000',buyNowEnabled:false,
+        buyNowPrice:'',duration:'12',shipping:'3000',
+      },
+      photos:[{order:0,uploadToken:'upload/2026/07/31/front.jpg'}],
+      psaCertification:'12345678',
+    };
+
+    await createAuction(payload,'registration-key');
+
+    const [,options]=fetchMock.mock.calls[0];
+    expect(JSON.parse(String(options?.body))).toMatchObject({
+      sellerMemo:'구매자에게 전달할 메모',
+      psaCertification:'12345678',
+      buyNowPrice:null,
     });
   });
 });
