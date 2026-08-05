@@ -27,7 +27,7 @@ const detail={
   start_price:10000,current_price:12000,bid_increment:1000,minimum_bid:13000,bid_count:1,
   starts_at:'2026-08-01T10:00:00',ends_at:'2099-08-01T20:00:00',status:'OPEN' as const,
   my_bid_status:'NONE' as const,my_bid_amount:null,version:1,
-  description:'상태 좋음',seller_memo:null,shipping_fee:3000,buy_now_price:20000,
+  description:'상태 좋음',seller_memo:null,seller_grade:null,shipping_fee:3000,buy_now_price:20000,
   photos:[
     {id:11,url:'/uploads/front.png',order:0,representative:true},
     {id:12,url:'/uploads/back.png',order:1,representative:false},
@@ -76,6 +76,15 @@ describe('AuctionDetailPage',()=>{
 
     await waitFor(()=>expect(screen.getByText('로그인이 필요합니다')).toBeInTheDocument());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('즉시 구매가가 없는 경매도 상세 정보를 표시한다',async()=>{
+    apiMocks.detail.mockResolvedValue({...detail,buy_now_price:null});
+
+    renderAnonymousDetail();
+
+    expect(await screen.findByRole('heading',{name:'피카츄'})).toBeInTheDocument();
+    expect(screen.getByText('즉시 구매가 없음')).toBeInTheDocument();
   });
 
   it('상세 정보를 기다리는 동안 실제 레이아웃 스켈레톤을 표시한다',()=>{

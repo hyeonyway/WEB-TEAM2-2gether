@@ -2,7 +2,7 @@ export type CardTheme='gold'|'water'|'dark'|'multi'|'sketch';
 export type AuctionStatus='OPEN'|'ENDING'|'ENDED'|'CANCELLED'|'FAILED';
 export type MyBidStatus='LEADING'|'OUTBID'|'NONE';
 export type AuctionSort='LATEST'|'BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
-export type CardSort='PRICE'|'FAVORITE'|'REGISTERED';
+export type CardSort='PRICE'|'FAVORITE'|'REGISTERED'|'NAME';
 
 export type CardListRequestDto={
   keyword:string;
@@ -18,6 +18,7 @@ export type AuctionListRequestDto=Omit<CardListRequestDto,'sort'>&{
 export type CardResponseDto={
   id:number;
   name:string;
+  set_name:string;
   market_price:number;
   low_price?:number;
   high_price?:number;
@@ -101,8 +102,9 @@ export type AuctionPhotoResponseDto={
 export type AuctionDetailResponseDto=AuctionResponseDto&{
   description:string;
   seller_memo:string|null;
+  seller_grade:string|null;
   shipping_fee:number;
-  buy_now_price:number;
+  buy_now_price:number|null;
   photos:AuctionPhotoResponseDto[];
   psa_certification:{
     certification_number:string|null;
@@ -181,6 +183,7 @@ export type BidCreateResponseDto={
 export type CardDto={
   id:number;
   name:string;
+  setName?:string;
   marketPrice:number;
   lowPrice:number;
   highPrice:number;

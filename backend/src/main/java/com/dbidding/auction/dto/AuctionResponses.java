@@ -64,6 +64,7 @@ public final class AuctionResponses {
             @JsonProperty("my_bid_amount") Long myBidAmount,
             String description,
             @JsonProperty("seller_memo") String sellerMemo,
+            @JsonProperty("seller_grade") String sellerGrade,
             @JsonProperty("shipping_fee") Long shippingFee,
             @JsonProperty("buy_now_price") Long buyNowPrice,
             List<AuctionPhoto> photos,

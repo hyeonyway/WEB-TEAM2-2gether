@@ -75,6 +75,43 @@ describe('sellMutations',()=>{
     );
   });
 
+  it('자체 평가 등록은 선택한 자체 평가 등급과 일치하는 카드로 식별한다',async()=>{
+    const selfAssessmentRequest: RegisterAuctionRequestDto={
+      ...request,
+      form:{...request.form,gradeType:'self',selfGrade:'근민트',psaGrade:''},
+      psaCertification:null,
+    };
+    mocks.fetchCardDetail.mockImplementation((id:number)=>Promise.resolve({
+      id,
+      name:'피카츄',
+      set_name:'정확한 세트',
+      psa_grade:id===1?'민트':'근민트',
+      language:'Japanese',
+    }));
+    const mutationFn=sellMutations.register().mutationFn;
+
+    await mutationFn(selfAssessmentRequest,{} as never);
+
+    expect(mocks.createAuction).toHaveBeenCalledWith(
+      expect.objectContaining({itemId:2}),
+      expect.any(String),
+    );
+  });
+
+  it('사용자가 선택한 카드 ID가 있으면 검색 결과와 무관하게 해당 카드로 등록한다',async()=>{
+    mocks.fetchCardPage.mockRejectedValue(new Error('카드 검색이 호출되면 안 됩니다.'));
+    const mutationFn=sellMutations.register().mutationFn;
+
+    await mutationFn({...request,itemId:9876},{} as never);
+
+    expect(mocks.fetchCardPage).not.toHaveBeenCalled();
+    expect(mocks.fetchCardDetail).not.toHaveBeenCalled();
+    expect(mocks.createAuction).toHaveBeenCalledWith(
+      expect.objectContaining({itemId:9876}),
+      expect.any(String),
+    );
+  });
+
   it('동일한 등록을 재시도하면 업로드 결과와 멱등성 키를 재사용한다',async()=>{
     mocks.createAuction
       .mockRejectedValueOnce(new Error('응답 유실'))

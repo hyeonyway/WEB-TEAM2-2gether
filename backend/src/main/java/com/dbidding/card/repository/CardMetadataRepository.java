@@ -28,6 +28,12 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Inte
                       case when :sort = 'REGISTERED'
                            then c.id
                       end asc,
+                      case when :sort = 'NAME'
+                           then c.name
+                      end asc,
+                      case when :sort = 'NAME'
+                           then c.psa_grade
+                      end asc,
                       c.id desc
                     """,
             countQuery = """

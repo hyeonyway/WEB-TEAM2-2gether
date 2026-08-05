@@ -12,6 +12,7 @@ public final class CardResponses {
     public record CardSummary(
             Integer id,
             String name,
+            @JsonProperty("set_name") String setName,
             @JsonProperty("market_price") long marketPrice,
             @JsonProperty("low_price") long lowPrice,
             @JsonProperty("high_price") long highPrice,
