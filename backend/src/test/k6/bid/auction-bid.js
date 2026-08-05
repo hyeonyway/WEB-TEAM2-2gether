@@ -14,6 +14,7 @@ const loadTestUserCount = positiveInteger(__ENV.LOAD_TEST_USER_COUNT, 10);
 const loadTestEmailPrefix = __ENV.LOAD_TEST_EMAIL_PREFIX || 'k6-user';
 const loadTestEmailDomain = __ENV.LOAD_TEST_EMAIL_DOMAIN || 'dbidding.local';
 const loadTestPassword = __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!';
+const loginBatchSize = positiveInteger(__ENV.LOGIN_BATCH_SIZE, 10);
 
 const bidAccepted = new Rate('bid_accepted');
 const bidAcceptedOrContended = new Rate('bid_accepted_or_contended');
@@ -23,6 +24,7 @@ const bidEndToEndDuration = new Trend('bid_end_to_end_duration', true);
 
 export const options = {
   setupTimeout: __ENV.SETUP_TIMEOUT || '10m',
+  batchPerHost: loginBatchSize,
   scenarios: {
     warmupAuctionBids: {
       executor: 'ramping-arrival-rate',
@@ -164,21 +166,30 @@ function loginAndGetAccessTokens() {
     throw new Error('로그인 계정 목록이 비어 있습니다.');
   }
 
-  return users.map((user, index) => {
-    const response = http.post(
-      `${baseUrl}/api/auth/login`,
-      JSON.stringify({email: user.email, password: user.password}),
-      {
+  const tokens = [];
+  for (let start = 0; start < users.length; start += loginBatchSize) {
+    const batchUsers = users.slice(start, start + loginBatchSize);
+    const responses = http.batch(batchUsers.map(user => ({
+      method: 'POST',
+      url: `${baseUrl}/api/auth/login`,
+      body: JSON.stringify({email: user.email, password: user.password}),
+      params: {
         headers: {'Content-Type': 'application/json'},
         tags: {name: 'POST /api/auth/login (setup)'},
+        responseCallback: http.expectedStatuses(200),
       },
-    );
-    const accessToken = response.json('accessToken');
-    if (response.status !== 200 || typeof accessToken !== 'string' || accessToken.length === 0) {
-      throw new Error(`로그인 계정 ${index + 1} 토큰 발급 실패 (status=${response.status})`);
-    }
-    return accessToken;
-  });
+    })));
+
+    responses.forEach((response, batchIndex) => {
+      const accessToken = response.json('accessToken');
+      if (response.status !== 200 || typeof accessToken !== 'string' || accessToken.length === 0) {
+        const userIndex = start + batchIndex + 1;
+        throw new Error(`로그인 계정 ${userIndex} 토큰 발급 실패 (status=${response.status})`);
+      }
+      tokens.push(accessToken);
+    });
+  }
+  return tokens;
 }
 
 function loadTestUsers() {

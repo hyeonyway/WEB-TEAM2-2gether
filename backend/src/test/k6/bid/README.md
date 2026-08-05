@@ -6,10 +6,10 @@ SSE·알림 후처리까지 포함한 경로에 부하를 준다. 테스트 데�
 
 ## 실행
 
-`002-user.sql` 적용 후 백엔드와 스크립트를 실행한다. k6의 `setup()`이 기본으로
+`002-user.sql` 적용 후 백엔드와 스크립트를 실행한다. k6의 `setup()`이
 300개의 전용 계정 중 기본으로 `k6-user001@dbidding.local`부터
 `k6-user010@dbidding.local`까지 10개 계정을 공통 비밀번호
-`K6LoadTest123!`로 로그인한다. 이후
+`K6LoadTest123!`로 로그인한다. 로그인은 기본 10개씩 병렬 처리한다. 이후
 `POST /api/auth/login`을 호출해 액세스 토큰을 발급받고, 이후 모든 입찰 요청에
 `Authorization: Bearer ...` 헤더를 자동으로 붙인다. 기본 부하는
 **초당 100회, 1분, 최대 300 VU**다.
@@ -67,6 +67,7 @@ cd backend
 - `LOAD_TEST_EMAIL_PREFIX`: 계정 이메일 접두사. 기본값 `k6-user`
 - `LOAD_TEST_EMAIL_DOMAIN`: 계정 이메일 도메인. 기본값 `dbidding.local`
 - `LOAD_TEST_PASSWORD`: 300개 계정의 공통 비밀번호. 기본값 `K6LoadTest123!`
+- `LOGIN_BATCH_SIZE`: 동시에 요청할 로그인 수. 기본값 `10`
 - `SETUP_TIMEOUT`: 300개 계정 로그인 제한 시간. 기본값 `10m`
 - `bid_accepted`: 실제 `201 Created` 비율
 - `bid_contentions`: 가격 조회 후 다른 요청이 선점해 발생한 `409 Conflict` 수
