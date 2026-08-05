@@ -1,6 +1,8 @@
 package com.dbidding.notification;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +11,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
+
+    boolean existsByUserIdAndAuctionIdAndTypeAndBidId(Integer userId, Integer auctionId, NotificationType type, Long bidId);
+
+    Optional<Notification> findByUserIdAndAuctionIdAndTypeAndBidId(
+            Integer userId, Integer auctionId, NotificationType type, Long bidId
+    );
+
+    List<Notification> findByAuctionIdAndTypeAndBidIdAndUserIdIn(
+            Integer auctionId, NotificationType type, Long bidId, Collection<Integer> userIds
+    );
 
     List<Notification> findByUserIdOrderByIdDesc(Integer userId, Pageable pageable);
 

@@ -8,6 +8,7 @@ public record BidPlacedEvent(
         Integer itemId,
         Integer bidderId,
         Integer previousBidderId,
+        Long previousBidId,
         Long startPrice,
         Long currentPrice,
         Long bidIncrement,

@@ -115,4 +115,14 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             @Param("statuses") Collection<AuctionStatus> statuses,
             Pageable pageable
     );
+
+    List<Auction> findByStatusInAndOpenTimeGreaterThanEqual(
+            Collection<AuctionStatus> statuses,
+            LocalDateTime openTime
+    );
+
+    List<Auction> findByStatusInAndCloseTimeGreaterThanEqual(
+            Collection<AuctionStatus> statuses,
+            LocalDateTime closeTime
+    );
 }

@@ -1,10 +1,13 @@
 package com.dbidding.notification;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,14 +20,53 @@ public class NotificationService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final NotificationRepository notificationRepository;
+    private final JdbcTemplate jdbcTemplate;
 
-    public NotificationService(NotificationRepository notificationRepository) {
+    public NotificationService(NotificationRepository notificationRepository, JdbcTemplate jdbcTemplate) {
         this.notificationRepository = notificationRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
-    public Notification save(Integer userId, Integer auctionId, String message) {
-        return notificationRepository.save(Notification.of(userId, auctionId, message));
+    public Notification save(Integer userId, Integer auctionId, NotificationType type, String message) {
+        return notificationRepository.save(Notification.of(userId, auctionId, type, message));
+    }
+
+    @Transactional
+    public Notification saveForBid(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {
+        return notificationRepository.save(Notification.ofBid(userId, auctionId, type, bidId, message));
+    }
+
+    /**
+     * 여러 유저에게 같은 알림을 한 번의 INSERT로 저장한다(경매 생성 fan-out 등). 복구 배치나
+     * 다른 경로가 특정 유저에 대해 이미 저장해뒀을 수 있으므로 {@code INSERT IGNORE}로 유니크
+     * 제약(user_id, auction_id, type, bid_id) 위반 행은 조용히 건너뛰고, 이미 있던 행과 새로
+     * 저장된 행을 한 번의 조회로 함께 가져와 반환한다. bid와 무관한 알림 전용이라 bid_id는 항상
+     * {@link Notification#NO_BID}다.
+     */
+    @Transactional
+    public List<Notification> saveAllIgnoringDuplicates(
+            List<Integer> userIds, Integer auctionId, NotificationType type, String message
+    ) {
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+
+        String placeholders = String.join(", ", Collections.nCopies(userIds.size(), "(?, ?, ?, ?, ?)"));
+        String sql = "INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES " + placeholders;
+        List<Object> args = new ArrayList<>(userIds.size() * 5);
+        for (Integer userId : userIds) {
+            args.add(userId);
+            args.add(auctionId);
+            args.add(type.name());
+            args.add(Notification.NO_BID);
+            args.add(message);
+        }
+        jdbcTemplate.update(sql, args.toArray());
+
+        return notificationRepository.findByAuctionIdAndTypeAndBidIdAndUserIdIn(
+                auctionId, type, Notification.NO_BID, userIds
+        );
     }
 
     public NotificationPage findPage(Integer userId, Long cursor, int size, boolean unreadOnly) {

@@ -3,8 +3,10 @@ package com.dbidding.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,28 +27,79 @@ class NotificationServiceTest {
     @Mock
     private NotificationRepository notificationRepository;
 
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
     private NotificationService notificationService;
 
     @BeforeEach
     void setUp() {
-        notificationService = new NotificationService(notificationRepository);
+        notificationService = new NotificationService(notificationRepository, jdbcTemplate);
     }
 
     @Test
     void 알림을_저장한다() {
         given(notificationRepository.save(any(Notification.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        Notification result = notificationService.save(1, 10, "찜한 카드의 경매가 등록되었습니다.");
+        Notification result = notificationService.save(1, 10, NotificationType.AUCTION_OPENED, "찜한 카드의 경매가 등록되었습니다.");
 
         assertThat(result.getUserId()).isEqualTo(1);
         assertThat(result.getAuctionId()).isEqualTo(10);
         assertThat(result.getMessage()).isEqualTo("찜한 카드의 경매가 등록되었습니다.");
+        assertThat(result.getBidId()).isEqualTo(Notification.NO_BID);
+    }
+
+    @Test
+    void bid에_연결된_알림을_저장한다() {
+        given(notificationRepository.save(any(Notification.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        Notification result = notificationService.saveForBid(1, 10, NotificationType.OUTBID, 42L, "상회 입찰이 발생했습니다.");
+
+        assertThat(result.getUserId()).isEqualTo(1);
+        assertThat(result.getAuctionId()).isEqualTo(10);
+        assertThat(result.getBidId()).isEqualTo(42L);
+    }
+
+    @Test
+    void 여러_유저의_알림을_한번에_저장하고_존재하는_행까지_함께_조회한다() {
+        List<Integer> userIds = List.of(1, 2, 3);
+        List<Notification> existing = List.of(
+                Notification.of(1, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                Notification.of(2, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                Notification.of(3, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.")
+        );
+        given(notificationRepository.findByAuctionIdAndTypeAndBidIdAndUserIdIn(
+                10, NotificationType.AUCTION_OPENED, Notification.NO_BID, userIds
+        )).willReturn(existing);
+
+        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+                userIds, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        );
+
+        then(jdbcTemplate).should().update(
+                eq("INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)"),
+                eq(1), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다."),
+                eq(2), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다."),
+                eq(3), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다.")
+        );
+        assertThat(result).isEqualTo(existing);
+    }
+
+    @Test
+    void 대상_유저가_없으면_저장_없이_빈_목록을_반환한다() {
+        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+                List.of(), 10, NotificationType.AUCTION_OPENED, "메시지"
+        );
+
+        assertThat(result).isEmpty();
+        then(jdbcTemplate).shouldHaveNoInteractions();
+        then(notificationRepository).should(never()).findByAuctionIdAndTypeAndBidIdAndUserIdIn(any(), any(), any(), any());
     }
 
     @Test
     void 알림_목록을_첫_페이지로_조회한다() {
         given(notificationRepository.findByUserIdOrderByIdDesc(1, PageRequest.of(0, 21)))
-                .willReturn(List.of(Notification.of(1, 10, "메시지")));
+                .willReturn(List.of(Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지")));
 
         NotificationPage result = notificationService.findPage(1, null, 20, false);
 
@@ -58,7 +112,7 @@ class NotificationServiceTest {
     @Test
     void 안읽은_알림_목록을_조회한다() {
         given(notificationRepository.findByUserIdAndIsReadFalseOrderByIdDesc(1, PageRequest.of(0, 21)))
-                .willReturn(List.of(Notification.of(1, 10, "메시지")));
+                .willReturn(List.of(Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지")));
 
         NotificationPage result = notificationService.findPage(1, null, 20, true);
 
@@ -69,7 +123,7 @@ class NotificationServiceTest {
     @Test
     void cursor가_있으면_해당_id_미만의_알림을_조회한다() {
         given(notificationRepository.findByUserIdAndIdLessThanOrderByIdDesc(1, 42L, PageRequest.of(0, 21)))
-                .willReturn(List.of(Notification.of(1, 10, "메시지")));
+                .willReturn(List.of(Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지")));
 
         NotificationPage result = notificationService.findPage(1, 42L, 20, false);
 
@@ -79,7 +133,7 @@ class NotificationServiceTest {
     @Test
     void cursor와_안읽음_필터를_함께_적용한다() {
         given(notificationRepository.findByUserIdAndIsReadFalseAndIdLessThanOrderByIdDesc(1, 42L, PageRequest.of(0, 21)))
-                .willReturn(List.of(Notification.of(1, 10, "메시지")));
+                .willReturn(List.of(Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지")));
 
         NotificationPage result = notificationService.findPage(1, 42L, 20, true);
 
@@ -102,7 +156,7 @@ class NotificationServiceTest {
     void 다음_페이지가_있으면_size만큼만_반환하고_nextCursor를_채운다() {
         List<Notification> fetched = new java.util.ArrayList<>();
         for (int i = 0; i < 21; i++) {
-            fetched.add(Notification.of(1, i, "메시지" + i));
+            fetched.add(Notification.of(1, i, NotificationType.AUCTION_OPENED, "메시지" + i));
         }
         ReflectionTestUtils.setField(fetched.get(19), "id", 99L);
         given(notificationRepository.findByUserIdOrderByIdDesc(1, PageRequest.of(0, 21))).willReturn(fetched);
@@ -125,7 +179,7 @@ class NotificationServiceTest {
 
     @Test
     void 본인_알림을_읽음_처리한다() {
-        Notification notification = Notification.of(1, 10, "메시지");
+        Notification notification = Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지");
         given(notificationRepository.findById(1L)).willReturn(Optional.of(notification));
 
         notificationService.markAsRead(1, 1L);
@@ -143,7 +197,7 @@ class NotificationServiceTest {
 
     @Test
     void 본인_소유가_아닌_알림을_읽음_처리하면_404() {
-        Notification notification = Notification.of(2, 10, "메시지");
+        Notification notification = Notification.of(2, 10, NotificationType.AUCTION_OPENED, "메시지");
         given(notificationRepository.findById(1L)).willReturn(Optional.of(notification));
 
         assertThatThrownBy(() -> notificationService.markAsRead(1, 1L))
