@@ -34,6 +34,9 @@ public class Order {
     @Column(name = "seller_id", nullable = false)
     private Integer sellerId;
 
+    @Column(name = "card_name", nullable = false, length = 200)
+    private String cardName;
+
     @Column(nullable = false)
     private long price;
 
@@ -45,16 +48,17 @@ public class Order {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    private Order(Integer auctionId, Integer buyerId, Integer sellerId, long price) {
+    private Order(Integer auctionId, Integer buyerId, Integer sellerId, String cardName, long price) {
         this.auctionId = auctionId;
         this.buyerId = buyerId;
         this.sellerId = sellerId;
+        this.cardName = cardName;
         this.price = price;
         this.status = OrderStatus.PENDING_CONFIRM;
     }
 
-    public static Order pendingConfirm(Integer auctionId, Integer buyerId, Integer sellerId, long price) {
-        return new Order(auctionId, buyerId, sellerId, price);
+    public static Order pendingConfirm(Integer auctionId, Integer buyerId, Integer sellerId, String cardName, long price) {
+        return new Order(auctionId, buyerId, sellerId, cardName, price);
     }
 
     public void confirm() {

@@ -4,6 +4,9 @@ public record OrderCancelledEvent(
         Integer orderId,
         Integer auctionId,
         Integer buyerId,
-        Integer sellerId
+        Integer sellerId,
+        String cardName,
+        CancelledBy cancelledBy
 ) {
+    public enum CancelledBy {BUYER, SELLER}
 }

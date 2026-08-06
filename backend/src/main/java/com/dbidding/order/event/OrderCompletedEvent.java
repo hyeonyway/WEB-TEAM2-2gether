@@ -4,6 +4,7 @@ public record OrderCompletedEvent(
         Integer orderId,
         Integer auctionId,
         Integer buyerId,
-        Integer sellerId
+        Integer sellerId,
+        String cardName
 ) {
 }

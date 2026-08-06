@@ -2,6 +2,7 @@ package com.dbidding.order;
 
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.order.event.OrderCancelledEvent;
+import com.dbidding.order.event.OrderCancelledEvent.CancelledBy;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
@@ -46,7 +47,7 @@ public class OrderService {
         order.confirm();
         walletSettlementPort.payoutToSeller(order.getSellerId(), order.getId(), order.getPrice());
         orderEventPort.publishCompleted(new OrderCompletedEvent(
-                order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId()
+                order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId(), order.getCardName()
         ));
         return order;
     }
@@ -55,11 +56,22 @@ public class OrderService {
     public Order cancel(Integer orderId, Integer currentUserId) {
         Order order = getOrder(orderId);
         requireBuyer(order, currentUserId);
+        return cancel(order, CancelledBy.BUYER);
+    }
 
+    @Transactional
+    public Order sellerCancel(Integer orderId, Integer currentUserId) {
+        Order order = getOrder(orderId);
+        requireSeller(order, currentUserId);
+        return cancel(order, CancelledBy.SELLER);
+    }
+
+    private Order cancel(Order order, CancelledBy cancelledBy) {
         order.cancel();
         walletSettlementPort.refundToBuyer(order.getBuyerId(), order.getId(), order.getPrice());
         orderEventPort.publishCancelled(new OrderCancelledEvent(
-                order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId()
+                order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId(),
+                order.getCardName(), cancelledBy
         ));
         return order;
     }
@@ -76,7 +88,7 @@ public class OrderService {
         }
         try {
             orderRepository.save(Order.pendingConfirm(
-                    event.auctionId(), event.winnerId(), event.sellerId(), event.winningPrice()
+                    event.auctionId(), event.winnerId(), event.sellerId(), event.cardName(), event.winningPrice()
             ));
         } catch (DataIntegrityViolationException exception) {
             log.debug("event=order.creation.duplicate_skipped auctionId={}", event.auctionId(), exception);
@@ -90,6 +102,12 @@ public class OrderService {
 
     private void requireBuyer(Order order, Integer currentUserId) {
         if (!order.getBuyerId().equals(currentUserId)) {
+            throw new OrderAccessDeniedException();
+        }
+    }
+
+    private void requireSeller(Order order, Integer currentUserId) {
+        if (!order.getSellerId().equals(currentUserId)) {
             throw new OrderAccessDeniedException();
         }
     }

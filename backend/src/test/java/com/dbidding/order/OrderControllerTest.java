@@ -21,6 +21,7 @@ class OrderControllerTest {
     private static final Integer SELLER_ID = 2;
     private static final Integer AUCTION_ID = 10;
     private static final Integer ORDER_ID = 100;
+    private static final String CARD_NAME = "리자몽";
     private static final long PRICE = 50_000L;
 
     @Autowired
@@ -38,7 +39,7 @@ class OrderControllerTest {
     }
 
     private Order order() {
-        return Order.pendingConfirm(AUCTION_ID, BUYER_ID, SELLER_ID, PRICE);
+        return Order.pendingConfirm(AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, PRICE);
     }
 
     @Test
@@ -48,7 +49,8 @@ class OrderControllerTest {
         mockMvc.perform(MockMvcRequestBuilders.get("/api/orders/purchases"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1))
-                .andExpect(MockMvcResultMatchers.jsonPath("$[0].auction_id").value(AUCTION_ID));
+                .andExpect(MockMvcResultMatchers.jsonPath("$[0].auction_id").value(AUCTION_ID))
+                .andExpect(MockMvcResultMatchers.jsonPath("$[0].card_name").value(CARD_NAME));
     }
 
     @Test
@@ -93,5 +95,18 @@ class OrderControllerTest {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.status").value("CANCELLED"));
 
         verify(orderService).cancel(ORDER_ID, BUYER_ID);
+    }
+
+    @Test
+    void 판매취소를_요청하면_취소된_주문을_반환한다() throws Exception {
+        Order cancelled = order();
+        cancelled.cancel();
+        given(orderService.sellerCancel(ORDER_ID, BUYER_ID)).willReturn(cancelled);
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/orders/{orderId}/seller-cancel", ORDER_ID))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.status").value("CANCELLED"));
+
+        verify(orderService).sellerCancel(ORDER_ID, BUYER_ID);
     }
 }

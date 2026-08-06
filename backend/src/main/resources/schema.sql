@@ -407,6 +407,7 @@ CREATE TABLE orders
     auction_id INT          NOT NULL,
     buyer_id   INT          NOT NULL,
     seller_id  INT          NOT NULL,
+    card_name  VARCHAR(200) NOT NULL,
     price      BIGINT       NOT NULL,
     status     VARCHAR(32)  NOT NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),

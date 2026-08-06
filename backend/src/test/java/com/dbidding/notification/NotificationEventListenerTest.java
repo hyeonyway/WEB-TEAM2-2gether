@@ -147,28 +147,42 @@ class NotificationEventListenerTest {
     }
 
     @Test
-    void 주문이_완료되면_구매자와_판매자_모두에게_알림을_보내고_SSE로_push한다() {
+    void 주문이_완료되면_구매자와_판매자_모두에게_카드이름과_함께_알림을_보내고_SSE로_push한다() {
         listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
-        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_COMPLETED, "구매가 확정되었습니다.");
-        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_COMPLETED, "판매 대금이 정산되었습니다.");
-        given(notificationService.save(7, 100, NotificationType.ORDER_COMPLETED, "구매가 확정되었습니다.")).willReturn(buyerNotification);
-        given(notificationService.save(9, 100, NotificationType.ORDER_COMPLETED, "판매 대금이 정산되었습니다.")).willReturn(sellerNotification);
+        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다.");
+        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 판매 대금이 정산되었습니다.");
+        given(notificationService.save(7, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다.")).willReturn(buyerNotification);
+        given(notificationService.save(9, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 판매 대금이 정산되었습니다.")).willReturn(sellerNotification);
 
-        listener.handleOrderCompleted(new OrderCompletedEvent(1, 100, 7, 9));
+        listener.handleOrderCompleted(new OrderCompletedEvent(1, 100, 7, 9, "리자몽 EX"));
 
         verify(notificationSseConnectionManager).push(7, NotificationResponse.from(buyerNotification));
         verify(notificationSseConnectionManager).push(9, NotificationResponse.from(sellerNotification));
     }
 
     @Test
-    void 주문이_취소되면_구매자와_판매자_모두에게_알림을_보내고_SSE로_push한다() {
+    void 구매자가_취소하면_구매자에게는_환불_판매자에게는_구매자가_취소했다는_알림을_보낸다() {
         listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
-        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "구매가 취소되어 환불되었습니다.");
-        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 거래를 취소했습니다.");
-        given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "구매가 취소되어 환불되었습니다.")).willReturn(buyerNotification);
-        given(notificationService.save(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 거래를 취소했습니다.")).willReturn(sellerNotification);
+        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다.");
+        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 리자몽 EX 카드 거래를 취소했습니다.");
+        given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다.")).willReturn(buyerNotification);
+        given(notificationService.save(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 리자몽 EX 카드 거래를 취소했습니다.")).willReturn(sellerNotification);
 
-        listener.handleOrderCancelled(new OrderCancelledEvent(1, 100, 7, 9));
+        listener.handleOrderCancelled(new OrderCancelledEvent(1, 100, 7, 9, "리자몽 EX", OrderCancelledEvent.CancelledBy.BUYER));
+
+        verify(notificationSseConnectionManager).push(7, NotificationResponse.from(buyerNotification));
+        verify(notificationSseConnectionManager).push(9, NotificationResponse.from(sellerNotification));
+    }
+
+    @Test
+    void 판매자가_취소하면_판매자에게는_판매취소_구매자에게는_환불_알림을_보낸다() {
+        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다.");
+        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 판매를 취소했습니다.");
+        given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다.")).willReturn(buyerNotification);
+        given(notificationService.save(9, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 판매를 취소했습니다.")).willReturn(sellerNotification);
+
+        listener.handleOrderCancelled(new OrderCancelledEvent(1, 100, 7, 9, "리자몽 EX", OrderCancelledEvent.CancelledBy.SELLER));
 
         verify(notificationSseConnectionManager).push(7, NotificationResponse.from(buyerNotification));
         verify(notificationSseConnectionManager).push(9, NotificationResponse.from(sellerNotification));

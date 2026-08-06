@@ -33,6 +33,7 @@ class OrderServiceTest {
     private static final Integer SELLER_ID = 2;
     private static final Integer ORDER_ID = 100;
     private static final Integer AUCTION_ID = 10;
+    private static final String CARD_NAME = "리자몽";
     private static final long PRICE = 50_000L;
 
     @Mock
@@ -52,7 +53,7 @@ class OrderServiceTest {
     }
 
     private Order pendingOrder() {
-        return Order.pendingConfirm(AUCTION_ID, BUYER_ID, SELLER_ID, PRICE);
+        return Order.pendingConfirm(AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, PRICE);
     }
 
     @Test
@@ -65,7 +66,7 @@ class OrderServiceTest {
         assertThat(result.getStatus()).isEqualTo(OrderStatus.COMPLETED);
         verify(walletSettlementPort).payoutToSeller(SELLER_ID, order.getId(), PRICE);
         verify(orderEventPort).publishCompleted(
-                new OrderCompletedEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID)
+                new OrderCompletedEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME)
         );
     }
 
@@ -79,8 +80,42 @@ class OrderServiceTest {
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         verify(walletSettlementPort).refundToBuyer(BUYER_ID, order.getId(), PRICE);
         verify(orderEventPort).publishCancelled(
-                new OrderCancelledEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID)
+                new OrderCancelledEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, OrderCancelledEvent.CancelledBy.BUYER)
         );
+    }
+
+    @Test
+    void 판매자가_판매취소하면_구매자에게_환불하고_판매자_취소로_이벤트를_발행한다() {
+        Order order = pendingOrder();
+        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+
+        Order result = orderService.sellerCancel(ORDER_ID, SELLER_ID);
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        verify(walletSettlementPort).refundToBuyer(BUYER_ID, order.getId(), PRICE);
+        verify(orderEventPort).publishCancelled(
+                new OrderCancelledEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, OrderCancelledEvent.CancelledBy.SELLER)
+        );
+    }
+
+    @Test
+    void 판매자가_아니면_판매취소_시도시_예외가_발생하고_환불은_호출되지_않는다() {
+        Order order = pendingOrder();
+        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.sellerCancel(ORDER_ID, BUYER_ID))
+                .isInstanceOf(OrderAccessDeniedException.class);
+        verify(walletSettlementPort, never()).refundToBuyer(any(), any(), anyLong());
+    }
+
+    @Test
+    void 이미_확정된_주문을_판매취소하면_예외가_발생한다() {
+        Order order = pendingOrder();
+        order.confirm();
+        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.sellerCancel(ORDER_ID, SELLER_ID))
+                .isInstanceOf(InvalidOrderStatusException.class);
     }
 
     @Test
@@ -165,7 +200,7 @@ class OrderServiceTest {
 
     private AuctionClosedEvent closedWithWinner() {
         return new AuctionClosedEvent(
-                AUCTION_ID, 1, "리자몽", "PSA10", "KR", "http://image",
+                AUCTION_ID, 1, CARD_NAME, "PSA10", "KR", "http://image",
                 BUYER_ID, SELLER_ID, 10_000L, PRICE, PRICE, 1_000L, 5,
                 LocalDateTime.now(), AuctionStatus.ENDED, 1L, LocalDateTime.now()
         );
@@ -173,7 +208,7 @@ class OrderServiceTest {
 
     private AuctionClosedEvent closedWithoutWinner() {
         return new AuctionClosedEvent(
-                AUCTION_ID, 1, "리자몽", "PSA10", "KR", "http://image",
+                AUCTION_ID, 1, CARD_NAME, "PSA10", "KR", "http://image",
                 null, SELLER_ID, 10_000L, 10_000L, null, 1_000L, 0,
                 LocalDateTime.now(), AuctionStatus.FAILED, 1L, LocalDateTime.now()
         );

@@ -45,4 +45,9 @@ public class OrderController {
     public OrderResponse cancel(@CurrentUser Integer userId, @PathVariable Integer orderId) {
         return OrderResponse.from(orderService.cancel(orderId, userId));
     }
+
+    @PostMapping("/{orderId}/seller-cancel")
+    public OrderResponse sellerCancel(@CurrentUser Integer userId, @PathVariable Integer orderId) {
+        return OrderResponse.from(orderService.sellerCancel(orderId, userId));
+    }
 }

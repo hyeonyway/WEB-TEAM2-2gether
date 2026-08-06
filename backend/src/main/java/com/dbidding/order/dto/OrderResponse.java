@@ -9,6 +9,7 @@ import java.time.Instant;
 public record OrderResponse(
         Integer id,
         @JsonProperty("auction_id") Integer auctionId,
+        @JsonProperty("card_name") String cardName,
         long price,
         OrderStatus status,
         @JsonProperty("created_at") Instant createdAt
@@ -18,6 +19,7 @@ public record OrderResponse(
         return new OrderResponse(
                 order.getId(),
                 order.getAuctionId(),
+                order.getCardName(),
                 order.getPrice(),
                 order.getStatus(),
                 UtcTime.toInstant(order.getCreatedAt())

@@ -74,15 +74,24 @@ public class NotificationEventListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleOrderCompleted(OrderCompletedEvent event) {
-        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID, "구매가 확정되었습니다.");
-        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID, "판매 대금이 정산되었습니다.");
+        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID,
+                event.cardName() + " 카드 구매가 확정되었습니다.");
+        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID,
+                event.cardName() + " 카드 판매 대금이 정산되었습니다.");
     }
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleOrderCancelled(OrderCancelledEvent event) {
-        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, "구매가 취소되어 환불되었습니다.");
-        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, "구매자가 거래를 취소했습니다.");
+        boolean cancelledBySeller = event.cancelledBy() == OrderCancelledEvent.CancelledBy.SELLER;
+        String buyerMessage = cancelledBySeller
+                ? "판매자가 " + event.cardName() + " 카드 거래를 취소하여 환불되었습니다."
+                : event.cardName() + " 카드 구매가 취소되어 환불되었습니다.";
+        String sellerMessage = cancelledBySeller
+                ? event.cardName() + " 카드 판매를 취소했습니다."
+                : "구매자가 " + event.cardName() + " 카드 거래를 취소했습니다.";
+        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, buyerMessage);
+        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, sellerMessage);
     }
 
     private void saveAndPush(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {
