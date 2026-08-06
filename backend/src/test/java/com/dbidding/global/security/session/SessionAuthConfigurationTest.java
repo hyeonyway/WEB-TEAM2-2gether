@@ -30,6 +30,7 @@ class SessionAuthConfigurationTest {
 			assertThat(context).hasSingleBean(AuthenticationStrategy.class);
 			assertThat(context).hasSingleBean(SessionAuthenticationStrategy.class);
 			assertThat(context).hasSingleBean(SessionAuthFilter.class);
+			assertThat(context).hasSingleBean(SessionCsrfFilter.class);
 		});
 	}
 
@@ -40,6 +41,7 @@ class SessionAuthConfigurationTest {
 				assertThat(context).hasNotFailed();
 				assertThat(context).doesNotHaveBean(SessionAuthenticationStrategy.class);
 				assertThat(context).doesNotHaveBean(SessionAuthFilter.class);
+				assertThat(context).doesNotHaveBean(SessionCsrfFilter.class);
 			});
 	}
 
