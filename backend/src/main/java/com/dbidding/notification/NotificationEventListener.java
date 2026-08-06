@@ -6,6 +6,8 @@ import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.notification.dto.NotificationResponse;
 import com.dbidding.notification.port.CardNameFinder;
 import com.dbidding.notification.port.WishlistUserFinder;
+import com.dbidding.order.event.OrderCancelledEvent;
+import com.dbidding.order.event.OrderCompletedEvent;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +69,20 @@ public class NotificationEventListener {
         }
         String sellerMessage = event.cardName() + " 카드 경매가 " + (won ? "낙찰되었습니다." : "유찰되었습니다.");
         saveAndPush(event.sellerId(), event.auctionId(), type, Notification.NO_BID, sellerMessage);
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleOrderCompleted(OrderCompletedEvent event) {
+        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID, "구매가 확정되었습니다.");
+        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID, "판매 대금이 정산되었습니다.");
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleOrderCancelled(OrderCancelledEvent event) {
+        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, "구매가 취소되어 환불되었습니다.");
+        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, "구매자가 거래를 취소했습니다.");
     }
 
     private void saveAndPush(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {

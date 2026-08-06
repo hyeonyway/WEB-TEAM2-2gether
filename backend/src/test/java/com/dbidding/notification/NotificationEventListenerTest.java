@@ -12,6 +12,8 @@ import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.notification.dto.NotificationResponse;
 import com.dbidding.notification.port.CardNameFinder;
 import com.dbidding.notification.port.WishlistUserFinder;
+import com.dbidding.order.event.OrderCancelledEvent;
+import com.dbidding.order.event.OrderCompletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -142,6 +144,34 @@ class NotificationEventListenerTest {
         verify(notificationService).save(9, 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.");
         verify(notificationSseConnectionManager).push(9, NotificationResponse.from(sellerNotification));
         verifyNoMoreInteractions(notificationService);
+    }
+
+    @Test
+    void 주문이_완료되면_구매자와_판매자_모두에게_알림을_보내고_SSE로_push한다() {
+        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_COMPLETED, "구매가 확정되었습니다.");
+        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_COMPLETED, "판매 대금이 정산되었습니다.");
+        given(notificationService.save(7, 100, NotificationType.ORDER_COMPLETED, "구매가 확정되었습니다.")).willReturn(buyerNotification);
+        given(notificationService.save(9, 100, NotificationType.ORDER_COMPLETED, "판매 대금이 정산되었습니다.")).willReturn(sellerNotification);
+
+        listener.handleOrderCompleted(new OrderCompletedEvent(1, 100, 7, 9));
+
+        verify(notificationSseConnectionManager).push(7, NotificationResponse.from(buyerNotification));
+        verify(notificationSseConnectionManager).push(9, NotificationResponse.from(sellerNotification));
+    }
+
+    @Test
+    void 주문이_취소되면_구매자와_판매자_모두에게_알림을_보내고_SSE로_push한다() {
+        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "구매가 취소되어 환불되었습니다.");
+        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 거래를 취소했습니다.");
+        given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "구매가 취소되어 환불되었습니다.")).willReturn(buyerNotification);
+        given(notificationService.save(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 거래를 취소했습니다.")).willReturn(sellerNotification);
+
+        listener.handleOrderCancelled(new OrderCancelledEvent(1, 100, 7, 9));
+
+        verify(notificationSseConnectionManager).push(7, NotificationResponse.from(buyerNotification));
+        verify(notificationSseConnectionManager).push(9, NotificationResponse.from(sellerNotification));
     }
 
     private AuctionOpenedEvent openedEvent() {
