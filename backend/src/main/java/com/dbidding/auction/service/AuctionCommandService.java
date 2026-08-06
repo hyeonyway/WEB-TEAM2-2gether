@@ -23,7 +23,6 @@ import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.metrics.AuctionMetrics.BidResult;
 import com.dbidding.auction.metrics.AuctionMetrics.CloseResult;
 import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
-import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.card.service.CardService;
@@ -67,7 +66,6 @@ public class AuctionCommandService {
     private final ImageUploadPort imageUploadPort;
     private final AuctionEventPublisher auctionEventPublisher;
     private final CardService cardService;
-    private final AuctionCardStatisticPort auctionCardStatisticPort;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
     private final AuctionMetrics auctionMetrics;
@@ -119,7 +117,6 @@ public class AuctionCommandService {
                 .map(image -> new AuctionImage(savedAuction, image.imagePath()))
                 .toList();
         auctionImageRepository.saveAll(auctionImages);
-        auctionCardStatisticPort.recordAuctionOpened(savedAuction.getItemId(), now);
         auctionEventPublisher.publishOpened(new AuctionOpenedEvent(
                 savedAuction.getId(),
                 card.cardId(),
@@ -208,7 +205,6 @@ public class AuctionCommandService {
                 idempotencyKey,
                 requestHash
         ));
-        auctionCardStatisticPort.recordBid(auction.getItemId(), bidAt);
         publishBidPlaced(auction, userId, auction.getItemId(), previousLeadingBid, bidAt);
         log.info(
                 "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
@@ -458,7 +454,6 @@ public class AuctionCommandService {
         Optional<Bid> winningBid = highestBid(auction.getId());
         if (winningBid.isEmpty()) {
             auction.closeWithoutTrade(closedAt);
-            auctionCardStatisticPort.recordAuctionClosedWithoutTrade(auction.getItemId(), closedAt);
             publishAuctionClosed(auction, null, closedAt);
             log.info("event=auction.closed.without_trade auctionId={} itemId={} sellerId={} closedAt={} status={} bidCount={}",
                     auction.getId(), auction.getItemId(), auction.getSellerId(), closedAt,
@@ -470,7 +465,6 @@ public class AuctionCommandService {
         winner.markWon();
         auction.closeWithWinningBid(winner, closedAt);
         walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
-        auctionCardStatisticPort.recordAuctionCompleted(auction.getItemId(), winner.getBidPrice(), closedAt);
         publishAuctionClosed(auction, winner, closedAt);
         log.info(
                 "event=auction.closed.with_winner auctionId={} itemId={} sellerId={} winnerId={} winningBidId={} winningPrice={} closedAt={} status={} bidCount={}",

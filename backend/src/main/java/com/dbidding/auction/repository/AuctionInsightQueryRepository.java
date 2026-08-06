@@ -4,8 +4,8 @@ import com.dbidding.auction.domain.Auction;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
-public interface StatisticAuctionQueryRepository extends Repository<Auction, Integer> {
-    interface InsightAggregate {
+public interface AuctionInsightQueryRepository extends Repository<Auction, Integer> {
+    interface OpenAuctionInsightAggregate {
         Long getTotalCount();
         Long getRisingCount();
         Double getAverageRisingRate();
@@ -23,6 +23,5 @@ public interface StatisticAuctionQueryRepository extends Repository<Auction, Int
             where a.status = com.dbidding.auction.domain.AuctionStatus.OPEN
               and a.estimatedCloseTime > CURRENT_TIMESTAMP
             """)
-    InsightAggregate aggregateInsights();
-
+    OpenAuctionInsightAggregate aggregateOpenAuctionInsight();
 }
