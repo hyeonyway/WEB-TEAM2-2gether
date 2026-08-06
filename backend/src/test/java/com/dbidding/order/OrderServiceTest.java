@@ -56,7 +56,7 @@ class OrderServiceTest {
     @Test
     void 구매자가_구매확정하면_판매자에게_정산하고_완료_이벤트를_발행한다() {
         Order order = pendingOrder();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         Order result = orderService.confirm(ORDER_ID, BUYER_ID);
 
@@ -70,7 +70,7 @@ class OrderServiceTest {
     @Test
     void 구매자가_구매취소하면_구매자에게_환불하고_취소_이벤트를_발행한다() {
         Order order = pendingOrder();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         Order result = orderService.cancel(ORDER_ID, BUYER_ID);
 
@@ -84,7 +84,7 @@ class OrderServiceTest {
     @Test
     void 판매자가_판매취소하면_구매자에게_환불하고_판매자_취소로_이벤트를_발행한다() {
         Order order = pendingOrder();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         Order result = orderService.sellerCancel(ORDER_ID, SELLER_ID);
 
@@ -98,7 +98,7 @@ class OrderServiceTest {
     @Test
     void 판매자가_아니면_판매취소_시도시_예외가_발생하고_환불은_호출되지_않는다() {
         Order order = pendingOrder();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.sellerCancel(ORDER_ID, BUYER_ID))
                 .isInstanceOf(OrderAccessDeniedException.class);
@@ -109,7 +109,7 @@ class OrderServiceTest {
     void 이미_확정된_주문을_판매취소하면_예외가_발생한다() {
         Order order = pendingOrder();
         order.confirm();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.sellerCancel(ORDER_ID, SELLER_ID))
                 .isInstanceOf(InvalidOrderStatusException.class);
@@ -117,7 +117,7 @@ class OrderServiceTest {
 
     @Test
     void 존재하지_않는_주문을_확정하면_예외가_발생한다() {
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.empty());
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.confirm(ORDER_ID, BUYER_ID))
                 .isInstanceOf(OrderNotFoundException.class);
@@ -126,7 +126,7 @@ class OrderServiceTest {
     @Test
     void 본인_소유가_아닌_주문을_확정하면_예외가_발생하고_정산은_호출되지_않는다() {
         Order order = pendingOrder();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.confirm(ORDER_ID, 999))
                 .isInstanceOf(OrderAccessDeniedException.class);
@@ -137,7 +137,7 @@ class OrderServiceTest {
     void 이미_확정된_주문을_다시_확정하면_예외가_발생한다() {
         Order order = pendingOrder();
         order.confirm();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.confirm(ORDER_ID, BUYER_ID))
                 .isInstanceOf(InvalidOrderStatusException.class);
@@ -147,7 +147,7 @@ class OrderServiceTest {
     void 이미_취소된_주문을_확정하면_예외가_발생한다() {
         Order order = pendingOrder();
         order.cancel();
-        given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(ORDER_ID)).willReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.confirm(ORDER_ID, BUYER_ID))
                 .isInstanceOf(InvalidOrderStatusException.class);

@@ -40,7 +40,7 @@ public class OrderService {
 
     @Transactional
     public Order confirm(Integer orderId, Integer currentUserId) {
-        Order order = getOrder(orderId);
+        Order order = getOrderForUpdate(orderId);
         requireBuyer(order, currentUserId);
 
         order.confirm();
@@ -53,14 +53,14 @@ public class OrderService {
 
     @Transactional
     public Order cancel(Integer orderId, Integer currentUserId) {
-        Order order = getOrder(orderId);
+        Order order = getOrderForUpdate(orderId);
         requireBuyer(order, currentUserId);
         return cancel(order, CancelledBy.BUYER);
     }
 
     @Transactional
     public Order sellerCancel(Integer orderId, Integer currentUserId) {
-        Order order = getOrder(orderId);
+        Order order = getOrderForUpdate(orderId);
         requireSeller(order, currentUserId);
         return cancel(order, CancelledBy.SELLER);
     }
@@ -96,6 +96,18 @@ public class OrderService {
 
     private Order getOrder(Integer orderId) {
         return orderRepository.findById(orderId)
+                .orElseThrow(OrderNotFoundException::new);
+    }
+
+    /**
+     * 확정/취소처럼 상태를 바꾸는 진입점에서만 쓴다. 잠금 없이 조회하면 구매자
+     * 확정과 판매자 취소가 동시에 들어왔을 때 둘 다 PENDING_CONFIRM을 읽고 통과해
+     * 정산/환불과 이벤트 발행이 중복될 수 있다(PR #228 CodeRabbit 리뷰).
+     * 행 잠금으로 두 번째 트랜잭션은 첫 번째가 커밋될 때까지 대기했다가, 이미
+     * 바뀐 상태를 보고 InvalidOrderStatusException으로 막힌다.
+     */
+    private Order getOrderForUpdate(Integer orderId) {
+        return orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(OrderNotFoundException::new);
     }
 
