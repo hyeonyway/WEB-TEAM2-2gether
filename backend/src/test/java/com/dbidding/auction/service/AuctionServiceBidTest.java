@@ -15,7 +15,6 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
-import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
@@ -48,8 +47,6 @@ class AuctionServiceBidTest {
     @Mock
     private CardService cardService;
     @Mock
-    private AuctionCardStatisticPort auctionCardStatisticPort;
-    @Mock
     private AuctionEventPublisher auctionEventPublisher;
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -72,7 +69,6 @@ class AuctionServiceBidTest {
                 null,
                 auctionEventPublisher,
                 cardService,
-                auctionCardStatisticPort,
                 clock,
                 eventPublisher,
                 new AuctionMetrics(meterRegistry)

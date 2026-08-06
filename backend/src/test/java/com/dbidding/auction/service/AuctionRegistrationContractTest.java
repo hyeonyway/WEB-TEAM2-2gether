@@ -13,7 +13,6 @@ import static org.mockito.Mockito.when;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.metrics.AuctionMetrics;
-import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
@@ -52,8 +51,6 @@ class AuctionRegistrationContractTest {
     @Mock
     private CardService cardService;
     @Mock
-    private AuctionCardStatisticPort auctionCardStatisticPort;
-    @Mock
     private AuctionEventPublisher auctionEventPublisher;
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -70,7 +67,6 @@ class AuctionRegistrationContractTest {
                         imageUploadPort,
                         auctionEventPublisher,
                         cardService,
-                        auctionCardStatisticPort,
                         Clock.fixed(Instant.parse("2026-08-04T00:00:00Z"), ZoneOffset.UTC),
                         eventPublisher,
                         new AuctionMetrics(new SimpleMeterRegistry())
@@ -135,7 +131,6 @@ class AuctionRegistrationContractTest {
                 bidRepository,
                 walletService,
                 cardService,
-                auctionCardStatisticPort,
                 auctionEventPublisher,
                 eventPublisher
         );
@@ -157,7 +152,6 @@ class AuctionRegistrationContractTest {
                 bidRepository,
                 walletService,
                 cardService,
-                auctionCardStatisticPort,
                 auctionEventPublisher,
                 eventPublisher
         );
@@ -196,7 +190,6 @@ class AuctionRegistrationContractTest {
                 bidRepository,
                 walletService,
                 cardService,
-                auctionCardStatisticPort,
                 auctionEventPublisher,
                 eventPublisher
         );

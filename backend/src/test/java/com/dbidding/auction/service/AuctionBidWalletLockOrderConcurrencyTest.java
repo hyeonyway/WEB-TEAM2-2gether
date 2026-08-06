@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.AuctionCardStatisticPort;
 import com.dbidding.wallet.metrics.WalletMetrics;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
@@ -60,9 +59,6 @@ class AuctionBidWalletLockOrderConcurrencyTest {
 
     @Autowired
     private CoordinatedWalletService walletService;
-
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    private AuctionCardStatisticPort auctionCardStatisticPort;
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private AuctionEventPublisher auctionEventPublisher;
