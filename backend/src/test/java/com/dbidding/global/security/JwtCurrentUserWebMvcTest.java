@@ -13,15 +13,17 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.dbidding.account.exception.InvalidTokenException;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.TokenClaims;
-import com.dbidding.account.token.TokenType;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.TokenClaims;
+import com.dbidding.account.authentication.jwt.TokenType;
 import com.dbidding.global.config.WebConfig;
+import com.dbidding.global.security.jwt.JwtAuthFilter;
 
 @WebMvcTest(CurrentUserTestController.class)
 @Import({
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
+	RequestUserIdWriter.class,
 	JwtAuthFilter.class
 })
 class JwtCurrentUserWebMvcTest {

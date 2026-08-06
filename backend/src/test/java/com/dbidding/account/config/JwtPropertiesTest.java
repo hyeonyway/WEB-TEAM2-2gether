@@ -13,6 +13,8 @@ import org.springframework.core.io.FileSystemResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dbidding.account.authentication.jwt.JwtProperties;
+
 class JwtPropertiesTest {
 
     private static final String VALID_SECRET = "local-development-secret-at-least-32-bytes";

@@ -8,7 +8,11 @@ import javax.crypto.SecretKey;
 
 import org.junit.jupiter.api.Test;
 
-import com.dbidding.account.config.JwtProperties;
+import com.dbidding.account.authentication.jwt.JwtProperties;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.IssuedTokens;
+import com.dbidding.account.authentication.jwt.TokenClaims;
+import com.dbidding.account.authentication.jwt.TokenType;
 import com.dbidding.account.exception.ExpiredTokenException;
 import com.dbidding.account.exception.InvalidTokenException;
 import com.dbidding.account.exception.InvalidTokenRoleException;

@@ -7,14 +7,14 @@ SSE·알림 후처리까지 포함한 경로에 부하를 준다. 테스트 데�
 ## 실행
 
 `002-user.sql` 적용 후 백엔드와 스크립트를 실행한다. k6의 `setup()`이
-300개의 전용 계정 중 기본으로 `k6-user001@dbidding.local`부터
-`k6-user010@dbidding.local`까지 10개 계정을 공통 비밀번호
+5만 개의 전용 계정 중 기본으로 `k6-user00001@dbidding.local`부터
+`k6-user00010@dbidding.local`까지 10개 계정을 공통 비밀번호
 `K6LoadTest123!`로 로그인한다. 로그인은 기본 10개씩 병렬 처리한다. 이후
 `POST /api/auth/login`을 호출해 액세스 토큰을 발급받고, 이후 모든 입찰 요청에
 `Authorization: Bearer ...` 헤더를 자동으로 붙인다. 기본 부하는
 **초당 100회, 1분, 최대 300 VU**다.
 
-로그인 중에는 각 배치가 끝날 때마다 `[setup/login] 10/300명 완료` 형식으로
+로그인 중에는 각 배치가 끝날 때마다 `[setup/login] 10/50000명 완료` 형식으로
 계정 수, 진행률, 경과 시간을 출력한다. 토큰과 이메일은 로그에 출력하지 않는다.
 
 ```bash
@@ -72,16 +72,22 @@ cd backend
 | `WARMUP_DURATION` | `30s` | 웜업 지속 시간. |
 | `MAIN_START_TIME` | `35s` | 전체 시나리오 시작 후 본 부하가 시작되는 시점. 일반적으로 웜업 시간에 graceful stop 5초를 더한다. |
 | `SETUP_TIMEOUT` | `10m` | 로그인과 경매 조회를 포함한 setup 제한 시간. |
-| `LOAD_TEST_USER_COUNT` | `10` | 자동 생성해 로그인할 계정 수. SQL에는 300명이 준비되므로 최대 `300` 사용을 권장한다. |
+| `LOAD_TEST_USER_COUNT` | `10` | 자동 생성해 로그인할 계정 수. SQL에는 5만 명이 준비되어 있어 필요한 만큼 지정할 수 있다. |
 | `LOGIN_BATCH_SIZE` | `10` | `http.batch()`로 동시에 로그인할 계정 수. 서버 CPU 상황에 따라 `5`~`20`을 권장한다. |
 | `LOAD_TEST_EMAIL_PREFIX` | `k6-user` | 자동 생성 계정 이메일의 접두사. |
 | `LOAD_TEST_EMAIL_DOMAIN` | `dbidding.local` | 자동 생성 계정 이메일의 도메인. |
-| `LOAD_TEST_PASSWORD` | `K6LoadTest123!` | 자동 생성한 300개 계정의 공통 비밀번호. |
+| `LOAD_TEST_PASSWORD` | `K6LoadTest123!` | 자동 생성한 5만 개 계정의 공통 비밀번호. |
 | `AUCTION_IDS` | 없음 | 쉼표로 구분한 입찰 대상 경매 ID. 없으면 진행 중 경매를 최대 100개까지 조회한다. |
 | `LOGIN_USERS` | 없음 | `[{"email":"...","password":"..."}]` 형식의 로그인 계정 배열. |
 | `EMAIL` | 없음 | 단일 로그인 계정 이메일. `PASSWORD`와 함께 사용한다. |
 | `PASSWORD` | 없음 | 단일 로그인 계정 비밀번호. `EMAIL`과 함께 사용한다. |
 | `ACCESS_TOKENS` | 없음 | 쉼표로 구분한 사전 발급 Access Token. 지정하면 로그인 API를 호출하지 않는다. |
+| `K6_RESULT_FILE` | 없음 | 실행 파라미터와 최종 지표를 함께 저장할 JSON 파일 경로. 상위 디렉터리는 실행 전에 생성해야 한다. |
+| `SSE_VUS` | `300` | 경매 SSE와 알림 SSE 각각에 유지할 동시 연결 수. |
+| `SSE_DURATION` | `2m45s` | SSE 연결 시나리오 유지 시간. 기본값은 30초 웜업+5초 여유+2분 본 부하 기준이다. |
+| `LOAD_TEST_USER_ID_START` | `910001` | 자동 생성 계정의 첫 사용자 ID. 알림 SSE URL의 `{userId}`에 사용한다. |
+| `LOAD_TEST_USER_NUMBER_WIDTH` | `5` | 자동 생성 계정 번호의 최소 자리수. SQL 기본 계정 형식은 5자리다. |
+| `NOTIFICATION_USER_IDS` | 없음 | 커스텀 로그인 계정 사용 시 알림 SSE에 대응할 사용자 ID를 쉼표로 지정한다. |
 
 `RATE=100`은 사용자 100명이라는 뜻이 아니라 초당 반복 100회를 의미한다.
 반복 한 번에 HTTP 요청이 2개이므로 모두 정상 처리되면 초당 요청은 대략 200개다.
@@ -101,8 +107,9 @@ cd backend
 
 ## 웜업과 본 측정
 
-기본 실행 순서는 setup 로그인 및 경매 조회 → 30초 웜업 → 5초 종료 여유 →
-1분 본 부하다. 웜업도 실제 컨텍스트 조회와 입찰 요청을 수행하지만 본 부하 전용
+기본 실행 순서는 setup 로그인·SSE 티켓 발급 및 경매 조회 → SSE 연결 유지와 30초
+웜업 → 5초 종료 여유 → 1분 본 부하다. 각 사용자에 대해 경매 공개 SSE와 알림
+SSE를 각각 하나씩 연결한다. 웜업도 실제 컨텍스트 조회와 입찰 요청을 수행하지만 본 부하 전용
 threshold에는 포함되지 않는다. 웜업 시간을 변경할 때는 다음처럼 본 부하 시작
 시점도 함께 조절한다.
 
@@ -112,6 +119,14 @@ threshold에는 포함되지 않는다. 웜업 시간을 변경할 때는 다음
 ```
 
 ## 결과 지표
+
+최종 콘솔 요약과 `K6_RESULT_FILE` JSON의 Trend 지표에는 `avg`, `min`, `med`,
+`p(85)`, `p(95)`, `p(99)`, `max`가 출력된다. 이를 통해 일반 요청 구간과 느린
+상위 15%, 5%, 1% 요청의 응답시간을 함께 비교할 수 있다.
+
+결과 JSON에는 k6 원본 summary와 함께 최상위 `generatedAt`, `testConfig`가
+저장된다. `testConfig`에는 URL, 경매 ID, 인증 입력 방식, 사용자·배치 수, 웜업,
+RATE, 지속 시간, VU 설정이 포함된다. 비밀번호와 Access Token은 저장하지 않는다.
 
 - `bid_accepted`: 실제 `201 Created` 비율
 - `bid_contentions`: 가격 조회 후 다른 요청이 선점해 발생한 `409 Conflict` 수

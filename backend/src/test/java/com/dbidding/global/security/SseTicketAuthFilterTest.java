@@ -23,6 +23,9 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.dbidding.global.exception.UnauthorizedException;
+import com.dbidding.global.security.jwt.InMemoryTicketProvider;
+import com.dbidding.global.security.jwt.SseTicketAuthFilter;
+import com.dbidding.global.security.jwt.TicketProvider;
 
 @ExtendWith(MockitoExtension.class)
 class SseTicketAuthFilterTest {
@@ -34,7 +37,7 @@ class SseTicketAuthFilterTest {
 
 	@BeforeEach
 	void setUp() {
-		filter = new SseTicketAuthFilter(ticketProvider);
+		filter = new SseTicketAuthFilter(ticketProvider, new RequestUserIdWriter());
 	}
 
 	@Test
@@ -71,7 +74,10 @@ class SseTicketAuthFilterTest {
 		InMemoryTicketProvider realTicketProvider = new InMemoryTicketProvider(
 			Clock.fixed(Instant.parse("2026-07-30T00:00:00Z"), ZoneOffset.UTC)
 		);
-		SseTicketAuthFilter realFilter = new SseTicketAuthFilter(realTicketProvider);
+		SseTicketAuthFilter realFilter = new SseTicketAuthFilter(
+			realTicketProvider,
+			new RequestUserIdWriter()
+		);
 		String ticket = realTicketProvider.issue(8);
 		MockHttpServletRequest request = get("/api/dashboard/stream");
 		request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, 7);

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -274,9 +275,9 @@ class AuctionServiceTest {
     }
 
     @Test
-    void 새_입찰이_들어오면_이전_최고_입찰은_상회입찰_상태가_되고_동결금액이_해제된다() {
+    void 현재_입찰자_ID가_더_작으면_hold_후_release_순서로_지갑을_잠근다() {
         Auction auction = auction(11_000L, 1_000L);
-        Bid previousLeadingBid = Bid.leading(2, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
+        Bid previousLeadingBid = Bid.leading(3, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.of(previousLeadingBid));
@@ -284,11 +285,28 @@ class AuctionServiceTest {
         auctionService.participate(1, 1, new BidCreateRequest(12_000L), "bid-key");
 
         assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
-        verify(walletPort).holdBidAmount(1, 1, 12_000L);
-        verify(walletPort).releaseBidHold(2, 1);
+        var walletOrder = inOrder(walletPort);
+        walletOrder.verify(walletPort).holdBidAmount(1, 1, 12_000L);
+        walletOrder.verify(walletPort).releaseBidHold(3, 1);
         verify(auctionEventPort).publishBidPlaced(argThat(event ->
-                event.previousBidderId().equals(2)
+                event.previousBidderId().equals(3)
         ));
+    }
+
+    @Test
+    void 이전_입찰자_ID가_더_작으면_release_후_hold_순서로_지갑을_잠근다() {
+        Auction auction = auction(11_000L, 1_000L);
+        Bid previousLeadingBid = Bid.leading(1, auction, 11_000L, LocalDateTime.now().minusMinutes(1));
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
+                .thenReturn(Optional.of(previousLeadingBid));
+
+        auctionService.participate(3, 1, new BidCreateRequest(12_000L), "bid-key");
+
+        assertThat(previousLeadingBid.getStatus()).isEqualTo(BidStatus.OUTBID);
+        var walletOrder = inOrder(walletPort);
+        walletOrder.verify(walletPort).releaseBidHold(1, 1);
+        walletOrder.verify(walletPort).holdBidAmount(3, 1, 12_000L);
     }
 
     @Test

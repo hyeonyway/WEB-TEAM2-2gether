@@ -1,4 +1,5 @@
 import http from 'k6/http';
+import sse from 'k6/x/sse';
 import {check} from 'k6';
 import {Counter, Rate, Trend} from 'k6/metrics';
 
@@ -15,17 +16,43 @@ const loadTestEmailPrefix = __ENV.LOAD_TEST_EMAIL_PREFIX || 'k6-user';
 const loadTestEmailDomain = __ENV.LOAD_TEST_EMAIL_DOMAIN || 'dbidding.local';
 const loadTestPassword = __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!';
 const loginBatchSize = positiveInteger(__ENV.LOGIN_BATCH_SIZE, 10);
+const resultFile = __ENV.K6_RESULT_FILE;
+const sseVUs = positiveInteger(__ENV.SSE_VUS, 300);
+const sseDuration = __ENV.SSE_DURATION || '2m45s';
+const loadTestUserIdStart = positiveInteger(__ENV.LOAD_TEST_USER_ID_START, 910001);
+const loadTestUserNumberWidth = positiveInteger(__ENV.LOAD_TEST_USER_NUMBER_WIDTH, 5);
 
 const bidAccepted = new Rate('bid_accepted');
 const bidAcceptedOrContended = new Rate('bid_accepted_or_contended');
 const bidContentions = new Counter('bid_contentions');
 const bidRejected = new Counter('bid_rejected');
 const bidEndToEndDuration = new Trend('bid_end_to_end_duration', true);
+const sseAuctionConnectSuccess = new Rate('sse_auction_connect_success');
+const sseAuctionConnectionErrors = new Counter('sse_auction_connection_errors');
+const sseAuctionEvents = new Counter('sse_auction_events');
+const sseNotificationConnectSuccess = new Rate('sse_notification_connect_success');
+const sseNotificationConnectionErrors = new Counter('sse_notification_connection_errors');
+const sseNotificationEvents = new Counter('sse_notification_events');
 
 export const options = {
   setupTimeout: __ENV.SETUP_TIMEOUT || '10m',
   batchPerHost: loginBatchSize,
+  summaryTrendStats: ['avg', 'min', 'med', 'p(85)', 'p(95)', 'p(99)', 'max'],
   scenarios: {
+    auctionSseConnections: {
+      executor: 'constant-vus',
+      exec: 'auctionSse',
+      vus: sseVUs,
+      duration: sseDuration,
+      gracefulStop: '5s',
+    },
+    notificationSseConnections: {
+      executor: 'constant-vus',
+      exec: 'notificationSse',
+      vus: sseVUs,
+      duration: sseDuration,
+      gracefulStop: '5s',
+    },
     warmupAuctionBids: {
       executor: 'ramping-arrival-rate',
       exec: 'warmup',
@@ -54,6 +81,8 @@ export const options = {
     'http_req_failed{scenario:realAuctionBids}': ['rate<0.01'],
     'http_req_duration{name:GET /api/auctions/:id/bid-context,scenario:realAuctionBids}': ['p(95)<500'],
     'http_req_duration{name:POST /api/auctions/:id/bids,scenario:realAuctionBids}': ['p(95)<1000'],
+    'sse_auction_connect_success': ['rate>0.99'],
+    'sse_notification_connect_success': ['rate>0.99'],
   },
 };
 
@@ -68,7 +97,9 @@ export function setup() {
     throw new Error('입찰할 진행 중 경매가 없습니다. AUCTION_IDS를 지정해 주세요.');
   }
 
-  return {tokens, auctionIds};
+  const notificationTickets = issueNotificationTickets(tokens);
+  const notificationUserIds = loadNotificationUserIds(tokens.length);
+  return {tokens, auctionIds, notificationTickets, notificationUserIds};
 }
 
 export function warmup(data) {
@@ -79,8 +110,71 @@ export function bid(data) {
   performBid(data);
 }
 
+export function auctionSse() {
+  sse.open(`${baseUrl}/api/auctions/stream`, {
+    headers: {Accept: 'text/event-stream'},
+    tags: {name: 'GET /api/auctions/stream'},
+  }, client => {
+    client.on('open', () => sseAuctionConnectSuccess.add(true));
+    client.on('error', () => {
+      sseAuctionConnectionErrors.add(1);
+      sseAuctionConnectSuccess.add(false);
+    });
+    client.on('event', () => sseAuctionEvents.add(1));
+  });
+}
+
+export function notificationSse({notificationTickets, notificationUserIds}) {
+  const index = (__VU - 1) % notificationTickets.length;
+  const ticket = notificationTickets[index];
+  const userId = notificationUserIds[index];
+  sse.open(`${baseUrl}/api/users/${userId}/notifications/stream?ticket=${encodeURIComponent(ticket)}`, {
+    headers: {Accept: 'text/event-stream'},
+    tags: {name: 'GET /api/users/:userId/notifications/stream'},
+  }, client => {
+    client.on('open', () => sseNotificationConnectSuccess.add(true));
+    client.on('error', () => {
+      sseNotificationConnectionErrors.add(1);
+      sseNotificationConnectSuccess.add(false);
+    });
+    client.on('event', () => sseNotificationEvents.add(1));
+  });
+}
+
 export default function (data) {
   performBid(data);
+}
+
+export function handleSummary(data) {
+  const result = {
+    generatedAt: new Date().toISOString(),
+    testConfig: {
+      baseUrl,
+      auctionIds: csv(__ENV.AUCTION_IDS),
+      auctionSelection: __ENV.AUCTION_IDS ? 'CONFIGURED' : 'AUTO_OPEN_AUCTIONS',
+      credentialSource: credentialSource(),
+      loadTestUserCount,
+      loginBatchSize,
+      warmupRate,
+      warmupDuration,
+      mainStartTime,
+      rate: requestRate,
+      duration,
+      preAllocatedVUs,
+      maxVUs,
+      setupTimeout: options.setupTimeout,
+      summaryTrendStats: options.summaryTrendStats,
+      sseVUs,
+      sseDuration,
+      loadTestUserIdStart,
+    },
+    ...data,
+  };
+  const output = {stdout: summaryText(data)};
+  if (resultFile) {
+    output[resultFile] = JSON.stringify(result, null, 2);
+  }
+  return output;
 }
 
 function performBid({tokens, auctionIds}) {
@@ -185,10 +279,14 @@ function loginAndGetAccessTokens() {
     })));
 
     responses.forEach((response, batchIndex) => {
+      const userIndex = start + batchIndex + 1;
+      if (response.status !== 200 || response.body === null) {
+        const cause = response.error || '응답 본문 없음';
+        throw new Error(`로그인 계정 ${userIndex} 요청 실패 (status=${response.status}, cause=${cause})`);
+      }
       const accessToken = response.json('accessToken');
-      if (response.status !== 200 || typeof accessToken !== 'string' || accessToken.length === 0) {
-        const userIndex = start + batchIndex + 1;
-        throw new Error(`로그인 계정 ${userIndex} 토큰 발급 실패 (status=${response.status})`);
+      if (typeof accessToken !== 'string' || accessToken.length === 0) {
+        throw new Error(`로그인 계정 ${userIndex} 응답에 Access Token이 없습니다.`);
       }
       tokens.push(accessToken);
     });
@@ -204,9 +302,52 @@ function loginAndGetAccessTokens() {
 
 function loadTestUsers() {
   return Array.from({length: loadTestUserCount}, (_, index) => ({
-    email: `${loadTestEmailPrefix}${String(index + 1).padStart(3, '0')}@${loadTestEmailDomain}`,
+    email: `${loadTestEmailPrefix}${String(index + 1).padStart(loadTestUserNumberWidth, '0')}@${loadTestEmailDomain}`,
     password: loadTestPassword,
   }));
+}
+
+function issueNotificationTickets(tokens) {
+  const tickets = [];
+  for (let start = 0; start < tokens.length; start += loginBatchSize) {
+    const batchTokens = tokens.slice(start, start + loginBatchSize);
+    const responses = http.batch(batchTokens.map(token => ({
+      method: 'POST',
+      url: `${baseUrl}/api/sse/tickets`,
+      body: null,
+      params: {
+        headers: {Authorization: `Bearer ${token}`},
+        tags: {name: 'POST /api/sse/tickets (setup)'},
+        responseCallback: http.expectedStatuses(200),
+      },
+    })));
+    responses.forEach((response, batchIndex) => {
+      const index = start + batchIndex + 1;
+      if (response.status !== 200 || response.body === null) {
+        throw new Error(`알림 SSE 티켓 ${index} 발급 실패 (status=${response.status}, cause=${response.error || '응답 본문 없음'})`);
+      }
+      const ticket = response.json('ticket');
+      if (typeof ticket !== 'string' || ticket.length === 0) {
+        throw new Error(`알림 SSE 티켓 ${index} 응답이 올바르지 않습니다.`);
+      }
+      tickets.push(ticket);
+    });
+  }
+  console.log(`[setup/sse] 알림 SSE 티켓 ${tickets.length}개 발급 완료`);
+  return tickets;
+}
+
+function loadNotificationUserIds(count) {
+  const configured = csv(__ENV.NOTIFICATION_USER_IDS)
+    .map(Number)
+    .filter(id => Number.isInteger(id) && id > 0);
+  if (configured.length > 0) {
+    if (configured.length < count) {
+      throw new Error(`NOTIFICATION_USER_IDS는 ${count}개 이상 필요합니다.`);
+    }
+    return configured.slice(0, count);
+  }
+  return Array.from({length: count}, (_, index) => loadTestUserIdStart + index);
 }
 
 function loadAuctionIds(token) {
@@ -249,4 +390,29 @@ function positiveNumber(value, fallback) {
 function positiveInteger(value, fallback) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function credentialSource() {
+  if (__ENV.LOGIN_USERS) return 'LOGIN_USERS';
+  if (__ENV.EMAIL && __ENV.PASSWORD) return 'EMAIL_PASSWORD';
+  if (__ENV.ACCESS_TOKENS) return 'ACCESS_TOKENS';
+  return 'GENERATED_LOAD_TEST_USERS';
+}
+
+function summaryText(data) {
+  const requests = data.metrics.http_reqs?.values || {};
+  const failed = data.metrics.http_req_failed?.values || {};
+  const durationValues = data.metrics.http_req_duration?.values || {};
+  const saved = resultFile ? `\n결과 JSON: ${resultFile}` : '';
+  return [
+    '\n=== K6 FINAL SUMMARY ===',
+    `HTTP 요청: ${requests.count || 0} (${(requests.rate || 0).toFixed(2)} req/s)`,
+    `HTTP 실패율: ${((failed.rate || 0) * 100).toFixed(2)}%`,
+    `응답시간: p85=${formatMilliseconds(durationValues['p(85)'])}, p95=${formatMilliseconds(durationValues['p(95)'])}, p99=${formatMilliseconds(durationValues['p(99)'])}`,
+    `${saved}\n`,
+  ].join('\n');
+}
+
+function formatMilliseconds(value) {
+  return Number.isFinite(value) ? `${value.toFixed(2)}ms` : '-';
 }

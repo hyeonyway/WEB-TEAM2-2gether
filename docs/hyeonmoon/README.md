@@ -89,13 +89,15 @@ DTO를 두지 않는다. 외부 API와 DB FK에서는 기존 계약인 `userId`�
 | 10 | 완료 | [Current User와 SSE 인증](auth/5-current-user-and-sse-auth.md) | 실제 JWT 필터 전환과 SSE 티켓 인증 |
 | 11 | 완료 | [Account 도메인 통합](account/1-account-domain-refactor.md) | Auth·User 계정 책임과 패키지 통합 |
 | 12 | 완료 | [소비자 소유 Wallet Adapter 리팩터링](wallet/6-consumer-owned-port-adapter-refactor.md) | Account·Auction Port와 Adapter의 소유권 통일 |
-| 13 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
-| 14 | **다음 백엔드** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
+| 13 | 완료 | [Auth 트랜잭션 범위 축소](account/2-auth-transaction-scope.md) | PBKDF2 구간의 DB 커넥션 점유 제거 |
+| 14 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
+| 15 | **다음 백엔드** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
 
 문서 번호는 도메인 안의 책임 순서를 나타낸다. 도메인 사이의 실제 구현은
-Auth 1 → Wallet 1·2 → Auth 2·3·4·5 → Wallet 3·4·5 → Account 통합까지
-완료됐다. 프론트는 로그인·회원가입·로그아웃 모달 연동까지 구현했으며, 다음
-작업은 SPA 내부 이동과 앱 시작 Refresh를 포함한 인증 세션 완성이다.
+Auth 1 → Wallet 1·2 → Auth 2·3·4·5 → Wallet 3·4·5 → Account 통합 → Auth
+트랜잭션 범위 축소까지 완료됐다. 프론트는 로그인·회원가입·로그아웃 모달
+연동까지 구현했으며, 다음 작업은 SPA 내부 이동과 앱 시작 Refresh를 포함한
+인증 세션 완성이다.
 배송지 CRUD는 Account가 소유하는 다음 백엔드 작업이며, 현재 계획의 가장
 마지막에 구현한다. 기존 `auth`, `user` 경로의 문서는 구현 당시 판단을 남긴
 역사적 문서로 유지한다.

@@ -168,8 +168,14 @@ public class AuctionCommandService {
         LocalDateTime bidAt = now();
         LocalDateTime previousCloseTime = auction.getCloseTime();
         boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
-        WalletPort.WalletSnapshot wallet = holdBidAmount(userId, auction.getId(), request.price());
-        outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+        WalletPort.WalletSnapshot wallet;
+        if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
+            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+            wallet = holdBidAmount(userId, auction.getId(), request.price());
+        } else {
+            wallet = holdBidAmount(userId, auction.getId(), request.price());
+            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+        }
 
         Bid currentLeadingBid = bidRepository.save(Bid.leading(
                 userId,
@@ -378,7 +384,7 @@ public class AuctionCommandService {
             return;
         }
         previousLeadingBid.markOutbid();
-        if (!previousLeadingBid.getBidderId().equals(currentBidderId)) {
+        if (requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)) {
             walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auction.getId());
             log.info(
                     "event=auction.bid.previous_hold.released auctionId={} previousBidId={} previousBidderId={} previousBidPrice={} currentBidderId={}",
@@ -389,6 +395,16 @@ public class AuctionCommandService {
             log.debug("event=auction.bid.previous_hold.kept auctionId={} previousBidId={} bidderId={}",
                     auction.getId(), previousLeadingBid.getId(), currentBidderId);
         }
+    }
+
+    private boolean requiresPreviousHoldRelease(Bid previousLeadingBid, Integer currentBidderId) {
+        return previousLeadingBid != null
+                && !previousLeadingBid.getBidderId().equals(currentBidderId);
+    }
+
+    private boolean shouldReleasePreviousHoldFirst(Bid previousLeadingBid, Integer currentBidderId) {
+        return requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)
+                && previousLeadingBid.getBidderId() < currentBidderId;
     }
 
     private void validateCloseDue(Auction auction, LocalDateTime now) {

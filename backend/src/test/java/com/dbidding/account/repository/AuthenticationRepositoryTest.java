@@ -8,7 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 
-import com.dbidding.account.domain.Authentication;
+import com.dbidding.account.authentication.jwt.Authentication;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
 

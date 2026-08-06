@@ -2,12 +2,18 @@ package com.dbidding;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+
+import com.dbidding.account.authentication.AuthenticationModeProperties;
+import com.dbidding.upload.config.S3UploadProperties;
 
 @SpringBootApplication
 @EnableScheduling
-@ConfigurationPropertiesScan
+@EnableConfigurationProperties({
+	AuthenticationModeProperties.class,
+	S3UploadProperties.class
+})
 public class DbiddingApplication {
 
 	public static void main(String[] args) {

@@ -14,13 +14,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.dbidding.account.domain.Authentication;
+import com.dbidding.account.authentication.jwt.Authentication;
+import com.dbidding.account.authentication.jwt.JwtRefreshResult;
+import com.dbidding.account.authentication.jwt.JwtRefreshService;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
 import com.dbidding.account.domain.AccountRole;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.token.IssuedTokens;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.RefreshTokenHasher;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
+import com.dbidding.account.authentication.jwt.IssuedTokens;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.RefreshTokenHasher;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.support.AccountMySqlIntegrationTest;
@@ -28,7 +30,7 @@ import com.dbidding.account.support.AccountMySqlIntegrationTest;
 class AuthServiceRefreshConcurrencyTest extends AccountMySqlIntegrationTest {
 
 	@Autowired
-	private AuthService authService;
+	private JwtRefreshService jwtRefreshService;
 
 	@Autowired
 	private AuthenticationRepository authenticationRepository;
@@ -83,7 +85,7 @@ class AuthServiceRefreshConcurrencyTest extends AccountMySqlIntegrationTest {
 			assertThat(attempts).filteredOn(RefreshAttempt::succeeded).hasSize(1);
 			assertThat(attempts).filteredOn(attempt -> !attempt.succeeded()).hasSize(1);
 
-			RefreshResult winner = attempts.stream()
+			JwtRefreshResult winner = attempts.stream()
 				.filter(RefreshAttempt::succeeded)
 				.map(RefreshAttempt::result)
 				.findFirst()
@@ -105,7 +107,7 @@ class AuthServiceRefreshConcurrencyTest extends AccountMySqlIntegrationTest {
 		ready.countDown();
 		await(start);
 		try {
-			return RefreshAttempt.success(authService.refresh(presentedToken));
+			return RefreshAttempt.success(jwtRefreshService.refresh(presentedToken));
 		} catch (InvalidRefreshTokenException exception) {
 			return RefreshAttempt.rejected();
 		}
@@ -122,10 +124,10 @@ class AuthServiceRefreshConcurrencyTest extends AccountMySqlIntegrationTest {
 
 	private record RefreshAttempt(
 		boolean succeeded,
-		RefreshResult result
+		JwtRefreshResult result
 	) {
 
-		private static RefreshAttempt success(RefreshResult result) {
+		private static RefreshAttempt success(JwtRefreshResult result) {
 			return new RefreshAttempt(true, result);
 		}
 

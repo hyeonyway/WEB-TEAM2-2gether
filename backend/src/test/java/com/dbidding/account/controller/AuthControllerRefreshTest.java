@@ -20,16 +20,17 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.dbidding.account.config.JwtProperties;
-import com.dbidding.account.cookie.RefreshCookieFactory;
+import com.dbidding.account.authentication.jwt.JwtProperties;
+import com.dbidding.account.authentication.jwt.JwtRefreshController;
+import com.dbidding.account.authentication.jwt.JwtRefreshResult;
+import com.dbidding.account.authentication.jwt.JwtRefreshService;
+import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
 import com.dbidding.account.dto.RefreshResponse;
 import com.dbidding.account.exception.InvalidTokenException;
-import com.dbidding.account.service.AuthService;
-import com.dbidding.account.service.RefreshResult;
 
 import jakarta.servlet.http.Cookie;
 
-@WebMvcTest(AuthController.class)
+@WebMvcTest(JwtRefreshController.class)
 @Import(RefreshCookieFactory.class)
 @EnableConfigurationProperties(JwtProperties.class)
 @TestPropertySource(properties = {
@@ -44,7 +45,7 @@ class AuthControllerRefreshTest {
 	private MockMvc mockMvc;
 
 	@MockitoBean
-	private AuthService authService;
+	private JwtRefreshService jwtRefreshService;
 
 	@Test
 	void refresh_cookie가_없으면_401과_에러_코드를_반환한다() throws Exception {
@@ -53,7 +54,7 @@ class AuthControllerRefreshTest {
 			.andExpect(jsonPath("$.code").value("REFRESH_TOKEN_MISSING"))
 			.andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 
-		then(authService).shouldHaveNoInteractions();
+		then(jwtRefreshService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -64,12 +65,12 @@ class AuthControllerRefreshTest {
 			.andExpect(jsonPath("$.code").value("REFRESH_TOKEN_MISSING"))
 			.andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 
-		then(authService).shouldHaveNoInteractions();
+		then(jwtRefreshService).shouldHaveNoInteractions();
 	}
 
 	@Test
 	void refresh하면_access만_응답하고_회전된_refresh를_새_cookie로_전달한다() throws Exception {
-		given(authService.refresh("old-refresh-token")).willReturn(new RefreshResult(
+		given(jwtRefreshService.refresh("old-refresh-token")).willReturn(new JwtRefreshResult(
 			new RefreshResponse("new-access-token"),
 			"new-refresh-token"
 		));
@@ -90,7 +91,7 @@ class AuthControllerRefreshTest {
 
 	@Test
 	void 유효하지_않은_refresh_token은_401이고_새_cookie를_발급하지_않는다() throws Exception {
-		given(authService.refresh("invalid-refresh-token"))
+		given(jwtRefreshService.refresh("invalid-refresh-token"))
 			.willThrow(new InvalidTokenException());
 
 		mockMvc.perform(post("/api/auth/refresh")
