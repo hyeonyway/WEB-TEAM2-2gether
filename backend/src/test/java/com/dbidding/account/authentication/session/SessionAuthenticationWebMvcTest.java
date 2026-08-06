@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.controller.AuthController;
+import com.dbidding.account.dto.CurrentAccountResponse;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.exception.InvalidCredentialsException;
 import com.dbidding.account.service.SignupService;
@@ -38,6 +39,7 @@ import com.dbidding.global.security.CurrentUser;
 import com.dbidding.global.security.RequestCurrentUserProvider;
 import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
+import com.dbidding.global.security.session.SessionCsrfController;
 
 @WebMvcTest(
 	controllers = {AuthController.class, SessionCurrentUserTestController.class},
@@ -50,6 +52,7 @@ import com.dbidding.global.security.session.SessionAuthConfiguration;
 )
 @Import({
 	SessionAuthConfiguration.class,
+	SessionCsrfController.class,
 	TimeConfig.class,
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
@@ -104,6 +107,27 @@ class SessionAuthenticationWebMvcTest {
 		assertThat(session.isInvalid()).isTrue();
 		mockMvc.perform(get("/test/session-current-user"))
 			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 세션으로_현재_사용자와_CSRF_token을_조회한다() throws Exception {
+		given(credentialAuthenticationService.authenticate(any(), any()))
+			.willReturn(new AuthenticatedAccount(7, AccountRole.USER));
+
+		MvcResult login = mockMvc.perform(post("/api/auth/login")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(validLoginRequest()))
+			.andReturn();
+		MockHttpSession session = (MockHttpSession)login.getRequest().getSession(false);
+
+		mockMvc.perform(get("/api/auth/me").session(session))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.userId").value(7));
+		mockMvc.perform(get("/api/auth/csrf").session(session))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.csrfToken").value(
+				session.getAttribute(SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE)
+			));
 	}
 
 	@Test
