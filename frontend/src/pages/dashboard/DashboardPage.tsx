@@ -1,10 +1,12 @@
-import {useQuery,useQueryClient} from '@tanstack/react-query';
+import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Search} from 'lucide-react';
 import {useState} from 'react';
 import {Link} from 'react-router-dom';
 import {Header} from '../../components';
 import type {ParticipatingAuctionSort,RecentWinSort} from '../../api/dashboardApi';
 import {applyDashboardAuctionEvent,dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries';
+import {orderQueries,orderQueryKey} from '../../queries/orderQueries';
+import {cancelOrder,confirmOrder} from '../../api/orderApi';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import type {AuctionDto} from '../../dto/auctionDto';
 import {HttpError} from '../../api/httpClient';
@@ -38,6 +40,11 @@ export default function DashboardPage(){
       ? dashboardQueries.participating(participatingSort)
       : dashboardQueries.recentWins(recentWinSort),
   );
+  const purchaseOrders=useQuery({...orderQueries.purchases(),enabled:active==='recent-wins'});
+  const ordersByAuctionId=new Map((purchaseOrders.data??[]).map(order=>[order.auctionId,order]));
+  const invalidateOrders=()=>queryClient.invalidateQueries({queryKey:orderQueryKey});
+  const confirmMutation=useMutation({mutationFn:confirmOrder,onSuccess:invalidateOrders});
+  const cancelMutation=useMutation({mutationFn:cancelOrder,onSuccess:invalidateOrders});
   const section=sections.find(([id])=>id===active)!;
   const auctions=dashboard.data??[];
   const authenticationRequired=dashboard.error instanceof HttpError
@@ -78,7 +85,15 @@ export default function DashboardPage(){
               <b>{authenticationRequired?'로그인이 필요합니다.':'대시보드를 불러오지 못했습니다.'}</b>
               {!authenticationRequired&&<button type="button" onClick={()=>dashboard.refetch()}>다시 시도</button>}
             </div>
-          : <AuctionCatalog auctions={visible}/>}
+          : <AuctionCatalog auctions={visible} renderExtraActions={active==='recent-wins'?auction=>{
+              const order=ordersByAuctionId.get(auction.id);
+              if(!order)return null;
+              if(order.status==='PENDING_CONFIRM')return <div className="order-actions" key="order-actions">
+                <button type="button" className="order-confirm-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>confirmMutation.mutate(order.id)}>구매확정</button>
+                <button type="button" className="order-cancel-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>cancelMutation.mutate(order.id)}>구매취소</button>
+              </div>;
+              return <span className={`order-status-badge ${order.status.toLowerCase()}`} key="order-status">{order.status==='COMPLETED'?'거래 완료':'거래 취소됨'}</span>;
+            }:undefined}/>}
     </section>
   </main></div>;
 }

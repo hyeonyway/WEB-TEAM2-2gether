@@ -1,4 +1,5 @@
 import {CheckCircle2,Clock3,Search} from 'lucide-react';
+import type {ReactNode} from 'react';
 import {useEffect,useRef,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {AuctionBidDialog} from '../../../components';
@@ -47,7 +48,7 @@ function AnimatedAuctionPrice({price}:{price:number}){
   </strong>;
 }
 
-export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
+export default function AuctionCatalog({auctions,renderExtraActions}:{auctions:AuctionDto[];renderExtraActions?:(auction:AuctionDto)=>ReactNode}){
   const authGate=useAuthGate();
   const[selectedAuction,setSelectedAuction]=useState<AuctionDto|null>(null);
   const[now,setNow]=useState(nowUtc());
@@ -73,6 +74,7 @@ export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
         <button className={`card-bid-button ${buttonState}`} type="button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setSelectedAuction(auction)}}>
           {ended?'경매 종료':auction.myBidStatus==='LEADING'?<><CheckCircle2/><span><b>내가 최고가 입찰 중</b><small>현재 1위 · 입찰 현황 보기</small></span></>:auction.myBidStatus==='OUTBID'?<><b>상회 입찰 필요</b><small>내 입찰 {(auction.myBidAmount??0).toLocaleString()}원</small></>:<b>입찰하기</b>}
         </button>
+        {renderExtraActions?.(auction)}
       </div>
     </div>
   </article>})}</section>{selectedAuction&&<AuctionBidDialog auction={selectedAuction} onClose={()=>setSelectedAuction(null)}/>}</>;
