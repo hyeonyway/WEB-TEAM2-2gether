@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Collections;
@@ -73,7 +74,8 @@ class SessionAuthenticationWebMvcTest {
 		MvcResult login = mockMvc.perform(post("/api/auth/login")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validLoginRequest()))
-			.andExpect(status().isNoContent())
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.csrfToken").isNotEmpty())
 			.andReturn();
 		MockHttpSession session = (MockHttpSession)login.getRequest().getSession(false);
 
@@ -82,14 +84,17 @@ class SessionAuthenticationWebMvcTest {
 			.containsExactlyInAnyOrder(
 				SessionPrincipal.USER_ID_ATTRIBUTE,
 				SessionPrincipal.ROLE_ATTRIBUTE,
-				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE
+				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE,
+				SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE
 			);
 
 		mockMvc.perform(get("/test/session-current-user").session(session))
 			.andExpect(status().isOk())
 			.andExpect(content().string("7"));
 
-		mockMvc.perform(post("/api/auth/logout").session(session))
+		mockMvc.perform(post("/api/auth/logout")
+				.session(session)
+				.header("X-CSRF-Token", session.getAttribute(SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE)))
 			.andExpect(status().isNoContent())
 			.andExpect(cookie().value("SESSION", ""))
 			.andExpect(cookie().path("SESSION", "/"))
