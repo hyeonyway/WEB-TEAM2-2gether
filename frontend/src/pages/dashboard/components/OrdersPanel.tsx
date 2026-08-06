@@ -32,6 +32,10 @@ export default function OrdersPanel(){
   const confirmMutation=useMutation({mutationFn:confirmOrder,onSuccess:invalidateOrders});
   const cancelMutation=useMutation({mutationFn:cancelOrder,onSuccess:invalidateOrders});
   const sellerCancelMutation=useMutation({mutationFn:sellerCancelOrder,onSuccess:invalidateOrders});
+  const actionError=confirmMutation.isError?'구매확정에 실패했습니다. 다시 시도해 주세요.'
+    :cancelMutation.isError?'구매취소에 실패했습니다. 다시 시도해 주세요.'
+    :sellerCancelMutation.isError?'판매취소에 실패했습니다. 다시 시도해 주세요.'
+    :null;
   const authenticationRequired=orders.error instanceof HttpError && orders.error.status===401;
   // 정렬은 항상 최신순 — 백엔드가 이미 id desc(생성 순서 역순)로 내려주므로 별도 정렬 UI는 두지 않는다.
   const list=(orders.data??[]).filter(order=>statusFilter==='ALL'||order.status===statusFilter);
@@ -46,6 +50,7 @@ export default function OrdersPanel(){
         <button key={id} type="button" className={statusFilter===id?'active':''} onClick={()=>setStatusFilter(id)}>{label}</button>,
       )}
     </div>
+    {actionError&&<p className="order-action-error" role="alert">{actionError}</p>}
     {!orders.isPending&&!orders.isError&&
       <p className="catalog-count">전체 {list.length.toLocaleString()}건</p>}
     <section className="cards-dash-section">
@@ -64,7 +69,7 @@ export default function OrdersPanel(){
             : <ul className="order-list">
                 {list.map(order=><li className="order-row" key={order.id}>
                   <div className="order-row-head">
-                    <Link to={`/auction/${order.auctionId}`}>{order.cardName} 상세보기</Link>
+                    <Link to={`/auction/${order.auctionId}`}>{order.cardName}</Link>
                     <span className={`order-status-badge ${order.status.toLowerCase()}`}>{statusLabel(order.status)}</span>
                   </div>
                   <div className="order-row-meta">
