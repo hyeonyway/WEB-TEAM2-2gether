@@ -57,7 +57,7 @@ public record AuctionStreamPayload(
         return new AuctionStreamPayload(
                 AuctionStreamEventType.AUCTION_CLOSED, event.auctionId(), event.itemId(), event.cardName(),
                 event.cardPsaGrade(), event.cardLanguage(), event.cardThumbnailUrl(), event.sellerId(),
-                null, null, event.winnerId(), event.startPrice(), null, event.currentPrice(),
+                null, null, event.winnerId(), event.startPrice(), event.currentPrice(), event.winningPrice(),
                 event.bidIncrement(), event.bidCount(), event.closeTime().toInstant(ZoneOffset.UTC),
                 event.status(), event.version(), event.closeTime().toInstant(ZoneOffset.UTC),
                 event.occurredAt().toInstant(ZoneOffset.UTC));

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -39,6 +40,23 @@ class AuctionSseContractTest {
         assertThat(json.get("bidder_id").asInt()).isEqualTo(7);
         assertThat(json.get("current_price").asLong()).isEqualTo(50_000L);
         assertThat(json.get("auction_version").asLong()).isEqualTo(2L);
+    }
+
+    @Test
+    void 종료_이벤트는_현재가와_낙찰가를_서로_다른_필드로_직렬화한다() throws Exception {
+        AuctionClosedEvent event = new AuctionClosedEvent(
+                10, 1, "Pikachu", "10", "KO", "thumb", 7, 5,
+                40_000L, 50_000L, 55_000L, 1_000L, 2,
+                LocalDateTime.of(2026, 8, 3, 12, 0), AuctionStatus.ENDED, 3L,
+                LocalDateTime.of(2026, 8, 3, 12, 0));
+        var mapper = JsonMapper.builder().addModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
+
+        var json = mapper.readTree(mapper.writeValueAsBytes(AuctionStreamPayload.closed(event)));
+
+        assertThat(json.has("current_price")).isTrue();
+        assertThat(json.get("current_price").asLong()).isEqualTo(50_000L);
+        assertThat(json.get("final_price").asLong()).isEqualTo(55_000L);
     }
 
     @Test
@@ -101,11 +119,11 @@ class AuctionSseContractTest {
         when(reader.findRandomActiveAuction()).thenReturn(Optional.of(new AuctionSseTestAuctionReader.Snapshot(
                 10, 40_000L, 40_000L, 1_000L, 0,
                 LocalDateTime.now().plusHours(1), "OPEN", 1L, 5)));
-        AuctionSseTestEventController controller =
-                new AuctionSseTestEventController(manager, reader, Clock.systemUTC());
+        AuctionSseTestBidApplicationService service =
+                new AuctionSseTestBidApplicationService(manager, reader, Clock.systemUTC());
 
-        AuctionStreamPayload first = controller.publishRandomBid();
-        AuctionStreamPayload second = controller.publishRandomBid();
+        AuctionStreamPayload first = service.publishRandomBid();
+        AuctionStreamPayload second = service.publishRandomBid();
 
         assertThat(second.currentPrice()).isEqualTo(first.currentPrice() + 1_000L);
         assertThat(second.auctionVersion()).isEqualTo(first.auctionVersion() + 1);
