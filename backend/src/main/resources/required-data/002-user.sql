@@ -102,7 +102,7 @@ ON DUPLICATE KEY UPDATE
   `point` = VALUES(`point`);
 
 INSERT INTO `wallets` (`user_id`, `point`)
-SELECT `id`, 5000000
+SELECT `id`, 50000000
 FROM `users`
 WHERE `id` BETWEEN 910001 AND 960000
 ON DUPLICATE KEY UPDATE
@@ -150,8 +150,8 @@ INSERT INTO `point_records`
 SELECT
   `wallet`.`id`,
   NULL,
-  5000000,
-  5000000,
+  50000000,
+  50000000,
   'CHARGE',
   CONCAT('seed-k6-user-', `wallet`.`user_id`, '-initial-charge')
 FROM `wallets` AS `wallet`
