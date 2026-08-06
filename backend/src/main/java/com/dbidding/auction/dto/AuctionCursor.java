@@ -7,8 +7,6 @@ public record AuctionCursor(
         AuctionSort sort,
         Long value,
         LocalDateTime timeValue,
-        Integer auctionId,
-        Long auctionCount,
-        Long versionSum
+        Integer auctionId
 ) {
 }
