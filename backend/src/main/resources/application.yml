@@ -64,6 +64,10 @@ cloud:
 app:
   auth:
     mode: ${AUTH_MODE:jwt}
+  session:
+    store: ${SESSION_STORE:memory}
+    cookie-name: ${SESSION_COOKIE_NAME:SESSION}
+    secure-cookie: ${SESSION_SECURE_COOKIE:false}
   jwt:
     secret: ${JWT_SECRET}
     access-token-seconds: ${JWT_ACCESS_SECONDS:1800}
