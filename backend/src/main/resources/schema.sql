@@ -399,3 +399,29 @@ CREATE TABLE notification
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE orders
+(
+    id         INT          NOT NULL AUTO_INCREMENT,
+    auction_id INT          NOT NULL,
+    buyer_id   INT          NOT NULL,
+    seller_id  INT          NOT NULL,
+    price      BIGINT       NOT NULL,
+    status     VARCHAR(32)  NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    CONSTRAINT pk_orders PRIMARY KEY (id),
+    CONSTRAINT uk_orders_auction UNIQUE (auction_id),
+    CONSTRAINT fk_orders_auction
+        FOREIGN KEY (auction_id) REFERENCES auctions (id),
+    CONSTRAINT fk_orders_buyer
+        FOREIGN KEY (buyer_id) REFERENCES users (id),
+    CONSTRAINT fk_orders_seller
+        FOREIGN KEY (seller_id) REFERENCES users (id),
+
+    INDEX idx_orders_buyer_status (buyer_id, status),
+    INDEX idx_orders_seller_status (seller_id, status)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
