@@ -12,12 +12,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.dbidding.account.authentication.AuthenticationStrategy;
+import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.jwt.JwtAuthFilter;
 import com.dbidding.global.security.jwt.SseTicketAuthFilter;
 import com.dbidding.global.security.jwt.SseTicketController;
 import com.dbidding.global.security.jwt.TicketProvider;
+import com.dbidding.global.security.session.SessionAuthConfiguration;
+import com.dbidding.global.security.session.SessionAuthFilter;
 
 class JwtAuthenticationConfigurationTest {
 
@@ -45,25 +48,39 @@ class JwtAuthenticationConfigurationTest {
 			assertThat(context).hasSingleBean(TicketProvider.class);
 			assertThat(context).hasSingleBean(JwtRefreshController.class);
 			assertThat(context).hasSingleBean(SseTicketController.class);
+			assertThat(context).doesNotHaveBean(SessionAuthFilter.class);
 		});
 	}
 
 	@Test
 	void session_모드에서는_JWT_구성과_전용_엔드포인트를_등록하지_않는다() {
-		contextRunner.withPropertyValues("app.auth.mode=session")
+		contextRunner.withPropertyValues(
+			"app.auth.mode=session",
+			"app.session.store=memory"
+		)
 			.run(context -> {
 				assertThat(context).hasNotFailed();
-				assertThat(context).doesNotHaveBean(AuthenticationStrategy.class);
+				assertThat(context).hasSingleBean(AuthenticationStrategy.class);
+				assertThat(context).hasSingleBean(SessionAuthenticationStrategy.class);
 				assertThat(context).doesNotHaveBean(JwtAuthFilter.class);
+				assertThat(context).doesNotHaveBean(JwtTokenProvider.class);
+				assertThat(context).doesNotHaveBean(TicketProvider.class);
 				assertThat(context).doesNotHaveBean(JwtRefreshController.class);
 				assertThat(context).doesNotHaveBean(SseTicketController.class);
 			});
+	}
+
+	@Test
+	void session_모드에서_저장소를_명시하지_않으면_시작에_실패한다() {
+		contextRunner.withPropertyValues("app.auth.mode=session")
+			.run(context -> assertThat(context).hasFailed());
 	}
 
 	@Configuration(proxyBeanMethods = false)
 	@EnableConfigurationProperties(JwtProperties.class)
 	@Import({
 		JwtAuthenticationConfiguration.class,
+		SessionAuthConfiguration.class,
 		JwtRefreshController.class,
 		SseTicketController.class
 	})

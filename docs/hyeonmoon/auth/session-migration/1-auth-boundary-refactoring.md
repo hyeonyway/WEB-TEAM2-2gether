@@ -31,7 +31,7 @@ app:
   auth:
     mode: ${AUTH_MODE:jwt}
   session:
-    store: ${SESSION_STORE:memory}
+    store: ${SESSION_STORE:}
 ```
 
 | `AUTH_MODE` | `SESSION_STORE` | 이 이슈에서의 상태 |
@@ -41,6 +41,7 @@ app:
 | `session` | `redis` | 이슈 4에서 지원 |
 
 Spring Profile은 환경별 설정 묶음에 사용할 수 있지만 인증 구현 선택의 단일 기준은 `AUTH_MODE`로 둔다.
+`AUTH_MODE=session`일 때는 `SESSION_STORE`를 반드시 명시하고, 누락하거나 지원하지 않는 값을 지정하면 시작에 실패한다.
 
 ## 5. 목표 패키지 구조
 
