@@ -2,6 +2,7 @@ package com.dbidding.statistic.service;
 
 import com.dbidding.card.dto.CardResponses.StatisticCardSnapshot;
 import com.dbidding.card.service.CardService;
+import com.dbidding.auction.service.AuctionInsightQueryService;
 import com.dbidding.statistic.dto.StatisticResponses;
 import com.dbidding.statistic.domain.ItemDailyStatistic;
 import com.dbidding.statistic.domain.ItemStatistic;
@@ -10,7 +11,6 @@ import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import com.dbidding.statistic.repository.PriceMovementCandidate;
-import com.dbidding.statistic.repository.StatisticInsightQueryRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -37,7 +37,7 @@ public class StatisticQueryService {
     private static final DateTimeFormatter MONTH_DAY = DateTimeFormatter.ofPattern("MM/dd");
     private static final BigDecimal ZERO_RATE = BigDecimal.ZERO.setScale(2);
 
-    private final StatisticInsightQueryRepository insightQueryRepository;
+    private final AuctionInsightQueryService auctionInsightQueryService;
     private final ItemDailyStatisticRepository dailyStatisticRepository;
     private final ItemStatisticRepository statisticRepository;
     private final MarketDailyStatisticRepository marketStatisticRepository;
@@ -45,16 +45,16 @@ public class StatisticQueryService {
     private final Clock clock;
 
     public List<StatisticResponses.Insight> getInsights() {
-        var aggregate = insightQueryRepository.aggregateInsights();
-        long total = value(aggregate.getTotalCount());
-        long rising = value(aggregate.getRisingCount());
-        long withBids = value(aggregate.getBidAuctionCount());
+        var aggregate = auctionInsightQueryService.getOpenAuctionInsight();
+        long total = value(aggregate.totalCount());
+        long rising = value(aggregate.risingCount());
+        long withBids = value(aggregate.bidAuctionCount());
         long premium = total == 0 ? 0 : (long) Math.ceil(total * 0.1);
 
         return List.of(
                 new StatisticResponses.Insight(
                         "RISING", "경매가 상승", rising,
-                        rate(aggregate.getAverageRisingRate()),
+                        rate(aggregate.averageRisingRate()),
                         "시작가 대비 상승률이 높은 경매부터 확인하세요.", "CHANGE_HIGH"),
                 new StatisticResponses.Insight(
                         "NEW_BIDS", "신규 입찰", withBids, null,

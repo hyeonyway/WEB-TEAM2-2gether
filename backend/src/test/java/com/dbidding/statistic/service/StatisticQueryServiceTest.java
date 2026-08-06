@@ -8,13 +8,13 @@ import static org.mockito.Mockito.verify;
 
 import com.dbidding.card.dto.CardResponses.StatisticCardSnapshot;
 import com.dbidding.card.service.CardService;
+import com.dbidding.auction.service.AuctionInsightQueryService;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.PriceMovementCandidate;
 import com.dbidding.statistic.domain.ItemDailyStatistic;
 import com.dbidding.statistic.domain.ItemStatistic;
 import com.dbidding.statistic.domain.MarketDailyStatistic;
-import com.dbidding.statistic.repository.StatisticInsightQueryRepository;
 import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,8 +29,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class StatisticQueryServiceTest {
-    private final StatisticInsightQueryRepository insightQueryRepository =
-            mock(StatisticInsightQueryRepository.class);
+    private final AuctionInsightQueryService auctionInsightQueryService =
+            mock(AuctionInsightQueryService.class);
     private final ItemDailyStatisticRepository dailyStatisticRepository =
             mock(ItemDailyStatisticRepository.class);
     private final ItemStatisticRepository statisticRepository = mock(ItemStatisticRepository.class);
@@ -46,18 +46,14 @@ class StatisticQueryServiceTest {
     @BeforeEach
     void setUp() {
         statisticQueryService = new StatisticQueryService(
-                insightQueryRepository, dailyStatisticRepository, statisticRepository, marketStatisticRepository,
+                auctionInsightQueryService, dailyStatisticRepository, statisticRepository, marketStatisticRepository,
                 cardService, clock);
     }
 
     @Test
     void 진행_경매로_인사이트를_집계한다() {
-        var aggregate = mock(StatisticInsightQueryRepository.InsightAggregate.class);
-        given(aggregate.getTotalCount()).willReturn(11L);
-        given(aggregate.getRisingCount()).willReturn(3L);
-        given(aggregate.getAverageRisingRate()).willReturn(12.345);
-        given(aggregate.getBidAuctionCount()).willReturn(7L);
-        given(insightQueryRepository.aggregateInsights()).willReturn(aggregate);
+        var aggregate = new AuctionInsightQueryService.AuctionInsight(11L, 3L, 12.345, 7L);
+        given(auctionInsightQueryService.getOpenAuctionInsight()).willReturn(aggregate);
 
         var insights = statisticQueryService.getInsights();
 

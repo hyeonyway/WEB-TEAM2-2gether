@@ -1,6 +1,7 @@
 package com.dbidding.card.service;
 
 import com.dbidding.auction.adapter.CardAuctionAdapter;
+import com.dbidding.auction.service.AuctionInsightQueryService;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import({
         CardPriceService.class,
         StatisticQueryService.class,
+        AuctionInsightQueryService.class,
         CardService.class,
         CardAuctionAdapter.class,
         WishlistCardAdapter.class,
