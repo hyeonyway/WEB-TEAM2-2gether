@@ -99,19 +99,24 @@ describe('AuctionPage',()=>{
   });
 
   it('선택한 정렬 기준을 URL에 저장해 새로고침 후에도 복원한다',async()=>{
-    renderPage();
+    const firstRender=renderPage();
     const user=userEvent.setup();
 
     await user.click(await screen.findByRole('button',{name:'경매가 높은순'}));
 
     expect(screen.getByTestId('location-search')).toHaveTextContent('sort=PRICE_HIGH');
-    expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
+    await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
       expect.objectContaining({sort:'PRICE_HIGH'}),
       undefined,
-    );
+    ));
 
-    renderPage('/auction?sort=PRICE_HIGH');
+    firstRender.unmount();
+    apiMocks.fetchAuctions.mockResolvedValue({
+      content:[auction(1,'경매가 높은 경매')],next_cursor:null,has_next:false,
+    });
+    const secondRender=renderPage('/auction?sort=PRICE_HIGH');
     expect(await screen.findByRole('button',{name:'경매가 높은순'})).toHaveClass('active');
+    secondRender.unmount();
   });
 
   it('SSE 입찰 이벤트는 목록을 다시 조회하지 않고 캐시된 경매를 갱신한다',async()=>{
