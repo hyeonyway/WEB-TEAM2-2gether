@@ -2,6 +2,7 @@
 
 ## 1. 이슈 경계
 
+- 구현 이슈: [#216 단일 인스턴스 인메모리 세션 인증 구현](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/216)
 - 선행 문서: [`1-auth-boundary-refactoring.md`](1-auth-boundary-refactoring.md)
 - 목표: 공통 인증 계약의 두 번째 구현체로 단일 인스턴스 HttpSession 인증 추가
 - 비목표: Redis, 다중 인스턴스, 프론트 전환, CSRF 완성, 개인화 SSE 전환
