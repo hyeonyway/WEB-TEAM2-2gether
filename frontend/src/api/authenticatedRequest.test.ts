@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {clearAccessToken, getAccessToken, setAccessToken} from './accessTokenStore';
 import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticatedRequest';
 import {clearDebugUserId, setDebugUserId} from './debugAuthStorage';
@@ -15,6 +15,10 @@ describe('authenticatedRequest', () => {
     vi.restoreAllMocks();
     clearAccessToken();
     clearDebugUserId();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('Bearer가 있으면 debug header를 함께 보내지 않는다', async () => {
@@ -118,5 +122,17 @@ describe('authenticatedRequest', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get('Authorization')).toBeNull();
     expect(getAccessToken()).toBeNull();
+  });
+
+  it('세션 모드 401은 JWT Refresh 없이 그대로 전달한다', async () => {
+    vi.stubEnv('VITE_AUTH_MODE', 'session');
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({}, 401));
+
+    await expect(authenticatedRequest('/api/wallet')).rejects.toMatchObject({status: 401});
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/wallet');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({credentials: 'include'});
   });
 });
