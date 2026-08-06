@@ -1,7 +1,7 @@
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
 import {Link} from 'react-router-dom';
-import {cancelOrder,confirmOrder} from '../../../api/orderApi';
+import {cancelOrder,confirmOrder,sellerCancelOrder} from '../../../api/orderApi';
 import {HttpError} from '../../../api/httpClient';
 import type {OrderStatus} from '../../../dto/orderDto';
 import {orderQueries,orderQueryKey} from '../../../queries/orderQueries';
@@ -31,6 +31,7 @@ export default function OrdersPanel(){
   };
   const confirmMutation=useMutation({mutationFn:confirmOrder,onSuccess:invalidateOrders});
   const cancelMutation=useMutation({mutationFn:cancelOrder,onSuccess:invalidateOrders});
+  const sellerCancelMutation=useMutation({mutationFn:sellerCancelOrder,onSuccess:invalidateOrders});
   const authenticationRequired=orders.error instanceof HttpError && orders.error.status===401;
   // 정렬은 항상 최신순 — 백엔드가 이미 id desc(생성 순서 역순)로 내려주므로 별도 정렬 UI는 두지 않는다.
   const list=(orders.data??[]).filter(order=>statusFilter==='ALL'||order.status===statusFilter);
@@ -49,7 +50,7 @@ export default function OrdersPanel(){
       <p className="catalog-count">전체 {list.length.toLocaleString()}건</p>}
     <section className="cards-dash-section">
       <div className="cards-dash-section-head">
-        <div><h2>{role==='buyer'?'내가 산 주문':'내가 판 주문'}</h2><p>{role==='buyer'?'낙찰받은 주문을 확정하거나 취소하세요.':'판매한 주문의 정산 상태를 확인하세요.'}</p></div>
+        <div><h2>{role==='buyer'?'내가 산 주문':'내가 판 주문'}</h2><p>{role==='buyer'?'낙찰받은 주문을 확정하거나 취소하세요.':'판매한 주문의 정산 상태를 확인하거나 취소하세요.'}</p></div>
       </div>
       {orders.isPending
         ? <div className="filter-empty"><b>주문 목록을 불러오는 중...</b></div>
@@ -63,7 +64,7 @@ export default function OrdersPanel(){
             : <ul className="order-list">
                 {list.map(order=><li className="order-row" key={order.id}>
                   <div className="order-row-head">
-                    <Link to={`/auction/${order.auctionId}`}>경매 #{order.auctionId} 상세보기</Link>
+                    <Link to={`/auction/${order.auctionId}`}>{order.cardName} 상세보기</Link>
                     <span className={`order-status-badge ${order.status.toLowerCase()}`}>{statusLabel(order.status)}</span>
                   </div>
                   <div className="order-row-meta">
@@ -73,6 +74,9 @@ export default function OrdersPanel(){
                   {role==='buyer'&&order.status==='PENDING_CONFIRM'&&<div className="order-actions">
                     <button type="button" className="order-confirm-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>confirmMutation.mutate(order.id)}>구매확정</button>
                     <button type="button" className="order-cancel-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>cancelMutation.mutate(order.id)}>구매취소</button>
+                  </div>}
+                  {role==='seller'&&order.status==='PENDING_CONFIRM'&&<div className="order-actions single">
+                    <button type="button" className="order-cancel-button" disabled={sellerCancelMutation.isPending} onClick={()=>sellerCancelMutation.mutate(order.id)}>판매취소</button>
                   </div>}
                 </li>)}
               </ul>}
