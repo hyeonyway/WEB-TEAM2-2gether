@@ -14,6 +14,11 @@ export async function fetchPurchaseOrders():Promise<OrderDto[]>{
   return response.map(mapOrder);
 }
 
+export async function fetchSalesOrders():Promise<OrderDto[]>{
+  const response=await authenticatedRequest<OrderResponseDto[]>('/api/orders/sales');
+  return response.map(mapOrder);
+}
+
 export async function confirmOrder(orderId:number):Promise<OrderDto>{
   const response=await authenticatedRequest<OrderResponseDto>(`/api/orders/${orderId}/confirm`,{method:'POST'});
   return mapOrder(response);
