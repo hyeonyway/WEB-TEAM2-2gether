@@ -1,6 +1,5 @@
-package com.dbidding.sse.auction;
+package com.dbidding.auction.sse;
 
-import com.dbidding.sse.auction.payload.AuctionPayload;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -30,47 +29,30 @@ public class AuctionSseConnectionManager {
         emitter.onCompletion(() -> emitters.remove(emitter));
         emitter.onTimeout(() -> removeAndComplete(emitter));
         emitter.onError(error -> removeAndComplete(emitter));
-
-        send(emitter, SseEmitter.event()
-                .name("connected")
-                .reconnectTime(RECONNECT_TIME_MILLIS)
-                .data("connected"));
+        send(emitter, SseEmitter.event().name("connected")
+                .reconnectTime(RECONNECT_TIME_MILLIS).data("connected"));
         return emitter;
     }
 
-    public void broadcast(AuctionPayload event) {
-        emitters.forEach(emitter -> sseTaskExecutor.execute(() -> send(
-                emitter,
-                SseEmitter.event().name(event.type().name()).data(event)
-        )));
+    public void broadcast(AuctionStreamPayload event) {
+        emitters.forEach(emitter -> sseTaskExecutor.execute(() -> send(emitter,
+                SseEmitter.event().name(event.type().name()).data(event))));
     }
 
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
-        emitters.forEach(emitter -> sseTaskExecutor.execute(() -> send(
-                emitter,
-                SseEmitter.event().comment("heartbeat")
-        )));
+        emitters.forEach(emitter -> sseTaskExecutor.execute(() -> send(emitter,
+                SseEmitter.event().comment("heartbeat"))));
     }
 
-    public int connectionCount() {
-        return emitters.size();
-    }
+    public int connectionCount() { return emitters.size(); }
 
     private void send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
-        try {
-            emitter.send(event);
-        } catch (IOException | IllegalStateException exception) {
-            removeAndComplete(emitter);
-        }
+        try { emitter.send(event); } catch (IOException | IllegalStateException exception) { removeAndComplete(emitter); }
     }
 
     private void removeAndComplete(SseEmitter emitter) {
         emitters.remove(emitter);
-        try {
-            emitter.complete();
-        } catch (IllegalStateException ignored) {
-            // 이미 완료된 연결은 제거만 보장한다.
-        }
+        try { emitter.complete(); } catch (IllegalStateException ignored) { }
     }
 }

@@ -1,7 +1,7 @@
 package com.dbidding.sse.loadtest;
 
 import com.dbidding.notification.NotificationSseConnectionManager;
-import com.dbidding.sse.auction.AuctionSseConnectionManager;
+import com.dbidding.auction.sse.AuctionSseConnectionManager;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
