@@ -17,6 +17,7 @@ import org.springframework.mock.web.MockHttpSession;
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.dto.SessionLoginResponse;
+import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 
 class SessionAuthenticationStrategyTest {
 
@@ -30,7 +31,8 @@ class SessionAuthenticationStrategyTest {
 		strategy = new SessionAuthenticationStrategy(
 			properties,
 			Clock.fixed(NOW, ZoneOffset.UTC),
-			new SessionCsrfTokenService()
+			new SessionCsrfTokenService(),
+			new SessionSseConnectionRegistry()
 		);
 	}
 

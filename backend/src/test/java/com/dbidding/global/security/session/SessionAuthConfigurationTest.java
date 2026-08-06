@@ -18,6 +18,7 @@ class SessionAuthConfigurationTest {
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(TestConfiguration.class)
 		.withBean(RequestUserIdWriter.class, RequestUserIdWriter::new)
+		.withBean(SessionSseConnectionRegistry.class, SessionSseConnectionRegistry::new)
 		.withBean(Clock.class, Clock::systemUTC);
 
 	@Test
