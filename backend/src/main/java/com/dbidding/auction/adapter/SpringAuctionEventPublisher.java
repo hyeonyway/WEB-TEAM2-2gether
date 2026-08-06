@@ -3,7 +3,7 @@ package com.dbidding.auction.adapter;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
-import com.dbidding.auction.port.AuctionEventPort;
+import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.sse.auction.payload.AuctionClosedPayload;
 import com.dbidding.sse.auction.payload.AuctionCreatedPayload;
 import com.dbidding.sse.auction.payload.AuctionPayloadStatus;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("!auction-mock")
 @RequiredArgsConstructor
-public class SpringAuctionEventPublisher implements AuctionEventPort {
+public class SpringAuctionEventPublisher implements AuctionEventPublisher {
     private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override

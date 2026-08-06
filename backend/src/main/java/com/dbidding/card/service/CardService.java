@@ -1,40 +1,35 @@
-package com.dbidding.auction.adapter;
+package com.dbidding.card.service;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
-import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.card.domain.CardMetadata;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.repository.CardMetadataRepository;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-@Component
-@Profile("!auction-mock")
+@Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class AuctionCardAdapter implements AuctionCardPort {
+public class CardService {
     private final CardMetadataRepository cardMetadataRepository;
 
-    @Override
-    public CardSnapshot getCardSnapshot(Integer itemId) {
-        CardMetadata card = cardMetadataRepository.findById(itemId)
+    public CardSnapshot getCardSnapshot(Integer cardId) {
+        CardMetadata card = cardMetadataRepository.findById(cardId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "카드를 찾을 수 없습니다."));
-
         return toSnapshot(card);
     }
 
-    @Override
-    public Map<Integer, CardSnapshot> getCardSnapshots(Collection<Integer> itemIds) {
-        return cardMetadataRepository.findAllById(itemIds).stream()
+    public Map<Integer, CardSnapshot> getCardSnapshots(Collection<Integer> cardIds) {
+        return cardMetadataRepository.findAllById(cardIds).stream()
                 .map(this::toSnapshot)
-                .collect(Collectors.toMap(CardSnapshot::itemId, Function.identity()));
+                .collect(Collectors.toMap(CardSnapshot::cardId, Function.identity()));
     }
 
     private CardSnapshot toSnapshot(CardMetadata card) {

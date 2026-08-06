@@ -6,8 +6,9 @@ import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.dto.AuctionCursorCodec;
-import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
+import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -24,13 +25,13 @@ class AuctionRegistrationDetailContractTest {
         AuctionRepository auctionRepository = mock(AuctionRepository.class);
         AuctionImageRepository auctionImageRepository = mock(AuctionImageRepository.class);
         BidRepository bidRepository = mock(BidRepository.class);
-        AuctionCardPort auctionCardPort = mock(AuctionCardPort.class);
+        CardService cardService = mock(CardService.class);
         AuctionQueryService service = new AuctionQueryService(
                 auctionRepository,
                 auctionImageRepository,
                 bidRepository,
-                mock(WalletPort.class),
-                auctionCardPort,
+                mock(WalletService.class),
+                cardService,
                 new AuctionCursorCodec()
         );
         Auction auction = Auction.builder()
@@ -54,7 +55,7 @@ class AuctionRegistrationDetailContractTest {
         ReflectionTestUtils.setField(auction, "id", 1);
 
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
-        when(auctionCardPort.getCardSnapshot(10)).thenReturn(new AuctionCardPort.CardSnapshot(
+        when(cardService.getCardSnapshot(10)).thenReturn(new CardSnapshot(
                 10, "피카츄", "세트", "PSA 10", "JP", "/card.png"
         ));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
