@@ -7,8 +7,10 @@ const baseUrl = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 const users = positiveInt(__ENV.USERS, 1000);
 // 실제 입찰 1회가 경매 이벤트와 알림 이벤트를 함께 발생시킨다.
 const bidRate = positiveInt(__ENV.BID_RATE, 1000);
-const duration = __ENV.DURATION || '1m';
+const duration = __ENV.DURATION || '3m';
 const sseDuration = __ENV.SSE_DURATION || duration;
+const sseRampUp = __ENV.SSE_RAMP_UP || '60s';
+const sseBarrierWait = positiveInt(__ENV.SSE_BARRIER_WAIT, durationToSeconds(sseRampUp) + 5);
 const batchSize = positiveInt(__ENV.LOGIN_BATCH_SIZE, 25);
 const auctionIds = csv(__ENV.AUCTION_IDS).map(Number).filter(Number.isInteger);
 
@@ -24,8 +26,20 @@ export const options = {
   batchPerHost: batchSize,
   summaryTrendStats: ['avg', 'min', 'med', 'p(95)', 'p(99)', 'max'],
   scenarios: {
-    auctionSse: {executor: 'constant-vus', exec: 'auctionSse', vus: users, duration: sseDuration, gracefulStop: '5s'},
-    notificationSse: {executor: 'constant-vus', exec: 'notificationSse', vus: users, duration: sseDuration, gracefulStop: '5s'},
+    auctionSse: {
+      executor: 'ramping-vus',
+      exec: 'auctionSse',
+      startVUs: 0,
+      stages: sseStages(),
+      gracefulRampDown: '5s',
+    },
+    notificationSse: {
+      executor: 'ramping-vus',
+      exec: 'notificationSse',
+      startVUs: 0,
+      stages: sseStages(),
+      gracefulRampDown: '5s',
+    },
     bids: {executor: 'constant-arrival-rate', exec: 'bid', rate: bidRate, timeUnit: '1s', duration, preAllocatedVUs: 250, maxVUs: 1000, tags: {phase: 'main'}},
   },
   thresholds: {
@@ -71,7 +85,13 @@ export function notificationSse(data) {
 }
 
 export function bid(data) {
-  if (__ITER === 0) waitForSse(data.tokens[0]);
+  if (__ITER === 0) {
+    if (__VU === 1) {
+      waitForSse(data.tokens[0]);
+    } else {
+      sleep(sseBarrierWait);
+    }
+  }
   const token = data.tokens[(__VU - 1) % data.tokens.length];
   placeBid(token, auctionIds[Math.floor(Math.random() * auctionIds.length)], 'bid');
 }
@@ -130,8 +150,20 @@ function issueTickets(tokens) {
 }
 
 function loadCredentials() { return Array.from({length: users}, (_, i) => ({email: `k6-user${String(i + 1).padStart(5, '0')}@dbidding.local`, password: __ENV.PASSWORD || 'K6LoadTest123!'})); }
+function sseStages() {
+  return [
+    {duration: sseRampUp, target: users},
+    {duration: sseDuration, target: users},
+    {duration: '5s', target: 0},
+  ];
+}
 function csv(v) { return (v || '').split(',').map(x => x.trim()).filter(Boolean); }
 function positiveInt(v, fallback) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : fallback; }
+function durationToSeconds(value) {
+  const match = String(value).match(/^(\d+)(ms|s|m|h)$/);
+  if (!match) throw new Error(`duration 형식 오류: ${value}`);
+  return Number(match[1]) * ({ms: 0.001, s: 1, m: 60, h: 3600}[match[2]]);
+}
 function addDurations(a, b) {
   const seconds = value => { const m = String(maybeValue(value)).match(/^(\d+)(ms|s|m|h)$/); if (!m) throw new Error(`duration 형식 오류: ${value}`); return Number(m[1]) * ({ms: 0.001, s: 1, m: 60, h: 3600}[m[2]]); };
   return `${seconds(a) + seconds(b)}s`;

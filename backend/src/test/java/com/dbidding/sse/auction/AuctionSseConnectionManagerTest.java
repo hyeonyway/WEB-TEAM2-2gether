@@ -19,7 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 class AuctionSseConnectionManagerTest {
     @Test
     void 연결한_emitter에_경매_갱신_이벤트를_전송한다() throws Exception {
-        AuctionSseConnectionManager manager = new AuctionSseConnectionManager();
+        AuctionSseConnectionManager manager = new AuctionSseConnectionManager(Runnable::run);
         SseEmitter emitter = mock(SseEmitter.class);
         manager.register(emitter);
 
@@ -36,7 +36,7 @@ class AuctionSseConnectionManagerTest {
 
     @Test
     void 전송에_실패한_emitter는_연결_목록에서_제거한다() throws Exception {
-        AuctionSseConnectionManager manager = new AuctionSseConnectionManager();
+        AuctionSseConnectionManager manager = new AuctionSseConnectionManager(Runnable::run);
         SseEmitter emitter = mock(SseEmitter.class);
         manager.register(emitter);
         doThrow(new IOException("disconnected"))
