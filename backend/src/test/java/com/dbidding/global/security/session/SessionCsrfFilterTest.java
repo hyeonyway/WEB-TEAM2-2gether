@@ -56,6 +56,39 @@ class SessionCsrfFilterTest {
 		assertThat(loginChain.getRequest()).isSameAs(loginRequest);
 	}
 
+	@Test
+	void 허용되지_않은_Origin의_상태_변경_요청은_CSRF_token이_있어도_403으로_거부한다() throws Exception {
+		MockHttpServletRequest request = requestWithToken("POST", "/api/wallet/charges");
+		request.addHeader("Origin", "https://attacker.example");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter.doFilter(request, response, new MockFilterChain());
+
+		assertThat(response.getStatus()).isEqualTo(403);
+	}
+
+	@Test
+	void cross_site_Fetch_Metadata의_로그인_요청은_403으로_거부한다() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
+		request.addHeader("Sec-Fetch-Site", "cross-site");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter.doFilter(request, response, new MockFilterChain());
+
+		assertThat(response.getStatus()).isEqualTo(403);
+	}
+
+	@Test
+	void 허용된_Origin의_로그인_요청은_통과시킨다() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
+		request.addHeader("Origin", "https://dbidding.shop");
+		MockFilterChain chain = new MockFilterChain();
+
+		filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+		assertThat(chain.getRequest()).isSameAs(request);
+	}
+
 	private MockHttpServletRequest requestWithToken(String method, String path) {
 		MockHttpServletRequest request = new MockHttpServletRequest(method, path);
 		MockHttpSession session = new MockHttpSession();
