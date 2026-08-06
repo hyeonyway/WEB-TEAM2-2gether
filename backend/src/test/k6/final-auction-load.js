@@ -7,7 +7,7 @@ const baseUrl = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 const users = positiveInt(__ENV.USERS, 1000);
 // 실제 입찰 1회가 경매 이벤트와 알림 이벤트를 함께 발생시킨다.
 const bidRate = positiveInt(__ENV.BID_RATE, 1000);
-const duration = __ENV.DURATION || '1m';
+const duration = __ENV.DURATION || '3m';
 const sseDuration = __ENV.SSE_DURATION || duration;
 const sseRampUp = __ENV.SSE_RAMP_UP || '60s';
 const sseBarrierWait = positiveInt(__ENV.SSE_BARRIER_WAIT, durationToSeconds(sseRampUp) + 5);
