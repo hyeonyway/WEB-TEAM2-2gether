@@ -24,3 +24,11 @@ export type LoginResponseDto = {
 export type RefreshResponseDto = {
   accessToken: string;
 };
+
+export type SessionLoginResponseDto = {
+  csrfToken: string;
+};
+
+export type CurrentAccountResponseDto = {
+  userId: number;
+};

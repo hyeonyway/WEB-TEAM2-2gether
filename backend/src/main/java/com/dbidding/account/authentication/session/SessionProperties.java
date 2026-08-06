@@ -10,14 +10,19 @@ public final class SessionProperties {
 	private final SessionStore store;
 	private final String cookieName;
 	private final boolean secureCookie;
+	private final String sameSite;
 
-	public SessionProperties(SessionStore store, String cookieName, Boolean secureCookie) {
+	public SessionProperties(SessionStore store, String cookieName, Boolean secureCookie, String sameSite) {
 		if (store == null) {
 			throw new IllegalArgumentException("Session store must be explicitly configured");
 		}
 		this.store = store;
 		this.cookieName = cookieName == null || cookieName.isBlank() ? DEFAULT_COOKIE_NAME : cookieName;
 		this.secureCookie = secureCookie == null || secureCookie;
+		this.sameSite = sameSite == null || sameSite.isBlank() ? "Lax" : normalizeSameSite(sameSite);
+		if ("None".equals(this.sameSite) && !this.secureCookie) {
+			throw new IllegalArgumentException("SameSite=None requires a secure cookie");
+		}
 	}
 
 	public SessionStore store() {
@@ -30,5 +35,18 @@ public final class SessionProperties {
 
 	public boolean secureCookie() {
 		return secureCookie;
+	}
+
+	public String sameSite() {
+		return sameSite;
+	}
+
+	private String normalizeSameSite(String value) {
+		return switch (value.toLowerCase()) {
+			case "lax" -> "Lax";
+			case "strict" -> "Strict";
+			case "none" -> "None";
+			default -> throw new IllegalArgumentException("Unsupported SameSite policy: " + value);
+		};
 	}
 }

@@ -3,6 +3,7 @@ package com.dbidding.account.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,12 +13,14 @@ import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.dto.LoginRequest;
+import com.dbidding.account.dto.CurrentAccountResponse;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.exception.InvalidCredentialsException;
 import com.dbidding.account.service.SignupService;
+import com.dbidding.global.security.CurrentUser;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -52,6 +55,11 @@ public class AuthController {
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout(HttpServletRequest request) {
 		return authenticationStrategy.terminate(request);
+	}
+
+	@GetMapping("/me")
+	public CurrentAccountResponse currentAccount(@CurrentUser Integer userId) {
+		return new CurrentAccountResponse(userId);
 	}
 
 	@ExceptionHandler({

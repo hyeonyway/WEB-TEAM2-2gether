@@ -11,6 +11,12 @@ import {
 import {useQueryClient} from '@tanstack/react-query';
 import {getAccessToken, subscribeAccessToken} from '../api/accessTokenStore';
 import {refreshAccessToken} from '../api/authApi';
+import {isSessionAuthMode} from './authMode';
+import {getSessionUserId, setSessionUserId, subscribeSessionUser} from './session/sessionAuthStore';
+import {clearCsrfToken, setCsrfToken} from './session/csrfTokenStore';
+import {request} from '../api/httpClient';
+import type {CurrentAccountResponseDto, SessionLoginResponseDto} from '../dto/authDto';
+import {decodeAccessTokenUserId} from '../api/jwtClaims';
 import {useAuctionWalletSync} from '../hooks/useAuctionWalletSync';
 import {useWalletCrossTabSync} from '../hooks/useWalletCrossTabSync';
 
@@ -34,6 +40,7 @@ export function AuthProvider({children}: AuthProviderProps) {
     getAccessToken,
     getAccessToken,
   );
+  const sessionUserId = useSyncExternalStore(subscribeSessionUser, getSessionUserId, getSessionUserId);
   const [initialized, setInitialized] = useState(false);
   const initializationInFlightRef = useRef(false);
 
@@ -42,8 +49,19 @@ export function AuthProvider({children}: AuthProviderProps) {
     initializationInFlightRef.current = true;
     setInitialized(false);
     try {
-      await refreshAccessToken();
+      if (isSessionAuthMode()) {
+        const current = await request<CurrentAccountResponseDto>('/api/auth/me', {credentials: 'include'});
+        const csrf = await request<SessionLoginResponseDto>('/api/auth/csrf', {credentials: 'include'});
+        setSessionUserId(current.userId);
+        setCsrfToken(csrf.csrfToken);
+      } else {
+        await refreshAccessToken();
+      }
     } catch {
+      if (isSessionAuthMode()) {
+        setSessionUserId(null);
+        clearCsrfToken();
+      }
       // 인증 복구 실패는 anonymous 상태로 처리하고 전역 오류 UI는 노출하지 않는다.
     } finally {
       setInitialized(true);
@@ -57,11 +75,12 @@ export function AuthProvider({children}: AuthProviderProps) {
 
   const status: AuthStatus = !initialized
     ? 'initializing'
-    : accessToken
+    : (isSessionAuthMode() ? Boolean(sessionUserId) : Boolean(accessToken))
       ? 'authenticated'
       : 'anonymous';
 
-  useAuctionWalletSync(accessToken, status === 'authenticated');
+  const currentUserId = isSessionAuthMode() ? sessionUserId : accessToken ? decodeAccessTokenUserId(accessToken) : null;
+  useAuctionWalletSync(currentUserId, status === 'authenticated');
   useWalletCrossTabSync(status === 'authenticated');
 
   useEffect(() => {

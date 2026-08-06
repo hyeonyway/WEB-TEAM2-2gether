@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
+import com.dbidding.account.authentication.session.SessionCsrfTokenService;
 import com.dbidding.account.authentication.session.SessionProperties;
 import com.dbidding.global.security.RequestUserIdWriter;
 
@@ -19,13 +20,24 @@ public class SessionAuthConfiguration {
 	@Bean
 	SessionAuthenticationStrategy sessionAuthenticationStrategy(
 		SessionProperties properties,
-		Clock clock
+		Clock clock,
+		SessionCsrfTokenService csrfTokenService
 	) {
-		return new SessionAuthenticationStrategy(properties, clock);
+		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService);
 	}
 
 	@Bean
 	SessionAuthFilter sessionAuthFilter(RequestUserIdWriter requestUserIdWriter) {
 		return new SessionAuthFilter(requestUserIdWriter);
+	}
+
+	@Bean
+	SessionCsrfTokenService sessionCsrfTokenService() {
+		return new SessionCsrfTokenService();
+	}
+
+	@Bean
+	SessionCsrfFilter sessionCsrfFilter(SessionCsrfTokenService tokenService) {
+		return new SessionCsrfFilter(tokenService);
 	}
 }
