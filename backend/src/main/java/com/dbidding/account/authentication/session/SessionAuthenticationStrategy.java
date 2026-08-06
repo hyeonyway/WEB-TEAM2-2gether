@@ -45,7 +45,7 @@ public class SessionAuthenticationStrategy implements AuthenticationStrategy {
 		ResponseCookie expiredCookie = ResponseCookie.from(properties.cookieName(), "")
 			.httpOnly(true)
 			.secure(properties.secureCookie())
-			.sameSite("Lax")
+			.sameSite(properties.sameSite())
 			.path("/")
 			.maxAge(0)
 			.build();

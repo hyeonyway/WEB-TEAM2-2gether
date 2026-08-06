@@ -26,7 +26,7 @@ class SessionAuthenticationStrategyTest {
 
 	@BeforeEach
 	void setUp() {
-		SessionProperties properties = new SessionProperties(SessionStore.MEMORY, "SESSION", false);
+		SessionProperties properties = new SessionProperties(SessionStore.MEMORY, "SESSION", false, "lax");
 		strategy = new SessionAuthenticationStrategy(
 			properties,
 			Clock.fixed(NOW, ZoneOffset.UTC),

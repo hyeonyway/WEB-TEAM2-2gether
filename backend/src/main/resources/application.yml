@@ -34,7 +34,7 @@ server:
         name: ${SESSION_COOKIE_NAME:SESSION}
         http-only: true
         secure: ${SESSION_SECURE_COOKIE:true}
-        same-site: lax
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
 
 springdoc:
   swagger-ui:
@@ -78,6 +78,7 @@ app:
     store: ${SESSION_STORE:}
     cookie-name: ${SESSION_COOKIE_NAME:SESSION}
     secure-cookie: ${SESSION_SECURE_COOKIE:true}
+    same-site: ${SESSION_COOKIE_SAME_SITE:lax}
   jwt:
     secret: ${JWT_SECRET}
     access-token-seconds: ${JWT_ACCESS_SECONDS:1800}
