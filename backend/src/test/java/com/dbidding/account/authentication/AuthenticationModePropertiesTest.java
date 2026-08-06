@@ -22,13 +22,12 @@ class AuthenticationModePropertiesTest {
 	}
 
 	@Test
-	void session_모드를_바인딩할_수_있다() {
+	void 아직_지원하지_않는_session_모드는_애플리케이션_시작에_실패한다() {
 		contextRunner.withPropertyValues("app.auth.mode=session")
 			.run(context -> assertThat(context)
-				.hasNotFailed()
-				.getBean(AuthenticationModeProperties.class)
-				.extracting(AuthenticationModeProperties::mode)
-				.isEqualTo(AuthenticationMode.SESSION));
+				.hasFailed()
+				.getFailure()
+				.hasRootCauseMessage("SESSION authentication mode is not supported yet"));
 	}
 
 	@Test

@@ -9,6 +9,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.dbidding.account.exception.InvalidTokenException;
 import com.dbidding.account.authentication.jwt.JwtTokenProvider;
 import com.dbidding.account.authentication.jwt.TokenClaims;
+import com.dbidding.global.exception.UnauthorizedException;
 import com.dbidding.global.security.RequestUserIdWriter;
 
 import jakarta.servlet.FilterChain;
@@ -49,7 +50,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 			TokenClaims claims = jwtTokenProvider.parseAccess(accessToken);
 			requestUserIdWriter.write(request, claims.userId());
 			filterChain.doFilter(request, response);
-		} catch (InvalidTokenException exception) {
+		} catch (InvalidTokenException | UnauthorizedException exception) {
 			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
 		}
 	}

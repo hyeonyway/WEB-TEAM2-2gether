@@ -89,4 +89,21 @@ class JwtAuthFilterTest {
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE)).isNull();
 		assertThat(chain.getRequest()).isNull();
 	}
+
+	@Test
+	void 다른_인증_수단의_userId와_충돌하면_401을_반환한다() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader("Authorization", "Bearer valid-access-token");
+		request.setAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE, 8);
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+		given(jwtTokenProvider.parseAccess("valid-access-token"))
+			.willReturn(new TokenClaims(7, TokenType.ACCESS));
+
+		filter.doFilter(request, response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE)).isEqualTo(8);
+		assertThat(chain.getRequest()).isNull();
+	}
 }
