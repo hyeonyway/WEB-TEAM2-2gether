@@ -15,23 +15,26 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.dbidding.account.authentication.jwt.JwtRefreshResult;
+import com.dbidding.account.authentication.jwt.JwtRefreshService;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.domain.AccountStatus;
 import com.dbidding.account.repository.AccountRepository;
-import com.dbidding.account.domain.Authentication;
+import com.dbidding.account.authentication.jwt.Authentication;
 import com.dbidding.account.dto.RefreshResponse;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
 import com.dbidding.account.password.PasswordHasher;
 import com.dbidding.account.port.WalletProvisioningPort;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.token.IssuedTokens;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.RefreshTokenHasher;
-import com.dbidding.account.token.TokenClaims;
-import com.dbidding.account.token.TokenType;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
+import com.dbidding.account.authentication.jwt.IssuedTokens;
+import com.dbidding.account.authentication.jwt.JwtTokenProvider;
+import com.dbidding.account.authentication.jwt.RefreshTokenHasher;
+import com.dbidding.account.authentication.jwt.TokenClaims;
+import com.dbidding.account.authentication.jwt.TokenType;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceRefreshTest {
@@ -66,22 +69,15 @@ class AuthServiceRefreshTest {
 	@Mock
 	private RefreshTokenHasher refreshTokenHasher;
 
-	private AuthService authService;
+	private JwtRefreshService jwtRefreshService;
 
 	@BeforeEach
 	void setUp() {
-		AuthTransactionService authTransactionService = new AuthTransactionService(
+		jwtRefreshService = new JwtRefreshService(
 			accountRepository,
-			walletProvisioningPort,
-			authenticationRepository
-		);
-		authService = new AuthService(
-			accountRepository,
-			passwordHasher,
 			authenticationRepository,
 			jwtTokenProvider,
-			refreshTokenHasher,
-			authTransactionService
+			refreshTokenHasher
 		);
 	}
 
@@ -101,9 +97,9 @@ class AuthServiceRefreshTest {
 		)).willReturn(NEXT_TOKENS);
 		given(refreshTokenHasher.hash(NEXT_TOKENS.refreshToken())).willReturn(NEXT_HASH);
 
-		RefreshResult result = authService.refresh(PRESENTED_TOKEN);
+		JwtRefreshResult result = jwtRefreshService.refresh(PRESENTED_TOKEN);
 
-		assertThat(result).isEqualTo(new RefreshResult(
+		assertThat(result).isEqualTo(new JwtRefreshResult(
 			new RefreshResponse(NEXT_TOKENS.accessToken()),
 			NEXT_TOKENS.refreshToken()
 		));
@@ -119,7 +115,7 @@ class AuthServiceRefreshTest {
 			.willReturn(Optional.of(authentication));
 		given(refreshTokenHasher.hash(PRESENTED_TOKEN)).willReturn("c".repeat(64));
 
-		assertThatThrownBy(() -> authService.refresh(PRESENTED_TOKEN))
+		assertThatThrownBy(() -> jwtRefreshService.refresh(PRESENTED_TOKEN))
 			.isInstanceOf(InvalidRefreshTokenException.class);
 
 		assertThat(authentication.getRefreshTokenHash()).isEqualTo(PRESENTED_HASH);
@@ -133,7 +129,7 @@ class AuthServiceRefreshTest {
 		givenValidRefreshClaims();
 		given(authenticationRepository.findByUserIdForUpdate(1)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> authService.refresh(PRESENTED_TOKEN))
+		assertThatThrownBy(() -> jwtRefreshService.refresh(PRESENTED_TOKEN))
 			.isInstanceOf(InvalidRefreshTokenException.class);
 
 		then(refreshTokenHasher).shouldHaveNoInteractions();
@@ -146,7 +142,7 @@ class AuthServiceRefreshTest {
 		givenStoredAuthentication(authentication);
 		given(accountRepository.findById(1)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> authService.refresh(PRESENTED_TOKEN))
+		assertThatThrownBy(() -> jwtRefreshService.refresh(PRESENTED_TOKEN))
 			.isInstanceOf(InvalidRefreshTokenException.class);
 
 		assertThat(authentication.getRefreshTokenHash()).isEqualTo(PRESENTED_HASH);
@@ -161,7 +157,7 @@ class AuthServiceRefreshTest {
 		given(accountRepository.findById(1))
 			.willReturn(Optional.of(account(AccountStatus.SUSPENDED)));
 
-		assertThatThrownBy(() -> authService.refresh(PRESENTED_TOKEN))
+		assertThatThrownBy(() -> jwtRefreshService.refresh(PRESENTED_TOKEN))
 			.isInstanceOf(InvalidRefreshTokenException.class);
 
 		assertThat(authentication.getRefreshTokenHash()).isEqualTo(PRESENTED_HASH);

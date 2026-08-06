@@ -13,7 +13,6 @@ import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.repository.AccountRepository;
-import com.dbidding.account.repository.AuthenticationRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +25,6 @@ public class AuthTransactionService {
 
 	private final AccountRepository accountRepository;
 	private final WalletProvisioningPort walletProvisioningPort;
-	private final AuthenticationRepository authenticationRepository;
 
 	@Transactional
 	public SignupResponse createAccountWithWallet(SignupRequest request, PasswordHash password) {
@@ -49,11 +47,6 @@ public class AuthTransactionService {
 		}
 		walletProvisioningPort.createFor(account.getId());
 		return SignupResponse.from(account);
-	}
-
-	@Transactional
-	public void persistRefreshToken(Integer accountId, String refreshTokenHash) {
-		authenticationRepository.upsertRefreshTokenHash(accountId, refreshTokenHash);
 	}
 
 	private boolean isConstraintViolation(Throwable exception, String expectedConstraint) {

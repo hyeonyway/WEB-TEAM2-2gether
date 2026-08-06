@@ -12,6 +12,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.dbidding.global.security.jwt.SseTicketController;
+import com.dbidding.global.security.jwt.TicketProvider;
+
 import com.dbidding.global.exception.UnauthorizedException;
 
 @WebMvcTest(SseTicketController.class)

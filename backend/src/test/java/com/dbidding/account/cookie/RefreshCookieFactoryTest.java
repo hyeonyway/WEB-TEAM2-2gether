@@ -7,7 +7,8 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseCookie;
 
-import com.dbidding.account.config.JwtProperties;
+import com.dbidding.account.authentication.jwt.JwtProperties;
+import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
 
 class RefreshCookieFactoryTest {
 

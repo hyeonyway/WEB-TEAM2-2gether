@@ -10,7 +10,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 class TestAuthFilterTest {
 
-	private final TestAuthFilter filter = new TestAuthFilter();
+	private final TestAuthFilter filter = new TestAuthFilter(new RequestUserIdWriter());
 
 	@Test
 	void 양의_정수_디버그_ID를_request_attribute에_저장한다() throws Exception {

@@ -9,24 +9,33 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.dbidding.account.authentication.AuthenticatedAccount;
+import com.dbidding.account.authentication.CredentialAuthenticationService;
+import com.dbidding.account.authentication.jwt.AuthenticationRepository;
+import com.dbidding.account.authentication.jwt.JwtAuthenticationStrategy;
 import com.dbidding.account.domain.Account;
-import com.dbidding.account.dto.LoginRequest;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.password.PasswordHasher;
 import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.repository.AccountRepository;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.service.AuthService;
+import com.dbidding.account.service.SignupService;
 import com.dbidding.account.support.AccountMySqlIntegrationTest;
 
 class AuthTransactionScopeTest extends AccountMySqlIntegrationTest {
 
 	@Autowired
-	private AuthService authService;
+	private CredentialAuthenticationService credentialAuthenticationService;
+
+	@Autowired
+	private JwtAuthenticationStrategy jwtAuthenticationStrategy;
+
+	@Autowired
+	private SignupService signupService;
 
 	@Autowired
 	private AccountRepository accountRepository;
@@ -63,7 +72,11 @@ class AuthTransactionScopeTest extends AccountMySqlIntegrationTest {
 			return null;
 		}).when(authenticationRepository).upsertRefreshTokenHash(eq(account.getId()), anyString());
 
-		authService.login(new LoginRequest("login-scope@example.com", "Password123!"));
+		AuthenticatedAccount authenticatedAccount = credentialAuthenticationService.authenticate(
+			"login-scope@example.com",
+			"Password123!"
+		);
+		jwtAuthenticationStrategy.establish(authenticatedAccount, new MockHttpServletRequest());
 
 		assertThat(transactionActiveDuringPasswordMatch).isFalse();
 		assertThat(transactionActiveDuringRefreshTokenUpsert).isTrue();
@@ -86,7 +99,7 @@ class AuthTransactionScopeTest extends AccountMySqlIntegrationTest {
 			return invocation.callRealMethod();
 		}).when(walletProvisioningPort).createFor(org.mockito.ArgumentMatchers.anyInt());
 
-		var response = authService.signup(new SignupRequest(
+		var response = signupService.signup(new SignupRequest(
 			"signup-scope@example.com",
 			"Password123!",
 			"signup-scope"

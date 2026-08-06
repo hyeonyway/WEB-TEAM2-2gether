@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import org.springframework.dao.DataIntegrityViolationException;
 
 import com.dbidding.account.domain.Account;
@@ -27,9 +28,6 @@ import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.password.PasswordHasher;
 import com.dbidding.account.port.WalletProvisioningPort;
-import com.dbidding.account.repository.AuthenticationRepository;
-import com.dbidding.account.token.JwtTokenProvider;
-import com.dbidding.account.token.RefreshTokenHasher;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceSignupTest {
@@ -49,30 +47,17 @@ class AuthServiceSignupTest {
 	@Mock
 	private PasswordHasher passwordHasher;
 
-	@Mock
-	private AuthenticationRepository authenticationRepository;
-
-	@Mock
-	private JwtTokenProvider jwtTokenProvider;
-
-	@Mock
-	private RefreshTokenHasher refreshTokenHasher;
-
-	private AuthService authService;
+	private SignupService signupService;
 
 	@BeforeEach
 	void setUp() {
 		AuthTransactionService authTransactionService = new AuthTransactionService(
 			accountRepository,
-			walletProvisioningPort,
-			authenticationRepository
+			walletProvisioningPort
 		);
-		authService = new AuthService(
+		signupService = new SignupService(
 			accountRepository,
 			passwordHasher,
-			authenticationRepository,
-			jwtTokenProvider,
-			refreshTokenHasher,
 			authTransactionService
 		);
 	}
@@ -81,7 +66,7 @@ class AuthServiceSignupTest {
 	void 중복_이메일이면_사용자와_지갑을_생성하지_않는다() {
 		given(accountRepository.existsByEmail(REQUEST.email())).willReturn(true);
 
-		assertThatThrownBy(() -> authService.signup(REQUEST))
+		assertThatThrownBy(() -> signupService.signup(REQUEST))
 			.isInstanceOf(DuplicateEmailException.class);
 
 		then(accountRepository).should(never()).saveAndFlush(any(Account.class));
@@ -93,7 +78,7 @@ class AuthServiceSignupTest {
 	void 중복_닉네임이면_사용자와_지갑을_생성하지_않는다() {
 		given(accountRepository.existsByNickname(REQUEST.nickname())).willReturn(true);
 
-		assertThatThrownBy(() -> authService.signup(REQUEST))
+		assertThatThrownBy(() -> signupService.signup(REQUEST))
 			.isInstanceOf(DuplicateNicknameException.class);
 
 		then(accountRepository).should(never()).saveAndFlush(any(Account.class));
@@ -114,7 +99,7 @@ class AuthServiceSignupTest {
 		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
 		given(accountRepository.saveAndFlush(any(Account.class))).willReturn(savedAccount);
 
-		SignupResponse response = authService.signup(REQUEST);
+		SignupResponse response = signupService.signup(REQUEST);
 
 		assertThat(response).isEqualTo(new SignupResponse(
 			1,
@@ -134,7 +119,7 @@ class AuthServiceSignupTest {
 		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
 		given(accountRepository.saveAndFlush(any(Account.class))).willThrow(duplicateEmail);
 
-		assertThatThrownBy(() -> authService.signup(REQUEST))
+		assertThatThrownBy(() -> signupService.signup(REQUEST))
 			.isInstanceOf(DuplicateEmailException.class)
 			.hasCause(duplicateEmail);
 	}
@@ -147,7 +132,7 @@ class AuthServiceSignupTest {
 		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
 		given(accountRepository.saveAndFlush(any(Account.class))).willThrow(duplicateNickname);
 
-		assertThatThrownBy(() -> authService.signup(REQUEST))
+		assertThatThrownBy(() -> signupService.signup(REQUEST))
 			.isInstanceOf(DuplicateNicknameException.class)
 			.hasCause(duplicateNickname);
 	}
@@ -160,7 +145,7 @@ class AuthServiceSignupTest {
 		given(passwordHasher.hash(REQUEST.password())).willReturn(passwordHash);
 		given(accountRepository.saveAndFlush(any(Account.class))).willThrow(unrelatedConstraint);
 
-		assertThatThrownBy(() -> authService.signup(REQUEST))
+		assertThatThrownBy(() -> signupService.signup(REQUEST))
 			.isSameAs(unrelatedConstraint);
 	}
 

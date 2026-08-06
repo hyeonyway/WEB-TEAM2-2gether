@@ -1,4 +1,4 @@
-package com.dbidding.global.security;
+package com.dbidding.global.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
