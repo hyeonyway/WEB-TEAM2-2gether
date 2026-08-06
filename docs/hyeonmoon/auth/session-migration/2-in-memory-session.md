@@ -163,4 +163,18 @@ MockMvc 또는 HTTP 클라이언트 cookie jar로 다음 흐름을 검증한다.
 
 배포 기본값은 계속 JWT다. 문제가 생기면 `AUTH_MODE=jwt`로 실행하고 세션 전용 구성과 패키지만 되돌린다. JWT 데이터나 Refresh 상태는 이 단계에서 변경하지 않는다.
 
+## 13. 구현 결과
+
+2026-08-06 기준으로 이 문서의 단일 인스턴스 인메모리 세션 인증을 구현했다.
+
+- `AUTH_MODE=session`, `SESSION_STORE=memory`일 때만 세션 전략과 필터가 등록된다.
+- Servlet container의 기본 인메모리 `HttpSession` 저장소를 사용하며 애플리케이션이 별도 세션 Map을 관리하지 않는다.
+- 로그인은 기존 세션 ID를 교체하고 `userId`, `role`, `authenticatedAt`만 저장한다.
+- `SessionAuthFilter`는 세션을 새로 만들지 않고 유효한 세션 사용자를 기존 `RequestUserIdWriter`와 `@CurrentUser` 경로로 연결한다.
+- 로그아웃은 현재 세션을 무효화하고 `SESSION` 쿠키를 만료한다.
+- 세션 모드에서는 JWT 발급·Refresh·SSE ticket 구성과 전용 엔드포인트가 등록되지 않는다.
+- JWT는 여전히 기본 모드이며 기존 JWT 인증 테스트를 함께 실행해 구성 분기를 검증한다.
+
+자동화 테스트는 세션 생성, 허용 attribute, 세션 고정 방어, 요청 인증, 인증 충돌, 로그인 실패, 로그아웃 멱등성, 쿠키 폐기와 JWT 구성 회귀를 다룬다. idle timeout과 서버 재시작 시 세션 소멸은 별도 영속 저장소를 두지 않은 Servlet container의 수명에 따르며, 실제 컨테이너 환경의 운영 검증 항목으로 남긴다.
+
 > 이 문서는 codex의 도움을 받아 작성하였습니다
