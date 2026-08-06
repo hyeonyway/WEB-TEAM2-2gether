@@ -1,7 +1,7 @@
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
-import {act,render,screen,waitFor} from '@testing-library/react';
+import {act,render,screen,waitFor,within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {MemoryRouter} from 'react-router-dom';
+import {MemoryRouter,useLocation} from 'react-router-dom';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {AuthContext} from '../../auth/AuthProvider';
 import type {AuctionDto} from '../../dto/auctionDto';
@@ -41,12 +41,16 @@ class TestIntersectionObserver implements IntersectionObserver{
   unobserve=vi.fn();
 }
 
-function renderPage(){
+function LocationProbe(){
+  return <output data-testid="location-search">{useLocation().search}</output>;
+}
+
+function renderPage(initialEntry='/auction'){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   const result=render(<QueryClientProvider client={queryClient}>
-    <MemoryRouter initialEntries={['/auction']}>
-      <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
-        <AuctionPage/>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+          <AuctionPage/><LocationProbe/>
       </AuthContext.Provider>
     </MemoryRouter>
   </QueryClientProvider>);
@@ -94,6 +98,22 @@ describe('AuctionPage',()=>{
     ));
   });
 
+  it('선택한 정렬 기준을 URL에 저장해 새로고침 후에도 복원한다',async()=>{
+    renderPage();
+    const user=userEvent.setup();
+
+    await user.click(await screen.findByRole('button',{name:'경매가 높은순'}));
+
+    expect(screen.getByTestId('location-search')).toHaveTextContent('sort=PRICE_HIGH');
+    expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
+      expect.objectContaining({sort:'PRICE_HIGH'}),
+      undefined,
+    );
+
+    renderPage('/auction?sort=PRICE_HIGH');
+    expect(await screen.findByRole('button',{name:'경매가 높은순'})).toHaveClass('active');
+  });
+
   it('SSE 입찰 이벤트는 목록을 다시 조회하지 않고 캐시된 경매를 갱신한다',async()=>{
     const{queryClient}=renderPage();
     expect(await screen.findByText('피카츄')).toBeInTheDocument();
@@ -109,6 +129,26 @@ describe('AuctionPage',()=>{
     expect(queryClient.getQueryData<{pages:{content:AuctionDto[]}[]}>(
       auctionQueryKeys.list({keyword:'',psaGrade:null,sort:'BID_COUNT',size:12},'public'),
     )?.pages[0].content[0].currentPrice).toBe(15_000);
+  });
+
+  it('SSE 입찰 이벤트로 정렬 기준 값이 바뀌면 표시 순서도 다시 정렬한다',async()=>{
+    const first=auction(2,'입찰 수가 적은 경매');
+    const second=auction(1,'입찰 수가 많은 경매');
+    apiMocks.fetchAuctions.mockReset().mockResolvedValueOnce({
+      content:[first,second],next_cursor:null,has_next:false,
+    });
+    renderPage('/auction?sort=BID_COUNT');
+    expect(await screen.findByText('입찰 수가 적은 경매')).toBeInTheDocument();
+
+    await act(async()=>onAuctionUpdated({
+      type:'BID_PLACED',auction_id:1,bidder_id:7,previous_bidder_id:null,
+      start_price:10_000,current_price:15_000,bid_increment:1_000,bid_count:10,
+      ends_at:'2099-08-04T10:00:00Z',status:'OPEN',auction_version:2,
+      occurred_at:'2026-08-04T10:00:00Z',
+    }));
+
+    const cards=screen.getAllByRole('article');
+    expect(within(cards[0]).getByRole('heading')).toHaveTextContent('입찰 수가 많은 경매');
   });
 
   it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{

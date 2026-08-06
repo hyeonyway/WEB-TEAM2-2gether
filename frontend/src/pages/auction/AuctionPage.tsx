@@ -5,7 +5,7 @@ import {useSearchParams} from 'react-router-dom';
 import {AuctionCatalog,AuctionCatalogSkeleton} from './components';
 import type {AuctionDto,AuctionListRequestDto,CursorPageResponseDto} from '../../dto/auctionDto';
 import {auctionQueries} from '../../queries/auctionQueries';
-import {applyAuctionEvent} from '../../queries/auctionStreamCache';
+import {applyAuctionEvent,sortAuctions} from '../../queries/auctionStreamCache';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
@@ -21,14 +21,14 @@ export default function AuctionPage(){
   const queryClient=useQueryClient();
   const{status:authStatus}=useAuth();
   const viewerScope=authStatus==='authenticated'?'self':'public';
-  const[searchParams]=useSearchParams();
+  const[searchParams,setSearchParams]=useSearchParams();
   const requestedSort=searchParams.get('sort');
   const requestedKeyword=searchParams.get('keyword')??'';
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'BID_COUNT';
   const[query,setQuery]=useState(requestedKeyword);
   const debouncedQuery=useDebouncedValue(query);
   const[grade,setGrade]=useState('');
-  const[sort,setSort]=useState<AuctionListRequestDto['sort']>(initialSort);
+  const sort=initialSort;
   const listRequest={keyword:debouncedQuery,psaGrade:grade||null,sort,size:PAGE_SIZE};
   const listOptions=auctionQueries.list(listRequest,viewerScope);
 
@@ -53,8 +53,8 @@ export default function AuctionPage(){
   const auctions=useMemo(()=>{
     const unique=new Map<number,AuctionDto>();
     data?.pages.flatMap(page=>page.content).forEach(auction=>unique.set(auction.id,auction));
-    return [...unique.values()];
-  },[data]);
+    return sortAuctions([...unique.values()],sort);
+  },[data,sort]);
   const loadMoreRef=useRef<HTMLDivElement>(null);
 
   useEffect(()=>{
@@ -72,7 +72,7 @@ export default function AuctionPage(){
   return <div className="cards-page enhanced-cards"><Header/><main>
     <div className="card-page-title"><h2>카드 경매</h2><span>전체 경매</span></div>
     <label className="card-search"><Search/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="경매 카드 검색..."/></label>
-    <div className="card-toolbar"><div>{sorts.map(([label,value])=><button key={value} className={sort===value?'active':''} onClick={()=>setSort(value)}>{label}</button>)}</div>
+    <div className="card-toolbar"><div>{sorts.map(([label,value])=><button key={value} className={sort===value?'active':''} onClick={()=>setSearchParams(current=>{current.set('sort',value);return current;},{replace:true})}>{label}</button>)}</div>
       <label className="grade-filter"><select value={grade} onChange={event=>setGrade(event.target.value)} aria-label="PSA 등급 필터">
         <option value="">PSA 등급</option>{Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
       </select></label>
