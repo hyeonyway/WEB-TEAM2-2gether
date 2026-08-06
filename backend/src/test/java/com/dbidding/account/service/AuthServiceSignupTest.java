@@ -28,9 +28,6 @@ import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.password.PasswordHasher;
 import com.dbidding.account.port.WalletProvisioningPort;
-import com.dbidding.account.authentication.jwt.AuthenticationRepository;
-import com.dbidding.account.authentication.jwt.JwtTokenProvider;
-import com.dbidding.account.authentication.jwt.RefreshTokenHasher;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceSignupTest {
@@ -50,23 +47,13 @@ class AuthServiceSignupTest {
 	@Mock
 	private PasswordHasher passwordHasher;
 
-	@Mock
-	private AuthenticationRepository authenticationRepository;
-
-	@Mock
-	private JwtTokenProvider jwtTokenProvider;
-
-	@Mock
-	private RefreshTokenHasher refreshTokenHasher;
-
 	private SignupService signupService;
 
 	@BeforeEach
 	void setUp() {
 		AuthTransactionService authTransactionService = new AuthTransactionService(
 			accountRepository,
-			walletProvisioningPort,
-			authenticationRepository
+			walletProvisioningPort
 		);
 		signupService = new SignupService(
 			accountRepository,

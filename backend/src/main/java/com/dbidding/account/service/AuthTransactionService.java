@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dbidding.account.domain.Account;
-import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
@@ -26,7 +25,6 @@ public class AuthTransactionService {
 
 	private final AccountRepository accountRepository;
 	private final WalletProvisioningPort walletProvisioningPort;
-	private final AuthenticationRepository authenticationRepository;
 
 	@Transactional
 	public SignupResponse createAccountWithWallet(SignupRequest request, PasswordHash password) {
@@ -49,11 +47,6 @@ public class AuthTransactionService {
 		}
 		walletProvisioningPort.createFor(account.getId());
 		return SignupResponse.from(account);
-	}
-
-	@Transactional
-	public void persistRefreshToken(Integer accountId, String refreshTokenHash) {
-		authenticationRepository.upsertRefreshTokenHash(accountId, refreshTokenHash);
 	}
 
 	private boolean isConstraintViolation(Throwable exception, String expectedConstraint) {
