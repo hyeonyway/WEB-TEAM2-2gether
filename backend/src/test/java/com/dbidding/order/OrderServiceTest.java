@@ -15,7 +15,9 @@ import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
 import com.dbidding.order.port.OrderEventPort;
 import com.dbidding.order.port.WalletSettlementPort;
+import java.sql.SQLException;
 import java.util.Optional;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -176,22 +178,41 @@ class OrderServiceTest {
     void 낙찰자가_있으면_주문을_생성한다() {
         orderService.createFromAuctionClosed(AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, PRICE);
 
-        verify(orderRepository).save(any(Order.class));
+        verify(orderRepository).saveAndFlush(any(Order.class));
     }
 
     @Test
     void 낙찰자가_없으면_주문을_생성하지_않는다() {
         orderService.createFromAuctionClosed(AUCTION_ID, null, SELLER_ID, CARD_NAME, PRICE);
 
-        verify(orderRepository, never()).save(any());
+        verify(orderRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void 중복_호출로_유니크_제약_위반이_나도_예외를_전파하지_않는다() {
-        given(orderRepository.save(any(Order.class))).willThrow(new DataIntegrityViolationException("duplicate"));
+    void 중복_호출로_경매_유니크_제약_위반이_나면_예외를_전파하지_않는다() {
+        given(orderRepository.saveAndFlush(any(Order.class)))
+                .willThrow(dataIntegrityViolation("uk_orders_auction"));
 
         orderService.createFromAuctionClosed(AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, PRICE);
 
-        verify(orderRepository).save(any(Order.class));
+        verify(orderRepository).saveAndFlush(any(Order.class));
+    }
+
+    @Test
+    void 경매_유니크_제약이_아닌_무결성_위반은_그대로_전파한다() {
+        DataIntegrityViolationException unrelatedConstraint = dataIntegrityViolation("fk_orders_seller");
+        given(orderRepository.saveAndFlush(any(Order.class))).willThrow(unrelatedConstraint);
+
+        assertThatThrownBy(() -> orderService.createFromAuctionClosed(AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, PRICE))
+                .isSameAs(unrelatedConstraint);
+    }
+
+    private DataIntegrityViolationException dataIntegrityViolation(String constraintName) {
+        ConstraintViolationException constraintViolation = new ConstraintViolationException(
+                "constraint violation",
+                new SQLException("constraint violation"),
+                constraintName
+        );
+        return new DataIntegrityViolationException("data integrity violation", constraintViolation);
     }
 }

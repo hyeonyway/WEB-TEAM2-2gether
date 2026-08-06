@@ -10,6 +10,7 @@ import com.dbidding.order.port.WalletSettlementPort;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class OrderService {
+
+    private static final String AUCTION_UNIQUE_CONSTRAINT = "uk_orders_auction";
 
     private final OrderRepository orderRepository;
     private final WalletSettlementPort walletSettlementPort;
@@ -76,9 +79,12 @@ public class OrderService {
     }
 
     /**
-     * {@code auction} 패키지가 auction.event.AuctionClosedEvent를 몰라도 되게 원시값만 받는다
-     * {@code orders.auction_id} 유니크 제약 덕분에 중복 호출돼도 두 번째 저장 시도는
-     * 제약 위반으로 걸러진다.
+     * {@code auction} 패키지가 auction.event.AuctionClosedEvent를 몰라도 되게 원시값만 받는다.
+     * {@code orders.auction_id} 유니크 제약 덕분에 중복 호출돼도 두 번째 저장 시도는 제약
+     * 위반으로 걸러지는데, 정확히 그 제약 위반일 때만 무시한다 — FK/NOT NULL 위반 등 다른
+     * 무결성 오류까지 "중복이라 무시"로 삼켜버리면 진짜 버그가 조용히 묻힌다(PR #228 CodeRabbit
+     * 리뷰). {@code save} 대신 {@code saveAndFlush}를 써서, 제약 위반이 이 트랜잭션의 나중
+     * 커밋 시점이 아니라 지금 이 호출에서 바로 터지게 한다.
      */
     @Transactional
     public void createFromAuctionClosed(
@@ -88,10 +94,30 @@ public class OrderService {
             return;
         }
         try {
-            orderRepository.save(Order.pendingConfirm(auctionId, winnerId, sellerId, cardName, winningPrice));
+            orderRepository.saveAndFlush(Order.pendingConfirm(auctionId, winnerId, sellerId, cardName, winningPrice));
         } catch (DataIntegrityViolationException exception) {
+            if (!isAuctionUniqueConstraintViolation(exception)) {
+                throw exception;
+            }
             log.debug("event=order.creation.duplicate_skipped auctionId={}", auctionId, exception);
         }
+    }
+
+    private boolean isAuctionUniqueConstraintViolation(Throwable exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintViolation) {
+                String constraintName = constraintViolation.getConstraintName();
+                if (constraintName == null) {
+                    return false;
+                }
+                String normalizedName = constraintName.replace("`", "");
+                String unqualifiedName = normalizedName.substring(normalizedName.lastIndexOf('.') + 1);
+                return unqualifiedName.equalsIgnoreCase(AUCTION_UNIQUE_CONSTRAINT);
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     private Order getOrder(Integer orderId) {
