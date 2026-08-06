@@ -57,16 +57,14 @@ src/auth
 
 ```typescript
 export interface AuthTransport {
-  login(input: LoginInput): Promise<void>;
-  logout(): Promise<void>;
-  restore(): Promise<'authenticated' | 'anonymous'>;
   request<T>(path: string, options?: RequestInit): Promise<T>;
+  optionallyAuthenticatedRequest<T>(path: string, options?: RequestInit): Promise<T>;
 }
 ```
 
 - JWT transport는 Access Token, Bearer header, 단일 Refresh를 소유한다.
-- session transport는 cookie, CSRF header, 현재 사용자 조회를 소유한다.
-- 도메인 API는 모드를 직접 분기하지 않고 factory가 선택한 transport만 사용한다.
+- session transport는 cookie, CSRF header를 소유한다.
+- 로그인·로그아웃·인증 복구는 `authApi`와 `AuthProvider` 안에만 남기고, 도메인 API는 모드를 직접 분기하지 않고 factory가 선택한 transport만 사용한다.
 - 세션 모드에서 401은 Refresh 없이 익명 상태로 전환한다.
 
 ## 5. 테스트와 완료 기준
@@ -77,5 +75,12 @@ export interface AuthTransport {
 - 브라우저에서 로그인·새로고침 복구·보호 요청·로그아웃이 동작한다.
 - 세션 모드 401에서 JWT Refresh를 호출하지 않는다.
 - JWT Access Token과 Refresh 흐름 회귀 테스트가 유지된다.
+
+## 6. 구현 결과
+
+- `SESSION_COOKIE_SAME_SITE`로 SameSite 정책을 설정하고, 로그아웃의 만료 cookie에도 같은 값을 적용한다.
+- `SessionCsrfFilter`가 unsafe 요청에서 CSRF Token뿐 아니라 `Origin`·`Referer`·`Sec-Fetch-Site`를 함께 검사한다. Origin/Referer가 없는 비브라우저 요청은 CSRF Token 검증을 계속 적용한다.
+- 프론트 `authenticatedRequest`는 `getAuthTransport()`만 호출한다. 세션 transport의 401은 Refresh 없이 호출자에게 전달한다.
+- `AuthProvider`는 세션 모드에서 `/api/auth/me`와 `/api/auth/csrf`로 새로고침 복구를 수행한다.
 
 > 이 문서는 codex의 도움을 받아 작성하였습니다
