@@ -1,6 +1,8 @@
 import {clearAccessToken, getAccessToken} from './accessTokenStore';
 import {refreshAccessToken} from './authApi';
 import {HttpError, request} from './httpClient';
+import {isSessionAuthMode} from '../auth/authMode';
+import {sessionAuthenticatedRequest} from '../auth/session/sessionAuthenticatedRequest';
 
 let refreshPromise: Promise<void> | null = null;
 
@@ -28,6 +30,7 @@ function requestWithCurrentToken<T>(path: string, options?: RequestInit) {
 }
 
 export async function authenticatedRequest<T>(path: string, options?: RequestInit) {
+	if (isSessionAuthMode()) return sessionAuthenticatedRequest<T>(path, options);
   try {
     return await requestWithCurrentToken<T>(path, options);
   } catch (error) {
@@ -54,6 +57,7 @@ export async function authenticatedRequest<T>(path: string, options?: RequestIni
 }
 
 export async function optionallyAuthenticatedRequest<T>(path: string, options?: RequestInit) {
+	if (isSessionAuthMode()) return request<T>(path, {...options, credentials: 'include'});
   if (!getAccessToken()) return request<T>(path, options);
 
   try {
