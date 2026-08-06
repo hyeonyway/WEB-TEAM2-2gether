@@ -6,29 +6,37 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.dbidding.card.dto.CardResponses.StatisticCardSnapshot;
+import com.dbidding.card.service.CardService;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.PriceMovementCandidate;
+import com.dbidding.statistic.domain.ItemDailyStatistic;
+import com.dbidding.statistic.domain.ItemStatistic;
 import com.dbidding.statistic.domain.MarketDailyStatistic;
-import com.dbidding.statistic.port.StatisticAuctionPort;
-import com.dbidding.statistic.port.StatisticCardPort;
+import com.dbidding.statistic.repository.StatisticInsightQueryRepository;
 import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class StatisticQueryServiceTest {
-    private final StatisticAuctionPort auctionPort = mock(StatisticAuctionPort.class);
+    private final StatisticInsightQueryRepository insightQueryRepository =
+            mock(StatisticInsightQueryRepository.class);
     private final ItemDailyStatisticRepository dailyStatisticRepository =
             mock(ItemDailyStatisticRepository.class);
+    private final ItemStatisticRepository statisticRepository = mock(ItemStatisticRepository.class);
     private final MarketDailyStatisticRepository marketStatisticRepository =
             mock(MarketDailyStatisticRepository.class);
-    private final StatisticCardPort cardPort = mock(StatisticCardPort.class);
+    private final CardService cardService = mock(CardService.class);
     private final Clock clock = Clock.fixed(
             Instant.parse("2026-07-28T03:00:00Z"),
             ZoneId.of("Asia/Seoul")
@@ -38,14 +46,18 @@ class StatisticQueryServiceTest {
     @BeforeEach
     void setUp() {
         statisticQueryService = new StatisticQueryService(
-                auctionPort, dailyStatisticRepository, marketStatisticRepository,
-                cardPort, clock);
+                insightQueryRepository, dailyStatisticRepository, statisticRepository, marketStatisticRepository,
+                cardService, clock);
     }
 
     @Test
     void 진행_경매로_인사이트를_집계한다() {
-        var aggregate = new StatisticAuctionPort.InsightAggregate(11L, 3L, 12.345, 7L);
-        given(auctionPort.aggregateInsights()).willReturn(aggregate);
+        var aggregate = mock(StatisticInsightQueryRepository.InsightAggregate.class);
+        given(aggregate.getTotalCount()).willReturn(11L);
+        given(aggregate.getRisingCount()).willReturn(3L);
+        given(aggregate.getAverageRisingRate()).willReturn(12.345);
+        given(aggregate.getBidAuctionCount()).willReturn(7L);
+        given(insightQueryRepository.aggregateInsights()).willReturn(aggregate);
 
         var insights = statisticQueryService.getInsights();
 
@@ -91,7 +103,7 @@ class StatisticQueryServiceTest {
         LocalDate today = LocalDate.of(2026, 7, 28);
         given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
                 .willReturn(List.of());
-        given(cardPort.getCards(List.of())).willReturn(Map.of());
+        given(cardService.getStatisticCardSnapshots(List.of())).willReturn(Map.of());
 
         var result = statisticQueryService.getPriceMovers(5);
 
@@ -112,7 +124,7 @@ class StatisticQueryServiceTest {
         );
         given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
                 .willReturn(candidates);
-        given(cardPort.getCards(List.of(1, 2, 3, 4))).willReturn(Map.of(
+        given(cardService.getStatisticCardSnapshots(List.of(1, 2, 3, 4))).willReturn(Map.of(
                 1, card(1), 2, card(2), 3, card(3), 4, card(4)));
         given(dailyStatisticRepository.findHistory(
                 org.mockito.ArgumentMatchers.anyCollection(),
@@ -134,7 +146,7 @@ class StatisticQueryServiceTest {
         given(dailyStatisticRepository.findPriceMovementCandidates(from, today))
                 .willReturn(List.of(candidate));
         var card = card(1);
-        given(cardPort.getCards(List.of(1))).willReturn(Map.of(1, card));
+        given(cardService.getStatisticCardSnapshots(List.of(1))).willReturn(Map.of(1, card));
 
         var result = statisticQueryService.getPriceMovers(5);
 
@@ -144,6 +156,52 @@ class StatisticQueryServiceTest {
                 org.mockito.ArgumentMatchers.anyCollection(),
                 org.mockito.ArgumentMatchers.eq(from),
                 org.mockito.ArgumentMatchers.eq(today));
+    }
+
+    @Test
+    void 카드_요약_통계를_조회_전용_DTO로_변환한다() {
+        ItemStatistic statistic = mock(ItemStatistic.class);
+        given(statistic.getItemId()).willReturn(10);
+        given(statistic.getLatestPrice()).willReturn(138_000L);
+        given(statistic.getAveragePrice30d()).willReturn(127_250L);
+        given(statistic.getLowestPrice30d()).willReturn(105_000L);
+        given(statistic.getHighestPrice30d()).willReturn(155_000L);
+        given(statistic.getBidCount30d()).willReturn(32);
+        given(statistic.getEndedAuctionCount30d()).willReturn(2);
+        given(statistic.getWishlistCount()).willReturn(30);
+        given(statistic.getDailyChangeRate()).willReturn(new BigDecimal("2.70"));
+        given(statistic.getWeeklyChangeRate()).willReturn(new BigDecimal("8.20"));
+        given(statistic.getMonthlyChangeRate()).willReturn(new BigDecimal("12.10"));
+        given(statisticRepository.findById(10)).willReturn(Optional.of(statistic));
+
+        var summary = statisticQueryService.getCardSummary(10).orElseThrow();
+
+        assertThat(summary.cardId()).isEqualTo(10);
+        assertThat(summary.latestPrice()).isEqualTo(138_000L);
+        assertThat(summary.averagePrice30d()).isEqualTo(127_250L);
+        assertThat(summary.bidCount30d()).isEqualTo(32);
+        assertThat(summary.dailyChangeRate()).isEqualByComparingTo("2.70");
+    }
+
+    @Test
+    void 카드_일간_통계를_조회_전용_DTO로_변환한다() {
+        LocalDate date = LocalDate.of(2026, 7, 29);
+        ItemDailyStatistic statistic = mock(ItemDailyStatistic.class);
+        given(statistic.getStatisticsDate()).willReturn(date);
+        given(statistic.getAveragePrice()).willReturn(null);
+        given(statistic.getEndedAuctionCount()).willReturn(0);
+        given(dailyStatisticRepository
+                .findByItemIdAndStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
+                        10, date, date.plusDays(1)))
+                .willReturn(List.of(statistic));
+
+        var dailyPrices = statisticQueryService.getDailyPrices(10, date, date.plusDays(1));
+
+        assertThat(dailyPrices).singleElement().satisfies(daily -> {
+            assertThat(daily.date()).isEqualTo(date);
+            assertThat(daily.averagePrice()).isNull();
+            assertThat(daily.endedAuctionCount()).isZero();
+        });
     }
 
     private PriceMovementCandidate candidate(Integer id, Long current, Long previous) {
@@ -157,8 +215,8 @@ class StatisticQueryServiceTest {
         return candidate;
     }
 
-    private StatisticCardPort.CardSnapshot card(Integer id) {
-        return new StatisticCardPort.CardSnapshot(id, "카드 " + id, "gold", "/card-" + id);
+    private StatisticCardSnapshot card(Integer id) {
+        return new StatisticCardSnapshot(id, "카드 " + id, "gold", "/card-" + id);
     }
 
     private MarketDailyStatistic daily(

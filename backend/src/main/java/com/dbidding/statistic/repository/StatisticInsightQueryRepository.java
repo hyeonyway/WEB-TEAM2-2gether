@@ -1,10 +1,10 @@
-package com.dbidding.auction.repository;
+package com.dbidding.statistic.repository;
 
 import com.dbidding.auction.domain.Auction;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
-public interface StatisticAuctionQueryRepository extends Repository<Auction, Integer> {
+public interface StatisticInsightQueryRepository extends Repository<Auction, Integer> {
     interface InsightAggregate {
         Long getTotalCount();
         Long getRisingCount();
@@ -24,5 +24,4 @@ public interface StatisticAuctionQueryRepository extends Repository<Auction, Int
               and a.estimatedCloseTime > CURRENT_TIMESTAMP
             """)
     InsightAggregate aggregateInsights();
-
 }

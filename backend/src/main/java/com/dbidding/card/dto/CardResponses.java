@@ -35,6 +35,14 @@ public final class CardResponses {
     ) {
     }
 
+    public record StatisticCardSnapshot(
+            Integer cardId,
+            String name,
+            String theme,
+            String imageUrl
+    ) {
+    }
+
     public record Page<T>(
             List<T> content,
             int page,
