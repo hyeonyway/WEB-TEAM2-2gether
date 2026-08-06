@@ -10,6 +10,7 @@ const bidRate = positiveInt(__ENV.BID_RATE, 1000);
 const duration = __ENV.DURATION || '1m';
 const sseDuration = __ENV.SSE_DURATION || duration;
 const sseRampUp = __ENV.SSE_RAMP_UP || '60s';
+const sseBarrierWait = positiveInt(__ENV.SSE_BARRIER_WAIT, durationToSeconds(sseRampUp) + 5);
 const batchSize = positiveInt(__ENV.LOGIN_BATCH_SIZE, 25);
 const auctionIds = csv(__ENV.AUCTION_IDS).map(Number).filter(Number.isInteger);
 
@@ -84,7 +85,13 @@ export function notificationSse(data) {
 }
 
 export function bid(data) {
-  if (__ITER === 0) waitForSse(data.tokens[0]);
+  if (__ITER === 0) {
+    if (__VU === 1) {
+      waitForSse(data.tokens[0]);
+    } else {
+      sleep(sseBarrierWait);
+    }
+  }
   const token = data.tokens[(__VU - 1) % data.tokens.length];
   placeBid(token, auctionIds[Math.floor(Math.random() * auctionIds.length)], 'bid');
 }
@@ -152,6 +159,11 @@ function sseStages() {
 }
 function csv(v) { return (v || '').split(',').map(x => x.trim()).filter(Boolean); }
 function positiveInt(v, fallback) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : fallback; }
+function durationToSeconds(value) {
+  const match = String(value).match(/^(\d+)(ms|s|m|h)$/);
+  if (!match) throw new Error(`duration 형식 오류: ${value}`);
+  return Number(match[1]) * ({ms: 0.001, s: 1, m: 60, h: 3600}[match[2]]);
+}
 function addDurations(a, b) {
   const seconds = value => { const m = String(maybeValue(value)).match(/^(\d+)(ms|s|m|h)$/); if (!m) throw new Error(`duration 형식 오류: ${value}`); return Number(m[1]) * ({ms: 0.001, s: 1, m: 60, h: 3600}[m[2]]); };
   return `${seconds(a) + seconds(b)}s`;
