@@ -2,10 +2,12 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter} from 'react-router-dom';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {clearAccessToken, getAccessToken} from '../api/accessTokenStore';
 import {AuthProvider} from './AuthProvider';
 import {useAuth} from './useAuth';
+import {clearCsrfToken, getCsrfToken} from './session/csrfTokenStore';
+import {setSessionUserId} from './session/sessionAuthStore';
 
 class BroadcastChannelMock extends EventTarget {
   static instances: BroadcastChannelMock[] = [];
@@ -64,6 +66,12 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     BroadcastChannelMock.instances = [];
     vi.stubGlobal('BroadcastChannel', BroadcastChannelMock);
     clearAccessToken();
+    clearCsrfToken();
+    setSessionUserId(null);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('Refresh 성공 전에는 initializing이고 성공하면 authenticated가 된다', async () => {
@@ -99,6 +107,27 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     expect(screen.getByText('공개 화면')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('세션 모드에서는 현재 사용자와 CSRF token으로 인증을 복구한다', async () => {
+    vi.stubEnv('VITE_AUTH_MODE', 'session');
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({userId: 37}))
+      .mockResolvedValueOnce(jsonResponse({csrfToken: 'session-csrf-token'}));
+
+    renderAuthProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('authenticated');
+    });
+    expect(getCsrfToken()).toBe('session-csrf-token');
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/auth/me',
+      '/api/auth/csrf',
+    ]);
+    expect(fetchMock.mock.calls).not.toContainEqual(
+      expect.arrayContaining(['/api/auth/refresh']),
+    );
   });
 
   it('네트워크 실패 시 전역 오류를 노출하지 않고 수동 복구할 수 있다', async () => {
