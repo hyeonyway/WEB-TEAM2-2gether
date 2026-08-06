@@ -9,6 +9,7 @@ const users = positiveInt(__ENV.USERS, 1000);
 const bidRate = positiveInt(__ENV.BID_RATE, 1000);
 const duration = __ENV.DURATION || '1m';
 const sseDuration = __ENV.SSE_DURATION || duration;
+const sseRampUp = __ENV.SSE_RAMP_UP || '60s';
 const batchSize = positiveInt(__ENV.LOGIN_BATCH_SIZE, 25);
 const auctionIds = csv(__ENV.AUCTION_IDS).map(Number).filter(Number.isInteger);
 
@@ -24,8 +25,20 @@ export const options = {
   batchPerHost: batchSize,
   summaryTrendStats: ['avg', 'min', 'med', 'p(95)', 'p(99)', 'max'],
   scenarios: {
-    auctionSse: {executor: 'constant-vus', exec: 'auctionSse', vus: users, duration: sseDuration, gracefulStop: '5s'},
-    notificationSse: {executor: 'constant-vus', exec: 'notificationSse', vus: users, duration: sseDuration, gracefulStop: '5s'},
+    auctionSse: {
+      executor: 'ramping-vus',
+      exec: 'auctionSse',
+      startVUs: 0,
+      stages: sseStages(),
+      gracefulRampDown: '5s',
+    },
+    notificationSse: {
+      executor: 'ramping-vus',
+      exec: 'notificationSse',
+      startVUs: 0,
+      stages: sseStages(),
+      gracefulRampDown: '5s',
+    },
     bids: {executor: 'constant-arrival-rate', exec: 'bid', rate: bidRate, timeUnit: '1s', duration, preAllocatedVUs: 250, maxVUs: 1000, tags: {phase: 'main'}},
   },
   thresholds: {
@@ -130,6 +143,13 @@ function issueTickets(tokens) {
 }
 
 function loadCredentials() { return Array.from({length: users}, (_, i) => ({email: `k6-user${String(i + 1).padStart(5, '0')}@dbidding.local`, password: __ENV.PASSWORD || 'K6LoadTest123!'})); }
+function sseStages() {
+  return [
+    {duration: sseRampUp, target: users},
+    {duration: sseDuration, target: users},
+    {duration: '5s', target: 0},
+  ];
+}
 function csv(v) { return (v || '').split(',').map(x => x.trim()).filter(Boolean); }
 function positiveInt(v, fallback) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : fallback; }
 function addDurations(a, b) {
