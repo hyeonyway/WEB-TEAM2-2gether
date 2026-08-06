@@ -33,7 +33,7 @@ server:
       cookie:
         name: ${SESSION_COOKIE_NAME:SESSION}
         http-only: true
-        secure: ${SESSION_SECURE_COOKIE:false}
+        secure: ${SESSION_SECURE_COOKIE:true}
         same-site: lax
 
 springdoc:
@@ -75,9 +75,9 @@ app:
   auth:
     mode: ${AUTH_MODE:jwt}
   session:
-    store: ${SESSION_STORE:memory}
+    store: ${SESSION_STORE:}
     cookie-name: ${SESSION_COOKIE_NAME:SESSION}
-    secure-cookie: ${SESSION_SECURE_COOKIE:false}
+    secure-cookie: ${SESSION_SECURE_COOKIE:true}
   jwt:
     secret: ${JWT_SECRET}
     access-token-seconds: ${JWT_ACCESS_SECONDS:1800}

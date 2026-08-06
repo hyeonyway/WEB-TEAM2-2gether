@@ -54,7 +54,10 @@ class JwtAuthenticationConfigurationTest {
 
 	@Test
 	void session_모드에서는_JWT_구성과_전용_엔드포인트를_등록하지_않는다() {
-		contextRunner.withPropertyValues("app.auth.mode=session")
+		contextRunner.withPropertyValues(
+			"app.auth.mode=session",
+			"app.session.store=memory"
+		)
 			.run(context -> {
 				assertThat(context).hasNotFailed();
 				assertThat(context).hasSingleBean(AuthenticationStrategy.class);
@@ -65,6 +68,12 @@ class JwtAuthenticationConfigurationTest {
 				assertThat(context).doesNotHaveBean(JwtRefreshController.class);
 				assertThat(context).doesNotHaveBean(SseTicketController.class);
 			});
+	}
+
+	@Test
+	void session_모드에서_저장소를_명시하지_않으면_시작에_실패한다() {
+		contextRunner.withPropertyValues("app.auth.mode=session")
+			.run(context -> assertThat(context).hasFailed());
 	}
 
 	@Configuration(proxyBeanMethods = false)

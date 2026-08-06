@@ -13,16 +13,33 @@ class SessionPropertiesTest {
 		.withUserConfiguration(TestConfiguration.class);
 
 	@Test
-	void 설정이_없으면_인메모리_저장소와_개발용_쿠키_기본값을_사용한다() {
-		contextRunner.run(context -> {
+	void 저장소를_명시하지_않으면_애플리케이션_시작에_실패한다() {
+		contextRunner.run(context -> assertThat(context).hasFailed());
+	}
+
+	@Test
+	void 인메모리_저장소를_명시하면_안전한_쿠키_기본값을_사용한다() {
+		contextRunner.withPropertyValues("app.session.store=memory")
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				assertThat(context.getBean(SessionProperties.class))
+					.extracting(
+						SessionProperties::store,
+						SessionProperties::cookieName,
+						SessionProperties::secureCookie
+					)
+					.containsExactly(SessionStore.MEMORY, "SESSION", true);
+			});
+	}
+
+	@Test
+	void 로컬_환경은_secure_cookie를_명시적으로_해제할_수_있다() {
+		contextRunner.withPropertyValues(
+			"app.session.store=memory",
+			"app.session.secure-cookie=false"
+		).run(context -> {
 			assertThat(context).hasNotFailed();
-			assertThat(context.getBean(SessionProperties.class))
-				.extracting(
-					SessionProperties::store,
-					SessionProperties::cookieName,
-					SessionProperties::secureCookie
-				)
-				.containsExactly(SessionStore.MEMORY, "SESSION", false);
+			assertThat(context.getBean(SessionProperties.class).secureCookie()).isFalse();
 		});
 	}
 

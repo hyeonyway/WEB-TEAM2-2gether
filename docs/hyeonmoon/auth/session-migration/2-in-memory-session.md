@@ -20,7 +20,7 @@ app:
     store: memory
 ```
 
-환경변수 조합은 `AUTH_MODE=session`, `SESSION_STORE=memory`다. JWT가 기본값이며 세션 모드는 명시적으로 선택해야 한다.
+환경변수 조합은 `AUTH_MODE=session`, `SESSION_STORE=memory`다. JWT가 기본값이며 세션 모드와 저장소는 모두 명시적으로 선택해야 한다. `SESSION_STORE`가 누락되거나 지원하지 않는 값이면 애플리케이션 시작에 실패한다.
 
 세션 모드에서 다음 JWT 전용 구성은 등록하지 않는다.
 
@@ -111,19 +111,20 @@ SESSION cookie
 
 세션이 이미 없더라도 로그아웃은 멱등하게 처리한다. 개인화 SSE 연결 종료는 이슈 3에서 추가한다.
 
-## 8. 개발용 쿠키 기본값
+## 8. 쿠키 기본값
 
-| 속성 | 개발 기본값 | 운영 전 확정 위치 |
+| 속성 | 기본값 | 운영 전 확정 위치 |
 |---|---|---|
 | 이름 | `SESSION` 또는 서비스 전용 이름 | 이슈 3 |
 | `HttpOnly` | `true` | 이슈 3 |
-| `Secure` | 로컬 HTTP에서는 `false` | 이슈 3 |
+| `Secure` | `true` | 이슈 3 |
 | `SameSite` | `Lax` | 이슈 3 |
 | `Path` | `/` | 이슈 3 |
 | `Domain` | host-only | 이슈 3 |
 | idle timeout | 테스트 가능한 짧은 환경값 | 이슈 4 |
 
 CSRF 방어가 완성되기 전에는 세션 모드를 운영 배포하거나 실제 사용자 트래픽에 노출하지 않는다.
+로컬 HTTP에서 검증할 때만 `SESSION_SECURE_COOKIE=false`를 명시적으로 설정한다.
 
 ## 9. 프론트 없이 검증하는 방법
 
@@ -168,6 +169,7 @@ MockMvc 또는 HTTP 클라이언트 cookie jar로 다음 흐름을 검증한다.
 2026-08-06 기준으로 이 문서의 단일 인스턴스 인메모리 세션 인증을 구현했다.
 
 - `AUTH_MODE=session`, `SESSION_STORE=memory`일 때만 세션 전략과 필터가 등록된다.
+- `SESSION_STORE`를 생략하면 시작에 실패하며 세션 쿠키의 `Secure` 기본값은 `true`다.
 - Servlet container의 기본 인메모리 `HttpSession` 저장소를 사용하며 애플리케이션이 별도 세션 Map을 관리하지 않는다.
 - 로그인은 기존 세션 ID를 교체하고 `userId`, `role`, `authenticatedAt`만 저장한다.
 - `SessionAuthFilter`는 세션을 새로 만들지 않고 유효한 세션 사용자를 기존 `RequestUserIdWriter`와 `@CurrentUser` 경로로 연결한다.
