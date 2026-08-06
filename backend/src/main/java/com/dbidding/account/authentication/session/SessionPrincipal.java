@@ -1,8 +1,10 @@
 package com.dbidding.account.authentication.session;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
+import com.dbidding.account.domain.AccountRole;
 
 import jakarta.servlet.http.HttpSession;
 
@@ -24,9 +26,30 @@ public record SessionPrincipal(
 		);
 	}
 
+	public static Optional<SessionPrincipal> readFrom(HttpSession session) {
+		Object userId = session.getAttribute(USER_ID_ATTRIBUTE);
+		Object role = session.getAttribute(ROLE_ATTRIBUTE);
+		Object authenticatedAt = session.getAttribute(AUTHENTICATED_AT_ATTRIBUTE);
+		if (!(userId instanceof Integer validUserId) || validUserId <= 0
+			|| !(role instanceof String validRole) || !isKnownRole(validRole)
+			|| !(authenticatedAt instanceof Long validAuthenticatedAt) || validAuthenticatedAt <= 0) {
+			return Optional.empty();
+		}
+		return Optional.of(new SessionPrincipal(validUserId, validRole, validAuthenticatedAt));
+	}
+
 	public void writeTo(HttpSession session) {
 		session.setAttribute(USER_ID_ATTRIBUTE, userId);
 		session.setAttribute(ROLE_ATTRIBUTE, role);
 		session.setAttribute(AUTHENTICATED_AT_ATTRIBUTE, authenticatedAt);
+	}
+
+	private static boolean isKnownRole(String role) {
+		try {
+			AccountRole.valueOf(role);
+			return true;
+		} catch (IllegalArgumentException exception) {
+			return false;
+		}
 	}
 }
