@@ -37,7 +37,11 @@ class AuthenticationModePropertiesTest {
 	@Test
 	void session_모드는_명시적_허용_없이_시작할_수_없다() {
 		contextRunner.withPropertyValues("app.auth.mode=session")
-			.run(context -> assertThat(context).hasFailed());
+			.run(context -> {
+				assertThat(context).hasFailed();
+				assertThat(context.getStartupFailure())
+					.hasRootCauseMessage("Session authentication requires app.auth.session-enabled=true");
+			});
 	}
 
 	@Test

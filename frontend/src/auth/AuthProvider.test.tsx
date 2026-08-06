@@ -7,7 +7,7 @@ import {clearAccessToken, getAccessToken} from '../api/accessTokenStore';
 import {AuthProvider} from './AuthProvider';
 import {useAuth} from './useAuth';
 import {clearCsrfToken, getCsrfToken, setCsrfToken} from './session/csrfTokenStore';
-import {setSessionUserId} from './session/sessionAuthStore';
+import {getSessionUserId, setSessionUserId} from './session/sessionAuthStore';
 
 class BroadcastChannelMock extends EventTarget {
   static instances: BroadcastChannelMock[] = [];
@@ -142,6 +142,7 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     await waitFor(() => {
       expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
     });
+    expect(getSessionUserId()).toBeNull();
     expect(getCsrfToken()).toBeNull();
   });
 
