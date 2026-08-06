@@ -2,7 +2,7 @@
 
 ## 1. 이슈 경계
 
-- 선행 문서: [`3-session-security-frontend-sse.md`](3-session-security-frontend-sse.md)
+- 선행 문서: [`3a-session-browser-auth.md`](3a-session-browser-auth.md), [`3b-session-personalized-sse.md`](3b-session-personalized-sse.md)
 - 목표: 동일한 HttpSession 인증 코드를 Spring Session Redis 저장소로 전환
 - 포함: 저장소 구성, 다중 인스턴스, 강제 만료, 장애 정책, SSE 연결 전파
 - 비목표: JWT와의 최종 성능 판정
