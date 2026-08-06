@@ -5,6 +5,7 @@ import {cancelOrder,confirmOrder} from '../../../api/orderApi';
 import {HttpError} from '../../../api/httpClient';
 import type {OrderStatus} from '../../../dto/orderDto';
 import {orderQueries,orderQueryKey} from '../../../queries/orderQueries';
+import {walletQueryKeys} from '../../../queries/walletQueryKeys';
 
 type OrderRole='buyer'|'seller';
 type StatusFilter='ALL'|OrderStatus;
@@ -24,7 +25,10 @@ export default function OrdersPanel(){
   const[statusFilter,setStatusFilter]=useState<StatusFilter>('ALL');
   const queryClient=useQueryClient();
   const orders=useQuery(role==='buyer'?orderQueries.purchases():orderQueries.sales());
-  const invalidateOrders=()=>queryClient.invalidateQueries({queryKey:orderQueryKey});
+  const invalidateOrders=()=>{
+    void queryClient.invalidateQueries({queryKey:orderQueryKey});
+    void queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()});
+  };
   const confirmMutation=useMutation({mutationFn:confirmOrder,onSuccess:invalidateOrders});
   const cancelMutation=useMutation({mutationFn:cancelOrder,onSuccess:invalidateOrders});
   const authenticationRequired=orders.error instanceof HttpError && orders.error.status===401;
