@@ -1,6 +1,5 @@
 package com.dbidding.order;
 
-import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCancelledEvent.CancelledBy;
 import com.dbidding.order.event.OrderCompletedEvent;
@@ -77,21 +76,21 @@ public class OrderService {
     }
 
     /**
-     * {@code orders.auction_id} 유니크 제약 덕분에, 같은 이벤트가 중복 전달돼도 두 번째 저장
-     * 시도는 제약 위반으로 걸러진다. Spring 이벤트 애노테이션과 무관한 평범한 메서드로 둬서,
-     * 나중에 구독 방식(Kafka 등)이 바뀌어도 이 로직과 테스트는 그대로 재사용할 수 있다.
+     * {@code auction} 패키지가 auction.event.AuctionClosedEvent를 몰라도 되게 원시값만 받는다
+     * {@code orders.auction_id} 유니크 제약 덕분에 중복 호출돼도 두 번째 저장 시도는
+     * 제약 위반으로 걸러진다.
      */
     @Transactional
-    public void createFromAuctionClosed(AuctionClosedEvent event) {
-        if (event.winnerId() == null) {
+    public void createFromAuctionClosed(
+            Integer auctionId, Integer winnerId, Integer sellerId, String cardName, long winningPrice
+    ) {
+        if (winnerId == null) {
             return;
         }
         try {
-            orderRepository.save(Order.pendingConfirm(
-                    event.auctionId(), event.winnerId(), event.sellerId(), event.cardName(), event.winningPrice()
-            ));
+            orderRepository.save(Order.pendingConfirm(auctionId, winnerId, sellerId, cardName, winningPrice));
         } catch (DataIntegrityViolationException exception) {
-            log.debug("event=order.creation.duplicate_skipped auctionId={}", event.auctionId(), exception);
+            log.debug("event=order.creation.duplicate_skipped auctionId={}", auctionId, exception);
         }
     }
 
