@@ -60,6 +60,10 @@ public class NotificationSseConnectionManager {
         return emitters == null ? 0 : emitters.size();
     }
 
+    public int totalConnectionCount() {
+        return emittersByUserId.values().stream().mapToInt(Set::size).sum();
+    }
+
     private void send(Integer userId, SseEmitter emitter, SseEmitter.SseEventBuilder event) {
         try {
             emitter.send(event);
