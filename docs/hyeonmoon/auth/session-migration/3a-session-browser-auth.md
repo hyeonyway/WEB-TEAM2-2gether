@@ -9,9 +9,11 @@
 - 포함: 운영 쿠키, CSRF, Origin·Fetch Metadata, 프론트 AuthTransport
 - 비목표: 개인화 SSE, Redis 세션, 다중 인스턴스
 
+세션 모드는 JWT 운영 경로를 대체하지 않는 개발 검증용 선택지다. `AUTH_MODE=session`과 함께 `SESSION_AUTH_ENABLED=true`를 명시해야만 시작되며, 이 opt-in이 없으면 애플리케이션은 시작을 거부한다.
+
 ## 2. 쿠키와 CORS
 
-세션 cookie는 `HttpOnly=true`, `Secure=true`, `Path=/`, host-only를 기본으로 한다. 로컬 HTTP 검증에서만 `SESSION_SECURE_COOKIE=false`를 명시한다. `SameSite`와 idle timeout은 환경변수로 정하고, cross-origin 요청이면 정확한 Origin과 credentials만 허용한다.
+세션 cookie는 `HttpOnly=true`, `Secure=true`, `Path=/`, host-only를 기본으로 한다. 로컬 HTTP 검증에서만 `SESSION_SECURE_COOKIE=false`를 명시한다. `SameSite`와 idle timeout은 환경변수로 정하고, cross-origin 요청이면 정확한 Origin과 credentials만 허용한다. `SameSite=None`은 반드시 `Secure=true`와 함께 설정한다.
 
 프론트의 세션 fetch는 `credentials: 'include'`를 사용한다. cross-site cookie가 꼭 필요할 때만 `SameSite=None; Secure`를 허용한다.
 

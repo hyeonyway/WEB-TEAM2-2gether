@@ -20,6 +20,9 @@ public final class SessionProperties {
 		this.cookieName = cookieName == null || cookieName.isBlank() ? DEFAULT_COOKIE_NAME : cookieName;
 		this.secureCookie = secureCookie == null || secureCookie;
 		this.sameSite = sameSite == null || sameSite.isBlank() ? "Lax" : normalizeSameSite(sameSite);
+		if ("None".equals(this.sameSite) && !this.secureCookie) {
+			throw new IllegalArgumentException("SameSite=None requires a secure cookie");
+		}
 	}
 
 	public SessionStore store() {

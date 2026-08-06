@@ -13,7 +13,7 @@ import {getAccessToken, subscribeAccessToken} from '../api/accessTokenStore';
 import {refreshAccessToken} from '../api/authApi';
 import {isSessionAuthMode} from './authMode';
 import {getSessionUserId, setSessionUserId, subscribeSessionUser} from './session/sessionAuthStore';
-import {setCsrfToken} from './session/csrfTokenStore';
+import {clearCsrfToken, setCsrfToken} from './session/csrfTokenStore';
 import {request} from '../api/httpClient';
 import type {CurrentAccountResponseDto, SessionLoginResponseDto} from '../dto/authDto';
 import {decodeAccessTokenUserId} from '../api/jwtClaims';
@@ -58,6 +58,10 @@ export function AuthProvider({children}: AuthProviderProps) {
         await refreshAccessToken();
       }
     } catch {
+      if (isSessionAuthMode()) {
+        setSessionUserId(null);
+        clearCsrfToken();
+      }
       // 인증 복구 실패는 anonymous 상태로 처리하고 전역 오류 UI는 노출하지 않는다.
     } finally {
       setInitialized(true);

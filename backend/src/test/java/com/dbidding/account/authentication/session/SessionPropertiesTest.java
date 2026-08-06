@@ -55,6 +55,15 @@ class SessionPropertiesTest {
 	}
 
 	@Test
+	void SameSite_None은_secure_cookie_false와_함께_설정할_수_없다() {
+		contextRunner.withPropertyValues(
+			"app.session.store=memory",
+			"app.session.same-site=none",
+			"app.session.secure-cookie=false"
+		).run(context -> assertThat(context).hasFailed());
+	}
+
+	@Test
 	void 이번_단계에서_지원하지_않는_저장소는_애플리케이션_시작에_실패한다() {
 		contextRunner.withPropertyValues("app.session.store=redis")
 			.run(context -> assertThat(context).hasFailed());

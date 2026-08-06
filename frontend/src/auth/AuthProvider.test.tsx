@@ -6,7 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {clearAccessToken, getAccessToken} from '../api/accessTokenStore';
 import {AuthProvider} from './AuthProvider';
 import {useAuth} from './useAuth';
-import {clearCsrfToken, getCsrfToken} from './session/csrfTokenStore';
+import {clearCsrfToken, getCsrfToken, setCsrfToken} from './session/csrfTokenStore';
 import {setSessionUserId} from './session/sessionAuthStore';
 
 class BroadcastChannelMock extends EventTarget {
@@ -128,6 +128,21 @@ describe('AuthProvider 앱 시작 인증 복구', () => {
     expect(fetchMock.mock.calls).not.toContainEqual(
       expect.arrayContaining(['/api/auth/refresh']),
     );
+  });
+
+  it('세션 인증 복구가 실패하면 이전 사용자와 CSRF token을 제거한다', async () => {
+    vi.stubEnv('VITE_AUTH_MODE', 'session');
+    setSessionUserId(37);
+    setCsrfToken('stale-csrf-token');
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({code: 'SESSION_EXPIRED'}, 401));
+
+    renderAuthProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-status')).toHaveTextContent('anonymous');
+    });
+    expect(getCsrfToken()).toBeNull();
   });
 
   it('네트워크 실패 시 전역 오류를 노출하지 않고 수동 복구할 수 있다', async () => {

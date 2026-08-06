@@ -74,6 +74,7 @@ cloud:
 app:
   auth:
     mode: ${AUTH_MODE:jwt}
+    session-enabled: ${SESSION_AUTH_ENABLED:false}
   session:
     store: ${SESSION_STORE:}
     cookie-name: ${SESSION_COOKIE_NAME:SESSION}
