@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static com.dbidding.global.time.UtcTime.toInstant;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.dbidding.auction.domain.Auction;
@@ -17,8 +18,9 @@ import com.dbidding.auction.dto.PageRequestDto;
 import com.dbidding.auction.dto.AuctionCursor;
 import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.auction.dto.AuctionSearchRequest;
-import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
+import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -44,9 +46,9 @@ class AuctionQueryServiceTest {
     @Mock
     private BidRepository bidRepository;
     @Mock
-    private WalletPort walletPort;
+    private WalletService walletService;
     @Mock
-    private AuctionCardPort auctionCardPort;
+    private CardService cardService;
 
     private AuctionQueryService auctionQueryService;
     private final AuctionCursorCodec cursorCodec = new AuctionCursorCodec();
@@ -57,8 +59,8 @@ class AuctionQueryServiceTest {
                 auctionRepository,
                 auctionImageRepository,
                 bidRepository,
-                walletPort,
-                auctionCardPort,
+                walletService,
+                cardService,
                 cursorCodec
         );
     }
@@ -73,9 +75,7 @@ class AuctionQueryServiceTest {
                 eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(LocalDateTime.class),
                 eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(first, second, extra));
-        when(auctionCardPort.getCardSnapshots(List.of(1))).thenReturn(Map.of(
-                1, new AuctionCardPort.CardSnapshot(1, "Mock Card", "Mock Set", "10", "JP", "/card.png")
-        ));
+        when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(3, 2)))
                 .thenReturn(List.of());
 
@@ -99,9 +99,7 @@ class AuctionQueryServiceTest {
                 eq(AuctionSort.PRICE_HIGH.name()), eq(null), eq(45_000L), eq(null), eq(null), eq(2), eq(true),
                 any(LocalDateTime.class), eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(next));
-        when(auctionCardPort.getCardSnapshots(List.of(1))).thenReturn(Map.of(
-                1, new AuctionCardPort.CardSnapshot(1, "Mock Card", "Mock Set", "10", "JP", "/card.png")
-        ));
+        when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
 
         var request = new AuctionSearchRequest(
@@ -123,9 +121,7 @@ class AuctionQueryServiceTest {
                 eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
                 any(LocalDateTime.class), eq(PageRequest.of(0, 2))
         )).thenReturn(List.of(first, extra));
-        when(auctionCardPort.getCardSnapshots(List.of(1))).thenReturn(Map.of(
-                1, new AuctionCardPort.CardSnapshot(1, "Mock Card", "Mock Set", "10", "JP", "/card.png")
-        ));
+        when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(2))).thenReturn(List.of());
 
         var response = auctionQueryService.search(
@@ -159,7 +155,7 @@ class AuctionQueryServiceTest {
         Auction auction = auction(AuctionStatus.ENDED);
         Bid winningBid = bid(1L, 3, auction, 45_000L, BidStatus.WON);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
-        when(walletPort.getWallet(3)).thenReturn(new WalletPort.WalletSnapshot(100_000L, 45_000L));
+        when(walletService.getBalance(3)).thenReturn(new com.dbidding.wallet.dto.WalletBalanceResponse(145_000L, 45_000L, 100_000L));
         when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(1, 3))
                 .thenReturn(Optional.of(winningBid));
         when(bidRepository.findByAuctionIdOrderByCreatedAtDescIdDesc(1, PageRequest.of(0, 5)))
@@ -180,30 +176,21 @@ class AuctionQueryServiceTest {
         LocalDateTime actualCloseTime = LocalDateTime.now().minusSeconds(30);
         ReflectionTestUtils.setField(auction, "closeTime", actualCloseTime);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
-        when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
-                1,
-                "Mock Card",
-                "Mock Set",
-                "10",
-                "JP",
-                "/mock/card.png"
-        ));
+        when(cardService.getCardSnapshot(1)).thenReturn(card(1));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
         when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(1, 3))
                 .thenReturn(Optional.empty());
 
         var response = auctionQueryService.getDetail(3, 1);
 
-        assertThat(response.endsAt()).isEqualTo(actualCloseTime);
+        assertThat(response.endsAt()).isEqualTo(toInstant(actualCloseTime));
     }
 
     @Test
     void 비로그인_상세_조회는_내_입찰을_조회하지_않는다() {
         Auction auction = auction(AuctionStatus.OPEN);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
-        when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
-                1, "Mock Card", "Mock Set", "10", "JP", "/mock/card.png"
-        ));
+        when(cardService.getCardSnapshot(1)).thenReturn(card(1));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
 
         var response = auctionQueryService.getDetail(null, 1);
@@ -221,7 +208,7 @@ class AuctionQueryServiceTest {
         ReflectionTestUtils.setField(first, "id", 11);
         ReflectionTestUtils.setField(second, "id", 12);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
-        when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
+        when(cardService.getCardSnapshot(1)).thenReturn(new CardSnapshot(
                 1, "Mock Card", "Mock Set", "10", "JP", "/cards/original.png"
         ));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of(first, second));
@@ -231,6 +218,10 @@ class AuctionQueryServiceTest {
         assertThat(response.card().thumbnailUrl()).isEqualTo("/cards/original.png");
         assertThat(response.photos()).extracting(photo -> photo.url())
                 .containsExactly("/uploads/front.png", "/uploads/back.png");
+    }
+
+    private CardSnapshot card(Integer itemId) {
+        return new CardSnapshot(itemId, "Mock Card", "Mock Set", "10", "JP", "/mock/card.png");
     }
 
     private Auction auction(AuctionStatus status) {

@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.service.AuctionClosingScheduler;
 import com.dbidding.auction.service.AuctionDeadlineScheduler;
-import com.dbidding.auction.service.AuctionService;
+import com.dbidding.auction.service.AuctionCommandService;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -20,7 +20,7 @@ class AuctionSchedulingConfigurationTest {
                     AuctionDeadlineScheduler.class,
                     AuctionClosingScheduler.class
             )
-            .withBean(AuctionService.class, () -> mock(AuctionService.class))
+            .withBean(AuctionCommandService.class, () -> mock(AuctionCommandService.class))
             .withBean(AuctionRepository.class, () -> mock(AuctionRepository.class))
             .withBean(Clock.class, Clock::systemUTC);
 

@@ -8,7 +8,8 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
-import com.dbidding.auction.port.AuctionCardPort;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.dashboard.dto.DashboardResponse;
@@ -28,18 +29,18 @@ class DashboardServiceTest {
     );
     private BidRepository bidRepository;
     private AuctionImageRepository auctionImageRepository;
-    private AuctionCardPort auctionCardPort;
+    private CardService cardService;
     private DashboardService dashboardService;
 
     @BeforeEach
     void setUp() {
         bidRepository = mock(BidRepository.class);
         auctionImageRepository = mock(AuctionImageRepository.class);
-        auctionCardPort = mock(AuctionCardPort.class);
+        cardService = mock(CardService.class);
         dashboardService = new DashboardService(
                 bidRepository,
                 auctionImageRepository,
-                auctionCardPort,
+                cardService,
                 CLOCK
         );
     }
@@ -51,7 +52,7 @@ class DashboardServiceTest {
         Bid older = bid(openAuction, BidStatus.OUTBID, 130_000L);
         given(bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(7))
                 .willReturn(List.of(latest, older));
-        given(auctionCardPort.getCardSnapshots(List.of(101)))
+        given(cardService.getCardSnapshots(List.of(101)))
                 .willReturn(Map.of(101, card(101)));
         given(auctionImageRepository.findByAuctionIdInOrderById(List.of(1)))
                 .willReturn(List.of());
@@ -73,7 +74,7 @@ class DashboardServiceTest {
         Bid recentWin = bid(recentAuction, BidStatus.WON, 200_000L);
         given(bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(7))
                 .willReturn(List.of(olderWin, recentWin));
-        given(auctionCardPort.getCardSnapshots(List.of(101, 102)))
+        given(cardService.getCardSnapshots(List.of(101, 102)))
                 .willReturn(Map.of(101, card(101), 102, card(102)));
         given(auctionImageRepository.findByAuctionIdInOrderById(List.of(1, 2)))
                 .willReturn(List.of());
@@ -111,7 +112,7 @@ class DashboardServiceTest {
         Bid expensiveBid = bid(expensive, BidStatus.OUTBID, 250_000L);
         given(bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(7))
                 .willReturn(List.of(cheaperBid, expensiveBid));
-        given(auctionCardPort.getCardSnapshots(List.of(102, 101)))
+        given(cardService.getCardSnapshots(List.of(102, 101)))
                 .willReturn(Map.of(101, card(101), 102, card(102)));
         given(auctionImageRepository.findByAuctionIdInOrderById(List.of(2, 1)))
                 .willReturn(List.of());
@@ -151,7 +152,7 @@ class DashboardServiceTest {
         Bid expensiveOlderWin = bid(olderAuction, BidStatus.WON, 300_000L);
         given(bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(7))
                 .willReturn(List.of(cheaperRecentWin, expensiveOlderWin));
-        given(auctionCardPort.getCardSnapshots(List.of(101, 102)))
+        given(cardService.getCardSnapshots(List.of(101, 102)))
                 .willReturn(Map.of(101, card(101), 102, card(102)));
         given(auctionImageRepository.findByAuctionIdInOrderById(List.of(1, 2)))
                 .willReturn(List.of());
@@ -190,8 +191,8 @@ class DashboardServiceTest {
         return bid;
     }
 
-    private AuctionCardPort.CardSnapshot card(Integer itemId) {
-        return new AuctionCardPort.CardSnapshot(
+    private CardSnapshot card(Integer itemId) {
+        return new CardSnapshot(
                 itemId,
                 "카드 " + itemId,
                 "세트",

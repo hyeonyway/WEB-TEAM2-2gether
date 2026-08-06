@@ -16,11 +16,13 @@ import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
-import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.card.service.CardService;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -42,8 +44,8 @@ public class AuctionQueryService {
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
-    private final WalletPort walletPort;
-    private final AuctionCardPort auctionCardPort;
+    private final WalletService walletService;
+    private final CardService cardService;
     private final AuctionCursorCodec auctionCursorCodec;
 
     public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
@@ -71,7 +73,7 @@ public class AuctionQueryService {
         );
         boolean hasNext = fetched.size() > size;
         List<Auction> content = hasNext ? List.copyOf(fetched.subList(0, size)) : fetched;
-        Map<Integer, AuctionCardPort.CardSnapshot> cards = cardSnapshots(content);
+        Map<Integer, CardSnapshot> cards = cardSnapshots(content);
         Map<Integer, List<AuctionImage>> images = imagesByAuction(content);
         Map<Integer, Bid> myBids = myBids(userId, content);
         List<AuctionResponses.AuctionSummary> items = content.stream()
@@ -131,7 +133,7 @@ public class AuctionQueryService {
 
     public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
         Auction auction = getAuction(auctionId);
-        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(auction.getItemId());
+        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         List<AuctionImage> images = auctionImageRepository.findByAuctionIdOrderById(auction.getId());
         Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
         return detail(auction, card, images, myBid);
@@ -158,7 +160,7 @@ public class AuctionQueryService {
 
     public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
         Auction auction = getAuction(auctionId);
-        WalletPort.WalletSnapshot wallet = walletPort.getWallet(userId);
+        WalletBalanceResponse wallet = walletService.getBalance(userId);
         Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
         var recentBids = getBids(auctionId, new PageRequestDto(0, 5)).content();
         return BidResponses.BidContext.builder()
@@ -180,9 +182,9 @@ public class AuctionQueryService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
     }
 
-    private Map<Integer, AuctionCardPort.CardSnapshot> cardSnapshots(List<Auction> auctions) {
+    private Map<Integer, CardSnapshot> cardSnapshots(List<Auction> auctions) {
         List<Integer> itemIds = auctions.stream().map(Auction::getItemId).distinct().toList();
-        return itemIds.isEmpty() ? Map.of() : auctionCardPort.getCardSnapshots(itemIds);
+        return itemIds.isEmpty() ? Map.of() : cardService.getCardSnapshots(itemIds);
     }
 
     private Map<Integer, List<AuctionImage>> imagesByAuction(List<Auction> auctions) {
@@ -228,7 +230,7 @@ public class AuctionQueryService {
 
     private AuctionResponses.AuctionSummary summary(
             Auction auction,
-            AuctionCardPort.CardSnapshot card,
+            CardSnapshot card,
             AuctionImage representativeImage,
             Bid myBid
     ) {
@@ -252,7 +254,7 @@ public class AuctionQueryService {
 
     private AuctionResponses.AuctionDetail detail(
             Auction auction,
-            AuctionCardPort.CardSnapshot card,
+            CardSnapshot card,
             List<AuctionImage> images,
             Bid myBid
     ) {
@@ -293,10 +295,10 @@ public class AuctionQueryService {
                 && psaCertification.matches("\\d{7,10}");
     }
 
-    private AuctionResponses.CardSummary cardSummary(AuctionCardPort.CardSnapshot card, AuctionImage representativeImage) {
+    private AuctionResponses.CardSummary cardSummary(CardSnapshot card, AuctionImage representativeImage) {
         String thumbnailUrl = representativeImage == null ? card.thumbnailUrl() : representativeImage.getImagePath();
         return new AuctionResponses.CardSummary(
-                card.itemId(),
+                card.cardId(),
                 card.name(),
                 card.setName(),
                 card.psaGrade(),

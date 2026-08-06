@@ -16,8 +16,10 @@ import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
-import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
+import com.dbidding.card.service.CardService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;
@@ -42,11 +44,13 @@ class AuctionServiceBidTest {
     @Mock
     private BidRepository bidRepository;
     @Mock
-    private WalletPort walletPort;
+    private WalletService walletService;
+    @Mock
+    private CardService cardService;
     @Mock
     private AuctionCardStatisticPort auctionCardStatisticPort;
     @Mock
-    private AuctionEventPort auctionEventPort;
+    private AuctionEventPublisher auctionEventPublisher;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -64,11 +68,11 @@ class AuctionServiceBidTest {
                 auctionRepository,
                 null,
                 bidRepository,
-                walletPort,
+                walletService,
                 null,
-                null,
+                auctionEventPublisher,
+                cardService,
                 auctionCardStatisticPort,
-                auctionEventPort,
                 clock,
                 eventPublisher,
                 new AuctionMetrics(meterRegistry)
@@ -89,9 +93,9 @@ class AuctionServiceBidTest {
         assertThat(auction.getBidCount()).isZero();
         verify(bidRepository, never())
                 .findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(any(), any());
-        verify(walletPort, never()).holdBidAmount(any(), any(), any(Long.class));
+        verify(walletService, never()).hold(any(), any(), any(Long.class));
         verify(bidRepository, never()).save(any(Bid.class));
-        verifyNoInteractions(auctionEventPort);
+        verifyNoInteractions(auctionEventPublisher);
         assertThat(meterRegistry.get("dbidding.auction.lock.wait")
                 .tag("operation", "bid")
                 .timer()
@@ -104,8 +108,8 @@ class AuctionServiceBidTest {
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
-        when(walletPort.holdBidAmount(2, 1, 43_000L))
-                .thenReturn(new WalletPort.WalletSnapshot(957_000L, 43_000L));
+        when(walletService.hold(2, 1, 43_000L))
+                .thenReturn(new WalletBalanceResponse(1_000_000L, 43_000L, 957_000L));
         when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
             Bid bid = invocation.getArgument(0);
             ReflectionTestUtils.setField(bid, "id", 10L);
@@ -119,8 +123,8 @@ class AuctionServiceBidTest {
         assertThat(response.auction().currentPrice()).isEqualTo(43_000L);
         assertThat(auction.getCurrentPrice()).isEqualTo(43_000L);
         assertThat(auction.getBidCount()).isEqualTo(1);
-        verify(walletPort).holdBidAmount(2, 1, 43_000L);
-        verify(auctionEventPort).publishBidPlaced(any(BidPlacedEvent.class));
+        verify(walletService).hold(2, 1, 43_000L);
+        verify(auctionEventPublisher).publishBidPlaced(any(BidPlacedEvent.class));
     }
 
     @Test
@@ -132,8 +136,8 @@ class AuctionServiceBidTest {
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
-        when(walletPort.holdBidAmount(2, 1, 43_000L))
-                .thenReturn(new WalletPort.WalletSnapshot(957_000L, 43_000L));
+        when(walletService.hold(2, 1, 43_000L))
+                .thenReturn(new WalletBalanceResponse(1_000_000L, 43_000L, 957_000L));
         when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         auctionService.participate(2, 1, new BidCreateRequest(43_000L), "bid-key");

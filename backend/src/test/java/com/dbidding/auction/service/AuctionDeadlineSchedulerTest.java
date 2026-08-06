@@ -26,7 +26,7 @@ import org.springframework.scheduling.Trigger;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class AuctionDeadlineSchedulerTest {
-    private final AuctionService auctionService = mock(AuctionService.class);
+    private final AuctionCommandService auctionCommandService = mock(AuctionCommandService.class);
     private final AuctionRepository auctionRepository = mock(AuctionRepository.class);
     private final CapturingTaskScheduler taskScheduler = new CapturingTaskScheduler();
     private final Clock clock = Clock.fixed(
@@ -34,7 +34,7 @@ class AuctionDeadlineSchedulerTest {
             ZoneId.of("Asia/Seoul")
     );
     private final AuctionDeadlineScheduler scheduler = new AuctionDeadlineScheduler(
-            auctionService,
+            auctionCommandService,
             auctionRepository,
             taskScheduler,
             clock
@@ -61,13 +61,13 @@ class AuctionDeadlineSchedulerTest {
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
         )).thenReturn(List.of(auction), List.of());
-        when(auctionService.closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100))
+        when(auctionCommandService.closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100))
                 .thenReturn(List.of());
 
         scheduler.scheduleNext("test");
         taskScheduler.scheduledTask.run();
 
-        verify(auctionService).closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100);
+        verify(auctionCommandService).closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100);
     }
 
     @Test
@@ -100,7 +100,7 @@ class AuctionDeadlineSchedulerTest {
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
         )).thenReturn(List.of(failedTarget), List.of(nextTarget));
-        when(auctionService.closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100))
+        when(auctionCommandService.closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100))
                 .thenThrow(new IllegalStateException("close failed"));
 
         scheduler.scheduleNext("initial");

@@ -20,22 +20,25 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.metrics.AuctionMetrics.BidResult;
+import com.dbidding.auction.metrics.AuctionMetrics.CloseResult;
 import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
-import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
-import com.dbidding.auction.port.AuctionEventPort;
 import com.dbidding.auction.port.ImageUploadPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.card.service.CardService;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -60,11 +63,11 @@ public class AuctionCommandService {
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
-    private final WalletPort walletPort;
+    private final WalletService walletService;
     private final ImageUploadPort imageUploadPort;
-    private final AuctionCardPort auctionCardPort;
+    private final AuctionEventPublisher auctionEventPublisher;
+    private final CardService cardService;
     private final AuctionCardStatisticPort auctionCardStatisticPort;
-    private final AuctionEventPort auctionEventPort;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
     private final AuctionMetrics auctionMetrics;
@@ -84,7 +87,7 @@ public class AuctionCommandService {
             return idempotentResponse.get();
         }
 
-        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(request.itemId());
+        CardSnapshot card = cardService.getCardSnapshot(request.itemId());
         boolean psaVerified = validatePsaCertification(card, request);
         List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
         validateImages(images);
@@ -112,14 +115,14 @@ public class AuctionCommandService {
         auction.recordCreateIdempotency(idempotencyKey, requestHash);
         Auction savedAuction = auctionRepository.save(auction);
         List<AuctionImage> auctionImages = images.stream()
-                .sorted(Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
+                .sorted(java.util.Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
                 .map(image -> new AuctionImage(savedAuction, image.imagePath()))
                 .toList();
         auctionImageRepository.saveAll(auctionImages);
         auctionCardStatisticPort.recordAuctionOpened(savedAuction.getItemId(), now);
-        auctionEventPort.publishOpened(new AuctionOpenedEvent(
+        auctionEventPublisher.publishOpened(new AuctionOpenedEvent(
                 savedAuction.getId(),
-                card.itemId(),
+                card.cardId(),
                 card.name(),
                 card.psaGrade(),
                 card.language(),
@@ -147,6 +150,26 @@ public class AuctionCommandService {
             BidCreateRequest request,
             String idempotencyKey
     ) {
+        Timer.Sample sample = auctionMetrics.start();
+        try {
+            BidResponses.BidResult result = participateInternal(userId, auctionId, request, idempotencyKey);
+            auctionMetrics.finishBid(sample, BidResult.ACCEPTED);
+            return result;
+        } catch (ResponseStatusException exception) {
+            auctionMetrics.finishBid(sample, BidResult.REJECTED);
+            throw exception;
+        } catch (RuntimeException exception) {
+            auctionMetrics.finishBid(sample, BidResult.ERROR);
+            throw exception;
+        }
+    }
+
+    private BidResponses.BidResult participateInternal(
+            Integer userId,
+            Integer auctionId,
+            BidCreateRequest request,
+            String idempotencyKey
+    ) {
         validateIdempotencyKey(idempotencyKey);
         String requestHash = bidRequestHash(request);
         Auction auction = findByIdForUpdate(auctionId, LockOperation.BID)
@@ -168,7 +191,7 @@ public class AuctionCommandService {
         LocalDateTime bidAt = now();
         LocalDateTime previousCloseTime = auction.getCloseTime();
         boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
-        WalletPort.WalletSnapshot wallet;
+        WalletBalanceResponse wallet;
         if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
             outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
             wallet = holdBidAmount(userId, auction.getId(), request.price());
@@ -208,6 +231,21 @@ public class AuctionCommandService {
 
     @Transactional
     public AuctionCloseResponse closeAuction(Integer auctionId) {
+        Timer.Sample sample = auctionMetrics.start();
+        try {
+            AuctionCloseResponse response = closeAuctionInternal(auctionId);
+            CloseResult result = response.winnerId() == null
+                    ? CloseResult.WITHOUT_TRADE
+                    : CloseResult.WITH_WINNER;
+            auctionMetrics.finishClose(sample, result);
+            return response;
+        } catch (RuntimeException exception) {
+            auctionMetrics.finishClose(sample, CloseResult.ERROR);
+            throw exception;
+        }
+    }
+
+    private AuctionCloseResponse closeAuctionInternal(Integer auctionId) {
         LocalDateTime now = now();
         Auction auction = findByIdForUpdate(auctionId, LockOperation.CLOSE)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
@@ -286,7 +324,7 @@ public class AuctionCommandService {
         }
     }
 
-    private boolean validatePsaCertification(AuctionCardPort.CardSnapshot card, AuctionCreateRequest request) {
+    private boolean validatePsaCertification(CardSnapshot card, AuctionCreateRequest request) {
         if (!"psa".equalsIgnoreCase(request.gradeType())) {
             return false;
         }
@@ -341,7 +379,7 @@ public class AuctionCommandService {
         if (!Objects.equals(bid.getIdempotencyRequestHash(), requestHash)) {
             throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
         }
-        return Optional.of(bidResult(bid, auction, walletPort.getWallet(bidderId)));
+        return Optional.of(bidResult(bid, auction, walletService.getBalance(bidderId)));
     }
 
     private void validateImages(List<ImageUploadPort.ResolvedImage> images) {
@@ -366,9 +404,9 @@ public class AuctionCommandService {
         }
     }
 
-    private WalletPort.WalletSnapshot holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
+    private WalletBalanceResponse holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
         try {
-            return walletPort.holdBidAmount(bidderId, auctionId, price);
+            return walletService.hold(bidderId, auctionId, price);
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
         }
@@ -385,7 +423,7 @@ public class AuctionCommandService {
         }
         previousLeadingBid.markOutbid();
         if (requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)) {
-            walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auction.getId());
+            walletService.release(previousLeadingBid.getBidderId(), auction.getId());
             log.info(
                     "event=auction.bid.previous_hold.released auctionId={} previousBidId={} previousBidderId={} previousBidPrice={} currentBidderId={}",
                     auction.getId(), previousLeadingBid.getId(), previousLeadingBid.getBidderId(),
@@ -431,7 +469,7 @@ public class AuctionCommandService {
         Bid winner = winningBid.get();
         winner.markWon();
         auction.closeWithWinningBid(winner, closedAt);
-        walletPort.confirmWinningBid(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
         auctionCardStatisticPort.recordAuctionCompleted(auction.getItemId(), winner.getBidPrice(), closedAt);
         publishAuctionClosed(auction, winner, closedAt);
         log.info(
@@ -449,7 +487,7 @@ public class AuctionCommandService {
             Bid previousLeadingBid,
             LocalDateTime occurredAt
     ) {
-        auctionEventPort.publishBidPlaced(new BidPlacedEvent(
+        auctionEventPublisher.publishBidPlaced(new BidPlacedEvent(
                 auction.getId(),
                 itemId,
                 bidderId,
@@ -467,13 +505,13 @@ public class AuctionCommandService {
     }
 
     private void publishAuctionClosed(Auction auction, Bid winningBid, LocalDateTime occurredAt) {
-        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(auction.getItemId());
+        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         Integer winnerId = winningBid == null ? null : winningBid.getBidderId();
         Long winningPrice = winningBid == null ? null : winningBid.getBidPrice();
 
-        auctionEventPort.publishClosed(new AuctionClosedEvent(
+        auctionEventPublisher.publishClosed(new AuctionClosedEvent(
                 auction.getId(),
-                card.itemId(),
+                card.cardId(),
                 card.name(),
                 card.psaGrade(),
                 card.language(),
@@ -525,7 +563,7 @@ public class AuctionCommandService {
     private BidResponses.BidResult bidResult(
             Bid bid,
             Auction auction,
-            WalletPort.WalletSnapshot wallet
+            WalletBalanceResponse wallet
     ) {
         return new BidResponses.BidResult(
                 new BidResponses.BidDetail(

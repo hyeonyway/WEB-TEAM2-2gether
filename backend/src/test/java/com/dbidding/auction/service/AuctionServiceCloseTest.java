@@ -16,10 +16,11 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
-import com.dbidding.auction.port.AuctionCardPort;
 import com.dbidding.auction.port.AuctionCardStatisticPort;
-import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
+import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;
@@ -44,13 +45,13 @@ class AuctionServiceCloseTest {
     @Mock
     private BidRepository bidRepository;
     @Mock
-    private WalletPort walletPort;
+    private WalletService walletService;
     @Mock
     private AuctionCardStatisticPort auctionCardStatisticPort;
     @Mock
-    private AuctionEventPort auctionEventPort;
+    private AuctionEventPublisher auctionEventPublisher;
     @Mock
-    private AuctionCardPort auctionCardPort;
+    private CardService cardService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -68,22 +69,17 @@ class AuctionServiceCloseTest {
                 auctionRepository,
                 null,
                 bidRepository,
-                walletPort,
+                walletService,
                 null,
-                auctionCardPort,
+                auctionEventPublisher,
+                cardService,
                 auctionCardStatisticPort,
-                auctionEventPort,
                 clock,
                 eventPublisher,
                 new AuctionMetrics(meterRegistry)
         );
-        lenient().when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
-                1,
-                "리자몽",
-                "기본 세트",
-                "10",
-                "JP",
-                "/cards/charizard.png"
+        lenient().when(cardService.getCardSnapshot(1)).thenReturn(new CardSnapshot(
+                1, "리자몽", "기본 세트", "10", "JP", "/cards/charizard.png"
         ));
     }
 
@@ -104,9 +100,9 @@ class AuctionServiceCloseTest {
         assertThat(response.winnerId()).isEqualTo(3);
         assertThat(response.winningBidId()).isEqualTo(1L);
         assertThat(response.winningPrice()).isEqualTo(45_000L);
-        verify(walletPort).confirmWinningBid(3, 1, 45_000L);
+        verify(walletService).capture(3, 1, 45_000L);
         verify(auctionCardStatisticPort).recordAuctionCompleted(1, 45_000L, auction.getCloseTime());
-        verify(auctionEventPort).publishClosed(argThat((AuctionClosedEvent closed) ->
+        verify(auctionEventPublisher).publishClosed(argThat((AuctionClosedEvent closed) ->
                 closed.auctionId().equals(1)
                 && closed.itemId().equals(1)
                 && closed.cardName().equals("리자몽")
@@ -135,9 +131,9 @@ class AuctionServiceCloseTest {
         assertThat(response.winnerId()).isNull();
         assertThat(response.winningBidId()).isNull();
         assertThat(response.winningPrice()).isNull();
-        verify(walletPort, never()).confirmWinningBid(any(), any(), any(Long.class));
+        verify(walletService, never()).capture(any(), any(), any(Long.class));
         verify(auctionCardStatisticPort).recordAuctionClosedWithoutTrade(1, auction.getCloseTime());
-        verify(auctionEventPort).publishClosed(argThat((AuctionClosedEvent closed) ->
+        verify(auctionEventPublisher).publishClosed(argThat((AuctionClosedEvent closed) ->
                 closed.auctionId().equals(1)
                 && closed.cardName().equals("리자몽")
                 && closed.winnerId() == null
@@ -157,9 +153,9 @@ class AuctionServiceCloseTest {
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(400);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
-        verify(walletPort, never()).confirmWinningBid(any(), any(), any(Long.class));
+        verify(walletService, never()).capture(any(), any(), any(Long.class));
         verify(auctionCardStatisticPort, never()).recordAuctionCompleted(any(), any(Long.class), any());
-        verifyNoInteractions(auctionEventPort);
+        verifyNoInteractions(auctionEventPublisher);
     }
 
     private Auction auction(LocalDateTime closeTime) {

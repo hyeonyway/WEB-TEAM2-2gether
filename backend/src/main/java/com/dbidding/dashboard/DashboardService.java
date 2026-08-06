@@ -5,7 +5,8 @@ import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
-import com.dbidding.auction.port.AuctionCardPort;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.dashboard.dto.DashboardResponse;
@@ -30,7 +31,7 @@ public class DashboardService {
 
     private final BidRepository bidRepository;
     private final AuctionImageRepository auctionImageRepository;
-    private final AuctionCardPort auctionCardPort;
+    private final CardService cardService;
     private final Clock clock;
 
     public List<DashboardResponse.AuctionSnapshot> getParticipatingAuctions(
@@ -63,7 +64,7 @@ public class DashboardService {
                 .map(Bid::getAuction)
                 .distinct()
                 .toList();
-        Map<Integer, AuctionCardPort.CardSnapshot> cards = cardSnapshots(auctions);
+        Map<Integer, CardSnapshot> cards = cardSnapshots(auctions);
         Map<Integer, String> images = firstImages(auctions);
         return bids.stream().map(bid -> snapshot(bid, cards, images)).toList();
     }
@@ -104,9 +105,9 @@ public class DashboardService {
         return comparator.thenComparing(bid -> bid.getAuction().getId());
     }
 
-    private Map<Integer, AuctionCardPort.CardSnapshot> cardSnapshots(List<Auction> auctions) {
+    private Map<Integer, CardSnapshot> cardSnapshots(List<Auction> auctions) {
         List<Integer> itemIds = auctions.stream().map(Auction::getItemId).distinct().toList();
-        return itemIds.isEmpty() ? Map.of() : auctionCardPort.getCardSnapshots(itemIds);
+        return itemIds.isEmpty() ? Map.of() : cardService.getCardSnapshots(itemIds);
     }
 
     private Map<Integer, String> firstImages(List<Auction> auctions) {
@@ -125,11 +126,11 @@ public class DashboardService {
 
     private DashboardResponse.AuctionSnapshot snapshot(
             Bid bid,
-            Map<Integer, AuctionCardPort.CardSnapshot> cards,
+            Map<Integer, CardSnapshot> cards,
             Map<Integer, String> images
     ) {
         Auction auction = bid.getAuction();
-        AuctionCardPort.CardSnapshot card = cards.get(auction.getItemId());
+        CardSnapshot card = cards.get(auction.getItemId());
         String thumbnail = images.getOrDefault(
                 auction.getId(),
                 card == null ? null : card.thumbnailUrl()

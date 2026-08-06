@@ -29,7 +29,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class AuctionDeadlineScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
 
-    private final AuctionService auctionService;
+    private final AuctionCommandService auctionCommandService;
     private final AuctionRepository auctionRepository;
     private final TaskScheduler taskScheduler;
     private final Clock clock;
@@ -39,12 +39,12 @@ public class AuctionDeadlineScheduler {
     private LocalDateTime scheduledCloseTime;
 
     public AuctionDeadlineScheduler(
-            AuctionService auctionService,
+            AuctionCommandService auctionCommandService,
             AuctionRepository auctionRepository,
             @Qualifier("auctionDeadlineTaskScheduler") TaskScheduler taskScheduler,
             Clock clock
     ) {
-        this.auctionService = auctionService;
+        this.auctionCommandService = auctionCommandService;
         this.auctionRepository = auctionRepository;
         this.taskScheduler = taskScheduler;
         this.clock = clock;
@@ -107,7 +107,7 @@ public class AuctionDeadlineScheduler {
                 CLOSE_BATCH_SIZE
         );
         try {
-            var closedAuctions = auctionService.closeDueAuctions(now, CLOSE_BATCH_SIZE);
+            var closedAuctions = auctionCommandService.closeDueAuctions(now, CLOSE_BATCH_SIZE);
             log.info(
                     "event=auction.close.deadline.completed closedCount={} auctionIds={}",
                     closedAuctions.size(),
