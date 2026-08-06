@@ -49,7 +49,7 @@ public class AuctionSseConnectionManager {
         ));
     }
 
-    int connectionCount() {
+    public int connectionCount() {
         return emitters.size();
     }
 
