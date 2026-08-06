@@ -16,6 +16,7 @@ import org.springframework.mock.web.MockHttpSession;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.domain.AccountRole;
+import com.dbidding.account.dto.SessionLoginResponse;
 
 class SessionAuthenticationStrategyTest {
 
@@ -26,7 +27,11 @@ class SessionAuthenticationStrategyTest {
 	@BeforeEach
 	void setUp() {
 		SessionProperties properties = new SessionProperties(SessionStore.MEMORY, "SESSION", false);
-		strategy = new SessionAuthenticationStrategy(properties, Clock.fixed(NOW, ZoneOffset.UTC));
+		strategy = new SessionAuthenticationStrategy(
+			properties,
+			Clock.fixed(NOW, ZoneOffset.UTC),
+			new SessionCsrfTokenService()
+		);
 	}
 
 	@Test
@@ -39,13 +44,16 @@ class SessionAuthenticationStrategyTest {
 		);
 
 		MockHttpSession session = (MockHttpSession)request.getSession(false);
-		assertThat(response.getStatusCode().value()).isEqualTo(204);
+		assertThat(response.getStatusCode().value()).isEqualTo(200);
+		assertThat(response.getBody()).isInstanceOf(SessionLoginResponse.class);
+		assertThat(((SessionLoginResponse)response.getBody()).csrfToken()).hasSizeGreaterThanOrEqualTo(40);
 		assertThat(session).isNotNull();
 		assertThat(Collections.list(session.getAttributeNames()))
 			.containsExactlyInAnyOrder(
 				SessionPrincipal.USER_ID_ATTRIBUTE,
 				SessionPrincipal.ROLE_ATTRIBUTE,
-				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE
+				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE,
+				SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE
 			);
 		assertThat(session.getAttribute(SessionPrincipal.USER_ID_ATTRIBUTE)).isEqualTo(7);
 		assertThat(session.getAttribute(SessionPrincipal.ROLE_ATTRIBUTE)).isEqualTo("USER");

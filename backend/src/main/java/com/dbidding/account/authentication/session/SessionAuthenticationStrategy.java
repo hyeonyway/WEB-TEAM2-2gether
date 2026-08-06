@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.authentication.AuthenticationStrategy;
+import com.dbidding.account.dto.SessionLoginResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -18,6 +19,7 @@ public class SessionAuthenticationStrategy implements AuthenticationStrategy {
 
 	private final SessionProperties properties;
 	private final Clock clock;
+	private final SessionCsrfTokenService csrfTokenService;
 
 	@Override
 	public ResponseEntity<?> establish(AuthenticatedAccount account, HttpServletRequest request) {
@@ -29,7 +31,8 @@ public class SessionAuthenticationStrategy implements AuthenticationStrategy {
 		}
 
 		SessionPrincipal.authenticated(account, clock.instant()).writeTo(session);
-		return ResponseEntity.noContent().build();
+		String csrfToken = csrfTokenService.issue(session);
+		return ResponseEntity.ok(new SessionLoginResponse(csrfToken));
 	}
 
 	@Override

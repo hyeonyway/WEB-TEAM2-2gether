@@ -20,9 +20,10 @@ public class SessionAuthConfiguration {
 	@Bean
 	SessionAuthenticationStrategy sessionAuthenticationStrategy(
 		SessionProperties properties,
-		Clock clock
+		Clock clock,
+		SessionCsrfTokenService csrfTokenService
 	) {
-		return new SessionAuthenticationStrategy(properties, clock);
+		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService);
 	}
 
 	@Bean
