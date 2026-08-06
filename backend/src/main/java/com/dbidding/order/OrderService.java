@@ -1,16 +1,20 @@
 package com.dbidding.order;
 
+import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
+import com.dbidding.order.port.OrderEventPort;
 import com.dbidding.order.port.WalletSettlementPort;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -18,7 +22,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final WalletSettlementPort walletSettlementPort;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OrderEventPort orderEventPort;
 
     public Order findOne(Integer orderId, Integer currentUserId) {
         Order order = getOrder(orderId);
@@ -41,7 +45,7 @@ public class OrderService {
 
         order.confirm();
         walletSettlementPort.payoutToSeller(order.getSellerId(), order.getId(), order.getPrice());
-        eventPublisher.publishEvent(new OrderCompletedEvent(
+        orderEventPort.publishCompleted(new OrderCompletedEvent(
                 order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId()
         ));
         return order;
@@ -54,10 +58,29 @@ public class OrderService {
 
         order.cancel();
         walletSettlementPort.refundToBuyer(order.getBuyerId(), order.getId(), order.getPrice());
-        eventPublisher.publishEvent(new OrderCancelledEvent(
+        orderEventPort.publishCancelled(new OrderCancelledEvent(
                 order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId()
         ));
         return order;
+    }
+
+    /**
+     * {@code orders.auction_id} 유니크 제약 덕분에, 같은 이벤트가 중복 전달돼도 두 번째 저장
+     * 시도는 제약 위반으로 걸러진다. Spring 이벤트 애노테이션과 무관한 평범한 메서드로 둬서,
+     * 나중에 구독 방식(Kafka 등)이 바뀌어도 이 로직과 테스트는 그대로 재사용할 수 있다.
+     */
+    @Transactional
+    public void createFromAuctionClosed(AuctionClosedEvent event) {
+        if (event.winnerId() == null) {
+            return;
+        }
+        try {
+            orderRepository.save(Order.pendingConfirm(
+                    event.auctionId(), event.winnerId(), event.sellerId(), event.winningPrice()
+            ));
+        } catch (DataIntegrityViolationException exception) {
+            log.debug("event=order.creation.duplicate_skipped auctionId={}", event.auctionId(), exception);
+        }
     }
 
     private Order getOrder(Integer orderId) {

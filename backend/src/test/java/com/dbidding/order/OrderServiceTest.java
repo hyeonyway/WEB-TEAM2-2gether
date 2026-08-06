@@ -8,19 +8,23 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
+import com.dbidding.order.port.OrderEventPort;
 import com.dbidding.order.port.WalletSettlementPort;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -38,13 +42,13 @@ class OrderServiceTest {
     private WalletSettlementPort walletSettlementPort;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private OrderEventPort orderEventPort;
 
     private OrderService orderService;
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, walletSettlementPort, eventPublisher);
+        orderService = new OrderService(orderRepository, walletSettlementPort, orderEventPort);
     }
 
     private Order pendingOrder() {
@@ -60,7 +64,7 @@ class OrderServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.COMPLETED);
         verify(walletSettlementPort).payoutToSeller(SELLER_ID, order.getId(), PRICE);
-        verify(eventPublisher).publishEvent(
+        verify(orderEventPort).publishCompleted(
                 new OrderCompletedEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID)
         );
     }
@@ -74,7 +78,7 @@ class OrderServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         verify(walletSettlementPort).refundToBuyer(BUYER_ID, order.getId(), PRICE);
-        verify(eventPublisher).publishEvent(
+        verify(orderEventPort).publishCancelled(
                 new OrderCancelledEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID)
         );
     }
@@ -134,5 +138,44 @@ class OrderServiceTest {
         Order result = orderService.findOne(ORDER_ID, SELLER_ID);
 
         assertThat(result).isEqualTo(order);
+    }
+
+    @Test
+    void 낙찰자가_있는_경매_종료_이벤트를_받으면_주문을_생성한다() {
+        orderService.createFromAuctionClosed(closedWithWinner());
+
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    void 낙찰자가_없는_경매_종료_이벤트를_받으면_주문을_생성하지_않는다() {
+        orderService.createFromAuctionClosed(closedWithoutWinner());
+
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void 중복_이벤트로_유니크_제약_위반이_나도_예외를_전파하지_않는다() {
+        given(orderRepository.save(any(Order.class))).willThrow(new DataIntegrityViolationException("duplicate"));
+
+        orderService.createFromAuctionClosed(closedWithWinner());
+
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    private AuctionClosedEvent closedWithWinner() {
+        return new AuctionClosedEvent(
+                AUCTION_ID, 1, "리자몽", "PSA10", "KR", "http://image",
+                BUYER_ID, SELLER_ID, 10_000L, PRICE, PRICE, 1_000L, 5,
+                LocalDateTime.now(), AuctionStatus.ENDED, 1L, LocalDateTime.now()
+        );
+    }
+
+    private AuctionClosedEvent closedWithoutWinner() {
+        return new AuctionClosedEvent(
+                AUCTION_ID, 1, "리자몽", "PSA10", "KR", "http://image",
+                null, SELLER_ID, 10_000L, 10_000L, null, 1_000L, 0,
+                LocalDateTime.now(), AuctionStatus.FAILED, 1L, LocalDateTime.now()
+        );
     }
 }
