@@ -101,7 +101,6 @@ public final class AuctionResponses {
             LocalDateTime estimatedCloseTime,
             LocalDateTime closeTime,
             AuctionStatus status,
-            Long version,
             BidStatus bidStatus,
             Long bidAmount
     ) {

@@ -272,7 +272,7 @@ public class AuctionQueryService {
         return new AuctionResponses.DashboardAuction(
                 auction.getId(), auction.getSellerId(), cardSummary(card, representativeImage),
                 auction.getStartPrice(), auction.getCurrentPrice(), auction.getBidPriceUnit(), auction.getBidCount(),
-                auction.getEstimatedCloseTime(), auction.getCloseTime(), auction.getStatus(), auction.getVersion(),
+                auction.getEstimatedCloseTime(), auction.getCloseTime(), auction.getStatus(),
                 bid.getStatus(), bid.getBidPrice()
         );
     }
