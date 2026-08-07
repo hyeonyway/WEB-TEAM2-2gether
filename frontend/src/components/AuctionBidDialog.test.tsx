@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
+import {dashboardQueryKey} from '../queries/dashboardQueries';
 import AuctionBidDialog from './AuctionBidDialog';
 
 const mocks=vi.hoisted(()=>({
@@ -44,9 +45,9 @@ const bidEvent:AuctionStreamPayload={
 
 function renderDialog(){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
-  return render(<QueryClientProvider client={queryClient}>
+  return {queryClient,...render(<QueryClientProvider client={queryClient}>
     <AuctionBidDialog auction={auction} onClose={vi.fn()}/>
-  </QueryClientProvider>);
+  </QueryClientProvider>)};
 }
 
 describe('AuctionBidDialog',()=>{
@@ -86,5 +87,17 @@ describe('AuctionBidDialog',()=>{
 
     expect(input).toHaveValue(50_000);
     expect(screen.getByRole('button',{name:'50,000원 입찰하기'})).toBeInTheDocument();
+  });
+
+  it('입찰 성공 후 참여 경매 대시보드 캐시를 다시 조회한다',async()=>{
+    const{queryClient}=renderDialog();
+    mocks.createBid.mockResolvedValue({});
+    const dashboardKey=[...dashboardQueryKey,'participating-auctions','ENDING_SOON'];
+    queryClient.setQueryData(dashboardKey,[auction]);
+
+    await userEvent.setup().click(await screen.findByRole('button',{name:'11,000원 입찰하기'}));
+
+    await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledOnce());
+    await waitFor(()=>expect(queryClient.getQueryState(dashboardKey)?.isInvalidated).toBe(true));
   });
 });

@@ -102,11 +102,6 @@ export default function AuctionDetailPage(){
         );
       }
     },
-    onReplayReset:()=>{
-      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.detail(auctionId,viewerScope)});
-      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auctionId)});
-      if(authenticated)void queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auctionId)});
-    },
     onReconnected:()=>{
       void queryClient.invalidateQueries({queryKey:auctionQueryKeys.detail(auctionId,viewerScope)});
       void queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auctionId)});

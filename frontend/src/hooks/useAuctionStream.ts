@@ -45,13 +45,11 @@ type AuctionStreamEventType=typeof AUCTION_STREAM_EVENT_TYPES[number];
 type UseAuctionStreamOptions={
   enabled?:boolean;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
-  onReplayReset?:()=>void;
   onReconnected?:()=>void;
 };
 
 type AuctionStreamSubscriber={
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
-  onReplayReset?:()=>void;
   onReconnected?:()=>void;
 };
 
@@ -59,7 +57,6 @@ const subscribers=new Set<AuctionStreamSubscriber>();
 let sharedEventSource:EventSource|null=null;
 let sharedListeners:ReadonlyArray<readonly[string,EventListener]>=[];
 let hasOpenedSharedEventSource=false;
-const REPLAY_RESET_EVENT='replay-reset';
 
 function auctionStreamUrl(){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
@@ -133,11 +130,6 @@ function connectSharedEventSource(){
     eventSource.addEventListener(type,listener);
     return [type,listener] as const;
   });
-  const replayResetListener:EventListener=()=>{
-    subscribers.forEach(subscriber=>subscriber.onReplayReset?.());
-  };
-  eventSource.addEventListener(REPLAY_RESET_EVENT,replayResetListener);
-  sharedListeners=[...sharedListeners,[REPLAY_RESET_EVENT,replayResetListener]];
 }
 
 function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
@@ -159,21 +151,17 @@ function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
 export function useAuctionStream({
   enabled=true,
   onAuctionUpdated,
-  onReplayReset,
   onReconnected,
 }:UseAuctionStreamOptions){
   const onAuctionUpdatedRef=useRef(onAuctionUpdated);
-  const onReplayResetRef=useRef(onReplayReset);
   const onReconnectedRef=useRef(onReconnected);
   onAuctionUpdatedRef.current=onAuctionUpdated;
-  onReplayResetRef.current=onReplayReset;
   onReconnectedRef.current=onReconnected;
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
     return subscribeToAuctionStream({
       onAuctionUpdated:payload=>onAuctionUpdatedRef.current(payload),
-      onReplayReset:()=>onReplayResetRef.current?.(),
       onReconnected:()=>onReconnectedRef.current?.(),
     });
   },[enabled]);

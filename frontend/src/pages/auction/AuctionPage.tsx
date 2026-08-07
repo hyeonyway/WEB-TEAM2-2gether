@@ -46,9 +46,6 @@ export default function AuctionPage(){
         };
       });
     },
-    onReplayReset:()=>{
-      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
-    },
     onReconnected:()=>{
       void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
     },

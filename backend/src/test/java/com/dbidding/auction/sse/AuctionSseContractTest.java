@@ -2,7 +2,6 @@ package com.dbidding.auction.sse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 class AuctionSseContractTest {
@@ -107,53 +105,6 @@ class AuctionSseContractTest {
         assertThat(manager.connectionCount()).isZero();
         verify(first).complete();
         verify(second).complete();
-    }
-
-    @Test
-    void 마지막_수신_ID_이후의_이벤트를_동일한_SSE_ID로_재전송한다() throws Exception {
-        var manager = new AuctionSseConnectionManager();
-        SseEmitter connectedEmitter = mock(SseEmitter.class);
-        SseEmitter reconnectingEmitter = mock(SseEmitter.class);
-        SseEmitter.SseEventBuilder event = mock(SseEmitter.SseEventBuilder.class);
-        when(event.id(any())).thenReturn(event);
-        when(event.name(any())).thenReturn(event);
-        when(event.reconnectTime(anyLong())).thenReturn(event);
-        when(event.data(any())).thenReturn(event);
-
-        try (MockedStatic<SseEmitter> sseEmitter = mockStatic(SseEmitter.class)) {
-            sseEmitter.when(SseEmitter::event).thenReturn(event);
-            manager.register(connectedEmitter);
-            manager.broadcast(bidPayload());
-            manager.broadcast(bidPayload());
-            manager.register(reconnectingEmitter, 1L);
-        }
-
-        verify(event, times(2)).id("2");
-        verify(reconnectingEmitter, times(2)).send(event);
-    }
-
-    @Test
-    void replay_범위를_벗어나면_재조회_이벤트를_알리고_보관된_이벤트를_전송한다() throws Exception {
-        var manager = new AuctionSseConnectionManager();
-        ReflectionTestUtils.setField(manager, "replayStateCapacity", 1);
-        SseEmitter connectedEmitter = mock(SseEmitter.class);
-        SseEmitter reconnectingEmitter = mock(SseEmitter.class);
-        SseEmitter.SseEventBuilder event = mock(SseEmitter.SseEventBuilder.class);
-        when(event.id(any())).thenReturn(event);
-        when(event.name(any())).thenReturn(event);
-        when(event.reconnectTime(anyLong())).thenReturn(event);
-        when(event.data(any())).thenReturn(event);
-
-        try (MockedStatic<SseEmitter> sseEmitter = mockStatic(SseEmitter.class)) {
-            sseEmitter.when(SseEmitter::event).thenReturn(event);
-            manager.register(connectedEmitter);
-            manager.broadcast(payloadFor(10));
-            manager.broadcast(payloadFor(11));
-            manager.register(reconnectingEmitter, 0L);
-        }
-
-        verify(event).name("replay-reset");
-        verify(reconnectingEmitter, times(3)).send(event);
     }
 
     @Test

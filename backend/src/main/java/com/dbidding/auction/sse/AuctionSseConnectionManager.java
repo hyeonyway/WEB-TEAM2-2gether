@@ -1,15 +1,11 @@
 package com.dbidding.auction.sse;
 
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,35 +20,24 @@ public class AuctionSseConnectionManager {
 
     private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
     private final AtomicLong eventSequence = new AtomicLong();
-    private final Map<Integer, ReplayEvent> latestEventsByAuction = new ConcurrentHashMap<>();
-    private final AtomicLong latestDiscardedEventId = new AtomicLong();
-
-    @Value("${AUCTION_SSE_REPLAY_STATE_CAPACITY:1000}")
-    private int replayStateCapacity = 1000;
-
-    public SseEmitter connect(String lastEventId) {
-        return register(new SseEmitter(CONNECTION_TIMEOUT_MILLIS), parseLastEventId(lastEventId));
+    public SseEmitter connect() {
+        return register(new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
     }
 
     SseEmitter register(SseEmitter emitter) {
-        return register(emitter, null);
-    }
-
-    SseEmitter register(SseEmitter emitter, Long lastEventId) {
         emitters.add(emitter);
         emitter.onCompletion(() -> emitters.remove(emitter));
         emitter.onTimeout(() -> removeAndComplete(emitter));
         emitter.onError(error -> removeAndComplete(emitter));
         send(emitter, SseEmitter.event().name("connected")
                 .reconnectTime(RECONNECT_TIME_MILLIS).data("connected"));
-        replay(emitter, lastEventId);
         return emitter;
     }
 
     @Async("auctionSseTaskExecutor")
     public void broadcast(AuctionStreamPayload event) {
-        ReplayEvent replayEvent = append(event);
-        emitters.forEach(emitter -> send(emitter, event(replayEvent)));
+        long eventId = eventSequence.incrementAndGet();
+        emitters.forEach(emitter -> send(emitter, event(event, eventId)));
     }
 
     @Async("auctionSseTaskExecutor")
@@ -68,50 +53,9 @@ public class AuctionSseConnectionManager {
         emitters.forEach(this::removeAndComplete);
     }
 
-    private ReplayEvent append(AuctionStreamPayload payload) {
-        ReplayEvent event = new ReplayEvent(eventSequence.incrementAndGet(), payload);
-        latestEventsByAuction.put(payload.auctionId(), event);
-        if (latestEventsByAuction.size() > replayStateCapacity) {
-            latestEventsByAuction.entrySet().stream()
-                    .min(Map.Entry.comparingByValue(Comparator.comparingLong(ReplayEvent::id)))
-                    .ifPresent(discarded -> {
-                        if (latestEventsByAuction.remove(discarded.getKey(), discarded.getValue())) {
-                            latestDiscardedEventId.accumulateAndGet(discarded.getValue().id(), Math::max);
-                        }
-                    });
-        }
-        return event;
-    }
-
-    private void replay(SseEmitter emitter, Long lastEventId) {
-        if (lastEventId == null || latestEventsByAuction.isEmpty()) {
-            return;
-        }
-        if (lastEventId < latestDiscardedEventId.get()) {
-            send(emitter, SseEmitter.event().name("replay-reset")
-                    .data("Replay window expired. Refresh auction state."));
-        }
-        latestEventsByAuction.values().stream()
-                .filter(event -> event.id() > lastEventId)
-                .sorted((left, right) -> Long.compare(left.id(), right.id()))
-                .forEach(event -> send(emitter, event(event)));
-    }
-
-    private SseEmitter.SseEventBuilder event(ReplayEvent replayEvent) {
-        return SseEmitter.event().id(Long.toString(replayEvent.id()))
-                .name(replayEvent.payload().type().name()).data(replayEvent.payload());
-    }
-
-    private Long parseLastEventId(String lastEventId) {
-        if (lastEventId == null || lastEventId.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(lastEventId);
-        } catch (NumberFormatException exception) {
-            log.warn("event=auction.sse.replay.invalid_last_event_id value={}", lastEventId);
-            return null;
-        }
+    private SseEmitter.SseEventBuilder event(AuctionStreamPayload payload, long eventId) {
+        return SseEmitter.event().id(Long.toString(eventId))
+                .name(payload.type().name()).data(payload);
     }
 
     private void send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
@@ -122,6 +66,4 @@ public class AuctionSseConnectionManager {
         emitters.remove(emitter);
         try { emitter.complete(); } catch (IllegalStateException ignored) { }
     }
-
-    private record ReplayEvent(long id, AuctionStreamPayload payload) { }
 }

@@ -34,9 +34,6 @@ export default function DashboardPage(){
         current=>applyDashboardAuctionEvent(current,event,participatingSort),
       );
     },
-    onReplayReset:()=>{
-      void queryClient.invalidateQueries({queryKey:dashboardQueryKey});
-    },
     onReconnected:()=>{
       void queryClient.invalidateQueries({queryKey:dashboardQueryKey});
     },

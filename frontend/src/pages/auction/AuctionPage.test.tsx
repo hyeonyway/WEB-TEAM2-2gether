@@ -152,8 +152,10 @@ describe('AuctionPage',()=>{
       occurred_at:'2026-08-04T10:00:00Z',
     }));
 
-    const cards=screen.getAllByRole('article');
-    expect(within(cards[0]).getByRole('heading')).toHaveTextContent('입찰 수가 많은 경매');
+    await waitFor(()=>{
+      const cards=screen.getAllByRole('article');
+      expect(within(cards[0]).getByRole('heading')).toHaveTextContent('입찰 수가 많은 경매');
+    });
   });
 
   it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{

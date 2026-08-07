@@ -6,6 +6,7 @@ import {createAuctionBid} from '../api/auctionApi';
 import {applyBidContextEvent,auctionQueries,auctionQueryKeys} from '../queries/auctionQueries';
 import {useAuctionStream} from '../hooks/useAuctionStream';
 import {walletQueryKeys} from '../queries/walletQueryKeys';
+import {dashboardQueryKey} from '../queries/dashboardQueries';
 
 function AnimatedBidValue({value}:{value:number}){
   const[displayValue,setDisplayValue]=useState(value);
@@ -44,12 +45,6 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       const bidContextKey=auctionQueryKeys.bidContext(auction.id);
       queryClient.setQueryData<BidContextResponseDto>(bidContextKey,current=>applyBidContextEvent(current,event));
     },
-    onReplayReset:()=>{
-      void Promise.all([
-        queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
-        queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auction.id)}),
-      ]);
-    },
     onReconnected:()=>{
       void Promise.all([
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
@@ -80,6 +75,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
     onSuccess:async()=>{
       await Promise.all([
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),
+        queryClient.invalidateQueries({queryKey:dashboardQueryKey}),
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
         queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()}),
       ]);

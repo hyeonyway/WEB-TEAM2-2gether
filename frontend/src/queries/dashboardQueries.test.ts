@@ -57,12 +57,12 @@ describe('applyDashboardAuctionEvent',()=>{
       bidCount:3,
       bidIncrement:2_000,
       status:'ENDING',
-      version:2,
+      eventId:2,
       card:{bidCount:3},
     });
   });
 
-  it('이미 반영한 버전보다 오래된 이벤트는 값을 되돌리지 않는다',()=>{
+  it('이미 반영한 이벤트보다 오래된 이벤트는 값을 되돌리지 않는다',()=>{
     const result=applyDashboardAuctionEvent([
       auction(1,40_000,'2026-08-01T10:00:00Z',3),
     ],bidEvent,'ENDING_SOON');
@@ -70,7 +70,7 @@ describe('applyDashboardAuctionEvent',()=>{
     expect(result[0]).toMatchObject({
       currentPrice:40_000,
       bidCount:1,
-      version:3,
+      eventId:3,
     });
   });
 });
