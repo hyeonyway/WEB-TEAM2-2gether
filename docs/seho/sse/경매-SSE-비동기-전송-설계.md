@@ -52,6 +52,14 @@ SSE 이벤트에는 애플리케이션 내부의 단조 증가 ID를 부여한�
 context와 입찰 내역·전자지갑 query를 무효화해 활성 화면이 REST API로 최신 상태를
 다시 가져오게 한다.
 
+## 브라우저 수동 검증
+
+`test` 프로필에서만 `POST /api/auctions/stream/test-events/disconnect`를 제공한다.
+이 API는 현재 SSE emitter를 모두 종료해 브라우저 `EventSource`의 자동 재연결을
+재현한다. 연결 종료 직후 3초 재연결 대기 동안
+`POST /api/auctions/stream/test-events/random-bid`를 호출하면, 새 stream 요청의
+`Last-Event-ID`와 경매별 최신 상태 replay를 Network 탭에서 확인할 수 있다.
+
 replay가 있어도 이벤트 유실을 허용하는 `DiscardPolicy`를 사용하지 않는다. 포화 시
 이벤트 발행 경로가 잠시 지연될 수 있지만, 이는 연결된 모든 emitter가 같은 경매
 이벤트를 놓치는 것보다 우선한다.

@@ -70,6 +70,10 @@ public class AuctionSseConnectionManager {
 
     public int connectionCount() { return emitters.size(); }
 
+    public void disconnectAll() {
+        emitters.forEach(this::removeAndComplete);
+    }
+
     private ReplayEvent append(AuctionStreamPayload payload) {
         ReplayEvent event = new ReplayEvent(eventSequence.incrementAndGet(), payload);
         latestEventsByAuction.remove(payload.auctionId());

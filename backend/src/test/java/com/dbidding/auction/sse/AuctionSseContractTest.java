@@ -95,6 +95,21 @@ class AuctionSseContractTest {
     }
 
     @Test
+    void 테스트용_연결_종료는_모든_emitter를_완료하고_제거한다() {
+        var manager = new AuctionSseConnectionManager();
+        SseEmitter first = mock(SseEmitter.class);
+        SseEmitter second = mock(SseEmitter.class);
+        manager.register(first);
+        manager.register(second);
+
+        manager.disconnectAll();
+
+        assertThat(manager.connectionCount()).isZero();
+        verify(first).complete();
+        verify(second).complete();
+    }
+
+    @Test
     void 마지막_수신_ID_이후의_이벤트를_동일한_SSE_ID로_재전송한다() throws Exception {
         var manager = new AuctionSseConnectionManager();
         SseEmitter connectedEmitter = mock(SseEmitter.class);
