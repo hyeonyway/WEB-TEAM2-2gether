@@ -61,7 +61,7 @@ class DashboardServiceTest {
         return new AuctionResponses.DashboardAuction(
                 id, 9, new AuctionResponses.CardSummary(id, "카드 " + id, "세트", "10", "JP", "card.webp"),
                 100_000L, bidAmount, 1_000L, 3, estimatedCloseTime, estimatedCloseTime,
-                status, 1L, bidStatus, bidAmount
+                status, null, bidStatus, bidAmount
         );
     }
 }

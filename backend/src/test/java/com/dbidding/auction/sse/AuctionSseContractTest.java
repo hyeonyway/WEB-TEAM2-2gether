@@ -43,7 +43,7 @@ class AuctionSseContractTest {
         assertThat(json.get("auction_id").asInt()).isEqualTo(10);
         assertThat(json.get("bidder_id").asInt()).isEqualTo(7);
         assertThat(json.get("current_price").asLong()).isEqualTo(50_000L);
-        assertThat(json.get("auction_version").asLong()).isEqualTo(2L);
+        assertThat(json.has("auction_version")).isFalse();
     }
 
     @Test
@@ -51,7 +51,7 @@ class AuctionSseContractTest {
         AuctionClosedEvent event = new AuctionClosedEvent(
                 10, 1, "Pikachu", "10", "KO", "thumb", 7, 5,
                 40_000L, 50_000L, 55_000L, 1_000L, 2,
-                LocalDateTime.of(2026, 8, 3, 12, 0), AuctionStatus.ENDED, 3L,
+                LocalDateTime.of(2026, 8, 3, 12, 0), AuctionStatus.ENDED,
                 LocalDateTime.of(2026, 8, 3, 12, 0));
         var mapper = JsonMapper.builder().addModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
@@ -163,7 +163,7 @@ class AuctionSseContractTest {
         LocalDateTime occurredAt = LocalDateTime.of(2026, 8, 3, 11, 0);
         BidPlacedEvent event = new BidPlacedEvent(
                 10, 1, 7, 5, 20L, 40_000L, 50_000L, 1_000L, 2,
-                occurredAt.plusHours(1), AuctionStatus.OPEN, 2L, occurredAt
+                occurredAt.plusHours(1), AuctionStatus.OPEN, occurredAt
         );
 
         listener.onBidPlaced(event);
@@ -194,7 +194,7 @@ class AuctionSseContractTest {
         AuctionSseTestAuctionReader reader = mock(AuctionSseTestAuctionReader.class);
         when(reader.findRandomActiveAuction()).thenReturn(Optional.of(new AuctionSseTestAuctionReader.Snapshot(
                 10, 40_000L, 40_000L, 1_000L, 0,
-                LocalDateTime.now().plusHours(1), "OPEN", 1L, 5)));
+                LocalDateTime.now().plusHours(1), "OPEN", 5)));
         AuctionSseTestBidApplicationService service =
                 new AuctionSseTestBidApplicationService(manager, reader, Clock.systemUTC());
 
@@ -202,7 +202,6 @@ class AuctionSseContractTest {
         AuctionStreamPayload second = service.publishRandomBid();
 
         assertThat(second.currentPrice()).isEqualTo(first.currentPrice() + 1_000L);
-        assertThat(second.auctionVersion()).isEqualTo(first.auctionVersion() + 1);
         verify(manager).broadcast(first);
         verify(manager).broadcast(second);
     }
@@ -215,7 +214,7 @@ class AuctionSseContractTest {
         return new AuctionStreamPayload(
                 AuctionStreamEventType.BID_PLACED, auctionId, null, null, null, null, null, null,
                 7, 5, null, 40_000L, 50_000L, null, 1_000L, 2,
-                now.plusSeconds(3600), AuctionStatus.OPEN, 2L, null, now
+                now.plusSeconds(3600), AuctionStatus.OPEN, null, now
         );
     }
 }

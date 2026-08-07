@@ -1,9 +1,10 @@
 package com.dbidding.auction.sse;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
@@ -22,10 +23,9 @@ public class AuctionSseConnectionManager {
     private static final long RECONNECT_TIME_MILLIS = 3_000L;
 
     private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
-    private final Object eventLock = new Object();
     private final AtomicLong eventSequence = new AtomicLong();
-    private final Map<Integer, ReplayEvent> latestEventsByAuction = new LinkedHashMap<>();
-    private long latestDiscardedEventId;
+    private final Map<Integer, ReplayEvent> latestEventsByAuction = new ConcurrentHashMap<>();
+    private final AtomicLong latestDiscardedEventId = new AtomicLong();
 
     @Value("${AUCTION_SSE_REPLAY_STATE_CAPACITY:1000}")
     private int replayStateCapacity = 1000;
@@ -39,33 +39,27 @@ public class AuctionSseConnectionManager {
     }
 
     SseEmitter register(SseEmitter emitter, Long lastEventId) {
-        synchronized (eventLock) {
-            emitters.add(emitter);
-            emitter.onCompletion(() -> emitters.remove(emitter));
-            emitter.onTimeout(() -> removeAndComplete(emitter));
-            emitter.onError(error -> removeAndComplete(emitter));
-            send(emitter, SseEmitter.event().name("connected")
-                    .reconnectTime(RECONNECT_TIME_MILLIS).data("connected"));
-            replay(emitter, lastEventId);
-            return emitter;
-        }
+        emitters.add(emitter);
+        emitter.onCompletion(() -> emitters.remove(emitter));
+        emitter.onTimeout(() -> removeAndComplete(emitter));
+        emitter.onError(error -> removeAndComplete(emitter));
+        send(emitter, SseEmitter.event().name("connected")
+                .reconnectTime(RECONNECT_TIME_MILLIS).data("connected"));
+        replay(emitter, lastEventId);
+        return emitter;
     }
 
     @Async("auctionSseTaskExecutor")
     public void broadcast(AuctionStreamPayload event) {
-        synchronized (eventLock) {
-            ReplayEvent replayEvent = append(event);
-            emitters.forEach(emitter -> send(emitter, event(replayEvent)));
-        }
+        ReplayEvent replayEvent = append(event);
+        emitters.forEach(emitter -> send(emitter, event(replayEvent)));
     }
 
     @Async("auctionSseTaskExecutor")
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
-        synchronized (eventLock) {
-            emitters.forEach(emitter -> send(emitter,
-                    SseEmitter.event().comment("heartbeat")));
-        }
+        emitters.forEach(emitter -> send(emitter,
+                SseEmitter.event().comment("heartbeat")));
     }
 
     public int connectionCount() { return emitters.size(); }
@@ -76,12 +70,15 @@ public class AuctionSseConnectionManager {
 
     private ReplayEvent append(AuctionStreamPayload payload) {
         ReplayEvent event = new ReplayEvent(eventSequence.incrementAndGet(), payload);
-        latestEventsByAuction.remove(payload.auctionId());
         latestEventsByAuction.put(payload.auctionId(), event);
-        while (latestEventsByAuction.size() > replayStateCapacity) {
-            ReplayEvent discarded = latestEventsByAuction.values().iterator().next();
-            latestEventsByAuction.remove(discarded.payload().auctionId());
-            latestDiscardedEventId = Math.max(latestDiscardedEventId, discarded.id());
+        if (latestEventsByAuction.size() > replayStateCapacity) {
+            latestEventsByAuction.entrySet().stream()
+                    .min(Map.Entry.comparingByValue(Comparator.comparingLong(ReplayEvent::id)))
+                    .ifPresent(discarded -> {
+                        if (latestEventsByAuction.remove(discarded.getKey(), discarded.getValue())) {
+                            latestDiscardedEventId.accumulateAndGet(discarded.getValue().id(), Math::max);
+                        }
+                    });
         }
         return event;
     }
@@ -90,7 +87,7 @@ public class AuctionSseConnectionManager {
         if (lastEventId == null || latestEventsByAuction.isEmpty()) {
             return;
         }
-        if (lastEventId < latestDiscardedEventId) {
+        if (lastEventId < latestDiscardedEventId.get()) {
             send(emitter, SseEmitter.event().name("replay-reset")
                     .data("Replay window expired. Refresh auction state."));
         }
