@@ -1,4 +1,4 @@
-package com.dbidding.sse.auction;
+package com.dbidding.auction.sse;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
