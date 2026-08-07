@@ -13,7 +13,6 @@ const auctions=(mockupData.auctions as MockAuctionResponseDto[]).map(auction=>{
     seller:{id:1,nickname:'mock-seller',trade_count:0,trust_score:0},
     minimum_bid:auction.current_price+auction.bid_increment,
     starts_at:new Date(new Date(auction.ends_at).getTime()-12*60*60*1000).toISOString(),
-    version:1,
     card:{
       id:card.id,
       name:card.name,

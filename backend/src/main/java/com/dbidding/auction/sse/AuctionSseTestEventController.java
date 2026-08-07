@@ -14,10 +14,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuctionSseTestEventController {
     private final AuctionSseTestBidApplicationService bidApplicationService;
+    private final AuctionSseConnectionManager connectionManager;
 
     @PostMapping("/random-bid")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public AuctionStreamPayload publishRandomBid() {
         return bidApplicationService.publishRandomBid();
+    }
+
+    @PostMapping("/disconnect")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void disconnect() {
+        connectionManager.disconnectAll();
     }
 }

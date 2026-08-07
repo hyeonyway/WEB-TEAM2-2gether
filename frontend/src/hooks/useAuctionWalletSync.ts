@@ -20,5 +20,8 @@ export function useAuctionWalletSync(userId:number|null,authenticated:boolean){
       if(userId===null||!affectsWallet(event,userId))return;
       void queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()});
     },
+    onReconnected:()=>{
+      void queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()});
+    },
   });
 }

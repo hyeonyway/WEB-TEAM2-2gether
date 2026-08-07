@@ -6,6 +6,7 @@ import {createAuctionBid} from '../api/auctionApi';
 import {applyBidContextEvent,auctionQueries,auctionQueryKeys} from '../queries/auctionQueries';
 import {useAuctionStream} from '../hooks/useAuctionStream';
 import {walletQueryKeys} from '../queries/walletQueryKeys';
+import {dashboardQueryKey} from '../queries/dashboardQueries';
 
 function AnimatedBidValue({value}:{value:number}){
   const[displayValue,setDisplayValue]=useState(value);
@@ -44,6 +45,12 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       const bidContextKey=auctionQueryKeys.bidContext(auction.id);
       queryClient.setQueryData<BidContextResponseDto>(bidContextKey,current=>applyBidContextEvent(current,event));
     },
+    onReconnected:()=>{
+      void Promise.all([
+        queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
+        queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auction.id)}),
+      ]);
+    },
   });
   const wallet=context?.wallet.available_balance??0;
   const currentPrice=context?.current_price??auction.currentPrice;
@@ -65,7 +72,18 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const closed=!['OPEN','ENDING'].includes(context?.status??auction.status);
   const bidMutation=useMutation({
     mutationFn:()=>createAuctionBid(auction.id,amountValue,crypto.randomUUID()),
-    onSuccess:async()=>{
+    onSuccess:async result=>{
+      queryClient.setQueriesData<AuctionDto[]>({queryKey:dashboardQueryKey},current=>current?.map(item=>
+        item.id!==auction.id?item:{
+          ...item,
+          currentPrice:result.auction.current_price,
+          bidCount:result.auction.bid_count,
+          endsAt:result.auction.ends_at,
+          myBidStatus:'LEADING',
+          myBidAmount:result.bid.amount,
+          card:{...item.card,bidCount:result.auction.bid_count},
+        },
+      ));
       await Promise.all([
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),

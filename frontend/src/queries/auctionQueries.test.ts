@@ -4,11 +4,11 @@ import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {applyBidContextEvent,auctionQueryKeys} from './auctionQueries';
 
 const bidEvent:AuctionStreamPayload={
-  type:'BID_PLACED',auction_id:1,bidder_id:2,previous_bidder_id:7,start_price:1_000,current_price:30_000,bid_increment:2_000,bid_count:3,ends_at:'2026-08-04T11:00:00Z',status:'ENDING',auction_version:2,occurred_at:'2026-08-03T06:00:00Z',
+  type:'BID_PLACED',auction_id:1,bidder_id:2,previous_bidder_id:7,start_price:1_000,current_price:30_000,bid_increment:2_000,bid_count:3,ends_at:'2026-08-04T11:00:00Z',status:'ENDING',event_id:2,occurred_at:'2026-08-03T06:00:00Z',
 };
 
 const bidContext:BidContextResponseDto={
-  auction_id:1,status:'OPEN',version:1,current_price:10_000,minimum_bid:11_000,bid_increment:1_000,my_bid_status:'NONE',my_bid_amount:null,wallet:{available_balance:100_000,frozen_balance:0},recent_bids:[],
+  auction_id:1,status:'OPEN',current_price:10_000,minimum_bid:11_000,bid_increment:1_000,my_bid_status:'NONE',my_bid_amount:null,wallet:{available_balance:100_000,frozen_balance:0},recent_bids:[],
 };
 
 describe('auctionQueryKeys',()=>{
@@ -27,7 +27,7 @@ describe('auctionQueryKeys',()=>{
   it('입찰 SSE 이벤트를 열린 팝업의 입찰 컨텍스트에 반영한다',()=>{
     const result=applyBidContextEvent(bidContext,bidEvent);
     expect(result).toMatchObject({
-      current_price:30_000,minimum_bid:32_000,bid_increment:2_000,status:'ENDING',version:2,
+      current_price:30_000,minimum_bid:32_000,bid_increment:2_000,status:'ENDING',eventId:2,
     });
     expect(result?.recent_bids[0]).toMatchObject({
       id:-2,amount:30_000,bidder_alias:'user-2***',is_highest:true,
@@ -45,7 +45,7 @@ describe('auctionQueryKeys',()=>{
   });
 
   it('오래된 SSE 이벤트는 팝업의 입찰 컨텍스트를 되돌리지 않는다',()=>{
-    const current={...bidContext,version:3,current_price:40_000,minimum_bid:42_000};
+    const current={...bidContext,eventId:3,current_price:40_000,minimum_bid:42_000};
     expect(applyBidContextEvent(current,bidEvent)).toEqual(current);
   });
 });

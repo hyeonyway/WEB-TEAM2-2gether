@@ -27,7 +27,6 @@ const mapDashboardAuction=(dto:DashboardAuctionResponseDto):AuctionDto=>({
   bidCount:dto.bid_count,
   endsAt:dto.ends_at,
   status:dto.status,
-  version:dto.version,
   myBidStatus:dto.my_bid_status,
   myBidAmount:dto.my_bid_amount,
 });

@@ -32,7 +32,6 @@ public record AuctionStreamPayload(
         Integer bidCount,
         Instant endsAt,
         AuctionStatus status,
-        Long auctionVersion,
         Instant closedAt,
         Instant occurredAt
 ) {
@@ -42,7 +41,7 @@ public record AuctionStreamPayload(
                 event.cardPsaGrade(), event.cardLanguage(), event.cardThumbnailUrl(), event.sellerId(),
                 null, null, null, event.startPrice(), event.currentPrice(), null,
                 event.bidIncrement(), event.bidCount(), event.closeTime().toInstant(ZoneOffset.UTC),
-                event.status(), event.version(), null, event.occurredAt().toInstant(ZoneOffset.UTC));
+                event.status(), null, event.occurredAt().toInstant(ZoneOffset.UTC));
     }
 
     public static AuctionStreamPayload bidPlaced(BidPlacedEvent event) {
@@ -50,7 +49,7 @@ public record AuctionStreamPayload(
                 AuctionStreamEventType.BID_PLACED, event.auctionId(), null, null, null, null, null, null,
                 event.bidderId(), event.previousBidderId(), null, event.startPrice(), event.currentPrice(), null,
                 event.bidIncrement(), event.bidCount(), event.closeTime().toInstant(ZoneOffset.UTC),
-                event.status(), event.version(), null, event.occurredAt().toInstant(ZoneOffset.UTC));
+                event.status(), null, event.occurredAt().toInstant(ZoneOffset.UTC));
     }
 
     public static AuctionStreamPayload closed(AuctionClosedEvent event) {
@@ -59,7 +58,7 @@ public record AuctionStreamPayload(
                 event.cardPsaGrade(), event.cardLanguage(), event.cardThumbnailUrl(), event.sellerId(),
                 null, null, event.winnerId(), event.startPrice(), event.currentPrice(), event.winningPrice(),
                 event.bidIncrement(), event.bidCount(), event.closeTime().toInstant(ZoneOffset.UTC),
-                event.status(), event.version(), event.closeTime().toInstant(ZoneOffset.UTC),
+                event.status(), event.closeTime().toInstant(ZoneOffset.UTC),
                 event.occurredAt().toInstant(ZoneOffset.UTC));
     }
 }

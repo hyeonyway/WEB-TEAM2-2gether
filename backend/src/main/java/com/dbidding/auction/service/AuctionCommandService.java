@@ -131,7 +131,6 @@ public class AuctionCommandService {
                 savedAuction.getBidCount(),
                 savedAuction.getCloseTime(),
                 savedAuction.getStatus(),
-                savedAuction.getVersion(),
                 now
         ));
 
@@ -184,6 +183,7 @@ public class AuctionCommandService {
 
         validateNotSellerBid(userId, auction);
         Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
+        validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
 
         LocalDateTime bidAt = now();
         LocalDateTime previousCloseTime = auction.getCloseTime();
@@ -307,6 +307,13 @@ public class AuctionCommandService {
             log.warn("event=auction.bid.rejected_self_bid auctionId={} sellerId={} bidderId={}",
                     auction.getId(), auction.getSellerId(), userId);
             throw new ResponseStatusException(FORBIDDEN, "판매자는 자신의 경매에 입찰할 수 없습니다.");
+        }
+    }
+
+    private void validateNotCurrentLeadingBidder(Integer userId, Bid previousLeadingBid, Integer auctionId) {
+        if (previousLeadingBid != null && previousLeadingBid.getBidderId().equals(userId)) {
+            log.warn("event=auction.bid.rejected_leading_bidder auctionId={} bidderId={}", auctionId, userId);
+            throw new ResponseStatusException(CONFLICT, "현재 최고 입찰자는 추가 입찰할 수 없습니다.");
         }
     }
 
@@ -493,7 +500,6 @@ public class AuctionCommandService {
                 auction.getBidCount(),
                 auction.getCloseTime(),
                 auction.getStatus(),
-                auction.getVersion(),
                 occurredAt
         ));
     }
@@ -519,7 +525,6 @@ public class AuctionCommandService {
                 auction.getBidCount(),
                 auction.getCloseTime(),
                 auction.getStatus(),
-                auction.getVersion(),
                 occurredAt
         ));
     }
@@ -539,8 +544,7 @@ public class AuctionCommandService {
                 winningBid == null ? null : winningBid.getBidderId(),
                 winningBid == null ? null : winningBid.getId(),
                 winningBid == null ? null : winningBid.getBidPrice(),
-                auction.getCloseTime(),
-                auction.getVersion()
+                auction.getCloseTime()
         );
     }
 
@@ -550,7 +554,6 @@ public class AuctionCommandService {
                 .status(auction.getStatus())
                 .startsAt(toInstant(auction.getOpenTime()))
                 .endsAt(toInstant(auction.getCloseTime()))
-                .version(auction.getVersion())
                 .build();
     }
 
@@ -568,7 +571,6 @@ public class AuctionCommandService {
                 ),
                 new BidResponses.AuctionSnapshot(
                         auction.getId(),
-                        auction.getVersion(),
                         auction.getCurrentPrice(),
                         auction.minimumBid(),
                         auction.getBidCount(),

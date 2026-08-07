@@ -18,7 +18,7 @@ const auction:AuctionDto={
     theme:'gold',bidCount:0,psaGrade:'10',language:'JP',imageUrl:null,
   },
   startPrice:10000,currentPrice:12000,bidIncrement:1000,bidCount:1,
-  endsAt:'2099-08-03T12:00:00',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,version:1,
+  endsAt:'2099-08-03T12:00:00',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,
 };
 
 function LocationProbe(){
@@ -43,6 +43,13 @@ describe('AuctionCatalog',()=>{
     renderCatalog('authenticated',{sellerId:7});
 
     expect(screen.getByRole('button',{name:'내가 등록한 경매'})).toBeDisabled();
+  });
+
+  it('현재 최고 입찰자는 입찰 현황을 보기 위해 버튼을 누를 수 있다',()=>{
+    renderCatalog('authenticated',{myBidStatus:'LEADING',myBidAmount:12_000});
+
+    const button=screen.getByRole('button',{name:/내가 최고가 입찰 중/});
+    expect(button).toBeEnabled();
   });
 
   it('PSA 접두사가 포함된 등급도 한 번만 표시한다',()=>{

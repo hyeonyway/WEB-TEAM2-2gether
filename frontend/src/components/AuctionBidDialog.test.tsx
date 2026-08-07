@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
+import {dashboardQueryKey} from '../queries/dashboardQueries';
 import AuctionBidDialog from './AuctionBidDialog';
 
 const mocks=vi.hoisted(()=>({
@@ -28,25 +29,25 @@ const auction:AuctionDto={
   id:1,
   card:{id:1,name:'피카츄',marketPrice:10_000,lowPrice:10_000,highPrice:10_000,changeRate:0,theme:'gold',bidCount:1,psaGrade:'10',language:'KR',imageUrl:null},
   startPrice:9_000,currentPrice:10_000,bidIncrement:1_000,bidCount:1,
-  endsAt:'2099-08-04T10:00:00Z',status:'OPEN',version:1,myBidStatus:'NONE',myBidAmount:null,
+  endsAt:'2099-08-04T10:00:00Z',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,
 };
 
 const context:BidContextResponseDto={
-  auction_id:1,status:'OPEN',version:1,current_price:10_000,minimum_bid:11_000,bid_increment:1_000,
+  auction_id:1,status:'OPEN',current_price:10_000,minimum_bid:11_000,bid_increment:1_000,
   my_bid_status:'NONE',my_bid_amount:null,wallet:{available_balance:100_000,frozen_balance:0},recent_bids:[],
 };
 
 const bidEvent:AuctionStreamPayload={
   type:'BID_PLACED',auction_id:1,bidder_id:2,previous_bidder_id:null,
   start_price:9_000,current_price:30_000,bid_increment:2_000,bid_count:2,
-  ends_at:'2099-08-04T11:00:00Z',status:'OPEN',auction_version:2,occurred_at:'2026-08-04T01:00:00Z',
+  ends_at:'2099-08-04T11:00:00Z',status:'OPEN',event_id:2,occurred_at:'2026-08-04T01:00:00Z',
 };
 
 function renderDialog(){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
-  return render(<QueryClientProvider client={queryClient}>
+  return {queryClient,...render(<QueryClientProvider client={queryClient}>
     <AuctionBidDialog auction={auction} onClose={vi.fn()}/>
-  </QueryClientProvider>);
+  </QueryClientProvider>)};
 }
 
 describe('AuctionBidDialog',()=>{
@@ -86,5 +87,23 @@ describe('AuctionBidDialog',()=>{
 
     expect(input).toHaveValue(50_000);
     expect(screen.getByRole('button',{name:'50,000원 입찰하기'})).toBeInTheDocument();
+  });
+
+  it('입찰 성공 응답으로 참여 경매 대시보드를 최고 입찰 상태로 갱신한다',async()=>{
+    const{queryClient}=renderDialog();
+    mocks.createBid.mockResolvedValue({
+      bid:{id:10,amount:11_000,status:'LEADING',created_at:'2026-08-04T01:00:00Z'},
+      auction:{id:1,current_price:11_000,minimum_bid:12_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},
+      wallet:{available_balance:89_000,frozen_balance:11_000},
+    });
+    const dashboardKey=[...dashboardQueryKey,'participating-auctions','ENDING_SOON'];
+    queryClient.setQueryData(dashboardKey,[auction]);
+
+    await userEvent.setup().click(await screen.findByRole('button',{name:'11,000원 입찰하기'}));
+
+    await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledOnce());
+    await waitFor(()=>expect(queryClient.getQueryData<AuctionDto[]>(dashboardKey)?.[0]).toMatchObject({
+      currentPrice:11_000,bidCount:2,myBidStatus:'LEADING',myBidAmount:11_000,
+    }));
   });
 });

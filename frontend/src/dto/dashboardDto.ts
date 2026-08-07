@@ -16,7 +16,6 @@ export type DashboardAuctionResponseDto={
   bid_count:number;
   ends_at:string;
   status:AuctionStatus;
-  version:number;
   my_bid_status:MyBidStatus;
   my_bid_amount:number|null;
 };

@@ -179,7 +179,6 @@ public class AuctionQueryService {
         return BidResponses.BidContext.builder()
                 .auctionId(auction.getId())
                 .status(auction.getStatus())
-                .version(auction.getVersion())
                 .currentPrice(auction.getCurrentPrice())
                 .minimumBid(auction.minimumBid())
                 .bidIncrement(auction.getBidPriceUnit())
@@ -259,7 +258,6 @@ public class AuctionQueryService {
                 .startsAt(toInstant(auction.getOpenTime()))
                 .endsAt(toInstant(auction.getCloseTime()))
                 .status(auction.getStatus())
-                .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .build();
@@ -274,7 +272,7 @@ public class AuctionQueryService {
         return new AuctionResponses.DashboardAuction(
                 auction.getId(), auction.getSellerId(), cardSummary(card, representativeImage),
                 auction.getStartPrice(), auction.getCurrentPrice(), auction.getBidPriceUnit(), auction.getBidCount(),
-                auction.getEstimatedCloseTime(), auction.getCloseTime(), auction.getStatus(), auction.getVersion(),
+                auction.getEstimatedCloseTime(), auction.getCloseTime(), auction.getStatus(),
                 bid.getStatus(), bid.getBidPrice()
         );
     }
@@ -297,7 +295,6 @@ public class AuctionQueryService {
                 .startsAt(toInstant(auction.getOpenTime()))
                 .endsAt(toInstant(auction.getCloseTime()))
                 .status(auction.getStatus())
-                .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .description(auction.getDescription())

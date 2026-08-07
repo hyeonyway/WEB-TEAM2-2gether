@@ -42,7 +42,6 @@ public final class AuctionResponses {
             @JsonProperty("starts_at") Instant startsAt,
             @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
-            Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
             @JsonProperty("my_bid_amount") Long myBidAmount
     ) {
@@ -61,7 +60,6 @@ public final class AuctionResponses {
             @JsonProperty("starts_at") Instant startsAt,
             @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
-            Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
             @JsonProperty("my_bid_amount") Long myBidAmount,
             String description,
@@ -103,7 +101,6 @@ public final class AuctionResponses {
             LocalDateTime estimatedCloseTime,
             LocalDateTime closeTime,
             AuctionStatus status,
-            Long version,
             BidStatus bidStatus,
             Long bidAmount
     ) {

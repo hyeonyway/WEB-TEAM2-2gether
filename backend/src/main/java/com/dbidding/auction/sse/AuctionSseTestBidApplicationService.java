@@ -31,7 +31,7 @@ class AuctionSseTestBidApplicationService {
                 bid.bidderId(), bid.previousBidderId(), null, auction.startPrice(),
                 bid.currentPrice(), null, auction.bidIncrement(), bid.bidCount(),
                 UtcTime.toInstant(auction.endsAt()), AuctionStatus.valueOf(auction.status()),
-                bid.auctionVersion(), null, clock.instant());
+                null, clock.instant());
         connectionManager.broadcast(payload);
         return payload;
     }
@@ -43,10 +43,10 @@ class AuctionSseTestBidApplicationService {
                 bidderId,
                 previous == null ? auction.currentBidderId() : previous.bidderId(),
                 (previous == null ? auction.currentPrice() : previous.currentPrice()) + auction.bidIncrement(),
-                (previous == null ? auction.bidCount() : previous.bidCount()) + 1,
-                (previous == null ? auction.auctionVersion() : previous.auctionVersion()) + 1);
+                (previous == null ? auction.bidCount() : previous.bidCount()) + 1
+        );
     }
 
     private record SimulatedBid(Integer bidderId, Integer previousBidderId, Long currentPrice,
-                                Integer bidCount, Long auctionVersion) { }
+                                Integer bidCount) { }
 }

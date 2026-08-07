@@ -3,7 +3,7 @@ import type {AuctionDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {applyDashboardAuctionEvent} from './dashboardQueries';
 
-const auction=(id:number,currentPrice:number,endsAt:string,version:number):AuctionDto=>({
+const auction=(id:number,currentPrice:number,endsAt:string,eventId:number):AuctionDto=>({
   id,
   card:{
     id,
@@ -24,7 +24,7 @@ const auction=(id:number,currentPrice:number,endsAt:string,version:number):Aucti
   bidCount:1,
   endsAt,
   status:'OPEN',
-  version,
+  eventId,
   myBidStatus:'OUTBID',
   myBidAmount:currentPrice-1_000,
 });
@@ -40,7 +40,7 @@ const bidEvent:AuctionStreamPayload={
   bid_count:3,
   ends_at:'2026-08-01T10:00:00Z',
   status:'ENDING',
-  auction_version:2,
+  event_id:2,
   occurred_at:'2026-07-31T03:00:00Z',
 };
 
@@ -57,12 +57,12 @@ describe('applyDashboardAuctionEvent',()=>{
       bidCount:3,
       bidIncrement:2_000,
       status:'ENDING',
-      version:2,
+      eventId:2,
       card:{bidCount:3},
     });
   });
 
-  it('이미 반영한 버전보다 오래된 이벤트는 값을 되돌리지 않는다',()=>{
+  it('이미 반영한 이벤트보다 오래된 이벤트는 값을 되돌리지 않는다',()=>{
     const result=applyDashboardAuctionEvent([
       auction(1,40_000,'2026-08-01T10:00:00Z',3),
     ],bidEvent,'ENDING_SOON');
@@ -70,7 +70,7 @@ describe('applyDashboardAuctionEvent',()=>{
     expect(result[0]).toMatchObject({
       currentPrice:40_000,
       bidCount:1,
-      version:3,
+      eventId:3,
     });
   });
 });

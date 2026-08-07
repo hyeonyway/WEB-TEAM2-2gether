@@ -19,7 +19,6 @@ public record AuctionClosedEvent(
         Integer bidCount,
         LocalDateTime closeTime,
         AuctionStatus status,
-        Long version,
         LocalDateTime occurredAt
 ) {
 }

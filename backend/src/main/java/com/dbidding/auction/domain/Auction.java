@@ -8,7 +8,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -87,10 +86,6 @@ public class Auction {
     @Column(name = "is_hyped", nullable = false)
     private Boolean hyped;
 
-    @Version
-    @Column(nullable = false)
-    private Long version;
-
     @Column(name = "idempotency_key", length = 64)
     private String createIdempotencyKey;
 
@@ -135,7 +130,6 @@ public class Auction {
         this.bidCount = 0;
         this.bidPriceUnit = bidPriceUnit;
         this.hyped = hyped == null ? Boolean.FALSE : hyped;
-        this.version = 1L;
     }
 
     public void recordCreateIdempotency(String idempotencyKey, String requestHash) {

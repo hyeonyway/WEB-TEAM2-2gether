@@ -191,21 +191,21 @@ class NotificationEventListenerTest {
     private AuctionOpenedEvent openedEvent() {
         return new AuctionOpenedEvent(
                 100, 10, "리자몽 EX", "10", "JP", "/card.png", 9,
-                40_000L, 40_000L, 1_000L, 0, now.plusHours(1), AuctionStatus.OPEN, 1L, now
+                40_000L, 40_000L, 1_000L, 0, now.plusHours(1), AuctionStatus.OPEN, now
         );
     }
 
     private BidPlacedEvent bidPlacedEvent(Integer previousBidderId) {
         return new BidPlacedEvent(
                 100, 10, 1, previousBidderId, previousBidderId == null ? null : 5L,
-                40_000L, 51_000L, 1_000L, 1, now.plusHours(1), AuctionStatus.OPEN, 2L, now
+                40_000L, 51_000L, 1_000L, 1, now.plusHours(1), AuctionStatus.OPEN, now
         );
     }
 
     private AuctionClosedEvent closedEvent(Integer winnerId, Long winningPrice) {
         return new AuctionClosedEvent(
                 100, 10, "리자몽 EX", "10", "JP", "/card.png", winnerId, 9,
-                40_000L, 45_000L, winningPrice, 1_000L, 3, now, AuctionStatus.ENDED, 3L, now
+                40_000L, 45_000L, winningPrice, 1_000L, 3, now, AuctionStatus.ENDED, now
         );
     }
 }

@@ -108,4 +108,5 @@ describe('useAuctionWalletSync',()=>{
 
     expectWalletInvalidated(queryClient,false);
   });
+
 });

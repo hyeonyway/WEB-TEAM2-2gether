@@ -71,7 +71,6 @@ class DashboardControllerTest {
                 2,
                 Instant.parse("2026-07-31T03:00:00Z"),
                 AuctionStatus.OPEN,
-                1L,
                 MyBidStatus.LEADING,
                 12_000L
         )));

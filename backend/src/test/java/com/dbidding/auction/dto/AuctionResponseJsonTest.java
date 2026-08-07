@@ -29,7 +29,6 @@ class AuctionResponseJsonTest {
                 now,
                 now.plusSeconds(3600),
                 AuctionStatus.OPEN,
-                2L,
                 MyBidStatus.LEADING,
                 12_000L
         );
@@ -55,7 +54,7 @@ class AuctionResponseJsonTest {
         Instant now = Instant.parse("2026-07-30T12:00:00Z");
         var response = new BidResponses.BidResult(
                 new BidResponses.BidDetail(10L, 13_000L, BidStatus.LEADING, now),
-                new BidResponses.AuctionSnapshot(1, 2L, 13_000L, 14_000L, 3, now.plusSeconds(3600)),
+                new BidResponses.AuctionSnapshot(1, 13_000L, 14_000L, 3, now.plusSeconds(3600)),
                 new BidResponses.WalletSummary(87_000L, 13_000L)
         );
 
@@ -74,7 +73,7 @@ class AuctionResponseJsonTest {
     void 경매_생성_응답은_snake_case로_직렬화된다() {
         Instant now = Instant.parse("2026-07-30T12:00:00Z");
         JsonNode created = objectMapper.valueToTree(
-                new AuctionCreateResponse(1, AuctionStatus.OPEN, now, now.plusSeconds(3600), 1L)
+                new AuctionCreateResponse(1, AuctionStatus.OPEN, now, now.plusSeconds(3600))
         );
 
         assertThat(created.has("starts_at")).isTrue();

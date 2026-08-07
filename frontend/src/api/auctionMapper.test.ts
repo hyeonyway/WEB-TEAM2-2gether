@@ -23,7 +23,6 @@ const auctionResponse:AuctionResponseDto={
   status:'OPEN',
   my_bid_status:'NONE',
   my_bid_amount:null,
-  version:1,
 };
 
 describe('mapAuction',()=>{

@@ -19,7 +19,6 @@ public final class DashboardResponse {
             @JsonProperty("bid_count") Integer bidCount,
             @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
-            Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
             @JsonProperty("my_bid_amount") Long myBidAmount
     ) {
