@@ -1,6 +1,6 @@
-package com.dbidding.batch.scheduler;
+package com.dbidding.notification.scheduler;
 
-import com.dbidding.batch.service.NotificationReconciliationService;
+import com.dbidding.notification.NotificationReconciliationService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -11,35 +11,36 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 경매 종료(낙찰/유찰) 알림 유실 복구. 순수 결과 통보라 늦어도 유저가 할 수 있는 게 없으므로
- * UrgentNotificationRecoveryScheduler보다 느긋한 주기로 돈다.
+ * 경매 생성/상회 입찰 알림 유실 복구. 지연이 곧 유저 손해로 이어질 수 있는 두 타입이라
+ * AuctionResultNotificationRecoveryScheduler보다 짧은 주기로 돈다.
  * 설계 근거: docs/hamin/notification/6-notification-recovery-batch.md 결정 5
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(
-        name = "notification.recovery.result.enabled",
+        name = "notification.recovery.urgent.enabled",
         havingValue = "true",
         matchIfMissing = true
 )
-public class AuctionResultNotificationRecoveryScheduler {
+public class UrgentNotificationRecoveryScheduler {
 
     private final NotificationReconciliationService notificationReconciliationService;
     private final Clock clock;
 
-    // 7분에 한번 -> 윈도우 20분
+    // 1분 30초에 한번 -> 10분 윈도분
     @Scheduled(
-            fixedDelayString = "${notification.recovery.result.fixed-delay-ms:420000}",
+            fixedDelayString = "${notification.recovery.urgent.fixed-delay-ms:90000}",
             scheduler = "notificationRecoveryTaskScheduler"
     )
     public void recover() {
         LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime auctionClosedWindowStart = now.minus(Duration.ofMinutes(20));
+        LocalDateTime auctionOpenedWindowStart = now.minus(Duration.ofMinutes(10));
         try {
-            notificationReconciliationService.recoverAuctionClosedNotifications(auctionClosedWindowStart);
+            notificationReconciliationService.recoverAuctionOpenedNotifications(auctionOpenedWindowStart);
+            notificationReconciliationService.recoverOutbidNotifications(auctionOpenedWindowStart);
         } catch (RuntimeException exception) {
-            log.error("event=notification.recovery.result.failed now={}", now, exception);
+            log.error("event=notification.recovery.urgent.failed now={}", now, exception);
             throw exception;
         }
     }
