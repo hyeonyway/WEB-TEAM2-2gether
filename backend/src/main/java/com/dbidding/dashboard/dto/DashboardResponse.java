@@ -11,6 +11,7 @@ public final class DashboardResponse {
 
     public record AuctionSnapshot(
             Integer id,
+            @JsonProperty("seller_id") Integer sellerId,
             CardSnapshot card,
             @JsonProperty("start_price") Long startPrice,
             @JsonProperty("current_price") Long currentPrice,

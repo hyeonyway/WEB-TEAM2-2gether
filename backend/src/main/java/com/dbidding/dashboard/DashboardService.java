@@ -137,6 +137,7 @@ public class DashboardService {
         );
         return new DashboardResponse.AuctionSnapshot(
                 auction.getId(),
+                auction.getSellerId(),
                 new DashboardResponse.CardSnapshot(
                         auction.getItemId(),
                         card == null ? auction.getAuctionName() : card.name(),

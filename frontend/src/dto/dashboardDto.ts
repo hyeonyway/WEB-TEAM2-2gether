@@ -2,6 +2,7 @@ import type {AuctionStatus,MyBidStatus} from './auctionDto';
 
 export type DashboardAuctionResponseDto={
   id:number;
+  seller_id:number;
   card:{
     id:number;
     name:string;
