@@ -5,6 +5,7 @@ import {AuctionBidDialog} from '../../../components';
 import type {AuctionDto} from '../../../dto/auctionDto';
 import CardArtwork from '../../cards/components/CardArtwork';
 import {useAuthGate} from '../../../auth/useAuthGate';
+import {useCurrentUserId} from '../../../auth/useCurrentUserId';
 import {normalizePsaGrade} from '../../../api/auctionMapper';
 import {nowUtc,parseUtc} from '../../../utils/utc';
 
@@ -49,6 +50,7 @@ function AnimatedAuctionPrice({price}:{price:number}){
 
 export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
   const authGate=useAuthGate();
+  const currentUserId=useCurrentUserId();
   const[selectedAuction,setSelectedAuction]=useState<AuctionDto|null>(null);
   const[now,setNow]=useState(nowUtc());
   useEffect(()=>{
@@ -56,7 +58,7 @@ export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
     return()=>window.clearInterval(timer);
   },[]);
   if(!auctions.length)return <div className="filter-empty"><Search/><b>조건에 맞는 경매가 없습니다.</b><span>검색어나 필터를 변경해 보세요.</span></div>;
-  return <><section className="card-grid">{auctions.map(auction=>{const remaining=remainingTime(auction.endsAt,now),ended=!['OPEN','ENDING'].includes(auction.status)||remaining==='경매 종료',buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} key={auction.id}>
+  return <><section className="card-grid">{auctions.map(auction=>{const remaining=remainingTime(auction.endsAt,now),ended=!['OPEN','ENDING'].includes(auction.status)||remaining==='경매 종료',isSeller=currentUserId!==null&&auction.sellerId===currentUserId,buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} key={auction.id}>
     <div className="auction-image-viewport"><CardArtwork theme={auction.card.theme} imageUrl={auction.card.imageUrl} name={auction.card.name}/></div>
     <div>
       <div className="card-meta"><span><span className="grade">PSA {psaGrade}</span><span className="grade">{auction.card.language}</span></span><span className="auction-countdown"><Clock3/>{remaining}{!ended&&' 남음'}</span></div>
@@ -70,8 +72,8 @@ export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
       </div>
       <div className="card-actions">
         <Link className="card-detail-button" to={`/auction/${auction.id}`}>상세보기</Link>
-        <button className={`card-bid-button ${buttonState}`} type="button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setSelectedAuction(auction)}}>
-          {ended?'경매 종료':auction.myBidStatus==='LEADING'?<><CheckCircle2/><span><b>내가 최고가 입찰 중</b><small>현재 1위 · 입찰 현황 보기</small></span></>:auction.myBidStatus==='OUTBID'?<><b>상회 입찰 필요</b><small>내 입찰 {(auction.myBidAmount??0).toLocaleString()}원</small></>:<b>입찰하기</b>}
+        <button className={`card-bid-button ${buttonState}`} type="button" disabled={ended||isSeller} onClick={()=>{if(authGate.requestNavigation())setSelectedAuction(auction)}}>
+          {ended?'경매 종료':isSeller?<b>내가 등록한 경매</b>:auction.myBidStatus==='LEADING'?<><CheckCircle2/><span><b>내가 최고가 입찰 중</b><small>현재 1위 · 입찰 현황 보기</small></span></>:auction.myBidStatus==='OUTBID'?<><b>상회 입찰 필요</b><small>내 입찰 {(auction.myBidAmount??0).toLocaleString()}원</small></>:<b>입찰하기</b>}
         </button>
       </div>
     </div>

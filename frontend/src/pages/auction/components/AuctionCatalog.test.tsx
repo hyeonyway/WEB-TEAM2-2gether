@@ -7,6 +7,10 @@ import ToastContainer from '../../../components/Toast';
 import type {AuctionDto} from '../../../dto/auctionDto';
 import AuctionCatalog from './AuctionCatalog';
 
+const currentUserId=vi.hoisted(()=>vi.fn());
+
+vi.mock('../../../auth/useCurrentUserId',()=>({useCurrentUserId:currentUserId}));
+
 const auction:AuctionDto={
   id:1,
   card:{
@@ -22,10 +26,10 @@ function LocationProbe(){
   return <output data-testid="auction-catalog-path">{location.pathname}</output>;
 }
 
-function renderCatalog(){
+function renderCatalog(status:'anonymous'|'authenticated'='anonymous',auctionOverride:Partial<AuctionDto>={}){
   return render(<MemoryRouter>
-    <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
-      <AuctionCatalog auctions={[auction]}/>
+    <AuthContext.Provider value={{status,retryInitialization:vi.fn()}}>
+      <AuctionCatalog auctions={[{...auction,...auctionOverride}]}/>
       <ToastContainer/>
       <LocationProbe/>
     </AuthContext.Provider>
@@ -33,6 +37,14 @@ function renderCatalog(){
 }
 
 describe('AuctionCatalog',()=>{
+  it('내가 등록한 경매는 입찰 버튼을 비활성화한다',()=>{
+    currentUserId.mockReturnValue(7);
+
+    renderCatalog('authenticated',{sellerId:7});
+
+    expect(screen.getByRole('button',{name:'내가 등록한 경매'})).toBeDisabled();
+  });
+
   it('PSA 접두사가 포함된 등급도 한 번만 표시한다',()=>{
     render(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
       <AuctionCatalog auctions={[{...auction,card:{...auction.card,psaGrade:'PSA 10'}}]}/>

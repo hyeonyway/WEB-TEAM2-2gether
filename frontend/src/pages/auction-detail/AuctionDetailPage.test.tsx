@@ -7,6 +7,10 @@ import {AuthContext} from '../../auth/AuthProvider';
 import ToastContainer from '../../components/Toast';
 import AuctionDetailPage from './AuctionDetailPage';
 
+const currentUserId=vi.hoisted(()=>vi.fn());
+
+vi.mock('../../auth/useCurrentUserId',()=>({useCurrentUserId:currentUserId}));
+
 const apiMocks=vi.hoisted(()=>({
   detail:vi.fn(),
   bids:vi.fn(),
@@ -34,11 +38,11 @@ const detail={
   ],psa_certification:null,
 };
 
-function renderAnonymousDetail(){
+function renderAnonymousDetail(status:'anonymous'|'authenticated'='anonymous'){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   return render(<QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={['/auction/10']}>
-      <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+      <AuthContext.Provider value={{status,retryInitialization:vi.fn()}}>
         <Routes>
           <Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/>
           <Route path="/cards/:cardId" element={<h1>카드 시세 Route</h1>}/>
@@ -51,12 +55,26 @@ function renderAnonymousDetail(){
 
 describe('AuctionDetailPage',()=>{
   beforeEach(()=>{
+    currentUserId.mockReturnValue(null);
     apiMocks.detail.mockReset().mockResolvedValue(detail);
     apiMocks.bids.mockReset().mockResolvedValue({
       content:[{id:1,amount:12000,bidder_alias:'user-1***',is_highest:true,created_at:'2026-08-01T11:00:00'}],
       page:0,size:5,total_elements:1,has_next:false,
     });
     apiMocks.bidContext.mockReset().mockResolvedValue({});
+  });
+
+  it('내가 등록한 경매의 입찰 버튼을 비활성화한다',async()=>{
+    currentUserId.mockReturnValue(2);
+    apiMocks.bidContext.mockResolvedValue({
+      auction_id:10,status:'OPEN',version:1,current_price:12000,minimum_bid:13000,bid_increment:1000,
+      my_bid_status:'NONE',my_bid_amount:null,
+      wallet:{available_balance:100000,frozen_balance:0},recent_bids:[],
+    });
+
+    renderAnonymousDetail('authenticated');
+
+    expect(await screen.findByRole('button',{name:'내가 등록한 경매'})).toBeDisabled();
   });
 
   it('비로그인 상세에서 공개 정보와 입찰 이력만 조회한다',async()=>{

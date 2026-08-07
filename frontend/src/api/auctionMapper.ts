@@ -51,6 +51,7 @@ const mapAuctionCard=(dto:AuctionCardResponseDto):CardDto=>({
 
 export const mapAuction=(dto:AuctionResponseDto):AuctionDto=>({
   id:dto.id,
+  sellerId:dto.seller.id,
   card:mapAuctionCard(dto.card),
   startPrice:dto.start_price,
   currentPrice:dto.current_price,

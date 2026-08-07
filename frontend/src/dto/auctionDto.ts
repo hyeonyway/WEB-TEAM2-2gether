@@ -197,6 +197,7 @@ export type CardDto={
 
 export type AuctionDto={
   id:number;
+  sellerId?:number;
   card:CardDto;
   startPrice:number;
   currentPrice:number;

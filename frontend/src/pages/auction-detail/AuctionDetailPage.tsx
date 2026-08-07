@@ -6,6 +6,7 @@ import {AuctionBidDialog,Header} from '../../components';
 import {mapAuction,mapCardLanguage,normalizePsaGrade} from '../../api/auctionMapper';
 import {auctionQueries} from '../../queries/auctionQueries';
 import {useAuthGate} from '../../auth/useAuthGate';
+import {useCurrentUserId} from '../../auth/useCurrentUserId';
 import AuctionDetailSkeleton from './AuctionDetailSkeleton';
 import AuctionImageGallery from './AuctionImageGallery';
 
@@ -43,6 +44,7 @@ export default function AuctionDetailPage(){
   const now=useAuctionNow();
   const[bidOpen,setBidOpen]=useState(false);
   const authGate=useAuthGate();
+  const currentUserId=useCurrentUserId();
   const authenticated=authGate.status==='authenticated';
   const viewerScope=authenticated?'self':'public';
   const detailQuery=useQuery({
@@ -79,6 +81,7 @@ export default function AuctionDetailPage(){
   const language=mapCardLanguage(detail.card.language);
   const remaining=formatRemaining(detail.ends_at,now);
   const ended=!['OPEN','ENDING'].includes(detail.status)||remaining==='경매 종료';
+  const isSeller=currentUserId!==null&&detail.seller.id===currentUserId;
   const increaseRate=detail.start_price>0
     ?(currentPrice-detail.start_price)/detail.start_price*100
     :0;
@@ -103,8 +106,8 @@ export default function AuctionDetailPage(){
           <span>등급 및 상태<b>{gradeLabel}</b></span>
         </div>
         {context&&<div className="auction-wallet-summary"><span><Wallet/>보유 포인트</span><strong>{context.wallet.available_balance.toLocaleString()}P</strong></div>}
-        <button className="auction-detail-bid-button" disabled={ended} onClick={()=>{if(authGate.requestNavigation())setBidOpen(true)}}>
-          {ended?'경매 종료':`${minimumBid.toLocaleString()}원부터 입찰하기`}
+        <button className="auction-detail-bid-button" disabled={ended||isSeller} onClick={()=>{if(authGate.requestNavigation())setBidOpen(true)}}>
+          {ended?'경매 종료':isSeller?'내가 등록한 경매':`${minimumBid.toLocaleString()}원부터 입찰하기`}
         </button>
         <Link className="auction-card-price-link" to={`/cards/${detail.card.id}`}>카드 시세 상세 <ChevronRight/></Link>
         <section className="auction-detail-history"><h2>최근 입찰 내역</h2>

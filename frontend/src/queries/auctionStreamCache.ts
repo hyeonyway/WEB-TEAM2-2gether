@@ -49,6 +49,7 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
   const currentPrice=event.current_price??event.final_price??event.start_price;
   return {
     id:event.auction_id,
+    sellerId:event.seller_id,
     card:{
       id:event.card_id,
       name:event.card_name,
