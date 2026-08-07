@@ -31,9 +31,15 @@ AuctionSseEventListener (AFTER_COMMIT)
 | `AUCTION_SSE_QUEUE_CAPACITY` | 2000 | 대기 작업 수 |
 
 thread name prefix는 `auction-sse-`로 지정해 로그와 스레드 덤프에서 경매 SSE
-작업을 구분한다. 큐가 포화되면 `DiscardPolicy`로 신규 작업을 버린다. 이벤트
-발행 경로를 막지 않는 대신, 포화 상태에서 일부 실시간 갱신은 클라이언트의 SSE
-재연결 또는 다음 payload로 보정될 수 있음을 전제로 한다.
+작업을 구분한다. 큐가 포화되면 거부 handler가 `event=auction.sse.executor.saturated`
+warn 로그와 active worker·queue 크기를 남긴 뒤, 호출 스레드에서 해당 작업을 즉시
+실행한다. 따라서 executor 포화 때문에 broadcast 전체가 조용히 폐기되지 않는다.
+
+현재 SSE는 `Last-Event-ID` replay를 제공하지 않으므로 이벤트 유실을 허용하는
+`DiscardPolicy`를 사용하지 않는다. 포화 시 이벤트 발행 경로가 잠시 지연될 수
+있지만, 이는 연결된 모든 emitter가 같은 경매 이벤트를 놓치는 것보다 우선한다.
+애플리케이션 종료 중 거부된 작업은 새 전송을 보장할 수 없으므로 shutdown 원인을
+warn 로그로 남기고, 정상 운영 중 포화와 구분한다.
 
 ## 변경 전후
 
