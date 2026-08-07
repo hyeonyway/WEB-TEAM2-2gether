@@ -4,7 +4,7 @@ import {Search} from 'lucide-react';
 import {useSearchParams} from 'react-router-dom';
 import {AuctionCatalog,AuctionCatalogSkeleton} from './components';
 import type {AuctionDto,AuctionListRequestDto,CursorPageResponseDto} from '../../dto/auctionDto';
-import {auctionQueries} from '../../queries/auctionQueries';
+import {auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
 import {applyAuctionEvent,sortAuctions} from '../../queries/auctionStreamCache';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {Header} from '../../components';
@@ -45,6 +45,9 @@ export default function AuctionPage(){
           pages:current.pages.map(page=>({...page,content:applyAuctionEvent(page.content,event)})),
         };
       });
+    },
+    onReplayReset:()=>{
+      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
     },
   });
   const{

@@ -34,6 +34,12 @@ function publish(type:'AUCTION_CREATED'|'BID_PLACED'|'AUCTION_CLOSED',data:objec
   }));
 }
 
+function publishReplayReset(){
+  const eventSource=EventSourceMock.instances.at(-1);
+  if(!eventSource)throw new Error('EventSource가 생성되지 않았습니다.');
+  eventSource.dispatchEvent(new Event('replay-reset'));
+}
+
 describe('useAuctionStream',()=>{
   beforeEach(()=>{
     EventSourceMock.instances=[];
@@ -63,6 +69,15 @@ describe('useAuctionStream',()=>{
     act(()=>publish('BID_PLACED',{...basePayload}));
 
     expect(onAuctionUpdated).not.toHaveBeenCalled();
+  });
+
+  it('replay-reset을 받으면 전체 상태 재조회 콜백을 실행한다',()=>{
+    const onReplayReset=vi.fn();
+    renderHook(()=>useAuctionStream({onAuctionUpdated:vi.fn(),onReplayReset}));
+
+    act(()=>publishReplayReset());
+
+    expect(onReplayReset).toHaveBeenCalledOnce();
   });
 
   it('언마운트 시 이벤트 구독과 연결을 정리한다',()=>{

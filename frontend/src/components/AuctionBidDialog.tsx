@@ -44,6 +44,12 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       const bidContextKey=auctionQueryKeys.bidContext(auction.id);
       queryClient.setQueryData<BidContextResponseDto>(bidContextKey,current=>applyBidContextEvent(current,event));
     },
+    onReplayReset:()=>{
+      void Promise.all([
+        queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
+        queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auction.id)}),
+      ]);
+    },
   });
   const wallet=context?.wallet.available_balance??0;
   const currentPrice=context?.current_price??auction.currentPrice;

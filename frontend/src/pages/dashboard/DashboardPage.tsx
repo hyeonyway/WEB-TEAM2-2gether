@@ -34,6 +34,9 @@ export default function DashboardPage(){
         current=>applyDashboardAuctionEvent(current,event,participatingSort),
       );
     },
+    onReplayReset:()=>{
+      void queryClient.invalidateQueries({queryKey:dashboardQueryKey});
+    },
   });
   const dashboard=useQuery({
     ...(active==='participating'

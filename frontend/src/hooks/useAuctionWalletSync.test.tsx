@@ -41,6 +41,12 @@ function publish(type:'BID_PLACED'|'AUCTION_CLOSED',data:object){
   eventSource.dispatchEvent(new MessageEvent(type,{data:JSON.stringify(data)}));
 }
 
+function publishReplayReset(){
+  const eventSource=EventSourceMock.instances.at(-1);
+  if(!eventSource)throw new Error('EventSource가 생성되지 않았습니다.');
+  eventSource.dispatchEvent(new Event('replay-reset'));
+}
+
 function setup(userId=7){
   const queryClient=new QueryClient({
     defaultOptions:{queries:{retry:false}},
@@ -107,5 +113,13 @@ describe('useAuctionWalletSync',()=>{
     act(()=>publish('BID_PLACED',{...basePayload,bidder_id:7,previous_bidder_id:5}));
 
     expectWalletInvalidated(queryClient,false);
+  });
+
+  it('replay-reset을 받으면 Wallet Query를 다시 조회한다',()=>{
+    const queryClient=setup(7);
+
+    act(()=>publishReplayReset());
+
+    expectWalletInvalidated(queryClient,true);
   });
 });

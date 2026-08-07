@@ -45,13 +45,18 @@ type AuctionStreamEventType=typeof AUCTION_STREAM_EVENT_TYPES[number];
 type UseAuctionStreamOptions={
   enabled?:boolean;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
+  onReplayReset?:()=>void;
 };
 
-type AuctionStreamSubscriber=(payload:AuctionStreamPayload)=>void;
+type AuctionStreamSubscriber={
+  onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
+  onReplayReset?:()=>void;
+};
 
 const subscribers=new Set<AuctionStreamSubscriber>();
 let sharedEventSource:EventSource|null=null;
-let sharedListeners:ReadonlyArray<readonly[AuctionStreamEventType,EventListener]>=[];
+let sharedListeners:ReadonlyArray<readonly[string,EventListener]>=[];
+const REPLAY_RESET_EVENT='replay-reset';
 
 function auctionStreamUrl(){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
@@ -116,11 +121,16 @@ function connectSharedEventSource(){
   sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
     const listener:EventListener=event=>{
       const payload=parsePayload(type,(event as MessageEvent<string>).data);
-      if(payload)subscribers.forEach(subscriber=>subscriber(payload));
+      if(payload)subscribers.forEach(subscriber=>subscriber.onAuctionUpdated(payload));
     };
     eventSource.addEventListener(type,listener);
     return [type,listener] as const;
   });
+  const replayResetListener:EventListener=()=>{
+    subscribers.forEach(subscriber=>subscriber.onReplayReset?.());
+  };
+  eventSource.addEventListener(REPLAY_RESET_EVENT,replayResetListener);
+  sharedListeners=[...sharedListeners,[REPLAY_RESET_EVENT,replayResetListener]];
 }
 
 function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
@@ -141,12 +151,18 @@ function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
 export function useAuctionStream({
   enabled=true,
   onAuctionUpdated,
+  onReplayReset,
 }:UseAuctionStreamOptions){
   const onAuctionUpdatedRef=useRef(onAuctionUpdated);
+  const onReplayResetRef=useRef(onReplayReset);
   onAuctionUpdatedRef.current=onAuctionUpdated;
+  onReplayResetRef.current=onReplayReset;
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
-    return subscribeToAuctionStream(payload=>onAuctionUpdatedRef.current(payload));
+    return subscribeToAuctionStream({
+      onAuctionUpdated:payload=>onAuctionUpdatedRef.current(payload),
+      onReplayReset:()=>onReplayResetRef.current?.(),
+    });
   },[enabled]);
 }
