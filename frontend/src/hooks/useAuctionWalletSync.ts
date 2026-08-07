@@ -23,5 +23,8 @@ export function useAuctionWalletSync(userId:number|null,authenticated:boolean){
     onReplayReset:()=>{
       void queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()});
     },
+    onReconnected:()=>{
+      void queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()});
+    },
   });
 }

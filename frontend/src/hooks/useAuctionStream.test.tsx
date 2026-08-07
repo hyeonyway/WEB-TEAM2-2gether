@@ -6,6 +6,7 @@ class EventSourceMock extends EventTarget{
   static instances:EventSourceMock[]=[];
   readonly url:string;
   close=vi.fn();
+  onopen:((event:Event)=>void)|null=null;
 
   constructor(url:string|URL){
     super();
@@ -38,6 +39,12 @@ function publishReplayReset(){
   const eventSource=EventSourceMock.instances.at(-1);
   if(!eventSource)throw new Error('EventSource가 생성되지 않았습니다.');
   eventSource.dispatchEvent(new Event('replay-reset'));
+}
+
+function openStream(){
+  const eventSource=EventSourceMock.instances.at(-1);
+  if(!eventSource)throw new Error('EventSource가 생성되지 않았습니다.');
+  eventSource.onopen?.(new Event('open'));
 }
 
 describe('useAuctionStream',()=>{
@@ -78,6 +85,17 @@ describe('useAuctionStream',()=>{
     act(()=>publishReplayReset());
 
     expect(onReplayReset).toHaveBeenCalledOnce();
+  });
+
+  it('최초 연결을 제외하고 공유 연결이 재개되면 재연결 콜백을 한 번 실행한다',()=>{
+    const onReconnected=vi.fn();
+    renderHook(()=>useAuctionStream({onAuctionUpdated:vi.fn(),onReconnected}));
+
+    act(()=>openStream());
+    expect(onReconnected).not.toHaveBeenCalled();
+
+    act(()=>openStream());
+    expect(onReconnected).toHaveBeenCalledOnce();
   });
 
   it('언마운트 시 이벤트 구독과 연결을 정리한다',()=>{

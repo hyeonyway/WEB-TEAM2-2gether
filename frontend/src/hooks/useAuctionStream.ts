@@ -46,16 +46,19 @@ type UseAuctionStreamOptions={
   enabled?:boolean;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
   onReplayReset?:()=>void;
+  onReconnected?:()=>void;
 };
 
 type AuctionStreamSubscriber={
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
   onReplayReset?:()=>void;
+  onReconnected?:()=>void;
 };
 
 const subscribers=new Set<AuctionStreamSubscriber>();
 let sharedEventSource:EventSource|null=null;
 let sharedListeners:ReadonlyArray<readonly[string,EventListener]>=[];
+let hasOpenedSharedEventSource=false;
 const REPLAY_RESET_EVENT='replay-reset';
 
 function auctionStreamUrl(){
@@ -118,6 +121,10 @@ function connectSharedEventSource(){
 
   const eventSource=new EventSource(auctionStreamUrl());
   sharedEventSource=eventSource;
+  eventSource.onopen=()=>{
+    if(hasOpenedSharedEventSource)subscribers.forEach(subscriber=>subscriber.onReconnected?.());
+    hasOpenedSharedEventSource=true;
+  };
   sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
     const listener:EventListener=event=>{
       const payload=parsePayload(type,event as MessageEvent<string>);
@@ -145,6 +152,7 @@ function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
     sharedEventSource.close();
     sharedEventSource=null;
     sharedListeners=[];
+    hasOpenedSharedEventSource=false;
   };
 }
 
@@ -152,17 +160,21 @@ export function useAuctionStream({
   enabled=true,
   onAuctionUpdated,
   onReplayReset,
+  onReconnected,
 }:UseAuctionStreamOptions){
   const onAuctionUpdatedRef=useRef(onAuctionUpdated);
   const onReplayResetRef=useRef(onReplayReset);
+  const onReconnectedRef=useRef(onReconnected);
   onAuctionUpdatedRef.current=onAuctionUpdated;
   onReplayResetRef.current=onReplayReset;
+  onReconnectedRef.current=onReconnected;
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
     return subscribeToAuctionStream({
       onAuctionUpdated:payload=>onAuctionUpdatedRef.current(payload),
       onReplayReset:()=>onReplayResetRef.current?.(),
+      onReconnected:()=>onReconnectedRef.current?.(),
     });
   },[enabled]);
 }

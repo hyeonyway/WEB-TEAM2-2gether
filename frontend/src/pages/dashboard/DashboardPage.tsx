@@ -37,6 +37,9 @@ export default function DashboardPage(){
     onReplayReset:()=>{
       void queryClient.invalidateQueries({queryKey:dashboardQueryKey});
     },
+    onReconnected:()=>{
+      void queryClient.invalidateQueries({queryKey:dashboardQueryKey});
+    },
   });
   const dashboard=useQuery({
     ...(active==='participating'

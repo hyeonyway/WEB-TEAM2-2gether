@@ -49,6 +49,9 @@ export default function AuctionPage(){
     onReplayReset:()=>{
       void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
     },
+    onReconnected:()=>{
+      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
+    },
   });
   const{
     data,isPending,error,fetchNextPage,hasNextPage,isFetchingNextPage,isFetchNextPageError,
