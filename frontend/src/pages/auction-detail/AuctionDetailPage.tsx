@@ -1,10 +1,12 @@
 import {useEffect,useState} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Clock3,Info,Wallet} from 'lucide-react';
 import {Link,useParams} from 'react-router-dom';
 import {AuctionBidDialog,Header} from '../../components';
 import {mapAuction,mapCardLanguage,normalizePsaGrade} from '../../api/auctionMapper';
-import {auctionQueries} from '../../queries/auctionQueries';
+import {applyBidContextEvent,auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
+import type {AuctionDetailResponseDto,BidContextResponseDto} from '../../dto/auctionDto';
+import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {useAuthGate} from '../../auth/useAuthGate';
 import {useCurrentUserId} from '../../auth/useCurrentUserId';
 import AuctionDetailSkeleton from './AuctionDetailSkeleton';
@@ -43,10 +45,12 @@ export default function AuctionDetailPage(){
   const validAuctionId=Number.isInteger(auctionId)&&auctionId>0;
   const now=useAuctionNow();
   const[bidOpen,setBidOpen]=useState(false);
+  const[latestStreamEventId,setLatestStreamEventId]=useState<number|null>(null);
   const authGate=useAuthGate();
   const currentUserId=useCurrentUserId();
   const authenticated=authGate.status==='authenticated';
   const viewerScope=authenticated?'self':'public';
+  const queryClient=useQueryClient();
   const detailQuery=useQuery({
     ...auctionQueries.detail(auctionId,viewerScope),
     enabled:validAuctionId,
@@ -58,6 +62,37 @@ export default function AuctionDetailPage(){
   const bidsQuery=useQuery({
     ...auctionQueries.bids(auctionId),
     enabled:validAuctionId,
+  });
+  useAuctionStream({
+    enabled:validAuctionId,
+    onAuctionUpdated:event=>{
+      if(event.auction_id!==auctionId)return;
+      setLatestStreamEventId(event.event_id);
+      queryClient.setQueryData<AuctionDetailResponseDto>(
+        auctionQueryKeys.detail(auctionId,viewerScope),
+        current=>!current?current:{
+          ...current,
+          current_price:event.current_price??event.final_price??current.current_price,
+          minimum_bid:(event.current_price??event.final_price??current.current_price)+event.bid_increment,
+          bid_increment:event.bid_increment,
+          bid_count:event.bid_count,
+          ends_at:event.ends_at,
+          status:event.status,
+        },
+      );
+      if(authenticated){
+        queryClient.setQueryData<BidContextResponseDto>(
+          auctionQueryKeys.bidContext(auctionId),
+          current=>applyBidContextEvent(current,event),
+        );
+      }
+      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auctionId)});
+    },
+    onReplayReset:()=>{
+      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.detail(auctionId,viewerScope)});
+      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auctionId)});
+      if(authenticated)void queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auctionId)});
+    },
   });
 
   if(!validAuctionId){
@@ -99,7 +134,7 @@ export default function AuctionDetailPage(){
           <small>경매번호 AUCTION-{String(detail.id).padStart(4,'0')}</small>
         </div>
         <div className="auction-live-label"><i/> {ended?'종료된 경매':'LIVE 경매'} <span><Clock3/>{remaining}</span></div>
-        <div className="auction-current-price"><small>현재 입찰가</small><strong>{currentPrice.toLocaleString()}원</strong><em>+{increaseRate.toFixed(1)}%</em></div>
+        <div className="auction-current-price"><small>현재 입찰가</small><strong key={latestStreamEventId??'initial'} className={latestStreamEventId===null?'':'auction-detail-price-live'}>{currentPrice.toLocaleString()}원</strong><em>+{increaseRate.toFixed(1)}%</em></div>
         <div className="auction-bid-summary">
           <span>다음 최소 입찰가<b>{minimumBid.toLocaleString()}원</b></span>
           <span>누적 입찰 수<b>{detail.bid_count.toLocaleString()}건</b></span>
@@ -113,7 +148,7 @@ export default function AuctionDetailPage(){
         <section className="auction-detail-history"><h2>최근 입찰 내역</h2>
           {recentBids.length===0
             ?<p>아직 입찰 내역이 없습니다.</p>
-            :recentBids.map(bid=><div key={bid.id}><span><b>{bid.is_highest?'최고 입찰':'입찰 완료'}</b><small>{bid.bidder_alias} · {formatBidTime(bid.created_at)}</small></span><strong>{bid.amount.toLocaleString()}원</strong></div>)}
+            :recentBids.map((bid,index)=><div key={bid.id} className={index===0&&latestStreamEventId!==null?'auction-detail-history-row-live':''}><span><b>{bid.is_highest?'최고 입찰':'입찰 완료'}</b><small>{bid.bidder_alias} · {formatBidTime(bid.created_at)}</small></span><strong>{bid.amount.toLocaleString()}원</strong></div>)}
         </section>
       </section>
     </div>
