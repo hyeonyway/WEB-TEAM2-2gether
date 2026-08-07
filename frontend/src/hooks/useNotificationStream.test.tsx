@@ -3,6 +3,7 @@ import {act,renderHook,waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {clearAccessToken,setAccessToken} from '../api/accessTokenStore';
+import {setSessionUserId} from '../auth/session/sessionAuthStore';
 import type {NotificationDto} from '../dto/notificationDto';
 import {notificationQueryKeys} from '../queries/notificationQueries';
 import {useNotificationStream} from './useNotificationStream';
@@ -57,7 +58,9 @@ describe('useNotificationStream',()=>{
 
   afterEach(()=>{
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     clearAccessToken();
+    setSessionUserId(null);
   });
 
   it('티켓을 발급받아 유저별 알림 스트림에 연결한다',async()=>{
@@ -66,6 +69,19 @@ describe('useNotificationStream',()=>{
 
     await waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
     expect(EventSourceMock.instances[0]?.url).toContain('/api/users/42/notifications/stream?ticket=ticket-1');
+    unmount();
+  });
+
+  it('세션 모드에서는 ticket 없이 내 알림 스트림에 연결한다',async()=>{
+    vi.stubEnv('VITE_AUTH_MODE','session');
+    clearAccessToken();
+    setSessionUserId(42);
+    const{Wrapper}=createWrapper();
+    const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
+
+    await waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
+    expect(EventSourceMock.instances[0]?.url).toContain('/api/me/notifications/stream');
+    expect(issueSseTicketMock).not.toHaveBeenCalled();
     unmount();
   });
 

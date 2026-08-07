@@ -9,9 +9,11 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
+@ConditionalOnProperty(name = "app.auth.mode", havingValue = "jwt", matchIfMissing = true)
 @RequiredArgsConstructor
 public class NotificationSseController {
     private final NotificationSseConnectionManager connectionManager;
