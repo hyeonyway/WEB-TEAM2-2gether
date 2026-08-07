@@ -29,15 +29,27 @@ AuctionSseEventListener (AFTER_COMMIT)
 | `AUCTION_SSE_CORE_POOL_SIZE` | 4 | 기본 worker 수 |
 | `AUCTION_SSE_MAX_POOL_SIZE` | 8 | 최대 worker 수 |
 | `AUCTION_SSE_QUEUE_CAPACITY` | 2000 | 대기 작업 수 |
+| `AUCTION_SSE_REPLAY_STATE_CAPACITY` | 1000 | 재연결에 사용할 경매별 최신 상태 수 |
 
 thread name prefix는 `auction-sse-`로 지정해 로그와 스레드 덤프에서 경매 SSE
 작업을 구분한다. 큐가 포화되면 거부 handler가 `event=auction.sse.executor.saturated`
 warn 로그와 active worker·queue 크기를 남긴 뒤, 호출 스레드에서 해당 작업을 즉시
 실행한다. 따라서 executor 포화 때문에 broadcast 전체가 조용히 폐기되지 않는다.
 
-현재 SSE는 `Last-Event-ID` replay를 제공하지 않으므로 이벤트 유실을 허용하는
-`DiscardPolicy`를 사용하지 않는다. 포화 시 이벤트 발행 경로가 잠시 지연될 수
-있지만, 이는 연결된 모든 emitter가 같은 경매 이벤트를 놓치는 것보다 우선한다.
+SSE 이벤트에는 애플리케이션 내부의 단조 증가 ID를 부여한다. 재연결용 저장소는
+이벤트 이력을 전부 쌓지 않고 `auctionId`별 최신 payload만 유지한다. 따라서 같은
+경매에 입찰이 여러 번 발생해도 재연결 클라이언트에는 마지막 현재가·입찰 수·버전만
+전달한다. 재연결 클라이언트가 `Last-Event-ID` 헤더를 보내면 해당 ID보다 새로운
+경매별 최신 상태를 같은 ID로 보낸다.
+
+저장소의 경매 상태 수가 설정값을 넘어 이전 상태가 제거됐고, 클라이언트 ID가 그
+제거 시점보다 오래되면 `replay-reset` 이벤트도 보낸다. 클라이언트는 이 이벤트를
+받으면 REST 조회로 전체 경매 상태를 다시 동기화해야 한다. 최초 연결도 REST 조회가
+기준이며, SSE는 그 이후의 변경을 보정한다.
+
+replay가 있어도 이벤트 유실을 허용하는 `DiscardPolicy`를 사용하지 않는다. 포화 시
+이벤트 발행 경로가 잠시 지연될 수 있지만, 이는 연결된 모든 emitter가 같은 경매
+이벤트를 놓치는 것보다 우선한다.
 애플리케이션 종료 중 거부된 작업은 새 전송을 보장할 수 없으므로 shutdown 원인을
 warn 로그로 남기고, 정상 운영 중 포화와 구분한다.
 
