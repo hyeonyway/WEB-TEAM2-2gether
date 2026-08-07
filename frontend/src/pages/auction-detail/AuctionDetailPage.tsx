@@ -5,7 +5,7 @@ import {Link,useParams} from 'react-router-dom';
 import {AuctionBidDialog,Header} from '../../components';
 import {mapAuction,mapCardLanguage,normalizePsaGrade} from '../../api/auctionMapper';
 import {applyBidContextEvent,auctionQueries,auctionQueryKeys} from '../../queries/auctionQueries';
-import type {AuctionDetailResponseDto,BidContextResponseDto} from '../../dto/auctionDto';
+import type {AuctionDetailResponseDto,BidContextResponseDto,BidSummaryResponseDto,PageResponseDto} from '../../dto/auctionDto';
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {useAuthGate} from '../../auth/useAuthGate';
 import {useCurrentUserId} from '../../auth/useCurrentUserId';
@@ -86,7 +86,21 @@ export default function AuctionDetailPage(){
           current=>applyBidContextEvent(current,event),
         );
       }
-      void queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auctionId)});
+      if(event.type==='BID_PLACED'){
+        queryClient.setQueryData<PageResponseDto<BidSummaryResponseDto>>(
+          auctionQueryKeys.bids(auctionId),
+          current=>!current?current:{
+            ...current,
+            content:[{
+              id:-event.event_id,
+              amount:event.current_price??event.start_price,
+              bidder_alias:`user-${String(event.bidder_id).slice(0,2)}***`,
+              is_highest:true,
+              created_at:event.occurred_at,
+            },...current.content.map(bid=>({...bid,is_highest:false}))].slice(0,5),
+          },
+        );
+      }
     },
     onReplayReset:()=>{
       void queryClient.invalidateQueries({queryKey:auctionQueryKeys.detail(auctionId,viewerScope)});
