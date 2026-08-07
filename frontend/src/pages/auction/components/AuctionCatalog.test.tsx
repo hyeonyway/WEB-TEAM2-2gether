@@ -18,7 +18,7 @@ const auction:AuctionDto={
     theme:'gold',bidCount:0,psaGrade:'10',language:'JP',imageUrl:null,
   },
   startPrice:10000,currentPrice:12000,bidIncrement:1000,bidCount:1,
-  endsAt:'2099-08-03T12:00:00',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,version:1,
+  endsAt:'2099-08-03T12:00:00',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,
 };
 
 function LocationProbe(){

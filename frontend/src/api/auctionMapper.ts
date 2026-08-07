@@ -62,5 +62,4 @@ export const mapAuction=(dto:AuctionResponseDto):AuctionDto=>({
   status:dto.status,
   myBidStatus:dto.my_bid_status,
   myBidAmount:dto.my_bid_amount,
-  version:dto.version,
 });

@@ -11,7 +11,7 @@ type AuctionStreamBase={
   bid_count:number;
   ends_at:string;
   status:AuctionStatus;
-  auction_version:number;
+  event_id:number;
   occurred_at:string;
 };
 
@@ -63,9 +63,9 @@ function auctionStreamUrl(){
   return `${apiBaseUrl}/api/auctions/stream`;
 }
 
-function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayload|null{
+function parsePayload(type:AuctionStreamEventType,event:MessageEvent<string>):AuctionStreamPayload|null{
   try{
-    const raw=JSON.parse(data) as Record<string,unknown>;
+    const raw=JSON.parse(event.data) as Record<string,unknown>;
     const value={
       type,
       auction_id:raw.auction_id??raw.auctionId,
@@ -89,7 +89,7 @@ function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayl
       bid_count:raw.bid_count??raw.bidCount,
       ends_at:raw.ends_at??raw.endsAt,
       status:raw.status,
-      auction_version:raw.auction_version??raw.auctionVersion,
+      event_id:Number(event.lastEventId),
       occurred_at:raw.occurred_at??raw.occurredAt,
     } as Partial<AuctionStreamPayload>;
     if(
@@ -98,7 +98,7 @@ function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayl
       ||!Number.isFinite(value.bid_increment)
       ||!Number.isInteger(value.bid_count)
       ||typeof value.ends_at!=='string'
-      ||!Number.isFinite(value.auction_version)
+      ||!Number.isFinite(value.event_id)
       ||typeof value.occurred_at!=='string'
     )return null;
     if(value.type!=='BID_PLACED'&&(
@@ -120,7 +120,7 @@ function connectSharedEventSource(){
   sharedEventSource=eventSource;
   sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
     const listener:EventListener=event=>{
-      const payload=parsePayload(type,(event as MessageEvent<string>).data);
+      const payload=parsePayload(type,event as MessageEvent<string>);
       if(payload)subscribers.forEach(subscriber=>subscriber.onAuctionUpdated(payload));
     };
     eventSource.addEventListener(type,listener);

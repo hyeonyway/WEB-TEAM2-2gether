@@ -189,7 +189,6 @@ CREATE TABLE auctions
     bid_count            INT          NOT NULL,
     bid_price_unit       BIGINT       NOT NULL,
     is_hyped             BOOLEAN      NOT NULL,
-    version              BIGINT       NOT NULL DEFAULT 1,
     idempotency_key      VARCHAR(64)
         CHARACTER SET ascii COLLATE ascii_bin NULL,
     idempotency_request_hash CHAR(64)

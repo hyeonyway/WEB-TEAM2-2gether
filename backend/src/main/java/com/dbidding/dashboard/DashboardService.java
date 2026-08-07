@@ -91,7 +91,7 @@ public class DashboardService {
                         card.id(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl()
                 ),
                 auction.startPrice(), auction.currentPrice(), auction.bidIncrement(), auction.bidCount(),
-                UtcTime.toInstant(auction.estimatedCloseTime()), auction.status(), auction.version(),
+                UtcTime.toInstant(auction.estimatedCloseTime()), auction.status(),
                 myBidStatus(auction.bidStatus()), auction.bidAmount()
         );
     }

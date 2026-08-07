@@ -131,7 +131,6 @@ public class AuctionCommandService {
                 savedAuction.getBidCount(),
                 savedAuction.getCloseTime(),
                 savedAuction.getStatus(),
-                savedAuction.getVersion(),
                 now
         ));
 
@@ -493,7 +492,6 @@ public class AuctionCommandService {
                 auction.getBidCount(),
                 auction.getCloseTime(),
                 auction.getStatus(),
-                auction.getVersion(),
                 occurredAt
         ));
     }
@@ -519,7 +517,6 @@ public class AuctionCommandService {
                 auction.getBidCount(),
                 auction.getCloseTime(),
                 auction.getStatus(),
-                auction.getVersion(),
                 occurredAt
         ));
     }
@@ -539,8 +536,7 @@ public class AuctionCommandService {
                 winningBid == null ? null : winningBid.getBidderId(),
                 winningBid == null ? null : winningBid.getId(),
                 winningBid == null ? null : winningBid.getBidPrice(),
-                auction.getCloseTime(),
-                auction.getVersion()
+                auction.getCloseTime()
         );
     }
 
@@ -550,7 +546,6 @@ public class AuctionCommandService {
                 .status(auction.getStatus())
                 .startsAt(toInstant(auction.getOpenTime()))
                 .endsAt(toInstant(auction.getCloseTime()))
-                .version(auction.getVersion())
                 .build();
     }
 
@@ -568,7 +563,6 @@ public class AuctionCommandService {
                 ),
                 new BidResponses.AuctionSnapshot(
                         auction.getId(),
-                        auction.getVersion(),
                         auction.getCurrentPrice(),
                         auction.minimumBid(),
                         auction.getBidCount(),

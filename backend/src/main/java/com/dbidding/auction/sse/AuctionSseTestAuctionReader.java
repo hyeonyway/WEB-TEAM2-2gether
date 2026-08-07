@@ -16,7 +16,7 @@ class AuctionSseTestAuctionReader {
     Optional<Snapshot> findRandomActiveAuction() {
         return jdbcClient.sql("""
                         SELECT a.id, a.start_price, a.current_price, a.bid_price_unit, a.bid_count,
-                               a.estimated_close_time, a.status, a.version,
+                               a.estimated_close_time, a.status,
                                (SELECT b.user_id FROM bids b WHERE b.auction_id = a.id
                                 ORDER BY b.bid_price DESC, b.id DESC LIMIT 1) AS current_bidder_id
                           FROM auctions a
@@ -29,12 +29,12 @@ class AuctionSseTestAuctionReader {
                         resultSet.getLong("current_price"), resultSet.getLong("bid_price_unit"),
                         resultSet.getInt("bid_count"),
                         resultSet.getObject("estimated_close_time", LocalDateTime.class),
-                        resultSet.getString("status"), resultSet.getLong("version"),
+                        resultSet.getString("status"),
                         resultSet.getObject("current_bidder_id", Integer.class)))
                 .optional();
     }
 
     record Snapshot(Integer auctionId, Long startPrice, Long currentPrice, Long bidIncrement,
-                    Integer bidCount, LocalDateTime endsAt, String status, Long auctionVersion,
+                    Integer bidCount, LocalDateTime endsAt, String status,
                     Integer currentBidderId) { }
 }

@@ -10,7 +10,6 @@ public record AuctionCreateResponse(
         Integer id,
         AuctionStatus status,
         @JsonProperty("starts_at") Instant startsAt,
-        @JsonProperty("ends_at") Instant endsAt,
-        Long version
+        @JsonProperty("ends_at") Instant endsAt
 ) {
 }

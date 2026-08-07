@@ -28,18 +28,18 @@ const auction:AuctionDto={
   id:1,
   card:{id:1,name:'피카츄',marketPrice:10_000,lowPrice:10_000,highPrice:10_000,changeRate:0,theme:'gold',bidCount:1,psaGrade:'10',language:'KR',imageUrl:null},
   startPrice:9_000,currentPrice:10_000,bidIncrement:1_000,bidCount:1,
-  endsAt:'2099-08-04T10:00:00Z',status:'OPEN',version:1,myBidStatus:'NONE',myBidAmount:null,
+  endsAt:'2099-08-04T10:00:00Z',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,
 };
 
 const context:BidContextResponseDto={
-  auction_id:1,status:'OPEN',version:1,current_price:10_000,minimum_bid:11_000,bid_increment:1_000,
+  auction_id:1,status:'OPEN',current_price:10_000,minimum_bid:11_000,bid_increment:1_000,
   my_bid_status:'NONE',my_bid_amount:null,wallet:{available_balance:100_000,frozen_balance:0},recent_bids:[],
 };
 
 const bidEvent:AuctionStreamPayload={
   type:'BID_PLACED',auction_id:1,bidder_id:2,previous_bidder_id:null,
   start_price:9_000,current_price:30_000,bid_increment:2_000,bid_count:2,
-  ends_at:'2099-08-04T11:00:00Z',status:'OPEN',auction_version:2,occurred_at:'2026-08-04T01:00:00Z',
+  ends_at:'2099-08-04T11:00:00Z',status:'OPEN',event_id:2,occurred_at:'2026-08-04T01:00:00Z',
 };
 
 function renderDialog(){

@@ -89,7 +89,6 @@ export type AuctionResponseDto={
   status:AuctionStatus;
   my_bid_status:MyBidStatus;
   my_bid_amount:number|null;
-  version:number;
 };
 
 export type AuctionPhotoResponseDto={
@@ -123,9 +122,9 @@ export type BidSummaryResponseDto={
 };
 
 export type BidContextResponseDto={
+  eventId?:number;
   auction_id:number;
   status:AuctionStatus;
-  version:number;
   current_price:number;
   minimum_bid:number;
   bid_increment:number;
@@ -168,7 +167,6 @@ export type BidCreateResponseDto={
   };
   auction:{
     id:number;
-    version:number;
     current_price:number;
     minimum_bid:number;
     bid_count:number;
@@ -196,6 +194,7 @@ export type CardDto={
 };
 
 export type AuctionDto={
+  eventId?:number;
   id:number;
   sellerId?:number;
   card:CardDto;
@@ -208,5 +207,4 @@ export type AuctionDto={
   status:AuctionStatus;
   myBidStatus:MyBidStatus;
   myBidAmount:number|null;
-  version:number;
 };

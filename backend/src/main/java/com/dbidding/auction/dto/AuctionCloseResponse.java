@@ -10,7 +10,6 @@ public record AuctionCloseResponse(
         @JsonProperty("winner_id") Integer winnerId,
         @JsonProperty("winning_bid_id") Long winningBidId,
         @JsonProperty("winning_price") Long winningPrice,
-        @JsonProperty("closed_at") LocalDateTime closedAt,
-        Long version
+        @JsonProperty("closed_at") LocalDateTime closedAt
 ) {
 }

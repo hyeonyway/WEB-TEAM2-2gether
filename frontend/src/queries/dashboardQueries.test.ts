@@ -3,7 +3,7 @@ import type {AuctionDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {applyDashboardAuctionEvent} from './dashboardQueries';
 
-const auction=(id:number,currentPrice:number,endsAt:string,version:number):AuctionDto=>({
+const auction=(id:number,currentPrice:number,endsAt:string,eventId:number):AuctionDto=>({
   id,
   card:{
     id,
@@ -24,7 +24,7 @@ const auction=(id:number,currentPrice:number,endsAt:string,version:number):Aucti
   bidCount:1,
   endsAt,
   status:'OPEN',
-  version,
+  eventId,
   myBidStatus:'OUTBID',
   myBidAmount:currentPrice-1_000,
 });
@@ -40,7 +40,7 @@ const bidEvent:AuctionStreamPayload={
   bid_count:3,
   ends_at:'2026-08-01T10:00:00Z',
   status:'ENDING',
-  auction_version:2,
+  event_id:2,
   occurred_at:'2026-07-31T03:00:00Z',
 };
 
