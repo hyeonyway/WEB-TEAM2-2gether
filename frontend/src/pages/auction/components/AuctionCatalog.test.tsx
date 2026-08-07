@@ -45,6 +45,13 @@ describe('AuctionCatalog',()=>{
     expect(screen.getByRole('button',{name:'내가 등록한 경매'})).toBeDisabled();
   });
 
+  it('현재 최고 입찰자는 입찰 현황을 보기 위해 버튼을 누를 수 있다',()=>{
+    renderCatalog('authenticated',{myBidStatus:'LEADING',myBidAmount:12_000});
+
+    const button=screen.getByRole('button',{name:/내가 최고가 입찰 중/});
+    expect(button).toBeEnabled();
+  });
+
   it('PSA 접두사가 포함된 등급도 한 번만 표시한다',()=>{
     render(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
       <AuctionCatalog auctions={[{...auction,card:{...auction.card,psaGrade:'PSA 10'}}]}/>

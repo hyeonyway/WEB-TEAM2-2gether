@@ -183,6 +183,7 @@ public class AuctionCommandService {
 
         validateNotSellerBid(userId, auction);
         Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
+        validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
 
         LocalDateTime bidAt = now();
         LocalDateTime previousCloseTime = auction.getCloseTime();
@@ -306,6 +307,13 @@ public class AuctionCommandService {
             log.warn("event=auction.bid.rejected_self_bid auctionId={} sellerId={} bidderId={}",
                     auction.getId(), auction.getSellerId(), userId);
             throw new ResponseStatusException(FORBIDDEN, "판매자는 자신의 경매에 입찰할 수 없습니다.");
+        }
+    }
+
+    private void validateNotCurrentLeadingBidder(Integer userId, Bid previousLeadingBid, Integer auctionId) {
+        if (previousLeadingBid != null && previousLeadingBid.getBidderId().equals(userId)) {
+            log.warn("event=auction.bid.rejected_leading_bidder auctionId={} bidderId={}", auctionId, userId);
+            throw new ResponseStatusException(CONFLICT, "현재 최고 입찰자는 추가 입찰할 수 없습니다.");
         }
     }
 

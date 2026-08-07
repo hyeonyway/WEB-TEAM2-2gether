@@ -89,15 +89,21 @@ describe('AuctionBidDialog',()=>{
     expect(screen.getByRole('button',{name:'50,000원 입찰하기'})).toBeInTheDocument();
   });
 
-  it('입찰 성공 후 참여 경매 대시보드 캐시를 다시 조회한다',async()=>{
+  it('입찰 성공 응답으로 참여 경매 대시보드를 최고 입찰 상태로 갱신한다',async()=>{
     const{queryClient}=renderDialog();
-    mocks.createBid.mockResolvedValue({});
+    mocks.createBid.mockResolvedValue({
+      bid:{id:10,amount:11_000,status:'LEADING',created_at:'2026-08-04T01:00:00Z'},
+      auction:{id:1,current_price:11_000,minimum_bid:12_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},
+      wallet:{available_balance:89_000,frozen_balance:11_000},
+    });
     const dashboardKey=[...dashboardQueryKey,'participating-auctions','ENDING_SOON'];
     queryClient.setQueryData(dashboardKey,[auction]);
 
     await userEvent.setup().click(await screen.findByRole('button',{name:'11,000원 입찰하기'}));
 
     await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledOnce());
-    await waitFor(()=>expect(queryClient.getQueryState(dashboardKey)?.isInvalidated).toBe(true));
+    await waitFor(()=>expect(queryClient.getQueryData<AuctionDto[]>(dashboardKey)?.[0]).toMatchObject({
+      currentPrice:11_000,bidCount:2,myBidStatus:'LEADING',myBidAmount:11_000,
+    }));
   });
 });

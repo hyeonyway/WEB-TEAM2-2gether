@@ -72,10 +72,20 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const closed=!['OPEN','ENDING'].includes(context?.status??auction.status);
   const bidMutation=useMutation({
     mutationFn:()=>createAuctionBid(auction.id,amountValue,crypto.randomUUID()),
-    onSuccess:async()=>{
+    onSuccess:async result=>{
+      queryClient.setQueriesData<AuctionDto[]>({queryKey:dashboardQueryKey},current=>current?.map(item=>
+        item.id!==auction.id?item:{
+          ...item,
+          currentPrice:result.auction.current_price,
+          bidCount:result.auction.bid_count,
+          endsAt:result.auction.ends_at,
+          myBidStatus:'LEADING',
+          myBidAmount:result.bid.amount,
+          card:{...item.card,bidCount:result.auction.bid_count},
+        },
+      ));
       await Promise.all([
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),
-        queryClient.invalidateQueries({queryKey:dashboardQueryKey}),
         queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),
         queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()}),
       ]);
