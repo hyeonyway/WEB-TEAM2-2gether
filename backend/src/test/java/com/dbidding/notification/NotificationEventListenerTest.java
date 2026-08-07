@@ -12,6 +12,7 @@ import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.service.CardPriceService;
 import com.dbidding.notification.dto.NotificationResponse;
+import com.dbidding.notification.sse.NotificationSseConnectionManager;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.wishlist.WishlistService;

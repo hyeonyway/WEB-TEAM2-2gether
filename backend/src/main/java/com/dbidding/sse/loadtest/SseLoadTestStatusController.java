@@ -1,6 +1,6 @@
 package com.dbidding.sse.loadtest;
 
-import com.dbidding.notification.NotificationSseConnectionManager;
+import com.dbidding.notification.sse.NotificationSseConnectionManager;
 import com.dbidding.auction.sse.AuctionSseConnectionManager;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;

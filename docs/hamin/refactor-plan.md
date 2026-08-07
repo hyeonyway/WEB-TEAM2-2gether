@@ -27,4 +27,11 @@
 
 **범위 제외**: `upload/adapter/AuctionImageUploadAdapter` — 이 리팩토링 대상이 아님(임하민이 배치한 게 아님).
 
+## 4. notification 패키지 내 SSE/복구 코드를 서브패키지로 분리
+
+지금 notification 패키지 루트에 핵심 알림 로직(`Notification`, `NotificationService`, `NotificationRepository`, `NotificationController` 등)과 SSE, 복구 배치 코드가 섞여 있다. `auction` 패키지가 이미 `sse/`, `scheduler/`, `config/` 서브패키지로 나뉘어 있는 것과 같은 방식으로 정리한다.
+
+- `notification/sse/`: `NotificationSseConnectionManager`, `NotificationSseController`
+- `notification/recovery/`: `NotificationReconciliationService`, `config/NotificationRecoverySchedulingConfig`, `scheduler/AuctionResultNotificationRecoveryScheduler`, `scheduler/UrgentNotificationRecoveryScheduler`
+
 > 이 문서는 claude의 도움을 받아 작성하였습니다.

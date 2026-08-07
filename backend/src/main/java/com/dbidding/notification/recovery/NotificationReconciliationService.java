@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.recovery;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
@@ -6,6 +6,10 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.notification.Notification;
+import com.dbidding.notification.NotificationRepository;
+import com.dbidding.notification.NotificationService;
+import com.dbidding.notification.NotificationType;
 import com.dbidding.wishlist.WishlistService;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;

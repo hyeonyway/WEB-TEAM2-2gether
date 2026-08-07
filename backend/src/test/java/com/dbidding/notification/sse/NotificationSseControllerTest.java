@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.sse;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
