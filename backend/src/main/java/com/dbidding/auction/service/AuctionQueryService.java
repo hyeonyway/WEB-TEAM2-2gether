@@ -25,6 +25,7 @@ import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,6 +88,18 @@ public class AuctionQueryService {
                 nextCursor,
                 hasNext
         );
+    }
+
+    public List<AuctionResponses.DashboardAuction> getDashboardAuctions(Integer userId) {
+        Map<Integer, Bid> latestBids = new LinkedHashMap<>();
+        bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(userId)
+                .forEach(bid -> latestBids.putIfAbsent(bid.getAuction().getId(), bid));
+        List<Auction> auctions = latestBids.values().stream().map(Bid::getAuction).distinct().toList();
+        Map<Integer, CardSnapshot> cards = cardSnapshots(auctions);
+        Map<Integer, List<AuctionImage>> images = imagesByAuction(auctions);
+        return latestBids.values().stream()
+                .map(bid -> dashboardAuction(bid, cards.get(bid.getAuction().getItemId()), firstImage(images, bid.getAuction())))
+                .toList();
     }
 
     private Integer bidCountCursor(AuctionCursor cursor) {
@@ -250,6 +263,20 @@ public class AuctionQueryService {
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .build();
+    }
+
+    private AuctionResponses.DashboardAuction dashboardAuction(
+            Bid bid,
+            CardSnapshot card,
+            AuctionImage representativeImage
+    ) {
+        Auction auction = bid.getAuction();
+        return new AuctionResponses.DashboardAuction(
+                auction.getId(), auction.getSellerId(), cardSummary(card, representativeImage),
+                auction.getStartPrice(), auction.getCurrentPrice(), auction.getBidPriceUnit(), auction.getBidCount(),
+                auction.getEstimatedCloseTime(), auction.getCloseTime(), auction.getStatus(), auction.getVersion(),
+                bid.getStatus(), bid.getBidPrice()
+        );
     }
 
     private AuctionResponses.AuctionDetail detail(

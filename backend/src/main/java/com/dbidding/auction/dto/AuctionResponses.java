@@ -1,9 +1,11 @@
 package com.dbidding.auction.dto;
 
 import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Builder;
 
@@ -87,6 +89,23 @@ public final class AuctionResponses {
             String nickname,
             @JsonProperty("trade_count") Integer tradeCount,
             @JsonProperty("trust_score") Integer trustScore
+    ) {
+    }
+
+    public record DashboardAuction(
+            Integer id,
+            Integer sellerId,
+            CardSummary card,
+            Long startPrice,
+            Long currentPrice,
+            Long bidIncrement,
+            Integer bidCount,
+            LocalDateTime estimatedCloseTime,
+            LocalDateTime closeTime,
+            AuctionStatus status,
+            Long version,
+            BidStatus bidStatus,
+            Long bidAmount
     ) {
     }
 
