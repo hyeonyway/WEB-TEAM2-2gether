@@ -55,4 +55,12 @@ GET /api/me/auctions/stream
 - 세션 모드에서 ticket Bean과 endpoint가 존재하지 않는다.
 - JWT 모드의 ticket SSE 회귀 테스트가 유지된다.
 
+## 6. 구현 결과
+
+- `SessionSseConnectionRegistry`가 sessionId별 emitter를 관리하고, 로그아웃과 `HttpSessionListener`의 세션 종료 시 해당 연결을 완료한다.
+- Notification은 세션 모드에서 `/api/me/notifications/stream`으로 연결한다. URL의 userId를 받지 않으므로 다른 사용자의 스트림을 지정할 수 없다.
+- JWT 모드의 `/api/users/{userId}/notifications/stream?ticket=...`와 ticket 발급 API는 조건부로 그대로 유지한다.
+- 프론트 `useNotificationStream`은 세션 모드에서 ticket 발급 없이 `withCredentials` EventSource를 사용하며, JWT 모드에서는 기존 ticket 재연결 흐름을 유지한다.
+- Auction의 사용자별 SSE emitter와 `/api/me/auctions/stream` payload는 Auction 담당 도메인 소유라 이 공통 기반만 사용해 후속 구현한다.
+
 > 이 문서는 codex의 도움을 받아 작성하였습니다

@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 
 import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.account.authentication.session.SessionCsrfTokenService;
@@ -21,9 +22,10 @@ public class SessionAuthConfiguration {
 	SessionAuthenticationStrategy sessionAuthenticationStrategy(
 		SessionProperties properties,
 		Clock clock,
-		SessionCsrfTokenService csrfTokenService
+		SessionCsrfTokenService csrfTokenService,
+		SessionSseConnectionRegistry sessionSseConnectionRegistry
 	) {
-		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService);
+		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseConnectionRegistry);
 	}
 
 	@Bean
@@ -35,6 +37,11 @@ public class SessionAuthConfiguration {
 	SessionCsrfTokenService sessionCsrfTokenService() {
 		return new SessionCsrfTokenService();
 	}
+
+	@Bean
+	ServletListenerRegistrationBean<SessionSseCleanupListener> sessionSseCleanupListener(
+		SessionSseConnectionRegistry registry
+	) { return new ServletListenerRegistrationBean<>(new SessionSseCleanupListener(registry)); }
 
 	@Bean
 	SessionCsrfFilter sessionCsrfFilter(SessionCsrfTokenService tokenService) {

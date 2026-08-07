@@ -9,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 
 @Component
 public class NotificationSseConnectionManager {
@@ -17,17 +18,38 @@ public class NotificationSseConnectionManager {
     private static final long RECONNECT_TIME_MILLIS = 3_000L;
 
     private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
+    private final SessionSseConnectionRegistry sessionRegistry;
+
+    public NotificationSseConnectionManager(SessionSseConnectionRegistry sessionRegistry) {
+        this.sessionRegistry = sessionRegistry;
+    }
 
     public SseEmitter connect(Integer userId) {
-        return register(userId, new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
+        return connect(userId, null);
+    }
+
+    public SseEmitter connect(Integer userId, String sessionId) {
+        return register(userId, sessionId, new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
     }
 
     SseEmitter register(Integer userId, SseEmitter emitter) {
+		return register(userId, null, emitter);
+	}
+
+	SseEmitter register(Integer userId, String sessionId, SseEmitter emitter) {
         Set<SseEmitter> emitters = emittersByUserId.computeIfAbsent(userId, id -> new CopyOnWriteArraySet<>());
         emitters.add(emitter);
+        if (sessionId != null) {
+            sessionIdByEmitter.put(emitter, sessionId);
+        }
         emitter.onCompletion(() -> remove(userId, emitter));
         emitter.onTimeout(() -> removeAndComplete(userId, emitter));
         emitter.onError(error -> removeAndComplete(userId, emitter));
+		if (sessionId != null && !sessionRegistry.register(sessionId, emitter)) {
+			remove(userId, emitter);
+			return emitter;
+		}
 
         send(userId, emitter, SseEmitter.event()
                 .name("connected")
@@ -82,6 +104,8 @@ public class NotificationSseConnectionManager {
     }
 
     private void remove(Integer userId, SseEmitter emitter) {
+		String sessionId = sessionIdByEmitter.remove(emitter);
+		if (sessionId != null) sessionRegistry.unregister(sessionId, emitter);
         emittersByUserId.computeIfPresent(userId, (id, emitters) -> {
             emitters.remove(emitter);
             return emitters.isEmpty() ? null : emitters;
