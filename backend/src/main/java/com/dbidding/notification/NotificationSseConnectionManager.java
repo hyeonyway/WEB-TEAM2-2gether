@@ -42,11 +42,14 @@ public class NotificationSseConnectionManager {
         emitters.add(emitter);
         if (sessionId != null) {
             sessionIdByEmitter.put(emitter, sessionId);
-            sessionRegistry.register(sessionId, emitter);
         }
         emitter.onCompletion(() -> remove(userId, emitter));
         emitter.onTimeout(() -> removeAndComplete(userId, emitter));
         emitter.onError(error -> removeAndComplete(userId, emitter));
+		if (sessionId != null && !sessionRegistry.register(sessionId, emitter)) {
+			remove(userId, emitter);
+			return emitter;
+		}
 
         send(userId, emitter, SseEmitter.event()
                 .name("connected")

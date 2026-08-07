@@ -55,6 +55,35 @@ class NotificationSseConnectionManagerTest {
     }
 
     @Test
+    void 세션_연결을_등록하고_전송_실패_시_세션_레지스트리에서도_해제한다() throws Exception {
+        SessionSseConnectionRegistry registry = new SessionSseConnectionRegistry();
+        NotificationSseConnectionManager manager = new NotificationSseConnectionManager(registry);
+        SseEmitter emitter = mock(SseEmitter.class);
+        manager.register(1, "session-a", emitter);
+        doThrow(new IOException("disconnected"))
+                .when(emitter)
+                .send(any(SseEmitter.SseEventBuilder.class));
+
+        manager.push(1, notification());
+        registry.disconnect("session-a");
+
+        assertThat(manager.connectionCount(1)).isZero();
+        verify(emitter, times(1)).complete();
+    }
+
+    @Test
+    void 세션_연결은_세션_레지스트리에_등록된다() {
+        SessionSseConnectionRegistry registry = new SessionSseConnectionRegistry();
+        NotificationSseConnectionManager manager = new NotificationSseConnectionManager(registry);
+        SseEmitter emitter = mock(SseEmitter.class);
+
+        manager.register(1, "session-a", emitter);
+        registry.disconnect("session-a");
+
+        verify(emitter).complete();
+    }
+
+    @Test
     void 접속중인_연결이_없으면_아무일도_하지_않는다() {
         NotificationSseConnectionManager manager = new NotificationSseConnectionManager(new SessionSseConnectionRegistry());
 

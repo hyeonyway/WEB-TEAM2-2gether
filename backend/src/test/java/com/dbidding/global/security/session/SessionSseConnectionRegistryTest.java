@@ -22,4 +22,16 @@ class SessionSseConnectionRegistryTest {
 		verify(first).complete();
 		verifyNoInteractions(second);
 	}
+
+	@Test
+	void 종료된_세션에는_뒤늦게_도착한_SSE_연결을_등록하지_않는다() {
+		SessionSseConnectionRegistry registry = new SessionSseConnectionRegistry();
+		SseEmitter lateEmitter = mock(SseEmitter.class);
+
+		registry.disconnect("session-a");
+
+		registry.register("session-a", lateEmitter);
+
+		verify(lateEmitter).complete();
+	}
 }

@@ -13,26 +13,32 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.dto.SessionLoginResponse;
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
 class SessionAuthenticationStrategyTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-06T01:30:00Z");
 
 	private SessionAuthenticationStrategy strategy;
+	private SessionSseConnectionRegistry sessionSseConnectionRegistry;
 
 	@BeforeEach
 	void setUp() {
 		SessionProperties properties = new SessionProperties(SessionStore.MEMORY, "SESSION", false, "lax");
+		sessionSseConnectionRegistry = new SessionSseConnectionRegistry();
 		strategy = new SessionAuthenticationStrategy(
 			properties,
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			new SessionCsrfTokenService(),
-			new SessionSseConnectionRegistry()
+			sessionSseConnectionRegistry
 		);
 	}
 
@@ -85,6 +91,18 @@ class SessionAuthenticationStrategyTest {
 		assertThat(session.isInvalid()).isTrue();
 		assertThat(response.getHeaders().getFirst(HttpHeaders.SET_COOKIE))
 			.isEqualTo("SESSION=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax");
+	}
+
+	@Test
+	void 로그아웃하면_현재_세션의_SSE_연결을_종료한다() {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		MockHttpSession session = (MockHttpSession)request.getSession(true);
+		SseEmitter emitter = mock(SseEmitter.class);
+		sessionSseConnectionRegistry.register(session.getId(), emitter);
+
+		strategy.terminate(request);
+
+		verify(emitter).complete();
 	}
 
 	@Test

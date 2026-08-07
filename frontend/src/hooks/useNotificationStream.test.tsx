@@ -14,12 +14,14 @@ vi.mock('../api/notificationTicketApi',()=>({issueSseTicket:issueSseTicketMock})
 class EventSourceMock extends EventTarget{
   static instances:EventSourceMock[]=[];
   readonly url:string;
+	readonly options:EventSourceInit|undefined;
   close=vi.fn();
   onerror:(()=>void)|null=null;
 
-  constructor(url:string|URL){
+  constructor(url:string|URL,options?:EventSourceInit){
     super();
     this.url=String(url);
+		this.options=options;
     EventSourceMock.instances.push(this);
   }
 }
@@ -81,6 +83,7 @@ describe('useNotificationStream',()=>{
 
     await waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
     expect(EventSourceMock.instances[0]?.url).toContain('/api/me/notifications/stream');
+		expect(EventSourceMock.instances[0]?.options).toEqual({withCredentials:true});
     expect(issueSseTicketMock).not.toHaveBeenCalled();
     unmount();
   });
