@@ -5,11 +5,11 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 import com.dbidding.card.domain.*;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.port.CardAuctionPort;
-import com.dbidding.card.port.CardWishlistPort;
 import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.statistic.service.StatisticQueryService;
 import com.dbidding.statistic.service.StatisticQueryService.CardSummary;
 import com.dbidding.statistic.service.StatisticQueryService.DailyPrice;
+import com.dbidding.wishlist.WishlistService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -32,7 +32,7 @@ public class CardPriceService {
     private final CardMetadataRepository cardRepository;
     private final StatisticQueryService statisticQueryService;
     private final CardAuctionPort auctionPort;
-    private final CardWishlistPort wishlistPort;
+    private final WishlistService wishlistService;
 
     public CardResponses.Page<CardResponses.CardSummary> getCards(
             String keyword, String psaGrade, CardSort sort, int page, int size) {
@@ -47,7 +47,7 @@ public class CardPriceService {
     }
 
     public List<CardResponses.CardSummary> getWishlistedCards(Integer userId) {
-        var orderedIds = wishlistPort.findCardIdsByUserId(userId).stream().distinct().toList();
+        var orderedIds = wishlistService.findCardIdsByUserId(userId).stream().distinct().toList();
         var cardsById = cardRepository.findAllById(orderedIds).stream()
                 .collect(Collectors.toMap(CardMetadata::getId, Function.identity()));
         Map<Integer, CardSummary> statistics = statisticQueryService.getCardSummaries(orderedIds);
@@ -82,7 +82,7 @@ public class CardPriceService {
                 value(summary == null ? null : summary.bidCount30d()),
                 value(summary == null ? null : summary.endedAuctionCount30d()),
                 auctionPort.countActiveAuctions(cardId),
-                wishlistPort.countWishlists(cardId),
+                wishlistService.countWishlists(cardId),
                 card.getPsaGrade(), normalizeLanguage(card.getLanguage()),
                 card.getImagePath(), history);
     }

@@ -9,11 +9,12 @@ import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.card.dto.CardResponses;
+import com.dbidding.card.service.CardPriceService;
 import com.dbidding.notification.dto.NotificationResponse;
-import com.dbidding.notification.port.CardNameFinder;
-import com.dbidding.notification.port.WishlistUserFinder;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
+import com.dbidding.wishlist.WishlistService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -29,10 +30,10 @@ class NotificationEventListenerTest {
     private final LocalDateTime now = LocalDateTime.of(2026, 8, 3, 12, 0);
 
     @Mock
-    private WishlistUserFinder wishlistUserFinder;
+    private WishlistService wishlistService;
 
     @Mock
-    private CardNameFinder cardNameFinder;
+    private CardPriceService cardPriceService;
 
     @Mock
     private NotificationService notificationService;
@@ -47,8 +48,8 @@ class NotificationEventListenerTest {
 
     @Test
     void 경매가_등록되면_찜한_유저_전원에게_알림을_보내고_SSE로_push한다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
-        given(wishlistUserFinder.findUserIdsByCardId(10)).willReturn(List.of(1, 2, 3));
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
+        given(wishlistService.findUserIdsByCardId(10)).willReturn(List.of(1, 2, 3));
         Notification notification1 = Notification.of(1, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
         Notification notification2 = Notification.of(2, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
         Notification notification3 = Notification.of(3, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
@@ -69,8 +70,8 @@ class NotificationEventListenerTest {
 
     @Test
     void 찜한_유저가_없으면_알림을_보내지_않는다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
-        given(wishlistUserFinder.findUserIdsByCardId(10)).willReturn(List.of());
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
+        given(wishlistService.findUserIdsByCardId(10)).willReturn(List.of());
 
         listener.handleAuctionOpened(openedEvent());
 
@@ -80,8 +81,8 @@ class NotificationEventListenerTest {
 
     @Test
     void 상회_입찰이_발생하면_이전_최고_입찰자에게_금액과_함께_알림을_보내고_SSE로_push한다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
-        given(cardNameFinder.findNameById(10)).willReturn("리자몽 EX");
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
+        given(cardPriceService.getCard(10, 1)).willReturn(cardDetail("리자몽 EX"));
         Notification notification = Notification.ofBid(5, 100, NotificationType.OUTBID, 5L, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.");
         given(notificationService.saveForBid(5, 100, NotificationType.OUTBID, 5L, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.")).willReturn(notification);
 
@@ -93,8 +94,8 @@ class NotificationEventListenerTest {
 
     @Test
     void 복구_배치와_레이스로_저장이_중복_실패해도_기존_알림을_찾아_SSE로_push한다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
-        given(cardNameFinder.findNameById(10)).willReturn("리자몽 EX");
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
+        given(cardPriceService.getCard(10, 1)).willReturn(cardDetail("리자몽 EX"));
         given(notificationService.saveForBid(5, 100, NotificationType.OUTBID, 5L, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다."))
                 .willThrow(new DataIntegrityViolationException("duplicate"));
         Notification alreadySaved = Notification.ofBid(5, 100, NotificationType.OUTBID, 5L, "리자몽 EX 카드 경매에 51,000원에 상회 입찰이 발생했습니다.");
@@ -108,18 +109,18 @@ class NotificationEventListenerTest {
 
     @Test
     void 최초_입찰이면_상회_입찰_알림을_보내지_않는다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
 
         listener.handleBidPlaced(bidPlacedEvent(null));
 
-        verifyNoInteractions(cardNameFinder);
+        verifyNoInteractions(cardPriceService);
         verifyNoInteractions(notificationService);
         verifyNoInteractions(notificationSseConnectionManager);
     }
 
     @Test
     void 낙찰되면_낙찰자와_판매자_모두에게_알림을_보내고_SSE로_push한다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
         Notification winnerNotification = Notification.of(7, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다.");
         Notification sellerNotification = Notification.of(9, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매가 낙찰되었습니다.");
         given(notificationService.save(7, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다.")).willReturn(winnerNotification);
@@ -135,7 +136,7 @@ class NotificationEventListenerTest {
 
     @Test
     void 유찰되면_판매자에게만_알림을_보내고_SSE로_push한다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
         Notification sellerNotification = Notification.of(9, 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.");
         given(notificationService.save(9, 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.")).willReturn(sellerNotification);
 
@@ -148,7 +149,7 @@ class NotificationEventListenerTest {
 
     @Test
     void 주문이_완료되면_구매자와_판매자_모두에게_카드이름과_함께_알림을_보내고_SSE로_push한다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
         Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다.");
         Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 판매 대금이 정산되었습니다.");
         given(notificationService.save(7, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다.")).willReturn(buyerNotification);
@@ -162,7 +163,7 @@ class NotificationEventListenerTest {
 
     @Test
     void 구매자가_취소하면_구매자에게는_환불_판매자에게는_구매자가_취소했다는_알림을_보낸다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
         Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다.");
         Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 리자몽 EX 카드 거래를 취소했습니다.");
         given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다.")).willReturn(buyerNotification);
@@ -176,7 +177,7 @@ class NotificationEventListenerTest {
 
     @Test
     void 판매자가_취소하면_판매자에게는_판매취소_구매자에게는_환불_알림을_보낸다() {
-        listener = new NotificationEventListener(wishlistUserFinder, cardNameFinder, notificationService, notificationRepository, notificationSseConnectionManager);
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationSseConnectionManager);
         Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다.");
         Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 판매를 취소했습니다.");
         given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다.")).willReturn(buyerNotification);
@@ -206,6 +207,13 @@ class NotificationEventListenerTest {
         return new AuctionClosedEvent(
                 100, 10, "리자몽 EX", "10", "JP", "/card.png", winnerId, 9,
                 40_000L, 45_000L, winningPrice, 1_000L, 3, now, AuctionStatus.ENDED, now
+        );
+    }
+
+    private CardResponses.CardDetail cardDetail(String name) {
+        return new CardResponses.CardDetail(
+                10, name, null, null, 0, 0, 0, 0, null, null, null,
+                0, 0, 0, 0, null, null, null, List.of()
         );
     }
 }
