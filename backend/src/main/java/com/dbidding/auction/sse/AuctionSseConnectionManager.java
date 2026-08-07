@@ -3,9 +3,8 @@ package com.dbidding.auction.sse;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.Executor;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -17,8 +16,6 @@ public class AuctionSseConnectionManager {
     private static final long RECONNECT_TIME_MILLIS = 3_000L;
 
     private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
-    @Qualifier("sseTaskExecutor")
-    private final Executor sseTaskExecutor;
 
     public SseEmitter connect() {
         return register(new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
@@ -34,15 +31,17 @@ public class AuctionSseConnectionManager {
         return emitter;
     }
 
+    @Async("auctionSseTaskExecutor")
     public void broadcast(AuctionStreamPayload event) {
-        emitters.forEach(emitter -> sseTaskExecutor.execute(() -> send(emitter,
-                SseEmitter.event().name(event.type().name()).data(event))));
+        emitters.forEach(emitter -> send(emitter,
+                SseEmitter.event().name(event.type().name()).data(event)));
     }
 
+    @Async("auctionSseTaskExecutor")
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
-        emitters.forEach(emitter -> sseTaskExecutor.execute(() -> send(emitter,
-                SseEmitter.event().comment("heartbeat"))));
+        emitters.forEach(emitter -> send(emitter,
+                SseEmitter.event().comment("heartbeat")));
     }
 
     public int connectionCount() { return emitters.size(); }

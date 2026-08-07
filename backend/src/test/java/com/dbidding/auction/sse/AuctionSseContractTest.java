@@ -22,6 +22,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.context.annotation.Profile;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 class AuctionSseContractTest {
@@ -61,7 +62,7 @@ class AuctionSseContractTest {
 
     @Test
     void 전달_실패한_연결은_제거한다() throws Exception {
-        var manager = new AuctionSseConnectionManager(Runnable::run);
+        var manager = new AuctionSseConnectionManager();
         SseEmitter emitter = mock(SseEmitter.class);
         manager.register(emitter);
         doThrow(new IOException("disconnected")).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
@@ -74,7 +75,7 @@ class AuctionSseContractTest {
 
     @Test
     void heartbeat은_연결된_emitter에_주석_메시지를_전송한다() throws Exception {
-        var manager = new AuctionSseConnectionManager(Runnable::run);
+        var manager = new AuctionSseConnectionManager();
         SseEmitter emitter = mock(SseEmitter.class);
         manager.register(emitter);
         SseEmitter.SseEventBuilder heartbeat = mock(SseEmitter.SseEventBuilder.class);
@@ -110,6 +111,16 @@ class AuctionSseContractTest {
         Profile profile = AuctionSseTestEventController.class.getAnnotation(Profile.class);
 
         assertThat(profile.value()).containsExactly("test");
+    }
+
+    @Test
+    void 경매_SSE_전송과_heartbeat는_전용_executor에서_비동기로_실행된다() throws Exception {
+        Async broadcast = AuctionSseConnectionManager.class
+                .getMethod("broadcast", AuctionStreamPayload.class).getAnnotation(Async.class);
+        Async heartbeat = AuctionSseConnectionManager.class.getMethod("heartbeat").getAnnotation(Async.class);
+
+        assertThat(broadcast.value()).isEqualTo("auctionSseTaskExecutor");
+        assertThat(heartbeat.value()).isEqualTo("auctionSseTaskExecutor");
     }
 
     @Test
