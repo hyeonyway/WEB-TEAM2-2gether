@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -49,8 +50,8 @@ class AuctionSseContractTest {
         AuctionClosedEvent event = new AuctionClosedEvent(
                 10, 1, "Pikachu", "10", "KO", "thumb", 7, 5,
                 40_000L, 50_000L, 55_000L, 1_000L, 2,
-                LocalDateTime.of(2026, 8, 3, 12, 0), AuctionStatus.ENDED,
-                LocalDateTime.of(2026, 8, 3, 12, 0));
+                Instant.parse("2026-08-03T12:00:00Z"), AuctionStatus.ENDED,
+                Instant.parse("2026-08-03T12:00:00Z"));
         var mapper = JsonMapper.builder().addModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
 
@@ -111,10 +112,10 @@ class AuctionSseContractTest {
     void 커밋_후_전달_리스너는_도메인_이벤트를_SSE_payload로_변환하여_브로드캐스트한다() {
         AuctionSseConnectionManager manager = mock(AuctionSseConnectionManager.class);
         AuctionSseEventListener listener = new AuctionSseEventListener(manager);
-        LocalDateTime occurredAt = LocalDateTime.of(2026, 8, 3, 11, 0);
+        Instant occurredAt = Instant.parse("2026-08-03T11:00:00Z");
         BidPlacedEvent event = new BidPlacedEvent(
                 10, 1, 7, 5, 20L, 40_000L, 50_000L, 1_000L, 2,
-                occurredAt.plusHours(1), AuctionStatus.OPEN, occurredAt
+                occurredAt.plus(Duration.ofHours(1)), AuctionStatus.OPEN, occurredAt
         );
 
         listener.onBidPlaced(event);

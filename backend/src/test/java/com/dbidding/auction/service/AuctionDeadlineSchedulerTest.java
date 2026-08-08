@@ -13,7 +13,6 @@ import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.Delayed;
@@ -42,7 +41,7 @@ class AuctionDeadlineSchedulerTest {
 
     @Test
     void 가장_가까운_마감_시간에_맞춰_종료_작업을_예약한다() {
-        Auction auction = auction(1, LocalDateTime.of(2026, 7, 29, 10, 5));
+        Auction auction = auction(1, Instant.parse("2026-07-29T01:05:00Z"));
         when(auctionRepository.findNextCloseTarget(
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
@@ -51,29 +50,29 @@ class AuctionDeadlineSchedulerTest {
         scheduler.scheduleNext("test");
 
         assertThat(taskScheduler.scheduledInstant)
-                .isEqualTo(LocalDateTime.of(2026, 7, 29, 10, 5).atZone(clock.getZone()).toInstant());
+                .isEqualTo(Instant.parse("2026-07-29T01:05:00Z"));
     }
 
     @Test
     void 예약된_작업이_실행되면_현재_시간_기준으로_종료_대상을_닫고_다음_마감을_다시_예약한다() {
-        Auction auction = auction(1, LocalDateTime.of(2026, 7, 29, 10, 0));
+        Auction auction = auction(1, Instant.parse("2026-07-29T01:00:00Z"));
         when(auctionRepository.findNextCloseTarget(
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
         )).thenReturn(List.of(auction), List.of());
-        when(auctionCommandService.closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100))
+        when(auctionCommandService.closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100))
                 .thenReturn(List.of());
 
         scheduler.scheduleNext("test");
         taskScheduler.scheduledTask.run();
 
-        verify(auctionCommandService).closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100);
+        verify(auctionCommandService).closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100);
     }
 
     @Test
     void 마감_일정_변경_이벤트를_받으면_기존_작업을_취소하고_가장_빠른_마감을_다시_예약한다() {
-        Auction first = auction(1, LocalDateTime.of(2026, 7, 29, 10, 10));
-        Auction changed = auction(2, LocalDateTime.of(2026, 7, 29, 10, 5));
+        Auction first = auction(1, Instant.parse("2026-07-29T01:10:00Z"));
+        Auction changed = auction(2, Instant.parse("2026-07-29T01:05:00Z"));
         when(auctionRepository.findNextCloseTarget(
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
@@ -89,18 +88,18 @@ class AuctionDeadlineSchedulerTest {
 
         assertThat(firstFuture.cancelled).isTrue();
         assertThat(taskScheduler.scheduledInstant)
-                .isEqualTo(changed.getCloseTime().atZone(clock.getZone()).toInstant());
+                .isEqualTo(changed.getCloseTime());
     }
 
     @Test
     void 정시_마감이_실패해도_다음_마감_대상을_예약한다() {
-        Auction failedTarget = auction(1, LocalDateTime.of(2026, 7, 29, 10, 0));
-        Auction nextTarget = auction(2, LocalDateTime.of(2026, 7, 29, 10, 5));
+        Auction failedTarget = auction(1, Instant.parse("2026-07-29T01:00:00Z"));
+        Auction nextTarget = auction(2, Instant.parse("2026-07-29T01:05:00Z"));
         when(auctionRepository.findNextCloseTarget(
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
         )).thenReturn(List.of(failedTarget), List.of(nextTarget));
-        when(auctionCommandService.closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100))
+        when(auctionCommandService.closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100))
                 .thenThrow(new IllegalStateException("close failed"));
 
         scheduler.scheduleNext("initial");
@@ -113,12 +112,12 @@ class AuctionDeadlineSchedulerTest {
                 PageRequest.of(0, 1)
         );
         assertThat(taskScheduler.scheduledInstant)
-                .isEqualTo(nextTarget.getCloseTime().atZone(clock.getZone()).toInstant());
+                .isEqualTo(nextTarget.getCloseTime());
     }
 
     @Test
     void 다음_마감_대상이_없으면_기존_예약을_취소한다() {
-        Auction auction = auction(1, LocalDateTime.of(2026, 7, 29, 10, 5));
+        Auction auction = auction(1, Instant.parse("2026-07-29T01:05:00Z"));
         when(auctionRepository.findNextCloseTarget(
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
@@ -131,7 +130,7 @@ class AuctionDeadlineSchedulerTest {
         assertThat(scheduledFuture.cancelled).isTrue();
     }
 
-    private Auction auction(Integer id, LocalDateTime closeTime) {
+    private Auction auction(Integer id, Instant closeTime) {
         Auction auction = Auction.builder()
                 .sellerId(1)
                 .itemId(1)
@@ -140,7 +139,7 @@ class AuctionDeadlineSchedulerTest {
                 .startPrice(42_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(closeTime.minusHours(1))
+                .openTime(closeTime.minus(Duration.ofHours(1)))
                 .estimatedCloseTime(closeTime)
                 .closeTime(closeTime)
                 .bidPriceUnit(1_000L)

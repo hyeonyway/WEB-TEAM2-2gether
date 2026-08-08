@@ -12,7 +12,9 @@ import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -32,7 +34,8 @@ class AuctionRegistrationDetailContractTest {
                 bidRepository,
                 mock(WalletService.class),
                 cardService,
-                new AuctionCursorCodec()
+                new AuctionCursorCodec(),
+                Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
         );
         Auction auction = Auction.builder()
                 .sellerId(1)
@@ -46,9 +49,9 @@ class AuctionRegistrationDetailContractTest {
                 .startPrice(10_000L)
                 .buyNowPrice(null)
                 .deliveryFee(3_000L)
-                .openTime(LocalDateTime.of(2026, 8, 4, 10, 0))
-                .estimatedCloseTime(LocalDateTime.of(2026, 8, 4, 22, 0))
-                .closeTime(LocalDateTime.of(2026, 8, 4, 22, 0))
+                .openTime(Instant.parse("2026-08-04T10:00:00Z"))
+                .estimatedCloseTime(Instant.parse("2026-08-04T22:00:00Z"))
+                .closeTime(Instant.parse("2026-08-04T22:00:00Z"))
                 .bidPriceUnit(1_000L)
                 .hyped(false)
                 .build();

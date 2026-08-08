@@ -6,7 +6,6 @@ import static org.mockito.Mockito.verify;
 import com.dbidding.notification.recovery.NotificationReconciliationService;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +24,6 @@ class AuctionResultNotificationRecoverySchedulerTest {
         scheduler.recover();
 
         verify(notificationReconciliationService)
-                .recoverAuctionClosedNotifications(LocalDateTime.of(2026, 7, 29, 9, 40));
+                .recoverAuctionClosedNotifications(Instant.parse("2026-07-29T00:40:00Z"));
     }
 }

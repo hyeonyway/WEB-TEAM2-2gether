@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-import static com.dbidding.global.time.UtcTime.toInstant;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.dbidding.auction.domain.Auction;
@@ -24,7 +23,10 @@ import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,6 +54,7 @@ class AuctionQueryServiceTest {
 
     private AuctionQueryService auctionQueryService;
     private final AuctionCursorCodec cursorCodec = new AuctionCursorCodec();
+    private final Clock clock = Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC);
 
     @BeforeEach
     void setUp() {
@@ -61,7 +64,8 @@ class AuctionQueryServiceTest {
                 bidRepository,
                 walletService,
                 cardService,
-                cursorCodec
+                cursorCodec,
+                clock
         );
     }
 
@@ -72,7 +76,7 @@ class AuctionQueryServiceTest {
         Auction extra = auction(1, AuctionStatus.OPEN, 40_000L, 3);
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(LocalDateTime.class),
+                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(Instant.class),
                 eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(first, second, extra));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -97,7 +101,7 @@ class AuctionQueryServiceTest {
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
                 eq(AuctionSort.PRICE_HIGH.name()), eq(null), eq(45_000L), eq(null), eq(null), eq(2), eq(true),
-                any(LocalDateTime.class), eq(PageRequest.of(0, 3))
+                any(Instant.class), eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(next));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
@@ -119,7 +123,7 @@ class AuctionQueryServiceTest {
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
                 eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
-                any(LocalDateTime.class), eq(PageRequest.of(0, 2))
+                any(Instant.class), eq(PageRequest.of(0, 2))
         )).thenReturn(List.of(first, extra));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(2))).thenReturn(List.of());
@@ -173,7 +177,7 @@ class AuctionQueryServiceTest {
     @Test
     void 상세_조회는_실제_마감_시각을_반환한다() {
         Auction auction = auction(AuctionStatus.ENDED);
-        LocalDateTime actualCloseTime = LocalDateTime.now().minusSeconds(30);
+        Instant actualCloseTime = Instant.now().minusSeconds(30);
         ReflectionTestUtils.setField(auction, "closeTime", actualCloseTime);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
         when(cardService.getCardSnapshot(1)).thenReturn(card(1));
@@ -183,7 +187,7 @@ class AuctionQueryServiceTest {
 
         var response = auctionQueryService.getDetail(3, 1);
 
-        assertThat(response.endsAt()).isEqualTo(toInstant(actualCloseTime));
+        assertThat(response.endsAt()).isEqualTo(actualCloseTime);
     }
 
     @Test
@@ -229,7 +233,7 @@ class AuctionQueryServiceTest {
     }
 
     private Auction auction(Integer id, AuctionStatus status, Long currentPrice, Integer bidCount) {
-        LocalDateTime closeTime = LocalDateTime.now().minusMinutes(1);
+        Instant closeTime = Instant.now().minus(Duration.ofMinutes(1));
         Auction auction = Auction.builder()
                 .sellerId(2)
                 .itemId(1)
@@ -238,7 +242,7 @@ class AuctionQueryServiceTest {
                 .startPrice(42_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(closeTime.minusHours(2))
+                .openTime(closeTime.minus(Duration.ofHours(2)))
                 .estimatedCloseTime(closeTime)
                 .closeTime(closeTime)
                 .bidPriceUnit(1_000L)
@@ -252,7 +256,7 @@ class AuctionQueryServiceTest {
     }
 
     private Bid bid(Long id, Integer bidderId, Auction auction, Long bidPrice, BidStatus status) {
-        Bid bid = new Bid(bidderId, auction, bidPrice, LocalDateTime.now().minusMinutes(5), status);
+        Bid bid = new Bid(bidderId, auction, bidPrice, Instant.now().minus(Duration.ofMinutes(5)), status);
         ReflectionTestUtils.setField(bid, "id", id);
         return bid;
     }

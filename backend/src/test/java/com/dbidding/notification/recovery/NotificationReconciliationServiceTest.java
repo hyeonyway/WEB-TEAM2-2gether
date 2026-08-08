@@ -18,7 +18,8 @@ import com.dbidding.notification.NotificationRepository;
 import com.dbidding.notification.NotificationService;
 import com.dbidding.notification.NotificationType;
 import com.dbidding.wishlist.WishlistService;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -33,7 +34,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class NotificationReconciliationServiceTest {
 
-    private final LocalDateTime now = LocalDateTime.of(2026, 8, 4, 12, 0);
+    private final Instant now = Instant.parse("2026-08-04T12:00:00Z");
 
     @Mock
     private AuctionRepository auctionRepository;
@@ -61,7 +62,7 @@ class NotificationReconciliationServiceTest {
         given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(1, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID)).willReturn(true);
         given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(2, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID)).willReturn(false);
 
-        reconciliationService.recoverAuctionOpenedNotifications(now.minusMinutes(10));
+        reconciliationService.recoverAuctionOpenedNotifications(now.minus(Duration.ofMinutes(10)));
 
         verify(notificationService, never()).save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
         verify(notificationService).save(2, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
@@ -77,7 +78,7 @@ class NotificationReconciliationServiceTest {
         given(notificationService.save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."))
                 .willThrow(new DataIntegrityViolationException("duplicate"));
 
-        reconciliationService.recoverAuctionOpenedNotifications(now.minusMinutes(10));
+        reconciliationService.recoverAuctionOpenedNotifications(now.minus(Duration.ofMinutes(10)));
 
         verify(notificationService).save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
     }
@@ -90,7 +91,7 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findByAuctionIdAndStatus(1, BidStatus.WON)).willReturn(Optional.of(winningBid));
         given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(any(), any(), any(), any())).willReturn(false);
 
-        reconciliationService.recoverAuctionClosedNotifications(now.minusMinutes(20));
+        reconciliationService.recoverAuctionClosedNotifications(now.minus(Duration.ofMinutes(20)));
 
         verify(notificationService).save(5, 1, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다.");
         verify(notificationService).save(2, 1, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매가 낙찰되었습니다.");
@@ -103,7 +104,7 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findByAuctionIdAndStatus(1, BidStatus.WON)).willReturn(Optional.empty());
         given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(2, 1, NotificationType.AUCTION_UNSOLD, Notification.NO_BID)).willReturn(false);
 
-        reconciliationService.recoverAuctionClosedNotifications(now.minusMinutes(20));
+        reconciliationService.recoverAuctionClosedNotifications(now.minus(Duration.ofMinutes(20)));
 
         verify(notificationService).save(2, 1, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.");
     }
@@ -113,7 +114,7 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of());
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
 
-        reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
         verify(bidRepository, never()).findLatestBidPerBidderByAuctionIdIn(anyCollection());
     }
@@ -126,7 +127,7 @@ class NotificationReconciliationServiceTest {
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(leadingBid));
 
-        reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
         verify(notificationService, never()).save(any(), any(), any(), any());
     }
@@ -142,7 +143,7 @@ class NotificationReconciliationServiceTest {
                 3, 1, NotificationType.OUTBID, outbidBid.getId()
         )).willReturn(false);
 
-        reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
         verify(notificationService).saveForBid(3, 1, NotificationType.OUTBID, outbidBid.getId(), "55,000원에 상회 입찰이 발생했습니다.");
     }
@@ -158,7 +159,7 @@ class NotificationReconciliationServiceTest {
                 3, 1, NotificationType.OUTBID, outbidBid.getId()
         )).willReturn(true);
 
-        reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
         verify(notificationService, never()).saveForBid(any(), any(), any(), any(), any());
     }
@@ -174,7 +175,7 @@ class NotificationReconciliationServiceTest {
                 3, 1, NotificationType.OUTBID, outbidBid.getId()
         )).willReturn(false);
 
-        reconciliationService.recoverOutbidNotifications(now.minusMinutes(10));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
         verify(notificationService).saveForBid(3, 1, NotificationType.OUTBID, outbidBid.getId(), "55,000원에 상회 입찰이 발생했습니다.");
     }
@@ -188,9 +189,9 @@ class NotificationReconciliationServiceTest {
                 .startPrice(42_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(now.minusHours(2))
-                .estimatedCloseTime(now.plusHours(1))
-                .closeTime(now.plusHours(1))
+                .openTime(now.minus(Duration.ofHours(2)))
+                .estimatedCloseTime(now.plus(Duration.ofHours(1)))
+                .closeTime(now.plus(Duration.ofHours(1)))
                 .bidPriceUnit(1_000L)
                 .hyped(false)
                 .build();
@@ -200,7 +201,7 @@ class NotificationReconciliationServiceTest {
     }
 
     private Bid bid(Long id, Integer bidderId, Auction auction, Long bidPrice, BidStatus status) {
-        Bid bid = new Bid(bidderId, auction, bidPrice, now.minusMinutes(5), status);
+        Bid bid = new Bid(bidderId, auction, bidPrice, now.minus(Duration.ofMinutes(5)), status);
         ReflectionTestUtils.setField(bid, "id", id);
         return bid;
     }
