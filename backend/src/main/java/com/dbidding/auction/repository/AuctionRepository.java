@@ -3,7 +3,7 @@ package com.dbidding.auction.repository;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import jakarta.persistence.LockModeType;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.Collection;
 import java.util.List;
@@ -63,10 +63,10 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             @Param("bidCountCursor") Integer bidCountCursor,
             @Param("priceCursor") Long priceCursor,
             @Param("changeRateCursor") Long changeRateCursor,
-            @Param("openTimeCursor") LocalDateTime openTimeCursor,
+            @Param("openTimeCursor") Instant openTimeCursor,
             @Param("cursorId") Integer cursorId,
             @Param("activeOnly") boolean activeOnly,
-            @Param("now") LocalDateTime now,
+            @Param("now") Instant now,
             Pageable pageable
     );
 
@@ -77,7 +77,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
     long countByItemIdAndStatusInAndCloseTimeAfter(
             Integer itemId,
             Collection<AuctionStatus> statuses,
-            LocalDateTime closeTime
+            Instant closeTime
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -93,7 +93,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             """)
     List<Auction> findCloseTargetsForUpdate(
             @Param("statuses") Collection<AuctionStatus> statuses,
-            @Param("now") LocalDateTime now,
+            @Param("now") Instant now,
             Pageable pageable
     );
 
@@ -109,11 +109,11 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
 
     List<Auction> findByStatusInAndOpenTimeGreaterThanEqual(
             Collection<AuctionStatus> statuses,
-            LocalDateTime openTime
+            Instant openTime
     );
 
     List<Auction> findByStatusInAndCloseTimeGreaterThanEqual(
             Collection<AuctionStatus> statuses,
-            LocalDateTime closeTime
+            Instant closeTime
     );
 }

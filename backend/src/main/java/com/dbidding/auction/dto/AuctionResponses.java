@@ -5,7 +5,6 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Builder;
 
@@ -98,8 +97,8 @@ public final class AuctionResponses {
             Long currentPrice,
             Long bidIncrement,
             Integer bidCount,
-            LocalDateTime estimatedCloseTime,
-            LocalDateTime closeTime,
+            Instant estimatedCloseTime,
+            Instant closeTime,
             AuctionStatus status,
             BidStatus bidStatus,
             Long bidAmount

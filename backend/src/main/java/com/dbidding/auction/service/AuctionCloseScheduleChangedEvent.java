@@ -1,10 +1,10 @@
 package com.dbidding.auction.service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record AuctionCloseScheduleChangedEvent(
         Integer auctionId,
-        LocalDateTime closeTime,
+        Instant closeTime,
         String reason
 ) {
 }
