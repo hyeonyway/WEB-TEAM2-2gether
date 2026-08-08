@@ -70,12 +70,12 @@ class StatisticAggregationMySqlIntegrationTest {
                     id, user_id, item_id, auction_name, description,
                     start_price, current_price, buy_now_price, delivery_fee,
                     status, open_time, estimated_close_time, close_time,
-                    bid_count, bid_price_unit, is_hyped, version
+                    bid_count, bid_price_unit, is_hyped
                 ) values (
                     1, 1, 1, '테스트 경매', '통계 테스트',
                     80000, 120000, 150000, 0,
                     'ENDED', '2026-07-27 09:00:00', '2026-07-27 18:00:00',
-                    '2026-07-27 18:00:00', 2, 1000, false, 1
+                    '2026-07-27 18:00:00', 2, 1000, false
                 )
                 """);
         jdbcTemplate.update("""

@@ -146,16 +146,16 @@ class AuctionBidWalletLockOrderConcurrencyTest {
                     id, user_id, item_id, auction_name, description,
                     start_price, current_price, buy_now_price, delivery_fee,
                     status, open_time, estimated_close_time, close_time,
-                    bid_count, bid_price_unit, is_hyped, version
+                    bid_count, bid_price_unit, is_hyped
                 ) VALUES
                     (1, 3, 1, '교차 경매 1', '교차 경매 테스트 1',
                      10000, 11000, 100000, 0, 'OPEN', UTC_TIMESTAMP(6),
                      DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR),
-                     DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR), 1, 1000, FALSE, 1),
+                     DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR), 1, 1000, FALSE),
                     (2, 3, 2, '교차 경매 2', '교차 경매 테스트 2',
                      10000, 11000, 100000, 0, 'OPEN', UTC_TIMESTAMP(6),
                      DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR),
-                     DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR), 1, 1000, FALSE, 1)
+                     DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR), 1, 1000, FALSE)
                 """);
         jdbcTemplate.update("""
                 INSERT INTO bids (id, user_id, auction_id, bid_price, status)
