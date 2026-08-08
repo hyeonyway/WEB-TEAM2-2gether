@@ -15,8 +15,9 @@ import com.dbidding.statistic.service.StatisticQueryService;
 import com.dbidding.wishlist.WishlistService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -122,7 +123,7 @@ class CardPriceServiceTest {
                     (99001, :itemId),
                     (99002, :itemId)
                 """).setParameter("itemId", card.getId()).executeUpdate();
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("UTC"));
+        Instant now = Instant.now();
         entityManager.createNativeQuery("""
                 insert into auctions (
                     user_id, item_id, auction_name, description,
@@ -144,9 +145,9 @@ class CardPriceServiceTest {
                 """)
                 .setParameter("itemId", card.getId())
                 .setParameter("now", now)
-                .setParameter("activeCloseTime", now.plusHours(1))
-                .setParameter("staleOpenTime", now.minusHours(2))
-                .setParameter("staleCloseTime", now.minusHours(1))
+                .setParameter("activeCloseTime", now.plus(Duration.ofHours(1)))
+                .setParameter("staleOpenTime", now.minus(Duration.ofHours(2)))
+                .setParameter("staleCloseTime", now.minus(Duration.ofHours(1)))
                 .executeUpdate();
         dailyStatisticRepository.save(new ItemDailyStatistic(
                 card.getId(), yesterday.minusDays(10), 120_000L, 118_000L,

@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -146,7 +145,7 @@ class AuctionSseContractTest {
         AuctionSseTestAuctionReader reader = mock(AuctionSseTestAuctionReader.class);
         when(reader.findRandomActiveAuction()).thenReturn(Optional.of(new AuctionSseTestAuctionReader.Snapshot(
                 10, 40_000L, 40_000L, 1_000L, 0,
-                LocalDateTime.now().plusHours(1), "OPEN", 5)));
+                Instant.now().plus(Duration.ofHours(1)), "OPEN", 5)));
         AuctionSseTestBidApplicationService service =
                 new AuctionSseTestBidApplicationService(manager, reader, Clock.systemUTC());
 
