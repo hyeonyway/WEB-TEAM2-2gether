@@ -6,6 +6,9 @@ import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistic.repository.PriceMovementCandidate;
 import com.dbidding.statistic.service.DailyStatisticAggregationService;
 import java.time.LocalDate;
+import java.util.TimeZone;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +30,23 @@ class StatisticAggregationMySqlIntegrationTest {
     @ServiceConnection
     static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4")
             .withDatabaseName("dbidding");
+
+    private static TimeZone originalTimeZone;
+
+    // Hibernate 네이티브 쿼리의 LocalDateTime 파라미터 바인딩은 hibernate.jdbc.time_zone=UTC
+    // 설정과 별개로 JVM 기본 타임존의 영향을 받는다(JVM 기본 타임존이 UTC가 아니면 close_time
+    // 비교 범위가 어긋난다). 개발자 로컬 머신의 타임존 설정과 무관하게 이 테스트가 항상 같은
+    // 결과를 내도록 클래스 실행 동안만 JVM 기본 타임존을 UTC로 고정한다.
+    @BeforeAll
+    static void pinUtcTimeZone() {
+        originalTimeZone = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+    }
+
+    @AfterAll
+    static void restoreTimeZone() {
+        TimeZone.setDefault(originalTimeZone);
+    }
 
     @Autowired
     private DailyStatisticAggregationService aggregationService;
@@ -65,6 +85,10 @@ class StatisticAggregationMySqlIntegrationTest {
                     id, card_set_id, name, language, psa_grade, rarity, image_path
                 ) values (1, 1, '테스트 카드', 'KO', '10', 'gold', 'test.webp')
                 """);
+        // DailyStatisticAggregationService는 date를 Asia/Seoul 기준 하루로 해석해 UTC로 변환한
+        // 뒤 close_time을 그 범위로 조회한다. DB 세션 타임존(로컬 Docker/CI 환경마다 다를 수 있음)에
+        // 기대지 않고 항상 "2026-07-27 Seoul"에 정확히 걸리도록, close_time을 UTC로 환산한 값을
+        // 직접 리터럴로 넣는다 — 한국 시간 09:00~18:00 영업시간을 의도했다면 UTC로는 00:00~09:00.
         jdbcTemplate.update("""
                 insert into auctions (
                     id, user_id, item_id, auction_name, description,
@@ -74,14 +98,14 @@ class StatisticAggregationMySqlIntegrationTest {
                 ) values (
                     1, 1, 1, '테스트 경매', '통계 테스트',
                     80000, 120000, 150000, 0,
-                    'ENDED', '2026-07-27 09:00:00', '2026-07-27 18:00:00',
-                    '2026-07-27 18:00:00', 2, 1000, false
+                    'ENDED', '2026-07-27 00:00:00', '2026-07-27 09:00:00',
+                    '2026-07-27 09:00:00', 2, 1000, false
                 )
                 """);
         jdbcTemplate.update("""
                 insert into bids (id, user_id, auction_id, bid_price, created_at, status)
-                values (1, 2, 1, 100000, '2026-07-27 12:00:00', 'OUTBID'),
-                       (2, 2, 1, 120000, '2026-07-27 17:00:00', 'WON')
+                values (1, 2, 1, 100000, '2026-07-27 03:00:00', 'OUTBID'),
+                       (2, 2, 1, 120000, '2026-07-27 08:00:00', 'WON')
                 """);
     }
 
@@ -130,6 +154,11 @@ class StatisticAggregationMySqlIntegrationTest {
 
     @Test
     void 최근_30일의_최근_두_유효_거래를_native_query로_조회한다() {
+        jdbcTemplate.update("""
+                insert into card_metadata (
+                    id, card_set_id, name, language, psa_grade, rarity, image_path
+                ) values (2, 1, '테스트 카드 2', 'KO', '10', 'gold', 'test2.webp')
+                """);
         jdbcTemplate.update("""
                 insert into item_daily_statistics (
                     item_id, statistics_date, latest_price, average_price,
