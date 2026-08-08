@@ -3,7 +3,7 @@ import {Bell} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {showAuthRequiredToast} from '../auth/useAuthGate';
 import {useNotifications} from '../hooks/useNotifications';
-import {formatKoreanDate} from '../utils/dateTime';
+import {formatLocalDate} from '../utils/dateTime';
 import {showToast} from './Toast';
 import type {NotificationDto} from '../dto/notificationDto';
 
@@ -14,7 +14,7 @@ function formatRelativeTime(iso:string):string{
   if(diffMs<hour)return`${Math.floor(diffMs/minute)}분 전`;
   if(diffMs<day)return`${Math.floor(diffMs/hour)}시간 전`;
   if(diffMs<7*day)return`${Math.floor(diffMs/day)}일 전`;
-  return formatKoreanDate(iso);
+  return formatLocalDate(iso);
 }
 
 function NotificationItem({notification,onRead,onNavigate}:{notification:NotificationDto;onRead:(id:number)=>void;onNavigate:(notification:NotificationDto)=>void}){
