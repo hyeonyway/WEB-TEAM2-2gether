@@ -16,12 +16,14 @@
 바인딩된다(엔티티 프로퍼티 경로를 안 타고 raw SQL에 직접 바인딩). 그래서 #262를 그대로
 머지해도 이 리포지토리는 컴파일도, 동작도 깨지지 않는다.
 
-또 하나 정정: 원래 "전체 마이그레이션 후 `UtcTime` 헬퍼를 삭제한다"고 적었는데, #262
-조사 중 `auction/sse/AuctionSseTestBidApplicationService`가 `AuctionSseTestAuctionReader`로
-raw JDBC를 통해 읽은 `LocalDateTime`을 `UtcTime.toInstant()`로 변환하는 걸 확인했다(이
-리더는 `Auction` 엔티티를 거치지 않는 test-profile 전용 코드라 이번 마이그레이션과
-무관하게 그대로 남는다). 즉 `UtcTime`은 이번 시리즈가 끝나도 **삭제할 수 없다** — 이
-이슈에서는 삭제하지 않는다.
+또 하나 정정(및 재정정): 원래 "전체 마이그레이션 후 `UtcTime` 헬퍼를 삭제한다"고
+적었는데, #262 조사 중 `auction/sse/AuctionSseTestBidApplicationService`가
+`AuctionSseTestAuctionReader`로 raw JDBC를 통해 읽은 `LocalDateTime`을
+`UtcTime.toInstant()`로 변환하는 걸 확인하고 "그래서 삭제할 수 없다"고 결론 내렸었다.
+그런데 이건 헬퍼 메서드 하나 호출을 인라인 변환(`.toInstant(ZoneOffset.UTC)`)으로
+바꾸면 그만인 정도라, "삭제 불가능"이 아니라 "이 한 줄을 안 건드렸을 뿐"이었다.
+`AuctionSseTestBidApplicationService`의 그 한 줄을 인라인으로 바꾸고 `UtcTime`을
+삭제했다.
 
 ## 그럼 이 이슈에서 왜 바꾸나
 
@@ -54,10 +56,14 @@ JVM 타임존을 UTC로 고정해둔 상태) — 즉 이건 `Instant`만의 문�
   제거하고 `date.atStartOfDay(SEOUL).toInstant()`로 단순화
 - `card.service.DailyStatisticAggregationServiceTest` — mock 검증 리터럴을 `Instant`로
 
+- `auction/sse/AuctionSseTestBidApplicationService.java` — `UtcTime.toInstant(auction.endsAt())`를
+  `auction.endsAt().toInstant(ZoneOffset.UTC)` 인라인 변환으로 교체(`AuctionSseTestAuctionReader`가
+  raw JDBC로 읽는 `LocalDateTime` 타입 자체는 유지, `Auction` 엔티티를 거치지 않는
+  test-profile 전용 코드라 그대로 둠)
+- `global/time/UtcTime.java` — 위 변경으로 실제 소비자가 없어져 삭제
+
 ## 변경하지 않는 것
 
-- `global/time/UtcTime.java` — 위에서 정리한 대로 `AuctionSseTestBidApplicationService`가
-  여전히 써서 삭제 불가
 - `StatisticAggregationMySqlIntegrationTest` — raw SQL 문자열 리터럴로 데이터를 넣고
   `aggregate(LocalDate)` 시그니처만 호출하는 테스트라 내부 타입 변경과 무관, 수정 불필요
 - `refreshRollingSnapshots`/`refreshChangeRates`, `StatisticQueryService`,
@@ -81,5 +87,6 @@ JVM 타임존을 UTC로 고정해둔 상태) — 즉 이건 `Instant`만의 문�
 ## 커밋 이력
 
 1. `refactor: 통계 집계 경계 계산을 Instant로 전환`
+2. `refactor: UtcTime 헬퍼의 마지막 소비자를 인라인 변환으로 바꾸고 삭제`
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.

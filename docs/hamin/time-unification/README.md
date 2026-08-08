@@ -25,12 +25,14 @@
 동일한 조건으로 맞췄다. 자세한 내용은
 [262 계획 문서](262-auction-bid-instant-plan.md)의 "예상 밖 발견" 참고.
 
-## #263에서 확인한 것 — `UtcTime`은 삭제할 수 없다
+## #263에서 정리한 것 — `UtcTime` 삭제
 
 이슈를 처음 만들 때는 "전체 마이그레이션 후 `UtcTime` 헬퍼를 삭제한다"고
 적었는데, `auction/sse/AuctionSseTestBidApplicationService`가 `Auction`
 엔티티를 거치지 않는 raw JDBC 읽기 결과를 `UtcTime.toInstant()`로 변환하는
-걸 계속 쓰고 있어서 삭제 대상에서 제외했다. 자세한 내용은
+걸 계속 쓰고 있어서 한 번은 "그래서 삭제 불가"로 결론 냈었다. 다시 보니
+그 호출 한 줄을 `.toInstant(ZoneOffset.UTC)` 인라인 변환으로 바꾸면
+그만이라, 그렇게 바꾸고 `UtcTime`을 삭제했다. 자세한 내용은
 [263 계획 문서](263-statistic-aggregation-instant-plan.md) 참고.
 
 ## #263 테스트 중 발견한 이번 시리즈와 무관한 회귀
