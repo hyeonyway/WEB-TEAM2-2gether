@@ -84,14 +84,13 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
     @Query("select a from Auction a where a.id = :id")
     Optional<Auction> findByIdForUpdate(@Param("id") Integer id);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-            select a from Auction a
+            select a.id from Auction a
             where a.status in :statuses
               and a.closeTime <= :now
             order by a.closeTime asc, a.id asc
             """)
-    List<Auction> findCloseTargetsForUpdate(
+    List<Integer> findDueAuctionIds(
             @Param("statuses") Collection<AuctionStatus> statuses,
             @Param("now") Instant now,
             Pageable pageable

@@ -19,18 +19,18 @@ import org.springframework.stereotype.Component;
 public class AuctionClosingScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
 
-    private final AuctionCommandService auctionCommandService;
+    private final AuctionDueClosingService auctionDueClosingService;
     private final Clock clock;
 
     @Scheduled(
-            fixedDelayString = "${auction.closing.scheduler.fixed-delay-ms:10000}",
+            fixedDelayString = "${auction.closing.scheduler.fixed-delay-ms:60000}",
             scheduler = "auctionBackupTaskScheduler"
     )
     public void closeDueAuctions() {
         Instant now = clock.instant();
         log.debug("event=auction.close.backup_scheduler.started now={} batchSize={}", now, CLOSE_BATCH_SIZE);
         try {
-            var closedAuctions = auctionCommandService.closeDueAuctions(now, CLOSE_BATCH_SIZE);
+            var closedAuctions = auctionDueClosingService.closeDueAuctions(now, CLOSE_BATCH_SIZE);
             if (closedAuctions.isEmpty()) {
                 log.debug("event=auction.close.backup_scheduler.empty now={}", now);
                 return;

@@ -45,8 +45,8 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -266,36 +266,23 @@ public class AuctionCommandService {
         return closeLockedAuction(auction, now);
     }
 
-    @Transactional
-    public List<AuctionCloseResponse> closeDueAuctions(Instant now, int limit) {
-        if (limit < 1) {
-            throw new ResponseStatusException(BAD_REQUEST, "종료 처리 개수는 1 이상이어야 합니다.");
-        }
-        log.debug("event=auction.close.batch.finding now={} limit={}", now, limit);
-        Timer.Sample lockSample = auctionMetrics.start();
-        List<Auction> auctions;
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<AuctionCloseResponse> closeDueAuction(Integer auctionId, Instant now) {
+        Timer.Sample sample = auctionMetrics.start();
         try {
-            auctions = auctionRepository.findCloseTargetsForUpdate(
-                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
-                    now,
-                    PageRequest.of(0, limit)
-            );
-        } finally {
-            auctionMetrics.finishAuctionLockWait(lockSample, LockOperation.CLOSE);
+            Optional<Auction> auction = findByIdForUpdate(auctionId, LockOperation.CLOSE);
+            if (auction.isEmpty() || !isDueCloseTarget(auction.get(), now)) {
+                return Optional.empty();
+            }
+            AuctionCloseResponse response = closeLockedAuction(auction.get(), now);
+            auctionMetrics.finishClose(sample, response.winnerId() == null
+                    ? CloseResult.WITHOUT_TRADE
+                    : CloseResult.WITH_WINNER);
+            return Optional.of(response);
+        } catch (RuntimeException exception) {
+            auctionMetrics.finishClose(sample, CloseResult.ERROR);
+            throw exception;
         }
-        if (auctions.isEmpty()) {
-            log.debug("event=auction.close.batch.empty now={} limit={}", now, limit);
-        } else {
-            log.info("event=auction.close.batch.started count={} now={} limit={}", auctions.size(), now, limit);
-        }
-        List<AuctionCloseResponse> responses = auctions.stream()
-                .map(auction -> closeLockedAuction(auction, now))
-                .toList();
-        if (!responses.isEmpty()) {
-            log.info("event=auction.close.batch.completed count={} auctionIds={}", responses.size(),
-                    responses.stream().map(AuctionCloseResponse::auctionId).toList());
-        }
-        return responses;
     }
 
     private void validateIdempotencyKey(String idempotencyKey) {
@@ -469,6 +456,11 @@ public class AuctionCommandService {
         if (auction.getCloseTime().isAfter(now)) {
             throw new ResponseStatusException(BAD_REQUEST, "아직 종료 시각이 지나지 않은 경매입니다.");
         }
+    }
+
+    private boolean isDueCloseTarget(Auction auction, Instant now) {
+        return (auction.getStatus() == AuctionStatus.OPEN || auction.getStatus() == AuctionStatus.ENDING)
+                && !auction.getCloseTime().isAfter(now);
     }
 
     private AuctionCloseResponse closeLockedAuction(Auction auction, Instant closedAt) {
