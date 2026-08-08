@@ -24,7 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class AuctionDeadlineSchedulerTransactionTest {
     @Test
     void 일정_변경은_커밋_후에만_재예약하고_롤백하면_무시한다() {
-        AuctionCommandService auctionCommandService = mock(AuctionCommandService.class);
+        AuctionDueClosingService auctionDueClosingService = mock(AuctionDueClosingService.class);
         AuctionRepository auctionRepository = mock(AuctionRepository.class);
         TaskScheduler taskScheduler = mock(TaskScheduler.class);
         Clock clock = Clock.systemUTC();
@@ -37,7 +37,7 @@ class AuctionDeadlineSchedulerTransactionTest {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean(TransactionalEventListenerFactory.class);
             context.registerBean(AuctionDeadlineScheduler.class, () -> new AuctionDeadlineScheduler(
-                    auctionCommandService,
+                    auctionDueClosingService,
                     auctionRepository,
                     taskScheduler,
                     clock
