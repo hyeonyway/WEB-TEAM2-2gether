@@ -39,4 +39,14 @@ public class WishlistService {
                 .map(Wishlist::getUserId)
                 .toList();
     }
+
+    public int countWishlists(Integer cardId) {
+        return Math.toIntExact(wishlistRepository.countByCardId(cardId));
+    }
+
+    public List<Integer> findCardIdsByUserId(Integer userId) {
+        return wishlistRepository.findByUserId(userId).stream()
+                .map(Wishlist::getCardId)
+                .toList();
+    }
 }

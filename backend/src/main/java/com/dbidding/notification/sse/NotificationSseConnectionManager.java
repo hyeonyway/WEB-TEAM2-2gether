@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.sse;
 
 import com.dbidding.notification.dto.NotificationResponse;
 import java.io.IOException;

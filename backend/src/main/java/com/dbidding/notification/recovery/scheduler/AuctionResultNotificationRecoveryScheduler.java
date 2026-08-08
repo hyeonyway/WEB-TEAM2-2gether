@@ -1,6 +1,6 @@
-package com.dbidding.batch.scheduler;
+package com.dbidding.notification.recovery.scheduler;
 
-import com.dbidding.batch.service.NotificationReconciliationService;
+import com.dbidding.notification.recovery.NotificationReconciliationService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;

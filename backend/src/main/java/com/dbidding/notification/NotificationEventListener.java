@@ -3,11 +3,12 @@ package com.dbidding.notification;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.card.service.CardPriceService;
 import com.dbidding.notification.dto.NotificationResponse;
-import com.dbidding.notification.port.CardNameFinder;
-import com.dbidding.notification.port.WishlistUserFinder;
+import com.dbidding.notification.sse.NotificationSseConnectionManager;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
+import com.dbidding.wishlist.WishlistService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,8 +29,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class NotificationEventListener {
 
-    private final WishlistUserFinder wishlistUserFinder;
-    private final CardNameFinder cardNameFinder;
+    private final WishlistService wishlistService;
+    private final CardPriceService cardPriceService;
     private final NotificationService notificationService;
     private final NotificationRepository notificationRepository;
     private final NotificationSseConnectionManager notificationSseConnectionManager;
@@ -38,7 +39,7 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleAuctionOpened(AuctionOpenedEvent event) {
         String message = event.cardName() + " 카드의 경매가 등록되었습니다.";
-        List<Integer> userIds = wishlistUserFinder.findUserIdsByCardId(event.itemId());
+        List<Integer> userIds = wishlistService.findUserIdsByCardId(event.itemId());
         if (userIds.isEmpty()) {
             return;
         }
@@ -53,7 +54,7 @@ public class NotificationEventListener {
         if (event.previousBidderId() == null) {
             return;
         }
-        String cardName = cardNameFinder.findNameById(event.itemId());
+        String cardName = cardPriceService.getCard(event.itemId(), 1).name();
         String message = cardName + " 카드 경매에 " + "%,d".formatted(event.currentPrice()) + "원에 상회 입찰이 발생했습니다.";
         saveAndPush(event.previousBidderId(), event.auctionId(), NotificationType.OUTBID, event.previousBidId(), message);
     }

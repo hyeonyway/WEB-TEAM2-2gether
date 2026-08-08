@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.sse;
 
 import com.dbidding.global.exception.UnauthorizedException;
 import com.dbidding.global.security.CurrentUser;

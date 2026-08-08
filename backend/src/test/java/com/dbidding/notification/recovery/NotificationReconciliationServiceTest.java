@@ -1,4 +1,4 @@
-package com.dbidding.batch.service;
+package com.dbidding.notification.recovery;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;

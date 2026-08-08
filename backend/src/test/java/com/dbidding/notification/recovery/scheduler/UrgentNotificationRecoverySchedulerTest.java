@@ -1,9 +1,9 @@
-package com.dbidding.batch.scheduler;
+package com.dbidding.notification.recovery.scheduler;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.dbidding.batch.service.NotificationReconciliationService;
+import com.dbidding.notification.recovery.NotificationReconciliationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.dbidding.global.security.CurrentUser;
-import com.dbidding.notification.NotificationSseConnectionManager;
+import com.dbidding.notification.sse.NotificationSseConnectionManager;
 
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;

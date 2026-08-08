@@ -12,7 +12,7 @@ import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistic.service.StatisticQueryService;
-import com.dbidding.wishlist.WishlistCardAdapter;
+import com.dbidding.wishlist.WishlistService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         AuctionInsightQueryService.class,
         CardService.class,
         CardAuctionAdapter.class,
-        WishlistCardAdapter.class,
+        WishlistService.class,
         TimeConfig.class
 })
 class CardPriceServiceTest {

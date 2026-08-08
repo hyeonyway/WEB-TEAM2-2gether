@@ -1,4 +1,4 @@
-package com.dbidding.batch.service;
+package com.dbidding.notification.recovery;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
