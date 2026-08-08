@@ -57,10 +57,21 @@ JVM 타임존을 UTC로 고정해둔 상태) — 즉 이건 `Instant`만의 문�
 - `card.service.DailyStatisticAggregationServiceTest` — mock 검증 리터럴을 `Instant`로
 
 - `auction/sse/AuctionSseTestBidApplicationService.java` — `UtcTime.toInstant(auction.endsAt())`를
-  `auction.endsAt().toInstant(ZoneOffset.UTC)` 인라인 변환으로 교체(`AuctionSseTestAuctionReader`가
-  raw JDBC로 읽는 `LocalDateTime` 타입 자체는 유지, `Auction` 엔티티를 거치지 않는
-  test-profile 전용 코드라 그대로 둠)
+  `auction.endsAt().toInstant(ZoneOffset.UTC)` 인라인 변환으로 교체
 - `global/time/UtcTime.java` — 위 변경으로 실제 소비자가 없어져 삭제
+- `auction/sse/AuctionSseTestAuctionReader.java` — `Snapshot.endsAt`을 `Instant`로 전환.
+  MySQL Connector/J가 `resultSet.getObject(column, Instant.class)`를 지원하지 않는 걸
+  실제 Testcontainers MySQL로 직접 확인했다(`SQLException: Conversion not supported for
+  type java.time.Instant`). JDBC 읽기 자체는 `LocalDateTime`으로 할 수밖에 없지만, 그
+  자리에서 바로 `.toInstant(ZoneOffset.UTC)`로 변환해 `Snapshot`을 포함한 나머지
+  타입에는 `LocalDateTime`이 노출되지 않는다
+- `card/service/CardPriceServiceTest.java`의 native query 파라미터
+  (`LocalDateTime.now(UTC)`)도 `Instant`로 전환
+- `statistic/service/StatisticQueryServiceTest.java`의 미사용 `LocalDateTime` import 제거
+
+사용자가 "native query라 의미 없어도 남은 LocalDateTime을 전부 Instant로 바꿔라"고
+명시적으로 요청해서 진행했다. `src/main`/`src/test` 전체에서 실제 타입으로 쓰이는
+`LocalDateTime`은 이제 없다(주석 텍스트 한 곳 제외).
 
 ## 변경하지 않는 것
 
@@ -77,10 +88,14 @@ JVM 타임존을 UTC로 고정해둔 상태) — 즉 이건 `Instant`만의 문�
 - `DailyStatisticAggregationServiceTest`(mock), `StatisticAggregationMySqlIntegrationTest`
   (실제 MySQL), `DailyStatisticSchedulerTest` 전부 통과 — native query에 `Instant`를
   바인딩해도 실제 MySQL에서 정상 동작함을 확인
-- 전체 스위트 실행 중 `WalletTransactionConcurrencyTest`의
-  `같은_경매의_동시_hold는_HELD를_중복_생성하지_않는다()` 실패를 발견했으나, `dev`에
-  이번 변경 없이 그대로 체크아웃해서 돌려봐도 동일하게 실패함을 확인해 **이번 이슈와
-  무관함**을 확인했다. 원인은 방금 머지된 PR #267(`WalletHoldRepository`의
+- `AuctionSseTestAuctionReader`의 `resultSet.getObject(column, Instant.class)`가 실제로
+  드라이버 예외를 내는 것도 임시 디버그 테스트(커밋에는 포함하지 않음)로 직접 확인한 뒤
+  `LocalDateTime` 읽기 + 즉시 변환 방식으로 고쳤고, 같은 임시 테스트로 최종 수정본이
+  실제 MySQL에서 `Instant`를 정상적으로 반환하는 것까지 확인
+- 전체 스위트(449개) 실행 결과 `WalletTransactionConcurrencyTest`의
+  `같은_경매의_동시_hold는_HELD를_중복_생성하지_않는다()` 1건만 실패, 나머지 전부 통과.
+  이 실패는 `dev`에 이번 변경 없이 그대로 체크아웃해서 돌려봐도 동일하게 발생해 **이번
+  이슈와 무관함**을 확인했다. 원인은 방금 머지된 PR #267(`WalletHoldRepository`의
   `@Lock(PESSIMISTIC_WRITE)` 제거)로 추정되며, wallet 패키지 소관이라 별도로
   플래그만 하고 이 PR에는 포함하지 않는다.
 
@@ -88,5 +103,6 @@ JVM 타임존을 UTC로 고정해둔 상태) — 즉 이건 `Instant`만의 문�
 
 1. `refactor: 통계 집계 경계 계산을 Instant로 전환`
 2. `refactor: UtcTime 헬퍼의 마지막 소비자를 인라인 변환으로 바꾸고 삭제`
+3. `refactor: 남아있던 LocalDateTime을 전부 Instant로 전환`
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.

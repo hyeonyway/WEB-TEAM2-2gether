@@ -35,6 +35,21 @@
 그만이라, 그렇게 바꾸고 `UtcTime`을 삭제했다. 자세한 내용은
 [263 계획 문서](263-statistic-aggregation-instant-plan.md) 참고.
 
+## #263 — 남은 `LocalDateTime` 전부 제거
+
+사용자가 "native query라 의미 없어도 남은 LocalDateTime을 전부 Instant로
+바꿔라"고 지시해서, `auction/sse/AuctionSseTestAuctionReader`(SSE 테스트용
+raw JDBC 리더)와 `card/service/CardPriceServiceTest`의 native query
+파라미터까지 전부 `Instant`로 바꿨다. 다만 MySQL Connector/J가
+`resultSet.getObject(column, Instant.class)`를 지원하지 않는다는 걸 실제
+Testcontainers MySQL로 확인해서(`SQLException: Conversion not supported
+for type java.time.Instant`), JDBC 읽기 자체는 `LocalDateTime`으로 하고
+그 자리에서 즉시 `.toInstant(ZoneOffset.UTC)`로 변환하는 방식으로
+처리했다 — `Snapshot` 같은 타입 시그니처에는 `LocalDateTime`이 전혀
+노출되지 않는다. 이제 `backend/src` 전체에서 실제 타입으로 쓰이는
+`LocalDateTime`은 없다(주석 텍스트 한 곳 제외). 자세한 내용은
+[263 계획 문서](263-statistic-aggregation-instant-plan.md) 참고.
+
 ## #263 테스트 중 발견한 이번 시리즈와 무관한 회귀
 
 전체 스위트 실행 중 `WalletTransactionConcurrencyTest`가 실패하는 걸
