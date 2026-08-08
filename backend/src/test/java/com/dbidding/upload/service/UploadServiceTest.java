@@ -7,6 +7,9 @@ import static org.mockito.BDDMockito.given;
 
 import com.dbidding.upload.dto.ImageUploadRequests;
 import com.dbidding.upload.dto.ImageUploadResponses;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +20,8 @@ import org.springframework.web.server.ResponseStatusException;
 @ExtendWith(MockitoExtension.class)
 class UploadServiceTest {
 
+    private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC);
+
     @Mock
     private S3PresignedUrlProvider presignedUrlProvider;
 
@@ -24,7 +29,7 @@ class UploadServiceTest {
 
     @Test
     void 이미지_파일들에_대해_presignedURL을_발급한다() {
-        uploadService = new UploadService(presignedUrlProvider);
+        uploadService = new UploadService(presignedUrlProvider, FIXED_CLOCK);
         given(presignedUrlProvider.presign(anyString(), anyString()))
                 .willReturn(new S3PresignedUrlProvider.PresignedUpload("https://example.com/signed", 300));
 
@@ -49,7 +54,7 @@ class UploadServiceTest {
 
     @Test
     void 허용되지_않는_contentType이면_400_예외를_던진다() {
-        uploadService = new UploadService(presignedUrlProvider);
+        uploadService = new UploadService(presignedUrlProvider, FIXED_CLOCK);
         ImageUploadRequests.PresignedUrlRequest request = new ImageUploadRequests.PresignedUrlRequest(
                 List.of(new ImageUploadRequests.FileMeta("virus.exe", "application/octet-stream"))
         );

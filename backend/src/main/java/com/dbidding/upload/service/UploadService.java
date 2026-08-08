@@ -2,6 +2,7 @@ package com.dbidding.upload.service;
 
 import com.dbidding.upload.dto.ImageUploadRequests;
 import com.dbidding.upload.dto.ImageUploadResponses;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -22,9 +23,11 @@ public class UploadService {
     private static final DateTimeFormatter DATE_PATH_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
     private final S3PresignedUrlProvider presignedUrlProvider;
+    private final Clock clock;
 
-    public UploadService(S3PresignedUrlProvider presignedUrlProvider) {
+    public UploadService(S3PresignedUrlProvider presignedUrlProvider, Clock clock) {
         this.presignedUrlProvider = presignedUrlProvider;
+        this.clock = clock;
     }
 
     public ImageUploadResponses.PresignedUrlResponse createPresignedUrls(
@@ -48,7 +51,7 @@ public class UploadService {
     }
 
     private String generateKey(String extension) {
-        String datePath = LocalDate.now().format(DATE_PATH_FORMATTER);
+        String datePath = LocalDate.now(clock).format(DATE_PATH_FORMATTER);
         return "upload/auctionImage/%s/%s.%s".formatted(datePath, UUID.randomUUID(), extension);
     }
 }

@@ -2,7 +2,7 @@ package com.dbidding.account.authentication.jwt;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
+import java.time.Clock;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +21,7 @@ public class JwtRefreshService {
 	private final AuthenticationRepository authenticationRepository;
 	private final JwtTokenProvider jwtTokenProvider;
 	private final RefreshTokenHasher refreshTokenHasher;
+	private final Clock clock;
 
 	@Transactional
 	public JwtRefreshResult refresh(String refreshToken) {
@@ -36,7 +37,7 @@ public class JwtRefreshService {
 		Account account = accountRepository.findById(claims.userId())
 			.filter(foundAccount -> foundAccount.getStatus() == AccountStatus.ACTIVE)
 			.orElseThrow(InvalidRefreshTokenException::new);
-		IssuedTokens nextTokens = jwtTokenProvider.issue(account.getId(), account.getRole(), Instant.now());
+		IssuedTokens nextTokens = jwtTokenProvider.issue(account.getId(), account.getRole(), clock.instant());
 		authentication.rotate(refreshTokenHasher.hash(nextTokens.refreshToken()));
 
 		return new JwtRefreshResult(

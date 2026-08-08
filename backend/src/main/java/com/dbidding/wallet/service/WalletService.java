@@ -1,6 +1,6 @@
 package com.dbidding.wallet.service;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Optional;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -46,6 +46,7 @@ public class WalletService {
 	private final PointRecordRepository pointRecordRepository;
 	private final WalletHoldRepository walletHoldRepository;
 	private final WalletMetrics walletMetrics;
+	private final Clock clock;
 
 	@Transactional(readOnly = true)
 	public WalletBalanceResponse getBalance(Integer userId) {
@@ -157,7 +158,7 @@ public class WalletService {
 			.map(WalletHold::getAmount)
 			.orElse(0L);
 		latest.filter(WalletHold::isHeld)
-			.ifPresent(hold -> hold.release(Instant.now()));
+			.ifPresent(hold -> hold.release(clock.instant()));
 		return balance(wallet, Math.subtractExact(frozenBefore, releasedAmount));
 	}
 
@@ -186,7 +187,7 @@ public class WalletService {
 		validateFrozenBalance(wallet, frozenBefore);
 
 		wallet.debit(amount);
-		hold.capture(Instant.now());
+		hold.capture(clock.instant());
 		pointRecordRepository.save(
 			PointRecord.auctionCapture(
 				wallet.getId(),
