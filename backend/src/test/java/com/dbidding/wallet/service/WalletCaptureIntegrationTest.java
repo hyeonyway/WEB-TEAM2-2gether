@@ -94,13 +94,13 @@ class WalletCaptureIntegrationTest {
 			    id, user_id, item_id, auction_name, description,
 			    start_price, current_price, buy_now_price, delivery_fee,
 			    status, open_time, estimated_close_time, close_time,
-			    bid_count, bid_price_unit, is_hyped, version
+			    bid_count, bid_price_unit, is_hyped
 			) VALUES (
 			    1, 1, 1, 'Wallet Capture 경매', 'Wallet Capture 통합 테스트',
 			    1000, 1000, 10000, 3000,
 			    'OPEN', NOW(6), DATE_ADD(NOW(6), INTERVAL 1 HOUR),
 			    DATE_ADD(NOW(6), INTERVAL 1 HOUR),
-			    0, 1000, FALSE, 1
+			    0, 1000, FALSE
 			)
 			""");
 		Wallet wallet = Wallet.open(1);
