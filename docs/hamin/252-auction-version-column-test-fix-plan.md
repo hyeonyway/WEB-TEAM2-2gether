@@ -32,6 +32,24 @@ Testcontainers로 새로 뜨는 DB(현재 `schema.sql` 기준, `version` 컬럼 
 `d8c8e25` 이전 상태로 남아있어 `version` 컬럼이 물리적으로 아직 존재함)에 붙기 때문에 지금
 당장 실패하지 않는다. 별도 원인(로컬 DB 시드 데이터 오염)으로 이슈 [#253](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/253)에서 다루므로 이번 작업 범위에서 제외한다.
 
+## 결과
+
+`version` 컬럼 참조를 제거한 뒤 6개 클래스 중 5개(`WalletLedgerRepositoryTest`,
+`WalletHoldRepositoryTest`, `WalletCaptureIntegrationTest`, `WalletTransactionConcurrencyTest`,
+`AuctionBidWalletLockOrderConcurrencyTest`)는 전부 통과했다.
+
+`StatisticAggregationMySqlIntegrationTest`는 SQL 에러는 사라졌지만, 그동안 이 에러에 가려
+실행조차 안 됐던 별개의 로직/데이터 버그(FK 위반, `latest_price` 집계 로직 불일치)가 드러나
+전부 실패한다. 이건 `version` 컬럼과 무관한 문제라 이번 작업 범위에서 제외하고 후속 이슈
+[#255](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/255)로 분리했다.
+
+## 관련 후속 이슈
+
+- [#253](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/253) — `CardPriceServiceTest`
+  로컬 DB 시드 데이터 오염 (이번 작업 범위 밖)
+- [#255](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/255) — `StatisticAggregationMySqlIntegrationTest`
+  통계 집계 로직 및 FK 데이터 셋업 버그 (이번 작업 중 발견, 범위가 달라 분리)
+
 ## 커밋 이력
 
 1. `fix: 경매 version 컬럼 제거로 실패하던 wallet/auction 테스트 setup SQL 수정`
