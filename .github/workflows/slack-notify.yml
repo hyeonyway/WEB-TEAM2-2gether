@@ -26,25 +26,40 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ', ') }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ', ') }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           ACTOR: ${{ github.event.sender.login }}
           MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
         run: |
           if [[ "$EVENT_NAME" == "issues" ]]; then
-            TYPE="Issue opened"
+            TYPE="이슈 생성"
             TITLE="#$ISSUE_NUMBER $ISSUE_TITLE"
             URL="$ISSUE_URL"
+            LABELS=${ISSUE_LABELS:-없음}
+            BODY="$ISSUE_BODY"
+            DETAILS="작성자: $ACTOR"
           else
-            TYPE="Pull request merged"
+            TYPE="PR 병합"
             TITLE="#$PR_NUMBER $PR_TITLE"
             URL="$PR_URL"
-            ACTOR="$MERGED_BY"
+            LABELS=${PR_LABELS:-없음}
+            BODY="$PR_BODY"
+            DETAILS="작성자: $PR_AUTHOR\n병합자: $MERGED_BY\n대상 브랜치: ${{ github.event.pull_request.base.ref }}"
           fi
 
+          BODY=$(printf '%s' "$BODY" | tr '\n' ' ' | cut -c1-300)
+          BODY=${BODY:-내용 없음}
+          printf -v MESSAGE '[%s] %s\n\n%b\n라벨: %s\n내용: %s\n링크: %s' \
+            "$TYPE" "$TITLE" "$DETAILS" "$LABELS" "$BODY" "$URL"
+
           jq -n \
-            --arg text "[$TYPE] $TITLE\nactor: $ACTOR\n$URL" \
+            --arg text "$MESSAGE" \
             '{text: $text}' | \
             curl --fail-with-body --show-error --silent \
               -X POST -H 'Content-type: application/json' \
