@@ -3,7 +3,7 @@ package com.dbidding.notification.recovery.scheduler;
 import com.dbidding.notification.recovery.NotificationReconciliationService;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,8 +34,8 @@ public class UrgentNotificationRecoveryScheduler {
             scheduler = "notificationRecoveryTaskScheduler"
     )
     public void recover() {
-        LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime auctionOpenedWindowStart = now.minus(Duration.ofMinutes(10));
+        Instant now = clock.instant();
+        Instant auctionOpenedWindowStart = now.minus(Duration.ofMinutes(10));
         try {
             notificationReconciliationService.recoverAuctionOpenedNotifications(auctionOpenedWindowStart);
             notificationReconciliationService.recoverOutbidNotifications(auctionOpenedWindowStart);
