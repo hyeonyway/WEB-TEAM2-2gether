@@ -138,7 +138,8 @@ public class Auction {
     }
 
     public Long minimumBid() {
-        return currentPrice + bidPriceUnit;
+        long nextBid = currentPrice + bidPriceUnit;
+        return buyNowPrice == null ? nextBid : Math.min(nextBid, buyNowPrice);
     }
 
     public void closeWithWinningBid(Bid winningBid, Instant closedAt) {

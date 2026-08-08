@@ -8,12 +8,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
+import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
@@ -29,6 +32,8 @@ import java.util.Optional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -73,6 +78,7 @@ class AuctionServiceBidTest {
                 eventPublisher,
                 new AuctionMetrics(meterRegistry)
         );
+        lenient().when(cardService.getCardSnapshot(1)).thenReturn(new com.dbidding.card.dto.CardResponses.CardSnapshot(1, "카드", "세트", "10", "JP", null));
     }
 
     @Test
@@ -121,6 +127,67 @@ class AuctionServiceBidTest {
         assertThat(auction.getBidCount()).isEqualTo(1);
         verify(walletService).hold(2, 1, 43_000L);
         verify(auctionEventPublisher).publishBidPlaced(any(BidPlacedEvent.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {100_000L, 110_000L})
+    void 즉시구매가_이상_입찰은_즉시구매가로_낙찰되고_경매를_종료한다(long requestedPrice) {
+        Auction auction = auction(1);
+        ReflectionTestUtils.setField(auction, "currentPrice", 95_000L);
+        ReflectionTestUtils.setField(auction, "bidPriceUnit", 10_000L);
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.empty());
+        when(walletService.hold(2, 1, 100_000L)).thenReturn(new WalletBalanceResponse(1_000_000L, 100_000L, 900_000L));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
+            Bid bid = invocation.getArgument(0);
+            ReflectionTestUtils.setField(bid, "id", 10L);
+            when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.of(bid));
+            return bid;
+        });
+
+        var response = auctionService.participate(2, 1, new BidCreateRequest(requestedPrice), "buy-now-key");
+
+        assertThat(response.bid().amount()).isEqualTo(100_000L);
+        assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
+        verify(walletService).capture(2, 1, 100_000L);
+        verify(auctionEventPublisher).publishClosed(any(AuctionClosedEvent.class));
+    }
+
+    @Test
+    void 기존_최고가_입찰자가_있어도_즉시구매하면_기존_예치금을_해제하고_구매자_예치금을_확정한다() {
+        Auction auction = auction(1);
+        Bid previous = Bid.leading(3, auction, 90_000L, clock.instant(), "previous", "hash");
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.of(previous));
+        when(walletService.release(3, 1)).thenReturn(new WalletBalanceResponse(1_000_000L, 0L, 1_000_000L));
+        when(walletService.hold(2, 1, 100_000L)).thenReturn(new WalletBalanceResponse(1_000_000L, 100_000L, 900_000L));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
+            Bid bid = invocation.getArgument(0);
+            when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.of(bid));
+            return bid;
+        });
+
+        auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+
+        verify(walletService).release(3, 1);
+        verify(walletService).capture(2, 1, 100_000L);
+    }
+
+    @Test
+    void 동일_idempotency_key로_즉시구매를_재요청하면_기존_응답을_반환한다() {
+        Auction auction = auction(1);
+        ReflectionTestUtils.setField(auction, "status", AuctionStatus.ENDED);
+        Bid bid = Bid.leading(2, auction, 100_000L, clock.instant(), "buy-now-key",
+                "aab899678e19331286225b49ecf51ec86fe22057bab2b7d2e2fb06339c655c54");
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByBidderIdAndAuctionIdAndIdempotencyKey(2, 1, "buy-now-key")).thenReturn(Optional.of(bid));
+        when(walletService.getBalance(2)).thenReturn(new WalletBalanceResponse(1_000_000L, 0L, 900_000L));
+
+        var response = auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+
+        assertThat(response.bid().amount()).isEqualTo(100_000L);
+        verify(bidRepository, never()).save(any(Bid.class));
+        verify(walletService, never()).capture(any(), any(), any(Long.class));
     }
 
     @Test

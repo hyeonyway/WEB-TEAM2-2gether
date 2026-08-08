@@ -181,37 +181,42 @@ public class AuctionCommandService {
         }
 
         validateNotSellerBid(userId, auction);
+        long bidPrice = bidPrice(auction, request.price());
+        boolean buyNow = isBuyNowBid(auction, request.price());
         Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
         validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
 
         Instant bidAt = now();
         Instant previousCloseTime = auction.getCloseTime();
-        boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
+        boolean closeTimeExtended = placeBid(auction, bidPrice, bidAt);
         WalletBalanceResponse wallet;
         if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
             outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
-            wallet = holdBidAmount(userId, auction.getId(), request.price());
+            wallet = holdBidAmount(userId, auction.getId(), bidPrice);
         } else {
-            wallet = holdBidAmount(userId, auction.getId(), request.price());
+            wallet = holdBidAmount(userId, auction.getId(), bidPrice);
             outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
         }
 
         Bid currentLeadingBid = bidRepository.save(Bid.leading(
                 userId,
                 auction,
-                request.price(),
+                bidPrice,
                 bidAt,
                 idempotencyKey,
                 requestHash
         ));
         publishBidPlaced(auction, userId, auction.getItemId(), previousLeadingBid, bidAt);
+        if (buyNow) {
+            closeLockedAuction(auction, bidAt);
+        }
         log.info(
                 "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
                 auction.getId(), userId, currentLeadingBid.getId(), request.price(), auction.getCurrentPrice(),
                 auction.getBidCount(), previousLeadingBid == null ? null : previousLeadingBid.getId(),
                 closeTimeExtended, previousCloseTime, auction.getCloseTime(), auction.getStatus()
         );
-        if (closeTimeExtended) {
+        if (closeTimeExtended && !buyNow) {
             log.info(
                     "event=auction.close_time.extended auctionId={} bidId={} bidAt={} previousCloseTime={} extendedCloseTime={} extensionWindowMinutes={} extensionDurationMinutes={}",
                     auction.getId(), currentLeadingBid.getId(), bidAt, previousCloseTime, auction.getCloseTime(),
@@ -222,6 +227,16 @@ public class AuctionCommandService {
 
         auctionRepository.flush();
         return bidResult(currentLeadingBid, auction, wallet);
+    }
+
+    private long bidPrice(Auction auction, long requestedPrice) {
+        Long buyNowPrice = auction.getBuyNowPrice();
+        return buyNowPrice != null && requestedPrice >= buyNowPrice ? buyNowPrice : requestedPrice;
+    }
+
+    private boolean isBuyNowBid(Auction auction, long requestedPrice) {
+        Long buyNowPrice = auction.getBuyNowPrice();
+        return buyNowPrice != null && requestedPrice >= buyNowPrice;
     }
 
     @Transactional
