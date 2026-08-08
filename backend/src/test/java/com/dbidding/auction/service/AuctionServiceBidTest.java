@@ -154,6 +154,43 @@ class AuctionServiceBidTest {
     }
 
     @Test
+    void 기존_최고가_입찰자가_있어도_즉시구매하면_기존_예치금을_해제하고_구매자_예치금을_확정한다() {
+        Auction auction = auction(1);
+        Bid previous = Bid.leading(3, auction, 90_000L, clock.instant(), "previous", "hash");
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.of(previous));
+        when(walletService.release(3, 1)).thenReturn(new WalletBalanceResponse(1_000_000L, 0L, 1_000_000L));
+        when(walletService.hold(2, 1, 100_000L)).thenReturn(new WalletBalanceResponse(1_000_000L, 100_000L, 900_000L));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
+            Bid bid = invocation.getArgument(0);
+            when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.of(bid));
+            return bid;
+        });
+
+        auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+
+        verify(walletService).release(3, 1);
+        verify(walletService).capture(2, 1, 100_000L);
+    }
+
+    @Test
+    void 동일_idempotency_key로_즉시구매를_재요청하면_기존_응답을_반환한다() {
+        Auction auction = auction(1);
+        ReflectionTestUtils.setField(auction, "status", AuctionStatus.ENDED);
+        Bid bid = Bid.leading(2, auction, 100_000L, clock.instant(), "buy-now-key",
+                "aab899678e19331286225b49ecf51ec86fe22057bab2b7d2e2fb06339c655c54");
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByBidderIdAndAuctionIdAndIdempotencyKey(2, 1, "buy-now-key")).thenReturn(Optional.of(bid));
+        when(walletService.getBalance(2)).thenReturn(new WalletBalanceResponse(1_000_000L, 0L, 900_000L));
+
+        var response = auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+
+        assertThat(response.bid().amount()).isEqualTo(100_000L);
+        verify(bidRepository, never()).save(any(Bid.class));
+        verify(walletService, never()).capture(any(), any(), any(Long.class));
+    }
+
+    @Test
     void 마감_임박_입찰로_종료_시간이_연장되면_스케줄_변경_이벤트를_발행한다() {
         Auction auction = auction(1);
         Instant previousCloseTime = clock.instant().plus(Duration.ofMinutes(4));
