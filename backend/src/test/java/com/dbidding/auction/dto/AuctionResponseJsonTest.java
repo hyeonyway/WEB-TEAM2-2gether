@@ -26,6 +26,7 @@ class AuctionResponseJsonTest {
                 1_000L,
                 13_000L,
                 2,
+                20_000L,
                 now,
                 now.plusSeconds(3600),
                 AuctionStatus.OPEN,
@@ -44,6 +45,7 @@ class AuctionResponseJsonTest {
         JsonNode item = json.path("content").get(0);
         assertThat(item.has("current_price")).isTrue();
         assertThat(item.has("minimum_bid")).isTrue();
+        assertThat(item.path("buy_now_price").asLong()).isEqualTo(20_000L);
         assertThat(item.has("my_bid_status")).isTrue();
         assertThat(item.path("card").has("thumbnail_url")).isTrue();
         assertThat(item.path("seller").has("trust_score")).isTrue();

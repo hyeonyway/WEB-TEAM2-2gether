@@ -256,6 +256,7 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
+                .buyNowPrice(auction.getBuyNowPrice())
                 .startsAt(auction.getOpenTime())
                 .endsAt(auction.getCloseTime())
                 .status(auction.getStatus())

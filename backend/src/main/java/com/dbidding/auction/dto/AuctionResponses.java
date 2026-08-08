@@ -38,6 +38,7 @@ public final class AuctionResponses {
             @JsonProperty("bid_increment") Long bidIncrement,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_count") Integer bidCount,
+            @JsonProperty("buy_now_price") Long buyNowPrice,
             @JsonProperty("starts_at") Instant startsAt,
             @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
