@@ -10,6 +10,7 @@ import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 import com.dbidding.wallet.service.WalletService;
+import java.time.Clock;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -235,13 +236,15 @@ class AuctionBidWalletLockOrderConcurrencyTest {
                 WalletRepository walletRepository,
                 PointRecordRepository pointRecordRepository,
                 WalletHoldRepository walletHoldRepository,
-                WalletMetrics walletMetrics
+                WalletMetrics walletMetrics,
+                Clock clock
         ) {
             return new CoordinatedWalletService(
                     walletRepository,
                     pointRecordRepository,
                     walletHoldRepository,
-                    walletMetrics
+                    walletMetrics,
+                    clock
             );
         }
     }
@@ -253,9 +256,10 @@ class AuctionBidWalletLockOrderConcurrencyTest {
                 WalletRepository walletRepository,
                 PointRecordRepository pointRecordRepository,
                 WalletHoldRepository walletHoldRepository,
-                WalletMetrics walletMetrics
+                WalletMetrics walletMetrics,
+                Clock clock
         ) {
-            super(walletRepository, pointRecordRepository, walletHoldRepository, walletMetrics);
+            super(walletRepository, pointRecordRepository, walletHoldRepository, walletMetrics, clock);
         }
 
         void resetCoordination() {
