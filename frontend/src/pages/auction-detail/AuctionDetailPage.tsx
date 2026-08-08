@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useState} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Clock3,Info,Wallet} from 'lucide-react';
 import {Link,useParams} from 'react-router-dom';
@@ -9,26 +9,9 @@ import type {AuctionDetailResponseDto,BidContextResponseDto,BidSummaryResponseDt
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {useAuthGate} from '../../auth/useAuthGate';
 import {useCurrentUserId} from '../../auth/useCurrentUserId';
+import {formatRemaining,isAuctionEnded,useCountdownNow} from '../../hooks/useCountdown';
 import AuctionDetailSkeleton from './AuctionDetailSkeleton';
 import AuctionImageGallery from './AuctionImageGallery';
-
-function useAuctionNow(){
-  const[now,setNow]=useState(Date.now());
-  useEffect(()=>{
-    const timer=window.setInterval(()=>setNow(Date.now()),1000);
-    return()=>window.clearInterval(timer);
-  },[]);
-  return now;
-}
-
-function formatRemaining(endsAt:string,now:number){
-  const total=Math.max(0,Math.ceil((new Date(endsAt).getTime()-now)/1000));
-  if(total===0)return '경매 종료';
-  const hours=Math.floor(total/3600);
-  const minutes=Math.floor(total%3600/60);
-  const seconds=total%60;
-  return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
-}
 
 function formatBidTime(createdAt:string){
   return new Intl.DateTimeFormat('ko-KR',{
@@ -43,7 +26,7 @@ export default function AuctionDetailPage(){
   const params=useParams();
   const auctionId=Number(params.auctionId);
   const validAuctionId=Number.isInteger(auctionId)&&auctionId>0;
-  const now=useAuctionNow();
+  const now=useCountdownNow();
   const[bidOpen,setBidOpen]=useState(false);
   const[latestStreamEventId,setLatestStreamEventId]=useState<number|null>(null);
   const authGate=useAuthGate();
@@ -129,7 +112,7 @@ export default function AuctionDetailPage(){
   const gradeLabel=detail.seller_grade??`PSA ${grade}`;
   const language=mapCardLanguage(detail.card.language);
   const remaining=formatRemaining(detail.ends_at,now);
-  const ended=!['OPEN','ENDING'].includes(detail.status)||remaining==='경매 종료';
+  const ended=isAuctionEnded(detail.status,remaining);
   const isSeller=currentUserId!==null&&detail.seller.id===currentUserId;
   const increaseRate=detail.start_price>0
     ?(currentPrice-detail.start_price)/detail.start_price*100
