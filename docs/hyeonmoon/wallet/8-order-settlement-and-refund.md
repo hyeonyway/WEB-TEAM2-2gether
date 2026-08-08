@@ -1,0 +1,318 @@
+# 주문 정산·환불 Wallet 연동 Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 구매확정 시 판매자 지갑에 낙찰가를 입금하고, 구매취소(구매자 취소·판매자 취소 공통) 시 구매자 지갑에 낙찰가를 환불하는 실제 Wallet 로직을 추가해, Order 도메인의 `WalletSettlementPort` mock 구현을 실제 구현으로 교체한다. 이슈 [#237](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/237), 조사 문서 [docs/hamin/order/1-purchase-confirm-cancel-plan.md](../../hamin/order/1-purchase-confirm-cancel-plan.md) 4절의 후속 작업이다.
+
+**Architecture:** 낙찰 시점에 이미 `WalletService.capture()`가 구매자 hold를 `CAPTURED`로 종결하고 `wallet.point`를 실제로 차감한다([AuctionCommandService.java:474](../../../backend/src/main/java/com/dbidding/auction/service/AuctionCommandService.java)). 구매확정/취소 시점엔 그 hold가 이미 종결 상태라 `release()`/`capture()`로 다시 건드릴 수 없고 건드릴 필요도 없다. 대신 순수한 잔액 증가(credit) 오퍼레이션 2개를 새로 추가한다.
+
+```text
+구매확정        : 판매자 wallet.point += 낙찰가        (신규: WalletService.settle)
+구매취소/판매거부: 구매자 wallet.point += 낙찰가        (신규: WalletService.cancelRefund)
+```
+
+두 메서드 모두 `WalletHold`/`HoldStatus`는 전혀 건드리지 않고, 대상 지갑 1개만 잠근 뒤 `charge()`와 같은 방식으로 잔액을 늘리고 `PointRecord`를 남긴다.
+
+**Tech Stack:** Java 21, Spring Boot 4.1, Spring Data JPA, MySQL 8.4(Testcontainers), JUnit 5, Mockito
+
+## 락 순서와 데드락 검토
+
+`OrderService`의 모든 상태 변경 메서드는 이미 다음 순서로 동작한다
+([OrderService.java:44-79](../../../backend/src/main/java/com/dbidding/order/OrderService.java)).
+
+```text
+confirm()      → Order 행 락(findByIdForUpdate) → 지갑 1개(seller)만 credit
+cancel()       → Order 행 락                     → 지갑 1개(buyer)만 credit
+sellerCancel() → Order 행 락                     → 지갑 1개(buyer)만 credit
+```
+
+이전에 발견된 [입찰 지갑 락 순서 데드락](../auction/1-bid-wallet-lock-ordering-deadlock.md)은 **한 트랜잭션이 서로 다른 지갑 2개**를 매번 다른 순서로 잠가서 생긴 사이클이었다. 여기서는 한 트랜잭션이 잠그는 지갑이 항상 정확히 1개이고, 락 순서도 항상 `Order 행 → Wallet 행` 한 방향으로 고정돼 있어 같은 종류의 사이클이 구조적으로 발생하지 않는다. 같은 Order를 동시에 confirm/cancel하는 경쟁은 이미 Order 행 락으로 직렬화되고, 첫 트랜잭션 커밋 후 두 번째는 상태 가드(`InvalidOrderStatusException`)로 막힌다.
+
+## 참조 컬럼 설계
+
+`point_records.auction_id`는 `auctions(id)` FK가 걸려 있어 `orderId`를 그대로 넣을 수 없다. `orders.auction_id`가 `UNIQUE`(경매 1건당 주문 1건)이므로, `settle`/`cancelRefund`는 `orderId`가 아니라 **`auctionId`**를 참조로 받아 기존 `auction_id` 컬럼에 그대로 저장한다. 스키마 변경이 필요 없고 `auctionCapture()`와 동일한 패턴이다.
+
+## Global Constraints
+
+- `wallets`, `wallet_holds`, `point_records` 테이블 컬럼과 인덱스를 변경하지 않는다. 새 컬럼(`orders` 참조용)을 추가하지 않는다.
+- `WalletHold`/`HoldStatus`와 hold/release/capture 로직은 변경하지 않는다 — 이번 작업은 이미 종결된 hold 이후의 별도 크레딧 경로다.
+- 새 메서드(`settle`, `cancelRefund`)는 **한 호출당 지갑 1개만** 잠근다. 한 트랜잭션에서 지갑 2개를 잠그는 코드를 추가하지 않는다.
+- Order 쪽에서 Wallet을 호출하는 순서(Order 행 락 → Wallet 행 락)를 뒤집지 않는다. Wallet 쪽에서 Order를 역참조하지 않는다.
+- `Order.confirm()`/`cancel()`의 상태 가드가 이미 중복 정산·중복 환불을 막으므로, `settle`/`cancelRefund`에 별도 멱등키를 추가하지 않는다(`charge`/`refund`와 다르게 HTTP 재시도 경로가 아니라 서버 내부 호출이다).
+- Wallet의 기존 HTTP API(`/api/wallet/**`)는 변경하지 않는다 — 이번 정산·환불은 Order 내부 호출로만 트리거된다.
+
+---
+
+### Task 1: PointTransactionType과 PointRecord 부호 규칙을 확장한다
+
+**Files:**
+- Modify: `backend/src/main/java/com/dbidding/wallet/domain/PointTransactionType.java`
+- Modify: `backend/src/main/java/com/dbidding/wallet/domain/PointRecord.java`
+- Modify: `backend/src/test/java/com/dbidding/wallet/domain/PointRecordTest.java`
+
+**Interfaces:**
+- Adds: `PointTransactionType.ORDER_SETTLEMENT`, `PointTransactionType.ORDER_CANCEL_REFUND`
+- Modifies: `PointRecord`의 생성자 부호 규칙 — "`CHARGE`만 양수" → "`CHARGE`·`ORDER_SETTLEMENT`·`ORDER_CANCEL_REFUND`는 양수, 그 외(`REFUND`, `AUCTION_CAPTURE`)는 음수"
+- Preserves: `PointRecord.charge/refund/auctionCapture` 기존 동작과 반환 부호
+
+- [ ] **Step 1: 새 타입의 부호를 검증하는 테스트를 추가한다**
+
+`PointRecordTest`에 `PointRecord.orderSettlement(...)`와 `PointRecord.orderCancelRefund(...)`(Step 3에서 만들 정적 팩토리)가 양수 `amount`로 저장되는 케이스를 추가한다. 기존 `refund`/`auctionCapture`가 여전히 음수인 케이스도 회귀로 남긴다.
+
+- [ ] **Step 2: 테스트가 타입 부재로 실패하는지 확인한다**
+
+```bash
+cd backend
+./gradlew test --tests com.dbidding.wallet.domain.PointRecordTest
+```
+
+- [ ] **Step 3: enum과 부호 규칙, 정적 팩토리를 추가한다**
+
+```java
+public enum PointTransactionType {
+    CHARGE,
+    REFUND,
+    AUCTION_CAPTURE,
+    ORDER_SETTLEMENT,
+    ORDER_CANCEL_REFUND
+}
+```
+
+`PointRecord` 생성자의 부호 분기를 "양수 타입 집합"으로 일반화한다.
+
+```java
+private static final Set<PointTransactionType> POSITIVE_TYPES =
+    EnumSet.of(PointTransactionType.CHARGE, PointTransactionType.ORDER_SETTLEMENT, PointTransactionType.ORDER_CANCEL_REFUND);
+...
+this.amount = POSITIVE_TYPES.contains(transactionType) ? amount : -amount;
+```
+
+`PointRecord.orderSettlement(Integer walletId, Integer auctionId, long amount, long balance)`,
+`PointRecord.orderCancelRefund(Integer walletId, Integer auctionId, long amount, long balance)`를
+`auctionCapture(...)`와 같은 형태(`auctionId` 필수, `idempotencyKey`는 `null`)로 추가한다.
+
+- [ ] **Step 4: 테스트를 통과시키고 커밋한다**
+
+```bash
+./gradlew test --tests com.dbidding.wallet.domain.PointRecordTest
+git add backend/src/main/java/com/dbidding/wallet/domain/PointTransactionType.java \
+  backend/src/main/java/com/dbidding/wallet/domain/PointRecord.java \
+  backend/src/test/java/com/dbidding/wallet/domain/PointRecordTest.java
+git commit -m "feat: 주문 정산·환불 PointTransactionType과 부호 규칙 추가"
+```
+
+### Task 2: WalletService에 settle·cancelRefund를 추가한다
+
+**Files:**
+- Modify: `backend/src/main/java/com/dbidding/wallet/service/WalletService.java`
+- Create: `backend/src/test/java/com/dbidding/wallet/service/WalletServiceSettleTest.java`
+- Create: `backend/src/test/java/com/dbidding/wallet/service/WalletServiceCancelRefundTest.java`
+
+**Interfaces:**
+- Produces: `WalletTransactionResponse WalletService.settle(Integer sellerId, Integer auctionId, long amount)`
+- Produces: `WalletTransactionResponse WalletService.cancelRefund(Integer buyerId, Integer auctionId, long amount)`
+- Consumes: `WalletRepository.findByUserIdForUpdate`, `Wallet.credit`, `PointRecordRepository.save`
+- Preserves: 기존 `hold`/`release`/`capture`/`charge`/`refund` 시그니처와 동작
+
+- [ ] **Step 1: 실패하는 단위 테스트를 먼저 작성한다**
+
+`WalletServiceSettleTest`: 존재하는 판매자 지갑에 `settle(sellerId, auctionId, amount)` 호출 시
+`wallet.point`가 `amount`만큼 증가하고, `PointRecord`가 `ORDER_SETTLEMENT`·양수 `amount`로
+저장되는지 검증. 지갑이 없으면 `WalletNotFoundException`.
+
+`WalletServiceCancelRefundTest`: 동일한 구조로 `cancelRefund(buyerId, auctionId, amount)` 검증,
+타입은 `ORDER_CANCEL_REFUND`.
+
+두 테스트 모두 `amount <= 0`이면 `InvalidWalletAmountException`(기존 `validatePositive` 재사용)을
+검증한다.
+
+- [ ] **Step 2: 테스트가 메서드 부재로 실패하는지 확인한다**
+
+```bash
+cd backend
+./gradlew test \
+  --tests com.dbidding.wallet.service.WalletServiceSettleTest \
+  --tests com.dbidding.wallet.service.WalletServiceCancelRefundTest
+```
+
+- [ ] **Step 3: settle·cancelRefund를 구현한다**
+
+`charge()`와 같은 모양으로, hold 테이블은 건드리지 않는다.
+
+```java
+@Transactional(propagation = Propagation.MANDATORY)
+public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
+    validatePositive(amount);
+    Wallet wallet = lockWallet(sellerId);
+    wallet.credit(amount);
+    PointRecord record = pointRecordRepository.save(
+        PointRecord.orderSettlement(wallet.getId(), auctionId, amount, wallet.getPoint())
+    );
+    return WalletTransactionResponse.from(record);
+}
+
+@Transactional(propagation = Propagation.MANDATORY)
+public WalletTransactionResponse cancelRefund(Integer buyerId, Integer auctionId, long amount) {
+    validatePositive(amount);
+    Wallet wallet = lockWallet(buyerId);
+    wallet.credit(amount);
+    PointRecord record = pointRecordRepository.save(
+        PointRecord.orderCancelRefund(wallet.getId(), auctionId, amount, wallet.getPoint())
+    );
+    return WalletTransactionResponse.from(record);
+}
+```
+
+`Propagation.MANDATORY`로 선언해 `OrderService`의 트랜잭션 안에서만 호출되도록 강제한다(기존
+`hold`/`release`/`capture`와 동일한 관례 — 이 메서드들이 독자적으로 새 트랜잭션을 열지 않고
+호출자의 트랜잭션에 반드시 참여해야, Order 상태 전이와 지갑 크레딧이 원자적으로 묶인다).
+
+- [ ] **Step 4: 테스트를 통과시키고 커밋한다**
+
+```bash
+./gradlew test \
+  --tests com.dbidding.wallet.service.WalletServiceSettleTest \
+  --tests com.dbidding.wallet.service.WalletServiceCancelRefundTest
+git add backend/src/main/java/com/dbidding/wallet/service/WalletService.java \
+  backend/src/test/java/com/dbidding/wallet/service/WalletServiceSettleTest.java \
+  backend/src/test/java/com/dbidding/wallet/service/WalletServiceCancelRefundTest.java
+git commit -m "feat: Wallet에 주문 정산·환불 메서드 추가"
+```
+
+### Task 3: Order의 WalletSettlementPort를 실제 구현으로 교체한다
+
+**Files:**
+- Create: `backend/src/main/java/com/dbidding/order/adapter/OrderWalletAdapter.java`
+- Create: `backend/src/test/java/com/dbidding/order/adapter/OrderWalletAdapterTest.java`
+- Delete: `backend/src/main/java/com/dbidding/order/adapter/MockWalletSettlementAdapter.java`
+- Delete: `backend/src/test/java/com/dbidding/order/adapter/MockWalletSettlementAdapterTest.java`
+
+**Interfaces:**
+- Produces: `OrderWalletAdapter implements WalletSettlementPort`(`order.port.WalletSettlementPort`)
+- Consumes: `WalletService.settle`, `WalletService.cancelRefund`
+- Removes: `MockWalletSettlementAdapter`와 그 기록(record) 조회 API
+- Preserves: `OrderService`의 `WalletSettlementPort` 의존 방식(`OrderServiceTest`는 포트를 목으로
+  대체하므로 이번 변경과 무관하게 통과해야 한다)
+
+Port·Adapter는 소비자(Order)가 소유하는 기존 관례를 따른다(`account.port.WalletProvisioningPort` +
+`account.adapter.WalletProvisioningAdapter`와 같은 형태) — Wallet의 Repository·Entity는 직접
+참조하지 않고 `WalletService`의 public 메서드만 호출한다.
+
+- [ ] **Step 1: OrderWalletAdapter 테스트를 작성한다**
+
+`payoutToSeller(sellerId, orderId, amount)` 호출이 `walletService.settle(sellerId, auctionId, amount)`로
+위임되는지, `refundToBuyer(buyerId, orderId, amount)`가 `walletService.cancelRefund(buyerId, auctionId, amount)`로
+위임되는지 Mockito로 검증한다.
+
+`WalletSettlementPort`는 `orderId`를 받지만 `WalletService`는 `auctionId`를 받으므로, 어댑터가
+`OrderRepository`로 `orderId → auctionId`를 조회해서 변환해야 한다. 이 조회도 트랜잭션에
+참여해야 하므로 `OrderService`가 이미 연 트랜잭션(`@Transactional`) 안에서 호출됨을 전제로 한다.
+
+- [ ] **Step 2: 테스트가 클래스 부재로 실패하는지 확인한다**
+
+```bash
+cd backend
+./gradlew test --tests com.dbidding.order.adapter.OrderWalletAdapterTest
+```
+
+- [ ] **Step 3: OrderWalletAdapter를 구현하고 Mock을 제거한다**
+
+```java
+@Component
+@RequiredArgsConstructor
+public class OrderWalletAdapter implements WalletSettlementPort {
+
+    private final WalletService walletService;
+    private final OrderRepository orderRepository;
+
+    @Override
+    public void payoutToSeller(Integer sellerId, Integer orderId, long amount) {
+        walletService.settle(sellerId, auctionIdOf(orderId), amount);
+    }
+
+    @Override
+    public void refundToBuyer(Integer buyerId, Integer orderId, long amount) {
+        walletService.cancelRefund(buyerId, auctionIdOf(orderId), amount);
+    }
+
+    private Integer auctionIdOf(Integer orderId) {
+        return orderRepository.findById(orderId)
+            .orElseThrow(OrderNotFoundException::new)
+            .getAuctionId();
+    }
+}
+```
+
+`MockWalletSettlementAdapter`와 `MockWalletSettlementAdapterTest`를 삭제한다.
+
+- [ ] **Step 4: Order·Wallet 관련 테스트를 재실행한다**
+
+```bash
+./gradlew test \
+  --tests com.dbidding.order.adapter.OrderWalletAdapterTest \
+  --tests 'com.dbidding.order.*' \
+  --tests 'com.dbidding.wallet.service.WalletServiceSettleTest' \
+  --tests 'com.dbidding.wallet.service.WalletServiceCancelRefundTest'
+```
+
+Expected: `OrderServiceTest`는 포트를 목으로 대체하므로 그대로 통과해야 한다.
+
+- [ ] **Step 5: 변경을 커밋한다**
+
+```bash
+git add backend/src/main/java/com/dbidding/order/adapter/OrderWalletAdapter.java \
+  backend/src/test/java/com/dbidding/order/adapter/OrderWalletAdapterTest.java
+git rm backend/src/main/java/com/dbidding/order/adapter/MockWalletSettlementAdapter.java \
+  backend/src/test/java/com/dbidding/order/adapter/MockWalletSettlementAdapterTest.java
+git commit -m "feat: 주문 지갑 정산 어댑터를 실제 구현으로 교체"
+```
+
+### Task 4: 동시성 회귀 테스트와 전체 검증
+
+**Files:**
+- Create: `backend/src/test/java/com/dbidding/order/OrderWalletSettlementConcurrencyTest.java`
+- Modify: `docs/hyeonmoon/wallet/README.md`
+
+- [ ] **Step 1: 확정·취소 동시 요청 동시성 테스트를 작성한다**
+
+실제 MySQL Testcontainer로 다음을 검증한다.
+
+- 같은 주문에 대해 구매확정과 판매자취소(또는 구매자취소)가 동시에 들어와도 정산·환불이
+  중복되지 않는다(하나는 성공, 하나는 `InvalidOrderStatusException`).
+- 서로 다른 주문 두 건을 같은 판매자가 동시에 정산받아도 두 크레딧이 모두 반영되고, 지갑
+  락 대기로 인한 예외(`CannotAcquireLockException`류)가 발생하지 않는다(직렬화되지만
+  실패하지 않아야 한다는 뜻 — Task 시작부 "락 순서와 데드락 검토" 절 참고).
+
+- [ ] **Step 2: 전체 백엔드 테스트를 실행한다**
+
+```bash
+cd backend
+./gradlew clean test
+```
+
+Expected: 실패 0건. 테스트 소스가 없는 패턴은 통과로 표현하지 않고 별도로 보고한다. 이번
+변경과 무관한 기존 실패가 있으면 별도로 명시한다.
+
+- [ ] **Step 3: Wallet README 구현 단계 목록을 갱신한다**
+
+`docs/hyeonmoon/wallet/README.md`의 구현 단계 목록에 이번 문서를 추가한다.
+
+- [ ] **Step 4: 문서 정리를 커밋한다**
+
+```bash
+git add docs/hyeonmoon/wallet/README.md backend/src/test/java/com/dbidding/order/OrderWalletSettlementConcurrencyTest.java
+git commit -m "docs: 주문 정산·환불 Wallet 연동 문서 반영"
+```
+
+## 완료 조건
+
+- 구매확정 시 판매자 `wallet.point`가 낙찰가만큼 실제로 증가한다.
+- 구매취소·판매자취소 시 구매자 `wallet.point`가 낙찰가만큼 실제로 증가한다.
+- `WalletHold`/`HoldStatus`와 `wallet_holds` 테이블은 이번 작업으로 변경되지 않는다.
+- `point_records`에 새 컬럼 없이 기존 `auction_id`로 정산·환불 내역을 추적할 수 있다.
+- `OrderService`가 여전히 `WalletSettlementPort`(인터페이스)만 의존하고 Wallet의
+  Repository·Entity를 직접 참조하지 않는다.
+- 정산·환불 경로에서 한 트랜잭션이 지갑을 2개 이상 잠그지 않는다.
+- 전체 백엔드 테스트가 실패 없이 통과한다.
+
+> 이 문서는 AI의 도움을 받아 작성하였습니다

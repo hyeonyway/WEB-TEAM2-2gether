@@ -1,6 +1,6 @@
 # Wallet 개발 계획
 
-Wallet은 사용자의 총 포인트, 실제 잔액 변경 원장, 경매에 묶인 금액을 관리한다. 실제 PG와 판매자 정산·출금은 이번 범위에 포함하지 않는다.
+Wallet은 사용자의 총 포인트, 실제 잔액 변경 원장, 경매에 묶인 금액을 관리한다. 주문 확정·취소에 따른 지갑 내부 정산·환불은 9번 문서부터 범위에 포함한다. 실제 PG 연동과 은행 출금은 계속 범위 밖이다.
 
 ## 구현 단계
 
@@ -10,6 +10,8 @@ Wallet은 사용자의 총 포인트, 실제 잔액 변경 원장, 경매에 묶
 4. [지갑 잔액 조회](4-balance-query.md) — 완료
 5. [Auction 입찰 홀드·해제·낙찰 차감 연동](5-auction-wallet-integration.md) — 완료
 6. [소비자 소유 Port·Adapter 경계 리팩터링](6-consumer-owned-port-adapter-refactor.md) — 완료
+7. [동시 입찰 Hold 초과 버그 조사 보고서](7-concurrent-hold-overrun-bug-report.md) — 조사 완료, 수정 미착수
+8. [주문 정산·환불 Wallet 연동](8-order-settlement-and-refund.md) — 진행 중
 
 충전·환불 원장과 Wallet 잠금을 먼저 구현해야 잔액 조회와 Auction 연동이 같은 계산식과 동시성 규칙을 재사용할 수 있다.
 
