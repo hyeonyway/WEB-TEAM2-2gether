@@ -133,6 +133,8 @@ class AuctionServiceBidTest {
     @ValueSource(longs = {100_000L, 110_000L})
     void 즉시구매가_이상_입찰은_즉시구매가로_낙찰되고_경매를_종료한다(long requestedPrice) {
         Auction auction = auction(1);
+        ReflectionTestUtils.setField(auction, "currentPrice", 95_000L);
+        ReflectionTestUtils.setField(auction, "bidPriceUnit", 10_000L);
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.empty());
         when(walletService.hold(2, 1, 100_000L)).thenReturn(new WalletBalanceResponse(1_000_000L, 100_000L, 900_000L));
