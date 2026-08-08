@@ -1,0 +1,51 @@
+name: Slack Repository Notifications
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [closed]
+
+jobs:
+  notify:
+    if: >-
+      github.event_name == 'issues' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    steps:
+      - name: Send issue or merged pull request notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          ACTOR: ${{ github.event.sender.login }}
+          MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
+        run: |
+          if [[ "$EVENT_NAME" == "issues" ]]; then
+            TYPE="Issue opened"
+            TITLE="#$ISSUE_NUMBER $ISSUE_TITLE"
+            URL="$ISSUE_URL"
+          else
+            TYPE="Pull request merged"
+            TITLE="#$PR_NUMBER $PR_TITLE"
+            URL="$PR_URL"
+            ACTOR="$MERGED_BY"
+          fi
+
+          jq -n \
+            --arg text "[$TYPE] $TITLE\nactor: $ACTOR\n$URL" \
+            '{text: $text}' | \
+            curl --fail-with-body --show-error --silent \
+              -X POST -H 'Content-type: application/json' \
+              --data @- "$SLACK_WEBHOOK_URL"

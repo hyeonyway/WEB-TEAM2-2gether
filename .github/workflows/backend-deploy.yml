@@ -1,8 +1,8 @@
-name: backend-deploy.yml
+name: Backend CI and Deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [dev, main]
     paths:
       - 'backend/**'
       - '.github/workflows/backend-deploy.yml'
@@ -12,11 +12,79 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/web-team2-2gether/backend
 
 jobs:
-  build-and-deploy:
+  test:
+    name: Gradle test
+    runs-on: ubuntu-24.04-arm
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: dbidding
+          MYSQL_USER: dbidding
+          MYSQL_PASSWORD: dbidding
+          MYSQL_ROOT_PASSWORD: dbidding-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -pdbidding-root-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Initialize MySQL schema
+        run: |
+          docker exec -i "${{ job.services.mysql.id }}" \
+            mysql -udbidding -pdbidding dbidding < backend/src/main/resources/schema.sql
+
+      - name: Run Gradle tests
+        working-directory: backend
+        run: ./gradlew test --no-daemon
+
+  build-dev:
+    name: Build development image
+    if: github.ref_name == 'dev'
+    needs: test
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image without pushing
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          platforms: linux/arm64
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish-prod-image:
+    name: Build and publish production image
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    needs: test
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Check out repository
@@ -32,36 +100,80 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
           platforms: linux/arm64
-          push: false
-          load: true
+          push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Push Docker image
-        run: |
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+  deploy-prod:
+    name: Deploy production image
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    needs: publish-prod-image
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: read
 
-      - name: SSH to EC2 and Deploy Container
-        uses: appleboy/ssh-action@v1.0.3
+    steps:
+      - name: Deploy image digest on EC2
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+            DIGEST="${{ needs.publish-prod-image.outputs.digest }}"
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            docker pull "${IMAGE}@${DIGEST}"
+            docker tag "${IMAGE}@${DIGEST}" "${IMAGE}:latest"
             cd ~
-            docker compose pull backend
-            docker compose up -d backend
-
-            # 미사용 구형 이미지 정리
+            docker compose up -d --no-deps --force-recreate backend
             docker image prune -f
+
+  notify:
+    name: Notify Slack
+    if: always() && needs.test.result != 'skipped'
+    needs: [test, build-dev, publish-prod-image, deploy-prod]
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    steps:
+      - name: Send workflow result to Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          DEV_BUILD_RESULT: ${{ needs.build-dev.result }}
+          IMAGE_RESULT: ${{ needs.publish-prod-image.result }}
+          DEPLOY_RESULT: ${{ needs.deploy-prod.result }}
+          IMAGE_DIGEST: ${{ needs.publish-prod-image.outputs.digest }}
+        run: |
+          if [[ "${{ github.ref_name }}" == "dev" ]]; then
+            ENVIRONMENT="dev"
+            IMAGE_RESULT="not-pushed (${DEV_BUILD_RESULT})"
+            DEPLOY_RESULT="not-deployed"
+          else
+            ENVIRONMENT="prod"
+          fi
+
+          RESULT="success"
+          if [[ "$TEST_RESULT" != "success" || ( "$ENVIRONMENT" == "dev" && "$DEV_BUILD_RESULT" != "success" ) || ( "$ENVIRONMENT" == "prod" && ( "$IMAGE_RESULT" != "success" || "$DEPLOY_RESULT" != "success" ) ) ]]; then
+            RESULT="failure"
+          fi
+
+          jq -n \
+            --arg text "[$RESULT] Backend $ENVIRONMENT workflow\ncommit: ${{ github.sha }}\ntest: $TEST_RESULT\nimage: $IMAGE_RESULT\ndigest: ${IMAGE_DIGEST:-not-pushed}\ndeploy: $DEPLOY_RESULT\nrun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{text: $text}' | \
+            curl --fail-with-body --show-error --silent \
+              -X POST -H 'Content-type: application/json' \
+              --data @- "$SLACK_WEBHOOK_URL"
