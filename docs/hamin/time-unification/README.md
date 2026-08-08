@@ -10,7 +10,7 @@
 | [#261](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/261) | Upload/Notification/Order/Wallet/Account Clock 주입 + Instant 전환 | 완료 | [계획 문서](261-clock-injection-and-instant-plan.md) |
 | [#262](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/262) | Auction/Bid LocalDateTime → Instant 전환 | 완료 | [계획 문서](262-auction-bid-instant-plan.md) |
 | [#263](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/263) | 통계 집계 경계 Instant 전환 | 완료 | [계획 문서](263-statistic-aggregation-instant-plan.md) |
-| [#264](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/264) | 프론트 타임존 표시 정리 + 카운트다운 훅 통합 | 미착수 | - |
+| [#264](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/264) | 프론트 타임존 표시 정리 + 카운트다운 훅 통합 | 완료 | [계획 문서](264-frontend-timezone-countdown-plan.md) |
 
 별도 이슈로 분리해 이번 시리즈에서 처리하지 않는 것:
 [#265](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/265)(카운트다운 clock drift 보정),
@@ -57,5 +57,20 @@ for type java.time.Instant`), JDBC 읽기 자체는 `LocalDateTime`으로 하고
 나서 무관함을 확인했다. 방금 머지된 PR #267(`WalletHoldRepository`의
 `@Lock` 제거)이 원인으로 추정되며 wallet 패키지 소관이라 별도로 플래그만
 했다.
+
+## #264 — 프론트엔드는 백엔드와 다른 종류의 정리가 필요했다
+
+백엔드(#261~#263)는 "LocalDateTime을 Instant로" 한 방향이었지만, 프론트는
+API 계약 변경이 없어서 타입 통일이 아니라 **"이미 두 가지 기준(Asia/Seoul
+고정 vs 브라우저 로컬)이 혼재해 있는데, 그중 뭐가 맞는 기준인지 구분해서
+통일"** 하는 작업이었다. 통계 차트처럼 백엔드가 집계한 "영업일"을 보여주는
+값은 Asia/Seoul로 고정하는 게 맞고, 알림처럼 "언제 일어난 일"을 보여주는
+값은 브라우저 로컬이 맞다 — 무조건 하나로 통일하면 오히려 틀린 값이 나온다.
+자세한 내용은 [264 계획 문서](264-frontend-timezone-countdown-plan.md) 참고.
+
+경매 카운트다운 중복 구현은 그리드/상세 페이지가 각자 쓰는 "공유 tick 훅 +
+순수 함수"로 분리해서 통합했다(경매 카드마다 훅을 부르면 React Hooks 규칙
+위반이라, 훅은 페이지당 한 번만 부르고 순수 함수는 필요한 곳마다 부르는
+구조를 유지).
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.

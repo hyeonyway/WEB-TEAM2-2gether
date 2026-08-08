@@ -7,16 +7,7 @@ import CardArtwork from '../../cards/components/CardArtwork';
 import {useAuthGate} from '../../../auth/useAuthGate';
 import {useCurrentUserId} from '../../../auth/useCurrentUserId';
 import {normalizePsaGrade} from '../../../api/auctionMapper';
-import {nowUtc,parseUtc} from '../../../utils/utc';
-
-const remainingTime=(endsAt:string,now:number)=>{
-  const total=Math.max(0,Math.ceil((parseUtc(endsAt)-now)/1000));
-  if(total===0)return '경매 종료';
-  const hours=Math.floor(total/3600);
-  const minutes=Math.floor(total%3600/60);
-  const seconds=total%60;
-  return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
-};
+import {formatRemaining,isAuctionEnded,useCountdownNow} from '../../../hooks/useCountdown';
 
 function AnimatedAuctionPrice({price}:{price:number}){
   const previousPrice=useRef(price);
@@ -52,13 +43,9 @@ export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
   const authGate=useAuthGate();
   const currentUserId=useCurrentUserId();
   const[selectedAuction,setSelectedAuction]=useState<AuctionDto|null>(null);
-  const[now,setNow]=useState(nowUtc());
-  useEffect(()=>{
-    const timer=window.setInterval(()=>setNow(nowUtc()),1000);
-    return()=>window.clearInterval(timer);
-  },[]);
+  const now=useCountdownNow();
   if(!auctions.length)return <div className="filter-empty"><Search/><b>조건에 맞는 경매가 없습니다.</b><span>검색어나 필터를 변경해 보세요.</span></div>;
-  return <><section className="card-grid">{auctions.map(auction=>{const remaining=remainingTime(auction.endsAt,now),ended=!['OPEN','ENDING'].includes(auction.status)||remaining==='경매 종료',isSeller=currentUserId!==null&&auction.sellerId===currentUserId,buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} key={auction.id}>
+  return <><section className="card-grid">{auctions.map(auction=>{const remaining=formatRemaining(auction.endsAt,now),ended=isAuctionEnded(auction.status,remaining),isSeller=currentUserId!==null&&auction.sellerId===currentUserId,buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} key={auction.id}>
     <div className="auction-image-viewport"><CardArtwork theme={auction.card.theme} imageUrl={auction.card.imageUrl} name={auction.card.name}/></div>
     <div>
       <div className="card-meta"><span><span className="grade">PSA {psaGrade}</span><span className="grade">{auction.card.language}</span></span><span className="auction-countdown"><Clock3/>{remaining}{!ended&&' 남음'}</span></div>

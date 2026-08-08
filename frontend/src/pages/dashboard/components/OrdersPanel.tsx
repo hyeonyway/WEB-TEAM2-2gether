@@ -74,7 +74,7 @@ export default function OrdersPanel(){
                   </div>
                   <div className="order-row-meta">
                     <span>거래금액 <b>{order.price.toLocaleString()}원</b></span>
-                    <span>{new Date(order.createdAt).toLocaleString('ko-KR')}</span>
+                    <span>{new Date(order.createdAt).toLocaleString()}</span>
                   </div>
                   {role==='buyer'&&order.status==='PENDING_CONFIRM'&&<div className="order-actions">
                     <button type="button" className="order-confirm-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>confirmMutation.mutate(order.id)}>구매확정</button>
