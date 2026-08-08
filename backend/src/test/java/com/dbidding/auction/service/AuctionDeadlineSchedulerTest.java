@@ -25,7 +25,7 @@ import org.springframework.scheduling.Trigger;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class AuctionDeadlineSchedulerTest {
-    private final AuctionCommandService auctionCommandService = mock(AuctionCommandService.class);
+    private final AuctionDueClosingService auctionDueClosingService = mock(AuctionDueClosingService.class);
     private final AuctionRepository auctionRepository = mock(AuctionRepository.class);
     private final CapturingTaskScheduler taskScheduler = new CapturingTaskScheduler();
     private final Clock clock = Clock.fixed(
@@ -33,7 +33,7 @@ class AuctionDeadlineSchedulerTest {
             ZoneId.of("Asia/Seoul")
     );
     private final AuctionDeadlineScheduler scheduler = new AuctionDeadlineScheduler(
-            auctionCommandService,
+            auctionDueClosingService,
             auctionRepository,
             taskScheduler,
             clock
@@ -60,13 +60,13 @@ class AuctionDeadlineSchedulerTest {
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
         )).thenReturn(List.of(auction), List.of());
-        when(auctionCommandService.closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100))
+        when(auctionDueClosingService.closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100))
                 .thenReturn(List.of());
 
         scheduler.scheduleNext("test");
         taskScheduler.scheduledTask.run();
 
-        verify(auctionCommandService).closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100);
+        verify(auctionDueClosingService).closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100);
     }
 
     @Test
@@ -99,7 +99,7 @@ class AuctionDeadlineSchedulerTest {
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
                 PageRequest.of(0, 1)
         )).thenReturn(List.of(failedTarget), List.of(nextTarget));
-        when(auctionCommandService.closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100))
+        when(auctionDueClosingService.closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100))
                 .thenThrow(new IllegalStateException("close failed"));
 
         scheduler.scheduleNext("initial");

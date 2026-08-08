@@ -36,6 +36,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -171,6 +172,25 @@ class AuctionServiceBidTest {
 
         verify(walletService).release(3, 1);
         verify(walletService).capture(2, 1, 100_000L);
+    }
+
+    @Test
+    void 서로_다른_두_지갑을_처리할_때_사용자_ID_오름차순으로_락을_획득한다() {
+        Auction auction = auction(1);
+        Bid previous = Bid.leading(3, auction, 90_000L, clock.instant(), "previous", "hash");
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
+                .thenReturn(Optional.of(previous));
+        when(walletService.hold(2, 1, 91_000L))
+                .thenReturn(new WalletBalanceResponse(1_000_000L, 91_000L, 909_000L));
+        when(walletService.release(3, 1)).thenReturn(new WalletBalanceResponse(1_000_000L, 0L, 1_000_000L));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        auctionService.participate(2, 1, new BidCreateRequest(91_000L), "bid-key");
+
+        InOrder walletCalls = org.mockito.Mockito.inOrder(walletService);
+        walletCalls.verify(walletService).hold(2, 1, 91_000L);
+        walletCalls.verify(walletService).release(3, 1);
     }
 
     @Test
