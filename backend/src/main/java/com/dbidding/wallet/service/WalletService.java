@@ -170,6 +170,28 @@ public class WalletService {
 		);
 	}
 
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
+		validatePositive(amount);
+		Wallet wallet = lockWallet(sellerId);
+		wallet.credit(amount);
+		PointRecord record = pointRecordRepository.save(
+			PointRecord.orderSettlement(wallet.getId(), auctionId, amount, wallet.getPoint())
+		);
+		return WalletTransactionResponse.from(record);
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletTransactionResponse cancelRefund(Integer buyerId, Integer auctionId, long amount) {
+		validatePositive(amount);
+		Wallet wallet = lockWallet(buyerId);
+		wallet.credit(amount);
+		PointRecord record = pointRecordRepository.save(
+			PointRecord.orderCancelRefund(wallet.getId(), auctionId, amount, wallet.getPoint())
+		);
+		return WalletTransactionResponse.from(record);
+	}
+
 	private WalletBalanceResponse captureObserved(Integer userId, Integer auctionId, long amount) {
 		Wallet wallet = lockWallet(userId, Operation.CAPTURE);
 		long frozenBefore = walletRepository.sumHeldAmountForUpdate(wallet.getId());
