@@ -1,6 +1,8 @@
 package com.dbidding.auction.sse;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -28,13 +30,16 @@ class AuctionSseTestAuctionReader {
                         resultSet.getInt("id"), resultSet.getLong("start_price"),
                         resultSet.getLong("current_price"), resultSet.getLong("bid_price_unit"),
                         resultSet.getInt("bid_count"),
-                        resultSet.getObject("estimated_close_time", LocalDateTime.class),
+                        // MySQL Connector/J가 getObject(column, Instant.class)를 지원하지 않아
+                        // (SQLException: Conversion not supported for type java.time.Instant)
+                        // JDBC 경계에서는 LocalDateTime으로 읽고 바로 Instant로 변환한다.
+                        resultSet.getObject("estimated_close_time", LocalDateTime.class).toInstant(ZoneOffset.UTC),
                         resultSet.getString("status"),
                         resultSet.getObject("current_bidder_id", Integer.class)))
                 .optional();
     }
 
     record Snapshot(Integer auctionId, Long startPrice, Long currentPrice, Long bidIncrement,
-                    Integer bidCount, LocalDateTime endsAt, String status,
+                    Integer bidCount, Instant endsAt, String status,
                     Integer currentBidderId) { }
 }

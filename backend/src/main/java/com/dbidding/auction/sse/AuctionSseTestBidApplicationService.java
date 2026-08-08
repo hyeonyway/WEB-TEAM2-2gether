@@ -1,7 +1,6 @@
 package com.dbidding.auction.sse;
 
 import com.dbidding.auction.domain.AuctionStatus;
-import com.dbidding.global.time.UtcTime;
 import java.time.Clock;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -30,7 +29,7 @@ class AuctionSseTestBidApplicationService {
                 AuctionStreamEventType.BID_PLACED, auction.auctionId(), null, null, null, null, null, null,
                 bid.bidderId(), bid.previousBidderId(), null, auction.startPrice(),
                 bid.currentPrice(), null, auction.bidIncrement(), bid.bidCount(),
-                UtcTime.toInstant(auction.endsAt()), AuctionStatus.valueOf(auction.status()),
+                auction.endsAt(), AuctionStatus.valueOf(auction.status()),
                 null, clock.instant());
         connectionManager.broadcast(payload);
         return payload;

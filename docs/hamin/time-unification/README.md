@@ -9,7 +9,7 @@
 |---|---|---|---|
 | [#261](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/261) | Upload/Notification/Order/Wallet/Account Clock 주입 + Instant 전환 | 완료 | [계획 문서](261-clock-injection-and-instant-plan.md) |
 | [#262](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/262) | Auction/Bid LocalDateTime → Instant 전환 | 완료 | [계획 문서](262-auction-bid-instant-plan.md) |
-| [#263](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/263) | 통계 집계 경계 Instant 정리 + UtcTime 헬퍼 정리 | 미착수 | - |
+| [#263](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/263) | 통계 집계 경계 Instant 전환 | 완료 | [계획 문서](263-statistic-aggregation-instant-plan.md) |
 | [#264](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/264) | 프론트 타임존 표시 정리 + 카운트다운 훅 통합 | 미착수 | - |
 
 별도 이슈로 분리해 이번 시리즈에서 처리하지 않는 것:
@@ -24,5 +24,38 @@
 `test` 태스크에 `systemProperty 'user.timezone', 'UTC'`를 추가해 운영과
 동일한 조건으로 맞췄다. 자세한 내용은
 [262 계획 문서](262-auction-bid-instant-plan.md)의 "예상 밖 발견" 참고.
+
+## #263에서 정리한 것 — `UtcTime` 삭제
+
+이슈를 처음 만들 때는 "전체 마이그레이션 후 `UtcTime` 헬퍼를 삭제한다"고
+적었는데, `auction/sse/AuctionSseTestBidApplicationService`가 `Auction`
+엔티티를 거치지 않는 raw JDBC 읽기 결과를 `UtcTime.toInstant()`로 변환하는
+걸 계속 쓰고 있어서 한 번은 "그래서 삭제 불가"로 결론 냈었다. 다시 보니
+그 호출 한 줄을 `.toInstant(ZoneOffset.UTC)` 인라인 변환으로 바꾸면
+그만이라, 그렇게 바꾸고 `UtcTime`을 삭제했다. 자세한 내용은
+[263 계획 문서](263-statistic-aggregation-instant-plan.md) 참고.
+
+## #263 — 남은 `LocalDateTime` 전부 제거
+
+사용자가 "native query라 의미 없어도 남은 LocalDateTime을 전부 Instant로
+바꿔라"고 지시해서, `auction/sse/AuctionSseTestAuctionReader`(SSE 테스트용
+raw JDBC 리더)와 `card/service/CardPriceServiceTest`의 native query
+파라미터까지 전부 `Instant`로 바꿨다. 다만 MySQL Connector/J가
+`resultSet.getObject(column, Instant.class)`를 지원하지 않는다는 걸 실제
+Testcontainers MySQL로 확인해서(`SQLException: Conversion not supported
+for type java.time.Instant`), JDBC 읽기 자체는 `LocalDateTime`으로 하고
+그 자리에서 즉시 `.toInstant(ZoneOffset.UTC)`로 변환하는 방식으로
+처리했다 — `Snapshot` 같은 타입 시그니처에는 `LocalDateTime`이 전혀
+노출되지 않는다. 이제 `backend/src` 전체에서 실제 타입으로 쓰이는
+`LocalDateTime`은 없다(주석 텍스트 한 곳 제외). 자세한 내용은
+[263 계획 문서](263-statistic-aggregation-instant-plan.md) 참고.
+
+## #263 테스트 중 발견한 이번 시리즈와 무관한 회귀
+
+전체 스위트 실행 중 `WalletTransactionConcurrencyTest`가 실패하는 걸
+발견했는데, `dev`에 이번 시리즈 변경 없이 그대로 돌려봐도 같은 실패가
+나서 무관함을 확인했다. 방금 머지된 PR #267(`WalletHoldRepository`의
+`@Lock` 제거)이 원인으로 추정되며 wallet 패키지 소관이라 별도로 플래그만
+했다.
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
