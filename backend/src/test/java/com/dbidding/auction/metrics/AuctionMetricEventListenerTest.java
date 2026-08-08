@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class AuctionMetricEventListenerTest {
@@ -17,12 +17,12 @@ class AuctionMetricEventListenerTest {
 
         listener.recordExtension(new AuctionCloseScheduleChangedEvent(
                 1,
-                LocalDateTime.of(2026, 8, 4, 12, 0),
+                Instant.parse("2026-08-04T12:00:00Z"),
                 "close_time_extended"
         ));
         listener.recordExtension(new AuctionCloseScheduleChangedEvent(
                 2,
-                LocalDateTime.of(2026, 8, 4, 13, 0),
+                Instant.parse("2026-08-04T13:00:00Z"),
                 "auction_created"
         ));
 

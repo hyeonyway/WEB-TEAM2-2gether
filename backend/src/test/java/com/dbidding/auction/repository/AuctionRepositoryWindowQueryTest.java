@@ -4,7 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,13 +39,13 @@ class AuctionRepositoryWindowQueryTest {
 
     @Test
     void 최근_window_안에_열린_활성_경매만_조회한다() {
-        Auction recentlyOpened = save(AuctionStatus.OPEN, LocalDateTime.now().minusMinutes(5), LocalDateTime.now().plusHours(1));
-        Auction oldOpened = save(AuctionStatus.OPEN, LocalDateTime.now().minusHours(2), LocalDateTime.now().plusHours(1));
-        save(AuctionStatus.ENDED, LocalDateTime.now().minusMinutes(5), LocalDateTime.now().minusMinutes(1));
+        Auction recentlyOpened = save(AuctionStatus.OPEN, Instant.now().minus(Duration.ofMinutes(5)), Instant.now().plus(Duration.ofHours(1)));
+        Auction oldOpened = save(AuctionStatus.OPEN, Instant.now().minus(Duration.ofHours(2)), Instant.now().plus(Duration.ofHours(1)));
+        save(AuctionStatus.ENDED, Instant.now().minus(Duration.ofMinutes(5)), Instant.now().minus(Duration.ofMinutes(1)));
 
         List<Auction> result = auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(
                 List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
-                LocalDateTime.now().minusMinutes(10)
+                Instant.now().minus(Duration.ofMinutes(10))
         );
 
         assertThat(result).extracting(Auction::getId).contains(recentlyOpened.getId());
@@ -53,20 +54,20 @@ class AuctionRepositoryWindowQueryTest {
 
     @Test
     void 최근_window_안에_종료된_경매만_조회한다() {
-        Auction recentlyClosed = closedAuction(AuctionStatus.ENDED, LocalDateTime.now().minusMinutes(5));
-        Auction oldClosed = closedAuction(AuctionStatus.FAILED, LocalDateTime.now().minusHours(2));
-        save(AuctionStatus.OPEN, LocalDateTime.now().minusMinutes(5), LocalDateTime.now().plusHours(1));
+        Auction recentlyClosed = closedAuction(AuctionStatus.ENDED, Instant.now().minus(Duration.ofMinutes(5)));
+        Auction oldClosed = closedAuction(AuctionStatus.FAILED, Instant.now().minus(Duration.ofHours(2)));
+        save(AuctionStatus.OPEN, Instant.now().minus(Duration.ofMinutes(5)), Instant.now().plus(Duration.ofHours(1)));
 
         List<Auction> result = auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(
                 List.of(AuctionStatus.ENDED, AuctionStatus.FAILED),
-                LocalDateTime.now().minusMinutes(10)
+                Instant.now().minus(Duration.ofMinutes(10))
         );
 
         assertThat(result).extracting(Auction::getId).contains(recentlyClosed.getId());
         assertThat(result).extracting(Auction::getId).doesNotContain(oldClosed.getId());
     }
 
-    private Auction save(AuctionStatus status, LocalDateTime openTime, LocalDateTime closeTime) {
+    private Auction save(AuctionStatus status, Instant openTime, Instant closeTime) {
         Auction auction = Auction.builder()
                 .sellerId(sellerId)
                 .itemId(itemId)
@@ -86,8 +87,8 @@ class AuctionRepositoryWindowQueryTest {
         return auctionRepository.save(auction);
     }
 
-    private Auction closedAuction(AuctionStatus status, LocalDateTime closeTime) {
-        return save(status, closeTime.minusHours(2), closeTime);
+    private Auction closedAuction(AuctionStatus status, Instant closeTime) {
+        return save(status, closeTime.minus(Duration.ofHours(2)), closeTime);
     }
 
     private Integer insertUser() {

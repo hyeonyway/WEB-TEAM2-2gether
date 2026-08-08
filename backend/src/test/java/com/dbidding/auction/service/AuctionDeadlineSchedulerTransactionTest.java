@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -47,7 +47,7 @@ class AuctionDeadlineSchedulerTransactionTest {
             TransactionTemplate transaction = new TransactionTemplate(new TestTransactionManager());
             AuctionCloseScheduleChangedEvent event = new AuctionCloseScheduleChangedEvent(
                     1,
-                    LocalDateTime.of(2026, 7, 29, 10, 0),
+                    Instant.parse("2026-07-29T10:00:00Z"),
                     "auction_created"
             );
 

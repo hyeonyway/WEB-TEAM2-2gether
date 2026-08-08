@@ -23,8 +23,8 @@ import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -81,7 +81,7 @@ class AuctionServiceCloseTest {
 
     @Test
     void 종료_시각이_지난_경매의_최고_입찰을_낙찰_처리한다() {
-        Auction auction = auction(LocalDateTime.now(clock).minusMinutes(1));
+        Auction auction = auction(clock.instant().minus(Duration.ofMinutes(1)));
         Bid winningBid = bid(1L, 3, auction, 45_000L, BidStatus.LEADING);
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
@@ -114,7 +114,7 @@ class AuctionServiceCloseTest {
 
     @Test
     void 입찰이_없는_종료_대상_경매는_거래_없이_종료한다() {
-        Auction auction = auction(LocalDateTime.now(clock).minusMinutes(1));
+        Auction auction = auction(clock.instant().minus(Duration.ofMinutes(1)));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
@@ -139,7 +139,7 @@ class AuctionServiceCloseTest {
 
     @Test
     void 종료_시각이_지나지_않은_경매는_낙찰_처리하지_않는다() {
-        Auction auction = auction(LocalDateTime.now(clock).plusMinutes(1));
+        Auction auction = auction(clock.instant().plus(Duration.ofMinutes(1)));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
 
         assertThatThrownBy(() -> auctionService.closeAuction(1))
@@ -151,7 +151,7 @@ class AuctionServiceCloseTest {
         verifyNoInteractions(auctionEventPublisher);
     }
 
-    private Auction auction(LocalDateTime closeTime) {
+    private Auction auction(Instant closeTime) {
         Auction auction = Auction.builder()
                 .sellerId(2)
                 .itemId(1)
@@ -160,7 +160,7 @@ class AuctionServiceCloseTest {
                 .startPrice(42_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(LocalDateTime.now().minusHours(2))
+                .openTime(Instant.now().minus(Duration.ofHours(2)))
                 .estimatedCloseTime(closeTime)
                 .closeTime(closeTime)
                 .bidPriceUnit(1_000L)
@@ -171,7 +171,7 @@ class AuctionServiceCloseTest {
     }
 
     private Bid bid(Long id, Integer bidderId, Auction auction, Long bidPrice, BidStatus status) {
-        Bid bid = new Bid(bidderId, auction, bidPrice, LocalDateTime.now().minusMinutes(5), status);
+        Bid bid = new Bid(bidderId, auction, bidPrice, Instant.now().minus(Duration.ofMinutes(5)), status);
         ReflectionTestUtils.setField(bid, "id", id);
         return bid;
     }

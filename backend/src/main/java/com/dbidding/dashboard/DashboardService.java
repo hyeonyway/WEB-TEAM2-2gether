@@ -6,8 +6,6 @@ import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.AuctionResponses;
 import com.dbidding.auction.service.AuctionQueryService;
 import com.dbidding.dashboard.dto.DashboardResponse;
-import com.dbidding.global.time.UtcTime;
-import java.time.LocalDateTime;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
@@ -33,7 +31,7 @@ public class DashboardService {
         List<AuctionResponses.DashboardAuction> participating = auctionQueryService.getDashboardAuctions(userId).stream()
                 .filter(auction -> PARTICIPATING_STATUSES.contains(auction.status()))
                 .filter(auction -> auction.estimatedCloseTime()
-                        .isAfter(LocalDateTime.now(clock)))
+                        .isAfter(clock.instant()))
                 .sorted(participatingComparator(sort))
                 .toList();
         return snapshots(participating);
@@ -91,7 +89,7 @@ public class DashboardService {
                         card.id(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl()
                 ),
                 auction.startPrice(), auction.currentPrice(), auction.bidIncrement(), auction.bidCount(),
-                UtcTime.toInstant(auction.estimatedCloseTime()), auction.status(),
+                auction.estimatedCloseTime(), auction.status(),
                 myBidStatus(auction.bidStatus()), auction.bidAmount()
         );
     }

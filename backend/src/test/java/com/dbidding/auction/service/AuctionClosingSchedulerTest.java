@@ -5,7 +5,6 @@ import static org.mockito.Mockito.verify;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +20,6 @@ class AuctionClosingSchedulerTest {
     void 스케줄러는_현재_시간_기준으로_종료_대상_경매를_닫는다() {
         scheduler.closeDueAuctions();
 
-        verify(auctionCommandService).closeDueAuctions(LocalDateTime.of(2026, 7, 29, 10, 0), 100);
+        verify(auctionCommandService).closeDueAuctions(Instant.parse("2026-07-29T01:00:00Z"), 100);
     }
 }

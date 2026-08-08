@@ -9,7 +9,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import java.time.Instant;
-import java.time.ZoneOffset;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -40,16 +39,16 @@ public record AuctionStreamPayload(
                 AuctionStreamEventType.AUCTION_CREATED, event.auctionId(), event.itemId(), event.cardName(),
                 event.cardPsaGrade(), event.cardLanguage(), event.cardThumbnailUrl(), event.sellerId(),
                 null, null, null, event.startPrice(), event.currentPrice(), null,
-                event.bidIncrement(), event.bidCount(), event.closeTime().toInstant(ZoneOffset.UTC),
-                event.status(), null, event.occurredAt().toInstant(ZoneOffset.UTC));
+                event.bidIncrement(), event.bidCount(), event.closeTime(),
+                event.status(), null, event.occurredAt());
     }
 
     public static AuctionStreamPayload bidPlaced(BidPlacedEvent event) {
         return new AuctionStreamPayload(
                 AuctionStreamEventType.BID_PLACED, event.auctionId(), null, null, null, null, null, null,
                 event.bidderId(), event.previousBidderId(), null, event.startPrice(), event.currentPrice(), null,
-                event.bidIncrement(), event.bidCount(), event.closeTime().toInstant(ZoneOffset.UTC),
-                event.status(), null, event.occurredAt().toInstant(ZoneOffset.UTC));
+                event.bidIncrement(), event.bidCount(), event.closeTime(),
+                event.status(), null, event.occurredAt());
     }
 
     public static AuctionStreamPayload closed(AuctionClosedEvent event) {
@@ -57,8 +56,8 @@ public record AuctionStreamPayload(
                 AuctionStreamEventType.AUCTION_CLOSED, event.auctionId(), event.itemId(), event.cardName(),
                 event.cardPsaGrade(), event.cardLanguage(), event.cardThumbnailUrl(), event.sellerId(),
                 null, null, event.winnerId(), event.startPrice(), event.currentPrice(), event.winningPrice(),
-                event.bidIncrement(), event.bidCount(), event.closeTime().toInstant(ZoneOffset.UTC),
-                event.status(), event.closeTime().toInstant(ZoneOffset.UTC),
-                event.occurredAt().toInstant(ZoneOffset.UTC));
+                event.bidIncrement(), event.bidCount(), event.closeTime(),
+                event.status(), event.closeTime(),
+                event.occurredAt());
     }
 }

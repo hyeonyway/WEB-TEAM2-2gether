@@ -16,7 +16,8 @@ import com.dbidding.notification.sse.NotificationSseConnectionManager;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.wishlist.WishlistService;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 @ExtendWith(MockitoExtension.class)
 class NotificationEventListenerTest {
 
-    private final LocalDateTime now = LocalDateTime.of(2026, 8, 3, 12, 0);
+    private final Instant now = Instant.parse("2026-08-03T12:00:00Z");
 
     @Mock
     private WishlistService wishlistService;
@@ -193,14 +194,14 @@ class NotificationEventListenerTest {
     private AuctionOpenedEvent openedEvent() {
         return new AuctionOpenedEvent(
                 100, 10, "리자몽 EX", "10", "JP", "/card.png", 9,
-                40_000L, 40_000L, 1_000L, 0, now.plusHours(1), AuctionStatus.OPEN, now
+                40_000L, 40_000L, 1_000L, 0, now.plus(Duration.ofHours(1)), AuctionStatus.OPEN, now
         );
     }
 
     private BidPlacedEvent bidPlacedEvent(Integer previousBidderId) {
         return new BidPlacedEvent(
                 100, 10, 1, previousBidderId, previousBidderId == null ? null : 5L,
-                40_000L, 51_000L, 1_000L, 1, now.plusHours(1), AuctionStatus.OPEN, now
+                40_000L, 51_000L, 1_000L, 1, now.plus(Duration.ofHours(1)), AuctionStatus.OPEN, now
         );
     }
 

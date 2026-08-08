@@ -10,8 +10,8 @@ import com.dbidding.auction.dto.AuctionResponses;
 import com.dbidding.auction.service.AuctionQueryService;
 import com.dbidding.dashboard.dto.DashboardResponse;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,9 +31,9 @@ class DashboardServiceTest {
     @Test
     void 참여중인_경매를_현재가_높은순으로_정렬하고_종료시각이_지난_경매는_제외한다() {
         given(auctionQueryService.getDashboardAuctions(7)).willReturn(List.of(
-                auction(1, AuctionStatus.OPEN, BidStatus.LEADING, 120_000L, LocalDateTime.now(CLOCK).plusDays(1)),
-                auction(2, AuctionStatus.OPEN, BidStatus.OUTBID, 300_000L, LocalDateTime.now(CLOCK).plusDays(2)),
-                auction(3, AuctionStatus.OPEN, BidStatus.LEADING, 500_000L, LocalDateTime.now(CLOCK).minusMinutes(1))
+                auction(1, AuctionStatus.OPEN, BidStatus.LEADING, 120_000L, CLOCK.instant().plus(Duration.ofDays(1))),
+                auction(2, AuctionStatus.OPEN, BidStatus.OUTBID, 300_000L, CLOCK.instant().plus(Duration.ofDays(2))),
+                auction(3, AuctionStatus.OPEN, BidStatus.LEADING, 500_000L, CLOCK.instant().minus(Duration.ofMinutes(1)))
         ));
 
         List<DashboardResponse.AuctionSnapshot> result =
@@ -45,8 +45,8 @@ class DashboardServiceTest {
     @Test
     void 최근_낙찰을_낙찰가_높은순으로_정렬한다() {
         given(auctionQueryService.getDashboardAuctions(7)).willReturn(List.of(
-                auction(1, AuctionStatus.ENDED, BidStatus.WON, 100_000L, LocalDateTime.now(CLOCK)),
-                auction(2, AuctionStatus.ENDED, BidStatus.WON, 300_000L, LocalDateTime.now(CLOCK))
+                auction(1, AuctionStatus.ENDED, BidStatus.WON, 100_000L, CLOCK.instant()),
+                auction(2, AuctionStatus.ENDED, BidStatus.WON, 300_000L, CLOCK.instant())
         ));
 
         List<DashboardResponse.AuctionSnapshot> result =
@@ -56,7 +56,7 @@ class DashboardServiceTest {
     }
 
     private AuctionResponses.DashboardAuction auction(
-            int id, AuctionStatus status, BidStatus bidStatus, long bidAmount, LocalDateTime estimatedCloseTime
+            int id, AuctionStatus status, BidStatus bidStatus, long bidAmount, Instant estimatedCloseTime
     ) {
         return new AuctionResponses.DashboardAuction(
                 id, 9, new AuctionResponses.CardSummary(id, "카드 " + id, "세트", "10", "JP", "card.webp"),

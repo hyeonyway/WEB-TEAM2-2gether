@@ -11,7 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -37,7 +37,7 @@ public class Bid {
     private Long bidPrice;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -49,7 +49,7 @@ public class Bid {
     @Column(name = "idempotency_request_hash", length = 64)
     private String idempotencyRequestHash;
 
-    public static Bid leading(Integer bidderId, Auction auction, Long bidPrice, LocalDateTime createdAt) {
+    public static Bid leading(Integer bidderId, Auction auction, Long bidPrice, Instant createdAt) {
         return leading(bidderId, auction, bidPrice, createdAt, null, null);
     }
 
@@ -57,7 +57,7 @@ public class Bid {
             Integer bidderId,
             Auction auction,
             Long bidPrice,
-            LocalDateTime createdAt,
+            Instant createdAt,
             String idempotencyKey,
             String idempotencyRequestHash
     ) {
@@ -72,7 +72,7 @@ public class Bid {
                 .build();
     }
 
-    public Bid(Integer bidderId, Auction auction, Long bidPrice, LocalDateTime createdAt, BidStatus status) {
+    public Bid(Integer bidderId, Auction auction, Long bidPrice, Instant createdAt, BidStatus status) {
         this(bidderId, auction, bidPrice, createdAt, status, null, null);
     }
 
@@ -81,7 +81,7 @@ public class Bid {
             Integer bidderId,
             Auction auction,
             Long bidPrice,
-            LocalDateTime createdAt,
+            Instant createdAt,
             BidStatus status,
             String idempotencyKey,
             String idempotencyRequestHash

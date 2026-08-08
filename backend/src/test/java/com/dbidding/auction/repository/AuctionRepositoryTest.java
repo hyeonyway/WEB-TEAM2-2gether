@@ -3,7 +3,7 @@ package com.dbidding.auction.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -23,10 +23,10 @@ class AuctionRepositoryTest {
                 Integer.class,
                 Long.class,
                 Long.class,
-                LocalDateTime.class,
+                Instant.class,
                 Integer.class,
                 boolean.class,
-                LocalDateTime.class,
+                Instant.class,
                 Pageable.class
         );
         String query = method.getAnnotation(Query.class).value();

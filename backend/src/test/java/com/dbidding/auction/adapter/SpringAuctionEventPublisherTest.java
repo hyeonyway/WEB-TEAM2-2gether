@@ -10,7 +10,8 @@ import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.sse.AuctionStreamEventType;
 import com.dbidding.auction.sse.AuctionStreamPayload;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,8 +26,8 @@ class SpringAuctionEventPublisherTest {
     @Test
     void 생성_이벤트를_발행한다() {
         SpringAuctionEventPublisher publisher = new SpringAuctionEventPublisher(applicationEventPublisher);
-        LocalDateTime occurredAt = LocalDateTime.of(2026, 8, 3, 10, 0);
-        LocalDateTime closeTime = occurredAt.plusHours(12);
+        Instant occurredAt = Instant.parse("2026-08-03T10:00:00Z");
+        Instant closeTime = occurredAt.plus(Duration.ofHours(12));
         AuctionOpenedEvent event = new AuctionOpenedEvent(
                 1, 10, "리자몽", "10", "JP", "/cards/charizard.png", 2,
                 42_000L, 42_000L, 1_000L, 0, closeTime, AuctionStatus.OPEN, occurredAt
@@ -41,8 +42,8 @@ class SpringAuctionEventPublisherTest {
     @Test
     void 입찰_이벤트를_발행한다() {
         SpringAuctionEventPublisher publisher = new SpringAuctionEventPublisher(applicationEventPublisher);
-        LocalDateTime occurredAt = LocalDateTime.of(2026, 8, 3, 11, 0);
-        LocalDateTime closeTime = occurredAt.plusMinutes(5);
+        Instant occurredAt = Instant.parse("2026-08-03T11:00:00Z");
+        Instant closeTime = occurredAt.plus(Duration.ofMinutes(5));
         BidPlacedEvent event = new BidPlacedEvent(
                 1, 10, 3, 2, 20L, 42_000L, 45_000L, 1_000L, 2,
                 closeTime, AuctionStatus.ENDING, occurredAt
@@ -57,7 +58,7 @@ class SpringAuctionEventPublisherTest {
     @Test
     void 종료_이벤트를_발행한다() {
         SpringAuctionEventPublisher publisher = new SpringAuctionEventPublisher(applicationEventPublisher);
-        LocalDateTime closedAt = LocalDateTime.of(2026, 8, 3, 12, 0);
+        Instant closedAt = Instant.parse("2026-08-03T12:00:00Z");
         AuctionClosedEvent event = closedEvent(3, 45_000L, 45_000L, AuctionStatus.ENDED, closedAt);
 
         publisher.publishClosed(event);
@@ -71,7 +72,7 @@ class SpringAuctionEventPublisherTest {
             Long currentPrice,
             Long winningPrice,
             AuctionStatus status,
-            LocalDateTime closedAt
+            Instant closedAt
     ) {
         return new AuctionClosedEvent(
                 1,

@@ -1,12 +1,12 @@
 package com.dbidding.auction.dto;
 
 import com.dbidding.auction.domain.AuctionSort;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record AuctionCursor(
         AuctionSort sort,
         Long value,
-        LocalDateTime timeValue,
+        Instant timeValue,
         Integer auctionId
 ) {
 }

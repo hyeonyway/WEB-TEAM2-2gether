@@ -11,7 +11,7 @@ import com.dbidding.notification.NotificationRepository;
 import com.dbidding.notification.NotificationService;
 import com.dbidding.notification.NotificationType;
 import com.dbidding.wishlist.WishlistService;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -43,7 +43,7 @@ public class NotificationReconciliationService {
     private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
 
-    public void recoverAuctionOpenedNotifications(LocalDateTime windowStart) {
+    public void recoverAuctionOpenedNotifications(Instant windowStart) {
         List<Auction> recentlyOpened = auctionRepository
                 .findByStatusInAndOpenTimeGreaterThanEqual(OPEN_STATUSES, windowStart);
 
@@ -59,7 +59,7 @@ public class NotificationReconciliationService {
         }
     }
 
-    public void recoverAuctionClosedNotifications(LocalDateTime windowStart) {
+    public void recoverAuctionClosedNotifications(Instant windowStart) {
         List<Auction> recentlyClosed = auctionRepository
                 .findByStatusInAndCloseTimeGreaterThanEqual(CLOSED_STATUSES, windowStart);
 
@@ -90,7 +90,7 @@ public class NotificationReconciliationService {
         }
     }
 
-    public void recoverOutbidNotifications(LocalDateTime windowStart) {
+    public void recoverOutbidNotifications(Instant windowStart) {
         Set<Integer> candidateAuctionIds = new LinkedHashSet<>(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING));
         // 상회입찰 직후~다음 스캔 사이에 경매가 종료되면 낙찰 bid가 LEADING→WON으로 바뀌면서
         // 위 조회에서 빠져버린다. 그 경매의 outbid된 유저들이 영영 복구 대상에서 누락되는 걸

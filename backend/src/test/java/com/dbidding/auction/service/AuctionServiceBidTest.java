@@ -22,8 +22,8 @@ import com.dbidding.card.service.CardService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -126,7 +126,7 @@ class AuctionServiceBidTest {
     @Test
     void 마감_임박_입찰로_종료_시간이_연장되면_스케줄_변경_이벤트를_발행한다() {
         Auction auction = auction(1);
-        LocalDateTime previousCloseTime = LocalDateTime.now(clock).plusMinutes(4);
+        Instant previousCloseTime = clock.instant().plus(Duration.ofMinutes(4));
         ReflectionTestUtils.setField(auction, "closeTime", previousCloseTime);
         ReflectionTestUtils.setField(auction, "estimatedCloseTime", previousCloseTime);
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
@@ -141,7 +141,7 @@ class AuctionServiceBidTest {
         verify(eventPublisher).publishEvent(argThat((Object event) ->
                 event instanceof AuctionCloseScheduleChangedEvent changed
                         && changed.auctionId().equals(1)
-                        && changed.closeTime().equals(previousCloseTime.plusMinutes(5))
+                        && changed.closeTime().equals(previousCloseTime.plus(Duration.ofMinutes(5)))
                         && changed.reason().equals("close_time_extended")));
     }
 
@@ -154,9 +154,9 @@ class AuctionServiceBidTest {
                 .startPrice(42_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(LocalDateTime.now(clock).minusHours(1))
-                .estimatedCloseTime(LocalDateTime.now(clock).plusHours(1))
-                .closeTime(LocalDateTime.now(clock).plusHours(1))
+                .openTime(clock.instant().minus(Duration.ofHours(1)))
+                .estimatedCloseTime(clock.instant().plus(Duration.ofHours(1)))
+                .closeTime(clock.instant().plus(Duration.ofHours(1)))
                 .bidPriceUnit(1_000L)
                 .hyped(false)
                 .build();

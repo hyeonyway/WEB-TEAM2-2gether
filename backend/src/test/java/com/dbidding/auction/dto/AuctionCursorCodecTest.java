@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.AuctionSort;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -44,7 +44,7 @@ class AuctionCursorCodecTest {
         AuctionCursor cursor = new AuctionCursor(
                 AuctionSort.LATEST,
                 null,
-                LocalDateTime.of(2026, 8, 4, 12, 30, 15, 123_000_000),
+                Instant.parse("2026-08-04T12:30:15.123Z"),
                 17
         );
 
@@ -55,7 +55,7 @@ class AuctionCursorCodecTest {
 
     @Test
     void 입찰수순_cursor에_정렬값이_없으면_거부한다() {
-        String encoded = encodeRaw("v3|BID_COUNT|||17");
+        String encoded = encodeRaw("v4|BID_COUNT|||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
                 .isInstanceOf(ResponseStatusException.class)
@@ -64,7 +64,7 @@ class AuctionCursorCodecTest {
 
     @Test
     void 최신순_cursor에_시작_시각이_없으면_거부한다() {
-        String encoded = encodeRaw("v3|LATEST|||17");
+        String encoded = encodeRaw("v4|LATEST|||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.LATEST))
                 .isInstanceOf(ResponseStatusException.class)
@@ -73,7 +73,7 @@ class AuctionCursorCodecTest {
 
     @Test
     void 경매_ID가_양수가_아니면_거부한다() {
-        String encoded = encodeRaw("v3|PRICE_HIGH|45000||0");
+        String encoded = encodeRaw("v4|PRICE_HIGH|45000||0");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.PRICE_HIGH))
                 .isInstanceOf(ResponseStatusException.class)
@@ -82,7 +82,7 @@ class AuctionCursorCodecTest {
 
     @Test
     void 입찰수순_cursor가_음수이면_거부한다() {
-        String encoded = encodeRaw("v3|BID_COUNT|-1||17");
+        String encoded = encodeRaw("v4|BID_COUNT|-1||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
                 .isInstanceOf(ResponseStatusException.class)
@@ -91,7 +91,7 @@ class AuctionCursorCodecTest {
 
     @Test
     void 입찰수순_cursor가_int_범위를_벗어나면_거부한다() {
-        String encoded = encodeRaw("v3|BID_COUNT|2147483648||17");
+        String encoded = encodeRaw("v4|BID_COUNT|2147483648||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
                 .isInstanceOf(ResponseStatusException.class)
