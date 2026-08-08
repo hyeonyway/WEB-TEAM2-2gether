@@ -10,6 +10,8 @@ Wallet은 사용자의 총 포인트, 실제 잔액 변경 원장, 경매에 묶
 4. [지갑 잔액 조회](4-balance-query.md) — 완료
 5. [Auction 입찰 홀드·해제·낙찰 차감 연동](5-auction-wallet-integration.md) — 완료
 6. [소비자 소유 Port·Adapter 경계 리팩터링](6-consumer-owned-port-adapter-refactor.md) — 완료
+7. [동시 입찰 Hold 초과 버그 조사 보고서](7-concurrent-hold-overrun-bug-report.md) — 조사 완료, 수정 미착수
+8. [WalletHold 조회의 불필요한 행 락 제거](8-remove-redundant-wallet-hold-lock.md) — 진행 중
 
 충전·환불 원장과 Wallet 잠금을 먼저 구현해야 잔액 조회와 Auction 연동이 같은 계산식과 동시성 규칙을 재사용할 수 있다.
 
