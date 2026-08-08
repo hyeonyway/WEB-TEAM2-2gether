@@ -1,7 +1,7 @@
 package com.dbidding.auction.service;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -27,7 +27,7 @@ public class AuctionClosingScheduler {
             scheduler = "auctionBackupTaskScheduler"
     )
     public void closeDueAuctions() {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = clock.instant();
         log.debug("event=auction.close.backup_scheduler.started now={} batchSize={}", now, CLOSE_BATCH_SIZE);
         try {
             var closedAuctions = auctionCommandService.closeDueAuctions(now, CLOSE_BATCH_SIZE);

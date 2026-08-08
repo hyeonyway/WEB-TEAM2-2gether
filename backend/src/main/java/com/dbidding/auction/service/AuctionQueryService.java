@@ -1,7 +1,6 @@
 package com.dbidding.auction.service;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static com.dbidding.global.time.UtcTime.toInstant;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
@@ -23,7 +22,8 @@ import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +48,7 @@ public class AuctionQueryService {
     private final WalletService walletService;
     private final CardService cardService;
     private final AuctionCursorCodec auctionCursorCodec;
+    private final Clock clock;
 
     public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
             Integer userId,
@@ -69,7 +70,7 @@ public class AuctionQueryService {
                 openTimeCursor(cursor),
                 cursor == null ? null : cursor.auctionId(),
                 activeOnly(request),
-                LocalDateTime.now(),
+                clock.instant(),
                 PageRequest.of(0, size + 1)
         );
         boolean hasNext = fetched.size() > size;
@@ -115,7 +116,7 @@ public class AuctionQueryService {
                 : null;
     }
 
-    private LocalDateTime openTimeCursor(AuctionCursor cursor) {
+    private Instant openTimeCursor(AuctionCursor cursor) {
         return cursor != null && cursor.sort() == AuctionSort.LATEST
                 ? cursor.timeValue()
                 : null;
@@ -134,7 +135,7 @@ public class AuctionQueryService {
             case PRICE_HIGH, PRICE_LOW -> auction.getCurrentPrice();
             case CHANGE_HIGH -> auction.getChangeRateBasisPoints();
         };
-        LocalDateTime timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
+        Instant timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
         return new AuctionCursor(sort, value, timeValue, auction.getId());
     }
 
@@ -255,8 +256,8 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(toInstant(auction.getOpenTime()))
-                .endsAt(toInstant(auction.getCloseTime()))
+                .startsAt(auction.getOpenTime())
+                .endsAt(auction.getCloseTime())
                 .status(auction.getStatus())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
@@ -292,8 +293,8 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(toInstant(auction.getOpenTime()))
-                .endsAt(toInstant(auction.getCloseTime()))
+                .startsAt(auction.getOpenTime())
+                .endsAt(auction.getCloseTime())
                 .status(auction.getStatus())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
@@ -356,7 +357,7 @@ public class AuctionQueryService {
                 .amount(bid.getBidPrice())
                 .bidderAlias(bidderAlias(bid.getBidderId()))
                 .isHighest(Objects.equals(bid.getId(), highestBidId))
-                .createdAt(toInstant(bid.getCreatedAt()))
+                .createdAt(bid.getCreatedAt())
                 .build();
     }
 
