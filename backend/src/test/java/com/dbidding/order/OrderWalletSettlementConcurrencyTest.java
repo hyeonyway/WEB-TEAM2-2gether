@@ -59,6 +59,7 @@ class OrderWalletSettlementConcurrencyTest {
 	@BeforeEach
 	void setUp() {
 		executor = Executors.newFixedThreadPool(2);
+		jdbcTemplate.update("DELETE FROM notification");
 		jdbcTemplate.update("DELETE FROM point_records");
 		jdbcTemplate.update("DELETE FROM wallet_holds");
 		jdbcTemplate.update("DELETE FROM orders");
