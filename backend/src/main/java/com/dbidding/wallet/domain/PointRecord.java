@@ -57,7 +57,7 @@ public class PointRecord {
 		}
 		this.walletId = walletId;
 		this.auctionId = auctionId;
-		this.amount = transactionType == PointTransactionType.CHARGE ? amount : -amount;
+		this.amount = isCredit(transactionType) ? amount : -amount;
 		this.balance = balance;
 		this.transactionType = transactionType;
 		this.idempotencyKey = idempotencyKey;
@@ -97,5 +97,32 @@ public class PointRecord {
 			PointTransactionType.AUCTION_CAPTURE,
 			null
 		);
+	}
+
+	public static PointRecord orderSettlement(Integer walletId, Integer auctionId, long amount, long balance) {
+		return orderCredit(walletId, auctionId, amount, balance, PointTransactionType.ORDER_SETTLEMENT);
+	}
+
+	public static PointRecord orderCancelRefund(Integer walletId, Integer auctionId, long amount, long balance) {
+		return orderCredit(walletId, auctionId, amount, balance, PointTransactionType.ORDER_CANCEL_REFUND);
+	}
+
+	private static PointRecord orderCredit(
+		Integer walletId,
+		Integer auctionId,
+		long amount,
+		long balance,
+		PointTransactionType transactionType
+	) {
+		if (auctionId == null) {
+			throw new IllegalArgumentException("Auction ID cannot be null");
+		}
+		return new PointRecord(walletId, auctionId, amount, balance, transactionType, null);
+	}
+
+	private static boolean isCredit(PointTransactionType transactionType) {
+		return transactionType == PointTransactionType.CHARGE
+			|| transactionType == PointTransactionType.ORDER_SETTLEMENT
+			|| transactionType == PointTransactionType.ORDER_CANCEL_REFUND;
 	}
 }
