@@ -40,11 +40,13 @@ import com.dbidding.global.security.RequestCurrentUserProvider;
 import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
 import com.dbidding.global.security.session.SessionCsrfController;
+import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 
 @WebMvcTest(
 	controllers = {AuthController.class, SessionCurrentUserTestController.class},
 	properties = {
 		"app.auth.mode=session",
+		"app.auth.session-enabled=true",
 		"app.session.store=memory",
 		"app.session.cookie-name=SESSION",
 		"app.session.secure-cookie=false"
@@ -52,6 +54,7 @@ import com.dbidding.global.security.session.SessionCsrfController;
 )
 @Import({
 	SessionAuthConfiguration.class,
+	SessionSseConnectionRegistry.class,
 	SessionCsrfController.class,
 	TimeConfig.class,
 	WebConfig.class,

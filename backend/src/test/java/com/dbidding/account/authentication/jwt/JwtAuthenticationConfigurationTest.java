@@ -21,6 +21,7 @@ import com.dbidding.global.security.jwt.SseTicketController;
 import com.dbidding.global.security.jwt.TicketProvider;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
 import com.dbidding.global.security.session.SessionAuthFilter;
+import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 
 class JwtAuthenticationConfigurationTest {
 
@@ -30,6 +31,7 @@ class JwtAuthenticationConfigurationTest {
 		.withBean(AuthenticationRepository.class, () -> mock(AuthenticationRepository.class))
 		.withBean(RequestUserIdWriter.class, RequestUserIdWriter::new)
 		.withBean(Clock.class, Clock::systemUTC)
+		.withBean(SessionSseConnectionRegistry.class, SessionSseConnectionRegistry::new)
 		.withPropertyValues(
 			"app.jwt.secret=0123456789abcdef0123456789abcdef",
 			"app.jwt.access-token-seconds=1800",
