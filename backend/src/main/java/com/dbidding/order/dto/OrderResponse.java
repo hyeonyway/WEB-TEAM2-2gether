@@ -1,6 +1,5 @@
 package com.dbidding.order.dto;
 
-import com.dbidding.global.time.UtcTime;
 import com.dbidding.order.Order;
 import com.dbidding.order.OrderStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -22,7 +21,7 @@ public record OrderResponse(
                 order.getCardName(),
                 order.getPrice(),
                 order.getStatus(),
-                UtcTime.toInstant(order.getCreatedAt())
+                order.getCreatedAt()
         );
     }
 }

@@ -3,7 +3,6 @@ package com.dbidding.notification.dto;
 import java.time.Instant;
 
 import com.dbidding.notification.Notification;
-import com.dbidding.global.time.UtcTime;
 
 public record NotificationResponse(
         Long id,
@@ -19,7 +18,7 @@ public record NotificationResponse(
                 notification.getAuctionId(),
                 notification.getMessage(),
                 notification.isRead(),
-                UtcTime.toInstant(notification.getCreatedAt())
+                notification.getCreatedAt()
         );
     }
 }

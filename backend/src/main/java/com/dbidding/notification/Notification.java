@@ -1,6 +1,6 @@
 package com.dbidding.notification;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -49,7 +49,7 @@ public class Notification {
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     private Notification(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {
         this.userId = userId;
