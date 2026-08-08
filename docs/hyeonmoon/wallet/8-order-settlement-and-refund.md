@@ -15,6 +15,16 @@
 
 **Tech Stack:** Java 21, Spring Boot 4.1, Spring Data JPA, MySQL 8.4(Testcontainers), JUnit 5, Mockito
 
+## 설계 검토 결과
+
+- `Order` 행 락 뒤 대상 지갑 한 행만 잠그는 구조, 기존 `WalletSettlementPort`를 Order가
+  소유하는 구조, `point_records.auction_id`에 경매 ID를 저장하는 구조는 적절하다.
+- 구현 시 누락돼 있던 `OrderEventListener`를 복구했다. 이제 낙찰 경매 종료 이벤트가 주문 생성으로
+  다시 연결되고, 정산·환불 경로가 실제 주문에서 도달 가능하다.
+- 이번 문서의 금액 범위는 `Order.price`인 낙찰가다. 현재 Auction의 hold/capture가 배송비를 포함하지
+  않는 것은 프로젝트 정책과 어긋나는 별도 결함이며, 스키마·이벤트 계약 확장이 필요한 후속 작업으로
+  분리한다. 이번 변경은 그 기존 금액 계약을 확장하지 않는다.
+
 ## 락 순서와 데드락 검토
 
 `OrderService`의 모든 상태 변경 메서드는 이미 다음 순서로 동작한다
@@ -55,18 +65,18 @@ sellerCancel() → Order 행 락                     → 지갑 1개(buyer)만 c
 - Modifies: `PointRecord`의 생성자 부호 규칙 — "`CHARGE`만 양수" → "`CHARGE`·`ORDER_SETTLEMENT`·`ORDER_CANCEL_REFUND`는 양수, 그 외(`REFUND`, `AUCTION_CAPTURE`)는 음수"
 - Preserves: `PointRecord.charge/refund/auctionCapture` 기존 동작과 반환 부호
 
-- [ ] **Step 1: 새 타입의 부호를 검증하는 테스트를 추가한다**
+- [x] **Step 1: 새 타입의 부호를 검증하는 테스트를 추가한다**
 
 `PointRecordTest`에 `PointRecord.orderSettlement(...)`와 `PointRecord.orderCancelRefund(...)`(Step 3에서 만들 정적 팩토리)가 양수 `amount`로 저장되는 케이스를 추가한다. 기존 `refund`/`auctionCapture`가 여전히 음수인 케이스도 회귀로 남긴다.
 
-- [ ] **Step 2: 테스트가 타입 부재로 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 타입 부재로 실패하는지 확인한다**
 
 ```bash
 cd backend
 ./gradlew test --tests com.dbidding.wallet.domain.PointRecordTest
 ```
 
-- [ ] **Step 3: enum과 부호 규칙, 정적 팩토리를 추가한다**
+- [x] **Step 3: enum과 부호 규칙, 정적 팩토리를 추가한다**
 
 ```java
 public enum PointTransactionType {
@@ -91,7 +101,7 @@ this.amount = POSITIVE_TYPES.contains(transactionType) ? amount : -amount;
 `PointRecord.orderCancelRefund(Integer walletId, Integer auctionId, long amount, long balance)`를
 `auctionCapture(...)`와 같은 형태(`auctionId` 필수, `idempotencyKey`는 `null`)로 추가한다.
 
-- [ ] **Step 4: 테스트를 통과시키고 커밋한다**
+- [x] **Step 4: 테스트를 통과시키고 커밋한다**
 
 ```bash
 ./gradlew test --tests com.dbidding.wallet.domain.PointRecordTest
@@ -114,7 +124,7 @@ git commit -m "feat: 주문 정산·환불 PointTransactionType과 부호 규칙
 - Consumes: `WalletRepository.findByUserIdForUpdate`, `Wallet.credit`, `PointRecordRepository.save`
 - Preserves: 기존 `hold`/`release`/`capture`/`charge`/`refund` 시그니처와 동작
 
-- [ ] **Step 1: 실패하는 단위 테스트를 먼저 작성한다**
+- [x] **Step 1: 실패하는 단위 테스트를 먼저 작성한다**
 
 `WalletServiceSettleTest`: 존재하는 판매자 지갑에 `settle(sellerId, auctionId, amount)` 호출 시
 `wallet.point`가 `amount`만큼 증가하고, `PointRecord`가 `ORDER_SETTLEMENT`·양수 `amount`로
@@ -126,7 +136,7 @@ git commit -m "feat: 주문 정산·환불 PointTransactionType과 부호 규칙
 두 테스트 모두 `amount <= 0`이면 `InvalidWalletAmountException`(기존 `validatePositive` 재사용)을
 검증한다.
 
-- [ ] **Step 2: 테스트가 메서드 부재로 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 메서드 부재로 실패하는지 확인한다**
 
 ```bash
 cd backend
@@ -135,7 +145,7 @@ cd backend
   --tests com.dbidding.wallet.service.WalletServiceCancelRefundTest
 ```
 
-- [ ] **Step 3: settle·cancelRefund를 구현한다**
+- [x] **Step 3: settle·cancelRefund를 구현한다**
 
 `charge()`와 같은 모양으로, hold 테이블은 건드리지 않는다.
 
@@ -167,7 +177,7 @@ public WalletTransactionResponse cancelRefund(Integer buyerId, Integer auctionId
 `hold`/`release`/`capture`와 동일한 관례 — 이 메서드들이 독자적으로 새 트랜잭션을 열지 않고
 호출자의 트랜잭션에 반드시 참여해야, Order 상태 전이와 지갑 크레딧이 원자적으로 묶인다).
 
-- [ ] **Step 4: 테스트를 통과시키고 커밋한다**
+- [x] **Step 4: 테스트를 통과시키고 커밋한다**
 
 ```bash
 ./gradlew test \
@@ -198,7 +208,7 @@ Port·Adapter는 소비자(Order)가 소유하는 기존 관례를 따른다(`ac
 `account.adapter.WalletProvisioningAdapter`와 같은 형태) — Wallet의 Repository·Entity는 직접
 참조하지 않고 `WalletService`의 public 메서드만 호출한다.
 
-- [ ] **Step 1: OrderWalletAdapter 테스트를 작성한다**
+- [x] **Step 1: OrderWalletAdapter 테스트를 작성한다**
 
 `payoutToSeller(sellerId, orderId, amount)` 호출이 `walletService.settle(sellerId, auctionId, amount)`로
 위임되는지, `refundToBuyer(buyerId, orderId, amount)`가 `walletService.cancelRefund(buyerId, auctionId, amount)`로
@@ -208,14 +218,14 @@ Port·Adapter는 소비자(Order)가 소유하는 기존 관례를 따른다(`ac
 `OrderRepository`로 `orderId → auctionId`를 조회해서 변환해야 한다. 이 조회도 트랜잭션에
 참여해야 하므로 `OrderService`가 이미 연 트랜잭션(`@Transactional`) 안에서 호출됨을 전제로 한다.
 
-- [ ] **Step 2: 테스트가 클래스 부재로 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 클래스 부재로 실패하는지 확인한다**
 
 ```bash
 cd backend
 ./gradlew test --tests com.dbidding.order.adapter.OrderWalletAdapterTest
 ```
 
-- [ ] **Step 3: OrderWalletAdapter를 구현하고 Mock을 제거한다**
+- [x] **Step 3: OrderWalletAdapter를 구현하고 Mock을 제거한다**
 
 ```java
 @Component
@@ -245,7 +255,7 @@ public class OrderWalletAdapter implements WalletSettlementPort {
 
 `MockWalletSettlementAdapter`와 `MockWalletSettlementAdapterTest`를 삭제한다.
 
-- [ ] **Step 4: Order·Wallet 관련 테스트를 재실행한다**
+- [x] **Step 4: Order·Wallet 관련 테스트를 재실행한다**
 
 ```bash
 ./gradlew test \
@@ -257,7 +267,7 @@ public class OrderWalletAdapter implements WalletSettlementPort {
 
 Expected: `OrderServiceTest`는 포트를 목으로 대체하므로 그대로 통과해야 한다.
 
-- [ ] **Step 5: 변경을 커밋한다**
+- [x] **Step 5: 변경을 커밋한다**
 
 ```bash
 git add backend/src/main/java/com/dbidding/order/adapter/OrderWalletAdapter.java \
@@ -273,7 +283,7 @@ git commit -m "feat: 주문 지갑 정산 어댑터를 실제 구현으로 교�
 - Create: `backend/src/test/java/com/dbidding/order/OrderWalletSettlementConcurrencyTest.java`
 - Modify: `docs/hyeonmoon/wallet/README.md`
 
-- [ ] **Step 1: 확정·취소 동시 요청 동시성 테스트를 작성한다**
+- [x] **Step 1: 확정·취소 동시 요청 동시성 테스트를 작성한다**
 
 실제 MySQL Testcontainer로 다음을 검증한다.
 
@@ -283,21 +293,26 @@ git commit -m "feat: 주문 지갑 정산 어댑터를 실제 구현으로 교�
   락 대기로 인한 예외(`CannotAcquireLockException`류)가 발생하지 않는다(직렬화되지만
   실패하지 않아야 한다는 뜻 — Task 시작부 "락 순서와 데드락 검토" 절 참고).
 
-- [ ] **Step 2: 전체 백엔드 테스트를 실행한다**
+테스트는 추가했다. 2026-08-08 현재 Docker 데몬이 중지되어 Testcontainers가 두 케이스를
+skip했으므로 실제 MySQL 동시성 실행 결과는 Docker 기동 후 재검증이 필요하다.
+
+- [x] **Step 2: 전체 백엔드 테스트를 실행한다**
 
 ```bash
 cd backend
 ./gradlew clean test
 ```
 
-Expected: 실패 0건. 테스트 소스가 없는 패턴은 통과로 표현하지 않고 별도로 보고한다. 이번
-변경과 무관한 기존 실패가 있으면 별도로 명시한다.
+관련 단위 테스트는 통과했다. 2026-08-08 `./gradlew clean test`는 456개 중 26개 실패,
+19개 skip였다. 실패는 Docker Testcontainers 탐색 실패 또는 외부 DB 대체를 비활성화한
+리포지토리 테스트의 JDBC URL 누락에서 발생했다. Docker 데몬을 기동한 뒤 전체 회귀와
+동시성 테스트를 다시 실행해야 한다.
 
-- [ ] **Step 3: Wallet README 구현 단계 목록을 갱신한다**
+- [x] **Step 3: Wallet README 구현 단계 목록을 갱신한다**
 
 `docs/hyeonmoon/wallet/README.md`의 구현 단계 목록에 이번 문서를 추가한다.
 
-- [ ] **Step 4: 문서 정리를 커밋한다**
+- [x] **Step 4: 문서 정리를 커밋한다**
 
 ```bash
 git add docs/hyeonmoon/wallet/README.md backend/src/test/java/com/dbidding/order/OrderWalletSettlementConcurrencyTest.java
@@ -315,4 +330,4 @@ git commit -m "docs: 주문 정산·환불 Wallet 연동 문서 반영"
 - 정산·환불 경로에서 한 트랜잭션이 지갑을 2개 이상 잠그지 않는다.
 - 전체 백엔드 테스트가 실패 없이 통과한다.
 
-> 이 문서는 AI의 도움을 받아 작성하였습니다
+> 이 문서는 codex의 도움을 받아 작성하였습니다
