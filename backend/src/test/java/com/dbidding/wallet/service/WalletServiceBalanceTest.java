@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.spy;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +46,8 @@ class WalletServiceBalanceTest {
 			walletRepository,
 			pointRecordRepository,
 			walletHoldRepository,
-			new WalletMetrics(new SimpleMeterRegistry())
+			new WalletMetrics(new SimpleMeterRegistry()),
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
 		);
 	}
 

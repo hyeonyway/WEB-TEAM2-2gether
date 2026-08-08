@@ -7,7 +7,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -77,7 +79,8 @@ class AuthServiceRefreshTest {
 			accountRepository,
 			authenticationRepository,
 			jwtTokenProvider,
-			refreshTokenHasher
+			refreshTokenHasher,
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
 		);
 	}
 

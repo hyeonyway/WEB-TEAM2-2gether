@@ -5,7 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,7 +53,8 @@ class JwtAuthenticationStrategyTest {
 			authenticationRepository,
 			jwtTokenProvider,
 			refreshTokenHasher,
-			refreshCookieFactory
+			refreshCookieFactory,
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
 		);
 	}
 

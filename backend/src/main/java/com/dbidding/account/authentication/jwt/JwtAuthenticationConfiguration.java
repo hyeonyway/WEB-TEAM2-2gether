@@ -39,13 +39,15 @@ public class JwtAuthenticationConfiguration {
 		AuthenticationRepository authenticationRepository,
 		JwtTokenProvider jwtTokenProvider,
 		RefreshTokenHasher refreshTokenHasher,
-		RefreshCookieFactory refreshCookieFactory
+		RefreshCookieFactory refreshCookieFactory,
+		Clock clock
 	) {
 		return new JwtAuthenticationStrategy(
 			authenticationRepository,
 			jwtTokenProvider,
 			refreshTokenHasher,
-			refreshCookieFactory
+			refreshCookieFactory,
+			clock
 		);
 	}
 
@@ -54,13 +56,15 @@ public class JwtAuthenticationConfiguration {
 		AccountRepository accountRepository,
 		AuthenticationRepository authenticationRepository,
 		JwtTokenProvider jwtTokenProvider,
-		RefreshTokenHasher refreshTokenHasher
+		RefreshTokenHasher refreshTokenHasher,
+		Clock clock
 	) {
 		return new JwtRefreshService(
 			accountRepository,
 			authenticationRepository,
 			jwtTokenProvider,
-			refreshTokenHasher
+			refreshTokenHasher,
+			clock
 		);
 	}
 
