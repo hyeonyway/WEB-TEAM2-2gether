@@ -47,6 +47,24 @@ class AuctionMetricsTest {
     }
 
     @Test
+    void 입찰_핵심구간과_하위단계와_flush_시간을_기록한다() {
+        Timer.Sample criticalSection = metrics.startBidCriticalSection();
+        Timer.Sample flush = metrics.startBidFlush();
+
+        metrics.recordBidStep(AuctionMetrics.BidStep.OUTBID, () -> { });
+        metrics.recordBidStep(AuctionMetrics.BidStep.HOLD, () -> { });
+        metrics.recordBidStep(AuctionMetrics.BidStep.SAVE, () -> { });
+        metrics.finishBidFlush(flush);
+        metrics.finishBidCriticalSection(criticalSection);
+
+        assertThat(registry.get("dbidding.bid.critical_section.duration").timer().count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.bid.step.duration").tag("step", "outbid").timer().count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.bid.step.duration").tag("step", "hold").timer().count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.bid.step.duration").tag("step", "save").timer().count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.bid.db_flush.duration").timer().count()).isEqualTo(1);
+    }
+
+    @Test
     void 경매_연장을_카운트한다() {
         metrics.recordExtension();
 

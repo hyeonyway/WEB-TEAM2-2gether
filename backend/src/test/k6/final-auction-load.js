@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import sse from 'k6/x/sse';
 import {check, sleep} from 'k6';
-import {Counter, Rate} from 'k6/metrics';
+import {Counter, Rate, Trend} from 'k6/metrics';
 
 const baseUrl = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 const users = positiveInt(__ENV.USERS, 1000);
@@ -19,6 +19,8 @@ const bidOk = new Rate('bid_success_or_conflict');
 const auctionSseOk = new Rate('auction_sse_connected');
 const notificationSseOk = new Rate('notification_sse_connected');
 const auctionEvents = new Counter('auction_sse_events');
+const auctionSseDeliveryLatency = new Trend('auction_sse_delivery_latency', true);
+const auctionSseDeliveryTimestampInvalid = new Counter('auction_sse_delivery_timestamp_invalid');
 const notificationEvents = new Counter('notification_sse_events');
 
 export const options = {
@@ -62,9 +64,27 @@ export function setup() {
 export function auctionSse() {
   sse.open(`${baseUrl}/api/auctions/stream`, {headers: {Accept: 'text/event-stream'}, tags: {name: 'auction_sse'}}, client => {
     client.on('open', () => auctionSseOk.add(true));
-    client.on('event', () => auctionEvents.add(1));
+    client.on('event', event => {
+      auctionEvents.add(1);
+      recordAuctionSseDeliveryLatency(event);
+    });
     client.on('error', () => auctionSseOk.add(false));
   });
+}
+
+function recordAuctionSseDeliveryLatency(event) {
+  if (!['AUCTION_CREATED', 'BID_PLACED', 'AUCTION_CLOSED'].includes(event.name)) return;
+  try {
+    const publishedAt = Date.parse(JSON.parse(event.data).published_at);
+    const latency = Date.now() - publishedAt;
+    if (!Number.isFinite(publishedAt) || latency < 0) {
+      auctionSseDeliveryTimestampInvalid.add(1);
+      return;
+    }
+    auctionSseDeliveryLatency.add(latency);
+  } catch {
+    auctionSseDeliveryTimestampInvalid.add(1);
+  }
 }
 
 export function notificationSse(data) {

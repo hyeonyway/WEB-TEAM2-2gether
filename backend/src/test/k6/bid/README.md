@@ -133,6 +133,10 @@ RATE, 지속 시간, VU 설정이 포함된다. 비밀번호와 Access Token은 
 - `bid_accepted_or_contended`: `201`과 정상 경쟁 `409`의 합산 비율
 - `bid_rejected`: 인증, 잔액 부족, 종료 경매 등 정상 경쟁 외 거절 수
 - `bid_end_to_end_duration`: 컨텍스트 조회부터 입찰 응답까지 전체 소요 시간
+- `auction_sse_delivery_latency`: 서버가 `published_at`을 기록한 뒤 k6가 경매 SSE 이벤트를 수신할 때까지의 시간
+- `auction_sse_delivery_timestamp_invalid`: `published_at`이 없거나 유효하지 않거나, 서버와 k6 시계 차이로 음수 지연이 발생한 이벤트 수
+
+`auction_sse_delivery_latency`는 `AUCTION_CREATED`, `BID_PLACED`, `AUCTION_CLOSED` 이벤트만 기록한다. 서버와 k6 실행 환경의 시계가 동기화되어 있어야 비교 가능한 값이며, 시계 오차가 의심되는 이벤트는 latency Trend에 포함하지 않는다.
 
 본 부하에서는 check 성공률 99% 초과, 성공 또는 정상 충돌 비율 99% 초과,
 HTTP 실패율 1% 미만, 컨텍스트 조회 p95 500ms 미만, 입찰 요청 p95 1초 미만을

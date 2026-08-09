@@ -30,7 +30,7 @@ class AuctionSseTestBidApplicationService {
                 bid.bidderId(), bid.previousBidderId(), null, auction.startPrice(),
                 bid.currentPrice(), null, auction.bidIncrement(), bid.bidCount(),
                 auction.endsAt(), AuctionStatus.valueOf(auction.status()),
-                null, clock.instant());
+                null, clock.instant(), null);
         connectionManager.broadcast(payload);
         return payload;
     }

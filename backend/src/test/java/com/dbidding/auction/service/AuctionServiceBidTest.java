@@ -132,6 +132,14 @@ class AuctionServiceBidTest {
         assertThat(auction.getBidCount()).isEqualTo(1);
         verify(walletService).hold(2, 1, 43_000L);
         verify(auctionEventPublisher).publishBidPlaced(any(BidPlacedEvent.class));
+        assertThat(meterRegistry.get("dbidding.bid.critical_section.duration").timer().count()).isEqualTo(1);
+        assertThat(meterRegistry.get("dbidding.bid.step.duration").tag("step", "hold").timer().count())
+                .isEqualTo(1);
+        assertThat(meterRegistry.get("dbidding.bid.step.duration").tag("step", "save").timer().count())
+                .isEqualTo(1);
+        assertThat(meterRegistry.get("dbidding.bid.step.duration").tag("step", "outbid").timer().count())
+                .isZero();
+        assertThat(meterRegistry.get("dbidding.bid.db_flush.duration").timer().count()).isEqualTo(1);
     }
 
     @ParameterizedTest
@@ -219,6 +227,8 @@ class AuctionServiceBidTest {
         InOrder walletCalls = org.mockito.Mockito.inOrder(walletService);
         walletCalls.verify(walletService).hold(2, 1, 91_000L);
         walletCalls.verify(walletService).release(3, 1);
+        assertThat(meterRegistry.get("dbidding.bid.step.duration").tag("step", "outbid").timer().count())
+                .isEqualTo(1);
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.dbidding.auction.metrics;
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
@@ -37,6 +38,9 @@ public class AuctionMetrics {
     private final Map<BidResult, Timer> bidTimers = new EnumMap<>(BidResult.class);
     private final Map<CloseResult, Timer> closeTimers = new EnumMap<>(CloseResult.class);
     private final Map<LockOperation, Timer> lockTimers = new EnumMap<>(LockOperation.class);
+    private final Map<BidStep, Timer> bidStepTimers = new EnumMap<>(BidStep.class);
+    private final Timer bidCriticalSectionTimer;
+    private final Timer bidFlushTimer;
     private final Counter auctionExtensions;
 
     public AuctionMetrics(MeterRegistry registry) {
@@ -65,6 +69,24 @@ public class AuctionMetrics {
                     .serviceLevelObjectives(LOCK_SLOS)
                     .register(registry));
         }
+        bidCriticalSectionTimer = Timer.builder("dbidding.bid.critical_section.duration")
+                .description("경매 락 획득 이후 입찰 핵심 처리시간")
+                .publishPercentileHistogram()
+                .serviceLevelObjectives(OPERATION_SLOS)
+                .register(registry);
+        for (BidStep step : BidStep.values()) {
+            bidStepTimers.put(step, Timer.builder("dbidding.bid.step.duration")
+                    .description("입찰 하위 단계 처리시간")
+                    .tag("step", step.tag())
+                    .publishPercentileHistogram()
+                    .serviceLevelObjectives(OPERATION_SLOS)
+                    .register(registry));
+        }
+        bidFlushTimer = Timer.builder("dbidding.bid.db_flush.duration")
+                .description("입찰 DB flush 처리시간")
+                .publishPercentileHistogram()
+                .serviceLevelObjectives(OPERATION_SLOS)
+                .register(registry);
         auctionExtensions = Counter.builder("dbidding.auction.extensions")
                 .description("마감 임박 입찰로 경매가 연장된 횟수")
                 .register(registry);
@@ -84,6 +106,30 @@ public class AuctionMetrics {
 
     public void finishAuctionLockWait(Timer.Sample sample, LockOperation operation) {
         sample.stop(lockTimers.get(operation));
+    }
+
+    public Timer.Sample startBidCriticalSection() {
+        return start();
+    }
+
+    public void finishBidCriticalSection(Timer.Sample sample) {
+        sample.stop(bidCriticalSectionTimer);
+    }
+
+    public void recordBidStep(BidStep step, Runnable action) {
+        bidStepTimers.get(step).record(action);
+    }
+
+    public <T> T recordBidStep(BidStep step, Supplier<T> action) {
+        return bidStepTimers.get(step).record(action);
+    }
+
+    public Timer.Sample startBidFlush() {
+        return start();
+    }
+
+    public void finishBidFlush(Timer.Sample sample) {
+        sample.stop(bidFlushTimer);
     }
 
     public void recordExtension() {
@@ -138,6 +184,22 @@ public class AuctionMetrics {
         private final String tag;
 
         LockOperation(String tag) {
+            this.tag = tag;
+        }
+
+        String tag() {
+            return tag;
+        }
+    }
+
+    public enum BidStep {
+        OUTBID("outbid"),
+        HOLD("hold"),
+        SAVE("save");
+
+        private final String tag;
+
+        BidStep(String tag) {
             this.tag = tag;
         }
 

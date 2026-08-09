@@ -1,11 +1,13 @@
 package com.dbidding.auction.sse;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -18,6 +20,8 @@ public class AuctionSseConnectionManager {
     private static final long CONNECTION_TIMEOUT_MILLIS = 30 * 60 * 1000L;
     private static final long RECONNECT_TIME_MILLIS = 3_000L;
 
+    private final Clock clock;
+    private final AuctionSseMetrics metrics;
     private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
     private final AtomicLong eventSequence = new AtomicLong();
     public SseEmitter connect() {
@@ -37,7 +41,8 @@ public class AuctionSseConnectionManager {
     @Async("auctionSseTaskExecutor")
     public void broadcast(AuctionStreamPayload event) {
         long eventId = eventSequence.incrementAndGet();
-        emitters.forEach(emitter -> send(emitter, event(event, eventId)));
+        AuctionStreamPayload publishedEvent = event.withPublishedAt(clock.instant());
+        emitters.forEach(emitter -> send(emitter, event(publishedEvent, eventId)));
     }
 
     @Async("auctionSseTaskExecutor")
@@ -59,7 +64,15 @@ public class AuctionSseConnectionManager {
     }
 
     private void send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
-        try { emitter.send(event); } catch (IOException | IllegalStateException exception) { removeAndComplete(emitter); }
+        Timer.Sample sample = metrics.startSend();
+        try {
+            emitter.send(event);
+        } catch (IOException | IllegalStateException exception) {
+            metrics.recordSendFailure();
+            removeAndComplete(emitter);
+        } finally {
+            metrics.finishSend(sample);
+        }
     }
 
     private void removeAndComplete(SseEmitter emitter) {
