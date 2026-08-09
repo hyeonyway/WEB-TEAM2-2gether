@@ -6,6 +6,7 @@ import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {dashboardQueryKey} from '../queries/dashboardQueries';
 import AuctionBidDialog from './AuctionBidDialog';
+import ToastContainer from './Toast';
 
 const mocks=vi.hoisted(()=>({
   fetchContext:vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('../hooks/useAuctionStream',()=>({
 const auction:AuctionDto={
   id:1,
   card:{id:1,name:'피카츄',marketPrice:10_000,lowPrice:10_000,highPrice:10_000,changeRate:0,theme:'gold',bidCount:1,psaGrade:'10',language:'KR',imageUrl:null},
-  startPrice:9_000,currentPrice:10_000,bidIncrement:1_000,bidCount:1,
+  startPrice:9_000,currentPrice:10_000,bidIncrement:1_000,bidCount:1,buyNowPrice:20_000,
   endsAt:'2099-08-04T10:00:00Z',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,
 };
 
@@ -46,7 +47,7 @@ const bidEvent:AuctionStreamPayload={
 function renderDialog(){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   return {queryClient,...render(<QueryClientProvider client={queryClient}>
-    <AuctionBidDialog auction={auction} onClose={vi.fn()}/>
+    <AuctionBidDialog auction={auction} onClose={vi.fn()}/><ToastContainer/>
   </QueryClientProvider>)};
 }
 
@@ -105,5 +106,39 @@ describe('AuctionBidDialog',()=>{
     await waitFor(()=>expect(queryClient.getQueryData<AuctionDto[]>(dashboardKey)?.[0]).toMatchObject({
       currentPrice:11_000,bidCount:2,myBidStatus:'LEADING',myBidAmount:11_000,
     }));
+    expect(await screen.findByText('피카츄 카드를 11,000원에 입찰하였습니다.')).toBeInTheDocument();
+  });
+
+  it('즉시 낙찰은 동의 후에만 가능하고 즉시 구매가로 요청한다',async()=>{
+    mocks.createBid.mockResolvedValue({bid:{id:11,amount:20_000,status:'WON',created_at:'2026-08-04T01:00:00Z'},auction:{id:1,current_price:20_000,minimum_bid:20_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},wallet:{available_balance:80_000,frozen_balance:0}});
+    renderDialog();
+    const user=userEvent.setup();
+    await user.click(await screen.findByRole('tab',{name:'즉시 낙찰'}));
+    const submit=screen.getByRole('button',{name:'20,000원 즉시 낙찰하기'});
+    expect(submit).toBeDisabled();
+    await user.click(screen.getByRole('checkbox',{name:'즉시 낙찰 시 취소할 수 없음에 동의합니다.'}));
+    await user.click(submit);
+    await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
+    expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 낙찰하였습니다.')).not.toHaveLength(0);
+  });
+
+  it('즉시 구매가가 없는 경매는 즉시 낙찰 탭을 비활성화한다',async()=>{
+    render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><AuctionBidDialog auction={{...auction,buyNowPrice:null}} onClose={vi.fn()}/></QueryClientProvider>);
+    expect(await screen.findByRole('tab',{name:'즉시 낙찰'})).toBeDisabled();
+  });
+
+  it('일반 입찰가가 즉시 낙찰가와 같거나 높으면 확인 후 즉시 낙찰가로 요청한다',async()=>{
+    mocks.createBid.mockResolvedValue({bid:{id:12,amount:20_000,status:'WON',created_at:'2026-08-04T01:00:00Z'},auction:{id:1,current_price:20_000,minimum_bid:20_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},wallet:{available_balance:80_000,frozen_balance:0}});
+    renderDialog();
+    const user=userEvent.setup();
+    const input=await screen.findByRole('spinbutton');
+    await user.clear(input);
+    await user.type(input,'20000');
+    await user.click(screen.getByRole('button',{name:'20,000원 입찰하기'}));
+    expect(screen.getByRole('dialog',{name:'즉시 낙찰 확인'})).toHaveTextContent('20,000원에 즉시 낙찰');
+    expect(mocks.createBid).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button',{name:'확인'}));
+    await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
+    expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 낙찰하였습니다.')).not.toHaveLength(0);
   });
 });
