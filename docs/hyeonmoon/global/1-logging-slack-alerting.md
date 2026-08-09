@@ -4,12 +4,13 @@
 
 **Goal:** 로그 레벨별 출력 대상(콘솔/파일/Slack)을 구성하고, WARN 이상을 Slack 웹훅으로 실시간 알림한다. **이번 범위는 인프라(appender·설정)까지다 — 비즈니스 코드에 `log.debug/info/warn/error` 호출을 새로 추가하는 작업은 포함하지 않는다.**
 
-**Architecture:** Logback(`logback-spring.xml`) appender 3개.
+**Architecture:** Logback(`logback-spring.xml`) appender로 전체 로그와 WARN 이상 로그를 별도 파일에 저장하고, WARN 이상을 콘솔과 Slack에도 전송한다.
 
 ```text
-DEBUG/INFO/WARN/ERROR → FILE   (로컬 디스크, 롤링, 7일 보관 후 자동 삭제)
-WARN/ERROR            → CONSOLE (표준출력)
-WARN/ERROR            → SLACK   (AsyncAppender로 감싼 커스텀 웹훅 appender, 레이트리밋 포함)
+DEBUG/INFO/WARN/ERROR → FILE      (logs/app.log, 로컬 디스크, 롤링, 7일 보관)
+WARN/ERROR            → WARN_FILE (logs/warn.log, 로컬 디스크, 롤링, 7일 보관)
+WARN/ERROR            → CONSOLE   (표준출력)
+WARN/ERROR            → SLACK     (AsyncAppender로 감싼 커스텀 웹훅 appender, 레이트리밋 포함)
 ```
 
 저장소는 S3가 아니라 로컬 디스크로 정한다(근거는 아래 "저장소: 로컬 vs S3" 절). Slack 웹훅
@@ -34,8 +35,9 @@ appender는 HTTP 호출이 로깅 스레드(=요청 처리 스레드)를 막지 
   설정이 다 된다.
 - 지금 S3 업로드 코드를 미리 짜면(실패 재시도, 디스크 꽉 찬 상태에서 업로드 전인 경우 등) 복잡도만
   늘고 정작 원하는 실시간성은 못 얻는다.
-- 7일 만료는 Logback `maxHistory` 설정만으로 자동 처리되므로, 로컬이든 S3든 만료 로직 자체의
-  난이도 차이는 없다.
+- `app.log`와 `warn.log`는 각각 현재 기록 중인 활성 파일이다. 날짜가 바뀌거나 파일이 100MB에
+  도달하면 `app.YYYY-MM-DD.N.log.gz` 및 `warn.YYYY-MM-DD.N.log.gz`로 롤링되고, 롤링된 파일은
+  `maxHistory=7`에 따라 자동 삭제된다. 활성 파일은 현재 로그를 기록해야 하므로 삭제 대상이 아니다.
 
 ## Slack 메시지 포맷 — Workflow Builder 웹훅 기준
 
@@ -151,20 +153,22 @@ Slack 웹훅 자체 레이트리밋(대략 초당 1건)에도 걸린다. `(logge
 - Modify: `backend/.gitignore` (로그 디렉터리 커밋 방지)
 
 **Interfaces:**
-- Produces: `logs/app.log`(현재 파일), `logs/app.YYYY-MM-DD.N.log.gz`(롤링된 과거 파일)
+- Produces: `logs/app.log`/`logs/warn.log`(현재 파일), `logs/app.YYYY-MM-DD.N.log.gz`/
+  `logs/warn.YYYY-MM-DD.N.log.gz`(롤링된 과거 파일)
 - Preserves: 기존 Spring Boot 기본 로깅 동작과 호환(별도 `logging.*` 프로퍼티 충돌 없음)
 
-- [x] **Step 1: logback-spring.xml에 CONSOLE·FILE appender를 작성한다**
+- [x] **Step 1: logback-spring.xml에 CONSOLE·FILE·WARN_FILE appender를 작성한다**
 
-CONSOLE은 `ThresholdFilter(WARN)`, FILE은 필터 없이(DEBUG부터) `SizeAndTimeBasedRollingPolicy`로
-`maxFileSize=100MB`, `maxHistory=7`, `totalSizeCap=2GB`를 준다. `root level="DEBUG"`에 두
-appender를 붙인다.
+CONSOLE과 WARN_FILE은 `ThresholdFilter(WARN)`를 둔다. FILE은 필터 없이(DEBUG부터), WARN_FILE은
+WARN 이상만 `SizeAndTimeBasedRollingPolicy`로 저장하며 각각 `maxFileSize=100MB`, `maxHistory=7`,
+`totalSizeCap=2GB`를 준다. `root level="DEBUG"`에 세 appender를 붙인다. WARN_FILE은 ERROR도
+함께 기록하므로 별도 `error.log`는 만들지 않는다.
 
 - [x] **Step 2: 로그 디렉터리를 gitignore에 추가한다**
 
 `backend/.gitignore`에 `logs/`를 추가한다(로컬 실행 시 생성되는 로그 파일이 커밋되지 않게).
 
-- [ ] **Step 3: 로컬에서 동작을 확인한다**
+- [x] **Step 3: 로컬에서 동작을 확인한다**
 
 ```bash
 cd backend
@@ -173,13 +177,42 @@ cd backend
 
 임의로 로그를 하나 찍어보는 임시 테스트 컨트롤러 없이, 기존 기동 로그(Spring Boot 배너, WARN
 레벨 이상 로그)만으로 콘솔에는 WARN 이상만 보이는지, `logs/app.log`에는 기동 시 발생하는 DEBUG/
-INFO 로그도 함께 쌓이는지 확인한다.
+INFO 로그도 함께 쌓이는지, `logs/warn.log`에는 WARN/ERROR만 쌓이는지 확인한다.
 
 - [x] **Step 4: 커밋한다** (`380466b`)
 
 ```bash
 git add backend/src/main/resources/logback-spring.xml backend/.gitignore
 git commit -m "feat: 로그 콘솔·파일 appender 구성(WARN 콘솔, 전체 레벨 파일 7일 보관)"
+```
+
+### Task 1-1: WARN 전용 파일 appender를 추가한다
+
+**Files:**
+- Modify: `backend/src/main/resources/logback-spring.xml`
+
+**Interfaces:**
+- Produces: `logs/warn.log`(현재 파일), `logs/warn.YYYY-MM-DD.N.log.gz`(롤링된 과거 파일)
+- Preserves: DEBUG/INFO는 `app.log`에만 기록하고, WARN/ERROR는 기존 CONSOLE·SLACK 출력도 유지한다.
+
+- [x] **Step 1: WARN_FILE appender를 작성한다**
+
+`RollingFileAppender`에 `ThresholdFilter(WARN)`를 적용한다. `file`은 `logs/warn.log`,
+`fileNamePattern`은 `logs/warn.%d{yyyy-MM-dd}.%i.log.gz`로 둔다. 전체 파일과 동일하게
+`maxFileSize=100MB`, `maxHistory=7`, `totalSizeCap=2GB`를 적용하고 root logger에 연결한다.
+
+- [x] **Step 2: 실제 서버 기동으로 기록 범위를 검증한다**
+
+Redis가 없는 로컬 환경에서 `/actuator/health`를 호출해 WARN 예외를 발생시킨다. `warn.log`에
+`DataRedisReactiveHealthIndicator` WARN이 기록되고 DEBUG/INFO가 없으며, `app.log`에는 INFO가
+기록되는 것을 확인한다.
+
+- [x] **Step 3: 커밋한다**
+
+```bash
+git add backend/src/main/resources/logback-spring.xml \
+  docs/hyeonmoon/global/1-logging-slack-alerting.md
+git commit -m "feat: WARN 이상 전용 파일 로그 추가"
 ```
 
 ### Task 2: Slack 웹훅 appender를 추가한다
@@ -292,9 +325,9 @@ git commit -m "docs: 로깅·Slack 경고 연동 문서 반영"
 
 ## 완료 조건
 
-- WARN/ERROR 로그가 콘솔·파일·Slack 세 군데 모두에 남는다.
-- DEBUG/INFO 로그는 파일에만 남고 콘솔·Slack에는 안 나간다.
-- 파일은 7일이 지나면 자동으로 삭제된다(`maxHistory`).
+- WARN/ERROR 로그가 콘솔·전체 파일·WARN 파일·Slack에 모두 남는다.
+- DEBUG/INFO 로그는 전체 파일에만 남고 콘솔·WARN 파일·Slack에는 안 나간다.
+- 롤링된 전체 파일과 WARN 파일은 7일이 지나면 자동으로 삭제된다(`maxHistory`).
 - Slack 웹훅 HTTP 호출이 실패하거나 느려도 요청 처리 스레드가 블로킹되지 않는다.
 - 같은 예외가 짧은 시간에 대량 발생해도 Slack에는 레이트리밋된 건수만 가고 나머지는 요약으로
   처리된다.
