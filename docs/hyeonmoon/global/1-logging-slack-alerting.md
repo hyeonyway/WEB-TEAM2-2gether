@@ -154,13 +154,13 @@ Slack 웹훅 자체 레이트리밋(대략 초당 1건)에도 걸린다. `(logge
 - Produces: `logs/app.log`(현재 파일), `logs/app.YYYY-MM-DD.N.log.gz`(롤링된 과거 파일)
 - Preserves: 기존 Spring Boot 기본 로깅 동작과 호환(별도 `logging.*` 프로퍼티 충돌 없음)
 
-- [ ] **Step 1: logback-spring.xml에 CONSOLE·FILE appender를 작성한다**
+- [x] **Step 1: logback-spring.xml에 CONSOLE·FILE appender를 작성한다**
 
 CONSOLE은 `ThresholdFilter(WARN)`, FILE은 필터 없이(DEBUG부터) `SizeAndTimeBasedRollingPolicy`로
 `maxFileSize=100MB`, `maxHistory=7`, `totalSizeCap=2GB`를 준다. `root level="DEBUG"`에 두
 appender를 붙인다.
 
-- [ ] **Step 2: 로그 디렉터리를 gitignore에 추가한다**
+- [x] **Step 2: 로그 디렉터리를 gitignore에 추가한다**
 
 `backend/.gitignore`에 `logs/`를 추가한다(로컬 실행 시 생성되는 로그 파일이 커밋되지 않게).
 
@@ -175,7 +175,7 @@ cd backend
 레벨 이상 로그)만으로 콘솔에는 WARN 이상만 보이는지, `logs/app.log`에는 기동 시 발생하는 DEBUG/
 INFO 로그도 함께 쌓이는지 확인한다.
 
-- [ ] **Step 4: 커밋한다**
+- [x] **Step 4: 커밋한다** (`380466b`)
 
 ```bash
 git add backend/src/main/resources/logback-spring.xml backend/.gitignore
@@ -196,20 +196,20 @@ git commit -m "feat: 로그 콘솔·파일 appender 구성(WARN 콘솔, 전체 �
 - Consumes: `java.net.http.HttpClient`(POST, 짧은 타임아웃)
 - Preserves: Task 1의 CONSOLE·FILE appender 동작
 
-- [ ] **Step 1: 레이트리밋 로직 단위 테스트를 먼저 작성한다**
+- [x] **Step 1: 레이트리밋 로직 단위 테스트를 먼저 작성한다**
 
 `(logger, 예외 클래스)` 키로 60초 윈도우당 최대 3건만 "전송 대상"으로 판단하고, 초과분은
 억제 카운터만 올리는 순수 로직을 검증한다(HTTP 호출과 분리해서 테스트 가능하게 별도 클래스로
 뺀다 — 예: `SlackAlertRateLimiter`).
 
-- [ ] **Step 2: 테스트가 클래스 부재로 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 클래스 부재로 실패하는지 확인한다**
 
 ```bash
 cd backend
 ./gradlew test --tests com.dbidding.global.logging.SlackWebhookAppenderTest
 ```
 
-- [ ] **Step 3: SlackWebhookAppender와 레이트리미터를 구현한다**
+- [x] **Step 3: SlackWebhookAppender와 레이트리미터를 구현한다**
 
 `append(ILoggingEvent event)`에서: 레이트리미터로 전송 여부 판단 → 억제된 경우 카운트만 증가 →
 전송 대상이면 위 "Slack 메시지 포맷" 절의 JSON을 만들어 `HttpClient`로 POST(타임아웃 2~3초) →
@@ -220,7 +220,7 @@ webhook URL은 `<springProperty scope="context" name="slackWebhookUrl"
 source="logging.slack.webhook-url"/>`로 `application.yml`에서 받아오고, 비어 있으면
 `append()`가 아무 것도 안 하고 반환한다.
 
-- [ ] **Step 4: logback-spring.xml에 AsyncAppender로 감싸서 연결한다**
+- [x] **Step 4: logback-spring.xml에 AsyncAppender로 감싸서 연결한다**
 
 ```xml
 <appender name="SLACK_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
@@ -236,7 +236,7 @@ source="logging.slack.webhook-url"/>`로 `application.yml`에서 받아오고, �
 
 `root`에 `SLACK_ASYNC`를 추가한다.
 
-- [ ] **Step 5: application.yml에 웹훅 설정을 추가한다**
+- [x] **Step 5: application.yml에 웹훅 설정을 추가한다**
 
 ```yaml
 logging:
@@ -246,7 +246,7 @@ logging:
 
 기본값을 빈 문자열로 둬서 로컬 개발 환경에서 설정 없이도 앱이 정상 기동하는지 확인한다.
 
-- [ ] **Step 6: 테스트를 통과시키고 커밋한다**
+- [x] **Step 6: 테스트를 통과시키고 커밋한다** (`fe918d4`)
 
 ```bash
 ./gradlew test --tests com.dbidding.global.logging.SlackWebhookAppenderTest
@@ -264,24 +264,26 @@ git commit -m "feat: WARN 이상 로그를 Slack 웹훅으로 비동기 전송(�
 
 - [ ] **Step 1: 실제 Slack 채널로 테스트 웹훅을 확인한다**
 
+서버 Docker 환경에 `SLACK_LOG_WEBHOOK_URL`을 주입한 뒤 수행한다. 웹훅 URL 값은 저장소와 문서에 기록하지 않는다.
+
 임시 웹훅 URL을 로컬 환경변수로 설정하고 WARN/ERROR 로그를 하나씩 발생시켜, 콘솔·파일·Slack
 세 군데 모두 정상 도달하는지 확인한다. 같은 예외를 반복 발생시켜 레이트리밋(60초당 3건 제한)이
 동작하는지도 확인한다.
 
-- [ ] **Step 2: 전체 백엔드 테스트를 실행한다**
+- [x] **Step 2: 전체 백엔드 테스트를 실행한다**
 
 ```bash
 cd backend
 ./gradlew clean test
 ```
 
-Expected: 실패 0건. 이번 변경과 무관한 기존 실패가 있으면 별도로 명시한다.
+결과: `./gradlew clean test`에서 127개 테스트가 실패·오류 없이 통과했다.
 
-- [ ] **Step 3: global 문서 README를 갱신한다**
+- [x] **Step 3: global 문서 README를 갱신한다**
 
 `docs/hyeonmoon/global/README.md`의 구현 단계 목록에 이번 문서를 추가한다.
 
-- [ ] **Step 4: 커밋한다**
+- [x] **Step 4: 커밋한다**
 
 ```bash
 git add docs/hyeonmoon/global/README.md
@@ -300,4 +302,4 @@ git commit -m "docs: 로깅·Slack 경고 연동 문서 반영"
 - 비즈니스 코드에 새 로그 호출을 추가하지 않는다(이번 범위 밖).
 - 전체 백엔드 테스트가 실패 없이 통과한다.
 
-> 이 문서는 AI의 도움을 받아 작성하였습니다
+> 이 문서는 codex의 도움을 받아 작성하였습니다
