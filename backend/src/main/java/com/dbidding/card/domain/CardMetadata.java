@@ -33,6 +33,12 @@ public class CardMetadata {
     @Column(name = "image_path", length = 500)
     private String imagePath;
 
+    @Column(name = "issued_year", length = 4)
+    private String issuedYear;
+
+    @Column(name = "card_number", length = 50)
+    private String cardNumber;
+
     public CardMetadata(CardSet cardSet, String name, String language,
                         String psaGrade, String rarity, String imagePath) {
         this.cardSet = cardSet;

@@ -12,13 +12,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/psa-certifications")
 @RequiredArgsConstructor
-public class PsaCertificationMockController {
-    private final PsaCertificationMockService psaCertificationMockService;
+public class PsaCertificationController {
+
+    private final PsaCertificationService psaCertificationService;
+
+    @GetMapping("/sample")
+    public PsaCertificationService.PsaCertificationSampleResponse sample() {
+        return psaCertificationService.sample();
+    }
 
     @GetMapping("/{certificationNumber}")
-    public PsaCertificationMockService.PsaCertificationResponse lookup(
+    public PsaCertificationService.PsaCertificationResponse lookup(
             @PathVariable @Pattern(regexp = "\\d{7,10}") String certificationNumber
     ) {
-        return psaCertificationMockService.lookup(certificationNumber);
+        return psaCertificationService.lookup(certificationNumber);
     }
 }

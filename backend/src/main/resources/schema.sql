@@ -82,6 +82,8 @@ CREATE TABLE card_metadata
     psa_grade       VARCHAR(15)  NULL,
     rarity          VARCHAR(30)  NULL,
     image_path      VARCHAR(500) NULL,
+    issued_year     CHAR(4)      NULL,
+    card_number     VARCHAR(50)  NULL,
 
     CONSTRAINT pk_card_metadata PRIMARY KEY (id),
     CONSTRAINT fk_card_metadata_card_set
@@ -89,6 +91,21 @@ CREATE TABLE card_metadata
 
     INDEX idx_card_metadata_card_set_id (card_set_id),
     INDEX idx_card_metadata_name (name)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE psa_certification_fixtures
+(
+    id                   INT         NOT NULL AUTO_INCREMENT,
+    certification_number VARCHAR(10) NOT NULL,
+    item_id              INT         NOT NULL,
+
+    CONSTRAINT pk_psa_certification_fixtures PRIMARY KEY (id),
+    CONSTRAINT uk_psa_certification_fixtures_number UNIQUE (certification_number),
+    CONSTRAINT fk_psa_certification_fixtures_item
+        FOREIGN KEY (item_id) REFERENCES card_metadata (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
