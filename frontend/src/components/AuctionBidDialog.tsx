@@ -26,7 +26,7 @@ function AnimatedBidValue({value}:{value:number}){
 
 export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;onClose:()=>void}){
   const queryClient=useQueryClient();
-  const contextQuery=useQuery(auctionQueries.bidContext(auction.id));
+  const contextQuery=useQuery({...auctionQueries.bidContext(auction.id),refetchOnMount:'always'});
   const context=contextQuery.data;
   const wallet=context?.wallet.available_balance??0;
   const currentPrice=context?.current_price??auction.currentPrice;
