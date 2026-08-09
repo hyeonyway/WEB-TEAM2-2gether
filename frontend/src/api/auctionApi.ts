@@ -3,7 +3,7 @@ import {authenticatedRequest,optionallyAuthenticatedRequest} from './authenticat
 import {fetchMockAuctions,fetchMockCards} from './mockAuctionApi';
 import {mapAuction,mapCard,normalizePsaGrade,resolveImageUrl} from './auctionMapper';
 import {isMockApiEnabled} from './mockApiConfig';
-import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,CursorPageResponseDto,PageResponseDto} from '../dto/auctionDto';
+import type {AuctionDetailResponseDto,AuctionDto,AuctionListRequestDto,AuctionResponseDto,BidContextResponseDto,BidCreateResponseDto,BidSummaryResponseDto,CardDetailResponseDto,CardDto,CardListRequestDto,CardResponseDto,CursorPageResponseDto,FailedAuctionDto,FailedAuctionResponseDto,PageResponseDto} from '../dto/auctionDto';
 
 const params=(query:{keyword:string;psaGrade:string|null;sort?:string})=>new URLSearchParams({
   keyword:query.keyword,
@@ -128,6 +128,16 @@ export async function fetchAuctionBids(auctionId:number,page=0,size=5):Promise<P
 
 export async function fetchAuctionBidContext(auctionId:number):Promise<BidContextResponseDto>{
   return authenticatedRequest<BidContextResponseDto>(`/api/auctions/${auctionId}/bid-context`);
+}
+
+export async function fetchFailedAuctions():Promise<FailedAuctionDto[]>{
+  const response=await authenticatedRequest<FailedAuctionResponseDto[]>('/api/auctions/mine/failed');
+  return response.map(dto=>({
+    id:dto.id,
+    cardName:dto.card_name,
+    startPrice:dto.start_price,
+    closedAt:dto.closed_at,
+  }));
 }
 
 export async function createAuctionBid(auctionId:number,price:number,idempotencyKey:string):Promise<BidCreateResponseDto>{

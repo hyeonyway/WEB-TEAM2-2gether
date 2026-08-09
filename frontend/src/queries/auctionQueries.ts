@@ -1,5 +1,5 @@
 import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
-import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
+import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards,fetchFailedAuctions} from '../api/auctionApi';
 import type {AuctionListRequestDto,BidContextResponseDto,CardListRequestDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {myBidStatusAfterEvent} from './auctionStreamCache';
@@ -13,6 +13,7 @@ export const auctionQueryKeys={
   detail:(auctionId:number,viewerScope:AuctionViewerScope)=>[...auctionQueryKeys.all,'detail',auctionId,viewerScope] as const,
   bidContext:(auctionId:number)=>[...auctionQueryKeys.all,'bid-context',auctionId] as const,
   bids:(auctionId:number)=>[...auctionQueryKeys.all,'bids',auctionId] as const,
+  failedForSeller:()=>[...auctionQueryKeys.all,'failed-for-seller'] as const,
 };
 
 export const cardQueryKeys={
@@ -44,6 +45,11 @@ export const auctionQueries={
     queryKey:auctionQueryKeys.bidContext(auctionId),
     queryFn:()=>fetchAuctionBidContext(auctionId),
     staleTime:5_000,
+  }),
+  failedForSeller:()=>queryOptions({
+    queryKey:auctionQueryKeys.failedForSeller(),
+    queryFn:fetchFailedAuctions,
+    staleTime:10_000,
   }),
 };
 
