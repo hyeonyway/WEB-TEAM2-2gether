@@ -1,6 +1,10 @@
+export type NotificationType=
+  |'AUCTION_OPENED'|'OUTBID'|'AUCTION_WON'|'AUCTION_UNSOLD'|'ORDER_COMPLETED'|'ORDER_CANCELLED';
+
 export type NotificationDto={
   id:number;
   auctionId:number;
+  type:NotificationType;
   message:string;
   isRead:boolean;
   createdAt:string;

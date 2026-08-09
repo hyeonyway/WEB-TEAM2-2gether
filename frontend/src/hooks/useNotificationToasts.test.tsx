@@ -3,8 +3,18 @@ import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import type {NotificationDto} from '../dto/notificationDto';
 import {useNotificationToasts} from './useNotificationToasts';
 
+const DISMISS_ANIMATION_MS=200;
+
 function notification(id:number):NotificationDto{
-  return {id,auctionId:10,message:`메시지 ${id}`,isRead:false,createdAt:'2026-08-03T12:00:00'};
+  return {id,auctionId:10,type:'AUCTION_OPENED',message:`메시지 ${id}`,isRead:false,createdAt:'2026-08-03T12:00:00'};
+}
+
+function active(id:number){
+  return {...notification(id),isDismissing:false};
+}
+
+function dismissing(id:number){
+  return {...notification(id),isDismissing:true};
 }
 
 describe('useNotificationToasts',()=>{
@@ -17,10 +27,10 @@ describe('useNotificationToasts',()=>{
     act(()=>result.current.push(notification(1)));
     act(()=>result.current.push(notification(2)));
 
-    expect(result.current.toasts).toEqual([notification(1),notification(2)]);
+    expect(result.current.toasts).toEqual([active(1),active(2)]);
   });
 
-  it('dismiss하면 해당 알림만 제거되고 나머지는 남는다',()=>{
+  it('dismiss하면 즉시 지워지지 않고 사라짐 애니메이션 상태로 표시된다',()=>{
     const{result}=renderHook(()=>useNotificationToasts());
     act(()=>{
       result.current.push(notification(1));
@@ -29,14 +39,36 @@ describe('useNotificationToasts',()=>{
 
     act(()=>result.current.dismiss(1));
 
-    expect(result.current.toasts).toEqual([notification(2)]);
+    expect(result.current.toasts).toEqual([dismissing(1),active(2)]);
   });
 
-  it('30초가 지나면 자동으로 사라진다',()=>{
+  it('사라짐 애니메이션이 끝나면 실제로 배열에서 제거된다',()=>{
+    const{result}=renderHook(()=>useNotificationToasts());
+    act(()=>{
+      result.current.push(notification(1));
+      result.current.push(notification(2));
+    });
+
+    act(()=>result.current.dismiss(1));
+    act(()=>vi.advanceTimersByTime(DISMISS_ANIMATION_MS));
+
+    expect(result.current.toasts).toEqual([active(2)]);
+  });
+
+  it('30초가 지나면 자동으로 사라짐 애니메이션이 시작된다',()=>{
     const{result}=renderHook(()=>useNotificationToasts());
     act(()=>result.current.push(notification(1)));
 
     act(()=>vi.advanceTimersByTime(30_000));
+
+    expect(result.current.toasts).toEqual([dismissing(1)]);
+  });
+
+  it('자동 소멸 애니메이션도 끝나면 배열에서 제거된다',()=>{
+    const{result}=renderHook(()=>useNotificationToasts());
+    act(()=>result.current.push(notification(1)));
+
+    act(()=>vi.advanceTimersByTime(30_000+DISMISS_ANIMATION_MS));
 
     expect(result.current.toasts).toEqual([]);
   });
@@ -47,7 +79,7 @@ describe('useNotificationToasts',()=>{
 
     act(()=>vi.advanceTimersByTime(29_000));
 
-    expect(result.current.toasts).toEqual([notification(1)]);
+    expect(result.current.toasts).toEqual([active(1)]);
   });
 
   it('같은 id를 다시 push해도 중복으로 쌓이지 않는다',()=>{
@@ -67,7 +99,7 @@ describe('useNotificationToasts',()=>{
     act(()=>result.current.dismiss(1));
     act(()=>result.current.push(notification(2)));
 
-    act(()=>vi.advanceTimersByTime(30_000));
+    act(()=>vi.advanceTimersByTime(30_000+DISMISS_ANIMATION_MS));
 
     expect(result.current.toasts).toEqual([]);
   });

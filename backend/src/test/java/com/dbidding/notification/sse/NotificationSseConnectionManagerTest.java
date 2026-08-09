@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.dbidding.notification.NotificationType;
 import com.dbidding.notification.dto.NotificationResponse;
 import java.io.IOException;
 import java.time.Instant;
@@ -93,6 +94,6 @@ class NotificationSseConnectionManagerTest {
     }
 
     private NotificationResponse notification() {
-        return new NotificationResponse(1L, 100, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
+        return new NotificationResponse(1L, 100, NotificationType.AUCTION_OPENED, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
     }
 }

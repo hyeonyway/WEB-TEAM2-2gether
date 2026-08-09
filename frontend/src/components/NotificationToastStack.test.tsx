@@ -8,12 +8,12 @@ import * as notificationApi from '../api/notificationApi';
 import NotificationToastStack from './NotificationToastStack';
 
 const notification:NotificationDto={
-  id:9,auctionId:5,message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00',
+  id:9,auctionId:5,type:'OUTBID',message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00',
 };
 
 function LocationProbe(){
-  const{pathname}=useLocation();
-  return <output data-testid="path">{pathname}</output>;
+  const{pathname,search}=useLocation();
+  return <output data-testid="path">{pathname}{search}</output>;
 }
 
 function renderStack(toasts:NotificationDto[],onDismiss=vi.fn()){
@@ -21,7 +21,7 @@ function renderStack(toasts:NotificationDto[],onDismiss=vi.fn()){
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={['/']}>
-        <NotificationToastStack toasts={toasts} onDismiss={onDismiss}/>
+        <NotificationToastStack toasts={toasts.map(toast=>({...toast,isDismissing:false}))} onDismiss={onDismiss}/>
         <LocationProbe/>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -63,11 +63,34 @@ describe('NotificationToastStack',()=>{
     expect(screen.getByTestId('path')).toHaveTextContent('/');
   });
 
+  it('주문 관련 알림(ORDER_COMPLETED)을 클릭하면 대시보드 주문 탭으로 이동한다',async()=>{
+    const user=userEvent.setup();
+    const orderNotification:NotificationDto={...notification,id:11,type:'ORDER_COMPLETED',message:'주문이 완료되었습니다.'};
+    renderStack([orderNotification]);
+
+    await user.click(screen.getByText(orderNotification.message));
+
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=orders');
+  });
+
   it('여러 개를 순서대로 렌더링한다',()=>{
     const second={...notification,id:10,message:'낙찰되었습니다.'};
     renderStack([notification,second]);
 
     expect(screen.getByText(notification.message)).toBeInTheDocument();
     expect(screen.getByText(second.message)).toBeInTheDocument();
+  });
+
+  it('isDismissing인 토스트에는 dismissing 클래스가 붙는다',()=>{
+    const queryClient=new QueryClient({defaultOptions:{mutations:{retry:false},queries:{retry:false}}});
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/']}>
+          <NotificationToastStack toasts={[{...notification,isDismissing:true}]} onDismiss={vi.fn()}/>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText(notification.message).closest('.notification-toast')).toHaveClass('dismissing');
   });
 });
