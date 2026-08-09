@@ -94,6 +94,21 @@ CREATE TABLE card_metadata
   COLLATE = utf8mb4_0900_ai_ci;
 
 
+CREATE TABLE psa_certification_fixtures
+(
+    id                   INT         NOT NULL AUTO_INCREMENT,
+    certification_number VARCHAR(10) NOT NULL,
+    item_id              INT         NOT NULL,
+
+    CONSTRAINT pk_psa_certification_fixtures PRIMARY KEY (id),
+    CONSTRAINT uk_psa_certification_fixtures_number UNIQUE (certification_number),
+    CONSTRAINT fk_psa_certification_fixtures_item
+        FOREIGN KEY (item_id) REFERENCES card_metadata (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
 CREATE TABLE item_statistics
 (
     item_id              INT           NOT NULL,
