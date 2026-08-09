@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 구매확정 시 판매자 지갑에 낙찰가를 입금하고, 구매취소(구매자 취소·판매자 취소 공통) 시 구매자 지갑에 낙찰가를 환불하는 실제 Wallet 로직을 추가해, Order 도메인의 `WalletSettlementPort` mock 구현을 실제 구현으로 교체한다. 이슈 [#237](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/237), 조사 문서 [docs/hamin/order/1-purchase-confirm-cancel-plan.md](../../hamin/order/1-purchase-confirm-cancel-plan.md) 4절의 후속 작업이다.
+**Goal:** 구매확정 시 판매자 지갑에 낙찰가를 입금하고, 구매취소(구매자 취소·판매자 취소 공통) 시 구매자 지갑에 낙찰가를 환불하는 실제 Wallet 로직을 추가해, Order 도메인의 `WalletSettlementPort` mock 구현을 대체한다. 이슈 [#237](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/237), 조사 문서 [docs/hamin/order/1-purchase-confirm-cancel-plan.md](../../hamin/order/1-purchase-confirm-cancel-plan.md) 4절의 후속 작업이다.
 
 **Architecture:** 낙찰 시점에 이미 `WalletService.capture()`가 구매자 hold를 `CAPTURED`로 종결하고 `wallet.point`를 실제로 차감한다([AuctionCommandService.java:474](../../../backend/src/main/java/com/dbidding/auction/service/AuctionCommandService.java)). 구매확정/취소 시점엔 그 hold가 이미 종결 상태라 `release()`/`capture()`로 다시 건드릴 수 없고 건드릴 필요도 없다. 대신 순수한 잔액 증가(credit) 오퍼레이션 2개를 새로 추가한다.
 
@@ -17,13 +17,29 @@
 
 ## 설계 검토 결과
 
-- `Order` 행 락 뒤 대상 지갑 한 행만 잠그는 구조, 기존 `WalletSettlementPort`를 Order가
-  소유하는 구조, `point_records.auction_id`에 경매 ID를 저장하는 구조는 적절하다.
-- 구현 시 누락돼 있던 `OrderEventListener`를 복구했다. 이제 낙찰 경매 종료 이벤트가 주문 생성으로
-  다시 연결되고, 정산·환불 경로가 실제 주문에서 도달 가능하다.
+- `Order` 행 락 뒤 대상 지갑 한 행만 잠그는 구조, `point_records.auction_id`에 경매 ID를
+  저장하는 구조는 적절하다.
 - 이번 문서의 금액 범위는 `Order.price`인 낙찰가다. 현재 Auction의 hold/capture가 배송비를 포함하지
   않는 것은 프로젝트 정책과 어긋나는 별도 결함이며, 스키마·이벤트 계약 확장이 필요한 후속 작업으로
   분리한다. 이번 변경은 그 기존 금액 계약을 확장하지 않는다.
+
+### 정정: Port·Adapter 대신 직접 호출로 변경 (리뷰 반영)
+
+Task 3을 처음 구현할 때는 `order.port.WalletSettlementPort` + `order.adapter.OrderWalletAdapter`로
+감싸는 구조를 그대로 뒀는데, 리뷰에서 PR [#240](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/pull/240)
+(`AuctionCommandService`가 `WalletPort`/`AuctionWalletAdapter`를 걷어내고 `WalletService`를 직접
+호출하도록 단순화한 선례)과 같은 방향으로 가는 게 낫다는 지적을 받아 반영했다. `WalletSettlementPort`는
+`auction-mock` 같은 대체 프로필이 필요 없는, Wallet을 부르기만 하는 인터페이스였어서 `WalletPort`와
+같은 처지였다. `OrderService`가 `WalletService`를 직접 주입받아 `settle`/`cancelRefund`를 바로
+부르는 걸로 바꿨고, 그 결과 `orderId → auctionId` 변환을 위해 어댑터가 따로 하던
+`OrderRepository` 조회도 필요 없어졌다(`OrderService`가 이미 들고 있는 `Order.getAuctionId()`를
+바로 넘기면 된다). 아래 Task 3 절은 이 변경을 반영해 다시 썼다.
+
+또한 이 브랜치에서 한때 같이 커밋됐던 `OrderEventListener`(경매 종료 이벤트 구독으로 주문 생성)
+관련 변경은 이 문서(#237, 정산·환불)의 범위가 아니라 이슈
+[#232](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/232)(경매 종료 시
+주문 생성을 이벤트 대신 같은 트랜잭션에서 직접 호출)의 범위라서 이 브랜치에서 뺐다. 필요하면 #232로
+별도 처리한다.
 
 ## 락 순서와 데드락 검토
 
@@ -189,92 +205,80 @@ git add backend/src/main/java/com/dbidding/wallet/service/WalletService.java \
 git commit -m "feat: Wallet에 주문 정산·환불 메서드 추가"
 ```
 
-### Task 3: Order의 WalletSettlementPort를 실제 구현으로 교체한다
+### Task 3: OrderService가 WalletService를 직접 호출하도록 정리한다
 
 **Files:**
-- Create: `backend/src/main/java/com/dbidding/order/adapter/OrderWalletAdapter.java`
-- Create: `backend/src/test/java/com/dbidding/order/adapter/OrderWalletAdapterTest.java`
+- Delete: `backend/src/main/java/com/dbidding/order/port/WalletSettlementPort.java`
 - Delete: `backend/src/main/java/com/dbidding/order/adapter/MockWalletSettlementAdapter.java`
 - Delete: `backend/src/test/java/com/dbidding/order/adapter/MockWalletSettlementAdapterTest.java`
+- Modify: `backend/src/main/java/com/dbidding/order/OrderService.java`
+- Modify: `backend/src/test/java/com/dbidding/order/OrderServiceTest.java`
 
 **Interfaces:**
-- Produces: `OrderWalletAdapter implements WalletSettlementPort`(`order.port.WalletSettlementPort`)
-- Consumes: `WalletService.settle`, `WalletService.cancelRefund`
-- Removes: `MockWalletSettlementAdapter`와 그 기록(record) 조회 API
-- Preserves: `OrderService`의 `WalletSettlementPort` 의존 방식(`OrderServiceTest`는 포트를 목으로
-  대체하므로 이번 변경과 무관하게 통과해야 한다)
+- Removes: `WalletSettlementPort`, `MockWalletSettlementAdapter`와 그 기록(record) 조회 API
+- Modifies: `OrderService`의 필드를 `WalletSettlementPort walletSettlementPort` →
+  `WalletService walletService`로 교체
+- Consumes: `WalletService.settle(Integer sellerId, Integer auctionId, long amount)`,
+  `WalletService.cancelRefund(Integer buyerId, Integer auctionId, long amount)`
 
-Port·Adapter는 소비자(Order)가 소유하는 기존 관례를 따른다(`account.port.WalletProvisioningPort` +
-`account.adapter.WalletProvisioningAdapter`와 같은 형태) — Wallet의 Repository·Entity는 직접
-참조하지 않고 `WalletService`의 public 메서드만 호출한다.
+PR [#240](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/pull/240)에서
+`AuctionCommandService`가 `WalletPort`/`AuctionWalletAdapter`를 걷어내고 `WalletService`를
+직접 주입받은 것과 같은 모양이다. `WalletSettlementPort`는 `auction-mock` 같은 대체 프로필이
+필요 없어서 Port·Adapter로 감쌀 이유가 없었다.
 
-- [x] **Step 1: OrderWalletAdapter 테스트를 작성한다**
+- [x] **Step 1: OrderServiceTest를 WalletService 목으로 바꾼다**
 
-`payoutToSeller(sellerId, orderId, amount)` 호출이 `walletService.settle(sellerId, auctionId, amount)`로
-위임되는지, `refundToBuyer(buyerId, orderId, amount)`가 `walletService.cancelRefund(buyerId, auctionId, amount)`로
-위임되는지 Mockito로 검증한다.
+`@Mock private WalletSettlementPort walletSettlementPort`를
+`@Mock private WalletService walletService`로 바꾸고, `verify(walletSettlementPort).payoutToSeller(sellerId, order.getId(), price)`류 검증을
+`verify(walletService).settle(sellerId, AUCTION_ID, price)`/`verify(walletService).cancelRefund(buyerId, AUCTION_ID, price)`로
+바꾼다(두 번째 인자가 `orderId`에서 `auctionId`로 바뀐다).
 
-`WalletSettlementPort`는 `orderId`를 받지만 `WalletService`는 `auctionId`를 받으므로, 어댑터가
-`OrderRepository`로 `orderId → auctionId`를 조회해서 변환해야 한다. 이 조회도 트랜잭션에
-참여해야 하므로 `OrderService`가 이미 연 트랜잭션(`@Transactional`) 안에서 호출됨을 전제로 한다.
-
-- [x] **Step 2: 테스트가 클래스 부재로 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 컴파일 실패로 막히는지 확인한다**
 
 ```bash
 cd backend
-./gradlew test --tests com.dbidding.order.adapter.OrderWalletAdapterTest
+./gradlew compileTestJava
 ```
 
-- [x] **Step 3: OrderWalletAdapter를 구현하고 Mock을 제거한다**
+Expected: `OrderService` 생성자가 아직 `WalletSettlementPort`를 받아서 타입 불일치로 컴파일 실패.
+
+- [x] **Step 3: OrderService가 WalletService를 직접 호출하도록 바꾸고 Port·Adapter를 삭제한다**
 
 ```java
-@Component
-@RequiredArgsConstructor
-public class OrderWalletAdapter implements WalletSettlementPort {
+private final OrderRepository orderRepository;
+private final WalletService walletService;
+private final OrderEventPort orderEventPort;
 
-    private final WalletService walletService;
-    private final OrderRepository orderRepository;
+// confirm()
+order.confirm();
+walletService.settle(order.getSellerId(), order.getAuctionId(), order.getPrice());
 
-    @Override
-    public void payoutToSeller(Integer sellerId, Integer orderId, long amount) {
-        walletService.settle(sellerId, auctionIdOf(orderId), amount);
-    }
-
-    @Override
-    public void refundToBuyer(Integer buyerId, Integer orderId, long amount) {
-        walletService.cancelRefund(buyerId, auctionIdOf(orderId), amount);
-    }
-
-    private Integer auctionIdOf(Integer orderId) {
-        return orderRepository.findById(orderId)
-            .orElseThrow(OrderNotFoundException::new)
-            .getAuctionId();
-    }
-}
+// cancel(Order, CancelledBy)
+order.cancel();
+walletService.cancelRefund(order.getBuyerId(), order.getAuctionId(), order.getPrice());
 ```
 
-`MockWalletSettlementAdapter`와 `MockWalletSettlementAdapterTest`를 삭제한다.
+`order.getAuctionId()`를 바로 쓰므로 `orderId → auctionId` 변환용 조회가 필요 없다.
+`WalletSettlementPort`, `MockWalletSettlementAdapter`, `MockWalletSettlementAdapterTest`를 삭제한다.
 
 - [x] **Step 4: Order·Wallet 관련 테스트를 재실행한다**
 
 ```bash
 ./gradlew test \
-  --tests com.dbidding.order.adapter.OrderWalletAdapterTest \
-  --tests 'com.dbidding.order.*' \
+  --tests 'com.dbidding.order.OrderServiceTest' \
   --tests 'com.dbidding.wallet.service.WalletServiceSettleTest' \
   --tests 'com.dbidding.wallet.service.WalletServiceCancelRefundTest'
 ```
 
-Expected: `OrderServiceTest`는 포트를 목으로 대체하므로 그대로 통과해야 한다.
-
 - [x] **Step 5: 변경을 커밋한다**
 
 ```bash
-git add backend/src/main/java/com/dbidding/order/adapter/OrderWalletAdapter.java \
-  backend/src/test/java/com/dbidding/order/adapter/OrderWalletAdapterTest.java
-git rm backend/src/main/java/com/dbidding/order/adapter/MockWalletSettlementAdapter.java \
+git add backend/src/main/java/com/dbidding/order/OrderService.java \
+  backend/src/test/java/com/dbidding/order/OrderServiceTest.java
+git rm backend/src/main/java/com/dbidding/order/port/WalletSettlementPort.java \
+  backend/src/main/java/com/dbidding/order/adapter/MockWalletSettlementAdapter.java \
   backend/src/test/java/com/dbidding/order/adapter/MockWalletSettlementAdapterTest.java
-git commit -m "feat: 주문 지갑 정산 어댑터를 실제 구현으로 교체"
+git commit -m "refactor: 주문 지갑 정산을 Port·Adapter 없이 직접 호출로 교체"
 ```
 
 ### Task 4: 동시성 회귀 테스트와 전체 검증
@@ -325,9 +329,9 @@ git commit -m "docs: 주문 정산·환불 Wallet 연동 문서 반영"
 - 구매취소·판매자취소 시 구매자 `wallet.point`가 낙찰가만큼 실제로 증가한다.
 - `WalletHold`/`HoldStatus`와 `wallet_holds` 테이블은 이번 작업으로 변경되지 않는다.
 - `point_records`에 새 컬럼 없이 기존 `auction_id`로 정산·환불 내역을 추적할 수 있다.
-- `OrderService`가 여전히 `WalletSettlementPort`(인터페이스)만 의존하고 Wallet의
-  Repository·Entity를 직접 참조하지 않는다.
+- `OrderService`가 `WalletService`의 public 메서드만 호출하고 Wallet의 Repository·Entity를
+  직접 참조하지 않는다(PR #240과 같은 방식 — Port·Adapter로 감싸지 않는다).
 - 정산·환불 경로에서 한 트랜잭션이 지갑을 2개 이상 잠그지 않는다.
 - 전체 백엔드 테스트가 실패 없이 통과한다.
 
-> 이 문서는 codex의 도움을 받아 작성하였습니다
+> 이 문서는 AI의 도움을 받아 작성하였습니다
