@@ -14,7 +14,7 @@ import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
 import com.dbidding.order.port.OrderEventPort;
-import com.dbidding.order.port.WalletSettlementPort;
+import com.dbidding.wallet.service.WalletService;
 import java.sql.SQLException;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
@@ -39,7 +39,7 @@ class OrderServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
-    private WalletSettlementPort walletSettlementPort;
+    private WalletService walletService;
 
     @Mock
     private OrderEventPort orderEventPort;
@@ -48,7 +48,7 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, walletSettlementPort, orderEventPort);
+        orderService = new OrderService(orderRepository, walletService, orderEventPort);
     }
 
     private Order pendingOrder() {
@@ -63,7 +63,7 @@ class OrderServiceTest {
         Order result = orderService.confirm(ORDER_ID, BUYER_ID);
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.COMPLETED);
-        verify(walletSettlementPort).payoutToSeller(SELLER_ID, order.getId(), PRICE);
+        verify(walletService).settle(SELLER_ID, AUCTION_ID, PRICE);
         verify(orderEventPort).publishCompleted(
                 new OrderCompletedEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME)
         );
@@ -77,7 +77,7 @@ class OrderServiceTest {
         Order result = orderService.cancel(ORDER_ID, BUYER_ID);
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        verify(walletSettlementPort).refundToBuyer(BUYER_ID, order.getId(), PRICE);
+        verify(walletService).cancelRefund(BUYER_ID, AUCTION_ID, PRICE);
         verify(orderEventPort).publishCancelled(
                 new OrderCancelledEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, OrderCancelledEvent.CancelledBy.BUYER)
         );
@@ -91,7 +91,7 @@ class OrderServiceTest {
         Order result = orderService.sellerCancel(ORDER_ID, SELLER_ID);
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        verify(walletSettlementPort).refundToBuyer(BUYER_ID, order.getId(), PRICE);
+        verify(walletService).cancelRefund(BUYER_ID, AUCTION_ID, PRICE);
         verify(orderEventPort).publishCancelled(
                 new OrderCancelledEvent(order.getId(), AUCTION_ID, BUYER_ID, SELLER_ID, CARD_NAME, OrderCancelledEvent.CancelledBy.SELLER)
         );
@@ -104,7 +104,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.sellerCancel(ORDER_ID, BUYER_ID))
                 .isInstanceOf(OrderAccessDeniedException.class);
-        verify(walletSettlementPort, never()).refundToBuyer(any(), any(), anyLong());
+        verify(walletService, never()).cancelRefund(any(), any(), anyLong());
     }
 
     @Test
@@ -132,7 +132,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.confirm(ORDER_ID, 999))
                 .isInstanceOf(OrderAccessDeniedException.class);
-        verify(walletSettlementPort, never()).payoutToSeller(any(), any(), anyLong());
+        verify(walletService, never()).settle(any(), any(), anyLong());
     }
 
     @Test
