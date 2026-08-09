@@ -8,6 +8,16 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_TIMEOUT:1s}
+
   jpa:
     # 테이블은 schema.sql로 직접 관리하므로 JPA가 생성/변경하지 않게 함
     hibernate:
