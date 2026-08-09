@@ -123,7 +123,7 @@ describe('SellPage card selection',()=>{
     mocks.fetchCardDetail.mockResolvedValue({
       id:100,name:'피카츄 프로모',set_name:'Pokemon TCG',psa_grade:'근민트',language:'JP',
     });
-    mocks.lookupPsaCertification.mockRejectedValue(new Error('not found'));
+    mocks.lookupPsaCertification.mockRejectedValue({status:404});
     const user=userEvent.setup();
     renderPage();
 
@@ -138,6 +138,34 @@ describe('SellPage card selection',()=>{
     expect(screen.getByText('선택됨: 피카츄 프로모 · Pokemon TCG · 근민트')).toBeInTheDocument();
   });
 
+  it('PSA 인증번호는 유효하지만 카드 상세 조회에 실패하면 별도 오류를 표시한다',async()=>{
+    mocks.fetchCardDetail.mockRejectedValue(new Error('card detail unavailable'));
+    const user=userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
+    await user.type(screen.getByLabelText('PSA 인증번호'),'12345678');
+    await user.click(screen.getByRole('button',{name:'조회'}));
+
+    expect(await screen.findByText('카드 정보를 불러오지 못했습니다. 다시 시도해 주세요.')).toBeInTheDocument();
+    expect(screen.queryByText('등록된 PSA 번호가 아닙니다.')).not.toBeInTheDocument();
+  });
+
+  it('PSA variant만 있는 검색 결과는 인증번호 조회로만 선택하게 한다',async()=>{
+    mocks.fetchCardPage.mockResolvedValue({
+      content:[{id:100,name:'피카츄 프로모',marketPrice:0,lowPrice:0,highPrice:0,changeRate:0,theme:'gold',bidCount:0,psaGrade:'PSA 10',language:'JP',imageUrl:null,setName:'Pokemon TCG'}],
+      page:0,size:100,total_elements:1,has_next:false,
+    });
+    const user=userEvent.setup();
+    renderPage();
+
+    await user.type(screen.getByLabelText('카드명 필수'),'피카');
+    await user.click((await screen.findAllByRole('button',{name:/피카츄 프로모/}))[0]);
+
+    expect(screen.getByText('PSA 등급 카드는 인증번호 조회로만 선택할 수 있습니다.')).toBeInTheDocument();
+    expect(screen.queryByText(/선택됨:/)).not.toBeInTheDocument();
+  });
+
   it('예시 인증번호 채우기는 조회 입력값만 채운다',async()=>{
     const user=userEvent.setup();
     renderPage();
@@ -148,6 +176,23 @@ describe('SellPage card selection',()=>{
     expect(mocks.fetchPsaCertificationSample).toHaveBeenCalledOnce();
     expect(screen.getByLabelText('PSA 인증번호')).toHaveValue('12345678');
     expect(mocks.lookupPsaCertification).not.toHaveBeenCalled();
+  });
+
+  it('PSA 인증 후 예시 인증번호를 채우면 자체 평가 상태로 돌아간다',async()=>{
+    mocks.fetchCardDetail.mockResolvedValue({
+      id:104,name:'피카츄 프로모',set_name:'Pokemon TCG',psa_grade:'PSA 7',language:'JP',
+    });
+    const user=userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
+    await user.type(screen.getByLabelText('PSA 인증번호'),'12345678');
+    await user.click(screen.getByRole('button',{name:'조회'}));
+    await screen.findByRole('button',{name:'PSA 등급'});
+    await user.click(screen.getByRole('button',{name:'예시 인증번호 채우기'}));
+
+    expect(screen.getByRole('button',{name:'자체 평가'})).toBeInTheDocument();
+    expect(screen.queryByText(/선택됨:/)).not.toBeInTheDocument();
   });
 
   it('카드 선택 뒤에도 자체 평가 등급을 한 번의 클릭으로 변경한다',async()=>{
