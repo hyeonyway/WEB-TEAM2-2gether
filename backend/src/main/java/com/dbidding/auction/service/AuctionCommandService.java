@@ -19,6 +19,7 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.metrics.AuctionMetrics.BidStep;
 import com.dbidding.auction.metrics.AuctionMetrics.BidResult;
 import com.dbidding.auction.metrics.AuctionMetrics.CloseResult;
 import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
@@ -171,6 +172,8 @@ public class AuctionCommandService {
         String requestHash = bidRequestHash(request);
         Auction auction = findByIdForUpdate(auctionId, LockOperation.BID)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
+        Timer.Sample criticalSection = auctionMetrics.startBidCriticalSection();
+        try {
         Optional<BidResponses.BidResult> idempotentResponse = findIdempotentBidResponse(
                 userId,
                 auctionId,
@@ -195,21 +198,24 @@ public class AuctionCommandService {
         boolean closeTimeExtended = placeBid(auction, bidPrice, bidAt);
         WalletBalanceResponse wallet;
         if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
-            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
-            wallet = holdBidAmount(userId, auction.getId(), bidPrice);
+            if (previousLeadingBid != null) {
+                auctionMetrics.recordBidStep(BidStep.OUTBID,
+                        () -> outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt));
+            }
+            wallet = auctionMetrics.recordBidStep(BidStep.HOLD,
+                    () -> holdBidAmount(userId, auction.getId(), bidPrice));
         } else {
-            wallet = holdBidAmount(userId, auction.getId(), bidPrice);
-            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+            wallet = auctionMetrics.recordBidStep(BidStep.HOLD,
+                    () -> holdBidAmount(userId, auction.getId(), bidPrice));
+            if (previousLeadingBid != null) {
+                auctionMetrics.recordBidStep(BidStep.OUTBID,
+                        () -> outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt));
+            }
         }
 
-        Bid currentLeadingBid = bidRepository.save(Bid.leading(
-                userId,
-                auction,
-                bidPrice,
-                bidAt,
-                idempotencyKey,
-                requestHash
-        ));
+        Bid currentLeadingBid = auctionMetrics.recordBidStep(BidStep.SAVE, () -> bidRepository.save(Bid.leading(
+                userId, auction, bidPrice, bidAt, idempotencyKey, requestHash
+        )));
         publishBidPlaced(auction, userId, auction.getItemId(), previousLeadingBid, bidAt);
         if (buyNow) {
             closeLockedAuction(auction, bidAt);
@@ -229,8 +235,16 @@ public class AuctionCommandService {
             publishCloseScheduleChanged(auction, "close_time_extended");
         }
 
-        auctionRepository.flush();
+        Timer.Sample flush = auctionMetrics.startBidFlush();
+        try {
+            auctionRepository.flush();
+        } finally {
+            auctionMetrics.finishBidFlush(flush);
+        }
         return bidResult(currentLeadingBid, auction, wallet);
+        } finally {
+            auctionMetrics.finishBidCriticalSection(criticalSection);
+        }
     }
 
     private long bidPrice(Auction auction, long requestedPrice) {
