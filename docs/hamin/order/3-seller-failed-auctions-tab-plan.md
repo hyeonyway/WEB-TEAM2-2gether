@@ -184,4 +184,11 @@ failedForSeller:()=>queryOptions({
 로컬 백엔드 실행을 위해 `.claude/launch.json`에 `backend-dev` 설정(`.env` 로드 후
 `./gradlew bootRun`)을 추가했다(세션 로컬 설정이라 git에는 안 잡힘).
 
+**(계획 대비 추가)** 임시로 심었던 테스트 데이터를 지운 뒤, `DEBUG_USER_ID=1` 기준
+정식 로컬 시드 파일 `required-data/007-seller-failed-auction-seed.sql`을 추가했다
+(006과 동일한 관례 — `X-Debug-User-Id: 1` 헤더로 재검증 완료, 마감 최신순으로 2건
+정상 반환). `required-data/*.sql`은 앱이 자동 실행하지 않고 로컬 DB에 수동으로
+적용하는 참고용 스크립트라, 다른 팀원이 로컬에서 유찰 탭을 보려면 직접 실행해야
+한다.
+
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
