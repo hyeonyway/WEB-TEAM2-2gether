@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -70,6 +71,7 @@ public class NotificationSseConnectionManager {
         ));
     }
 
+    @Async("notificationTaskExecutor")
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
         emittersByUserId.forEach((userId, emitters) -> emitters.forEach(emitter -> send(
