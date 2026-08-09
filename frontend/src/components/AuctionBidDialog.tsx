@@ -34,6 +34,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const buyNowPrice=auction.buyNowPrice??null;
   const[activeTab,setActiveTab]=useState<'bid'|'buy-now'>('bid');
   const[buyNowAgreed,setBuyNowAgreed]=useState(false);
+  const[buyNowConfirmationOpen,setBuyNowConfirmationOpen]=useState(false);
   const[amount,setAmount]=useState<number|string>(minimum);
   useEffect(()=>{setAmount(current=>{const value=Number(current);return current===''||!Number.isFinite(value)||value<minimum?minimum:current;});},[minimum]);
   useAuctionStream({
@@ -47,11 +48,11 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const leading=(context?.my_bid_status??auction.myBidStatus)==='LEADING';
   const closed=!['OPEN','ENDING'].includes(context?.status??auction.status);
   const bidMutation=useMutation({
-    mutationFn:({price}:{price:number})=>createAuctionBid(auction.id,price,crypto.randomUUID()),
-    onSuccess:async result=>{
+    mutationFn:({price}:{price:number;type:'bid'|'buy-now'})=>createAuctionBid(auction.id,price,crypto.randomUUID()),
+    onSuccess:async (result,request)=>{
       queryClient.setQueriesData<AuctionDto[]>({queryKey:dashboardQueryKey},current=>current?.map(item=>item.id!==auction.id?item:{...item,currentPrice:result.auction.current_price,bidCount:result.auction.bid_count,endsAt:result.auction.ends_at,myBidStatus:'LEADING',myBidAmount:result.bid.amount,card:{...item.card,bidCount:result.auction.bid_count}}));
       await Promise.all([queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()})]);
-      showToast(activeTab==='buy-now'?`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 즉시 낙찰하였습니다.`:`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 입찰하였습니다.`);
+      showToast(request.type==='buy-now'?`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 즉시 낙찰하였습니다.`:`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 입찰하였습니다.`);
       onClose();
     },
   });
@@ -68,12 +69,13 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       <label>직접 입력<div className={belowMinimum?'invalid':''}><input disabled={closed||leading||bidMutation.isPending} type="number" step={bidIncrement} value={amount} onChange={event=>setAmount(event.target.value)}/><span>원</span></div>{belowMinimum&&<small className="bid-minimum-error">최소 입찰가 {minimum.toLocaleString()}원 이상 입력해 주세요.</small>}</label>
       <section className="bid-history"><div className="bid-history-head"><h3>경매 입찰 내역</h3><span>최근 {context?.recent_bids.length??0}건</span></div><div className="bid-history-list">{contextQuery.isPending?<p>불러오는 중...</p>:context?.recent_bids.map(bid=><div className={`bid-history-row${bid.id<0?' bid-history-row-live':''}`} key={bid.id}><span><b>{bid.bidder_alias}</b><small>{bid.is_highest?'최고 입찰':'입찰 완료'}</small></span><strong>{bid.amount.toLocaleString()}원</strong><time>{new Date(bid.created_at).toLocaleString('ko-KR')}</time></div>)}</div></section>
       <div className="bid-balance"><span>입찰 후 잔여 포인트</span><b>{Math.max(0,wallet-(amountValue||0)).toLocaleString()}P</b></div>{insufficient&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">입찰하지 못했습니다. 현재 가격과 잔액을 다시 확인해 주세요.</p>}
-      <button className="bid-submit" disabled={contextQuery.isPending||belowMinimum||insufficient||closed||leading||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:amountValue})}>{closed?'경매 종료':leading?'현재 최고가 입찰 중':bidMutation.isPending?'입찰 처리 중...':`${amountValue.toLocaleString()}원 입찰하기`}</button>
+      <button className="bid-submit" disabled={contextQuery.isPending||belowMinimum||insufficient||closed||leading||bidMutation.isPending} onClick={()=>buyNowPrice!==null&&amountValue>buyNowPrice?setBuyNowConfirmationOpen(true):bidMutation.mutate({price:amountValue,type:'bid'})}>{closed?'경매 종료':leading?'현재 최고가 입찰 중':bidMutation.isPending?'입찰 처리 중...':`${amountValue.toLocaleString()}원 입찰하기`}</button>
     </>:<>
       <div className="bid-current"><span>현재 경매가<b><AnimatedBidValue value={currentPrice}/></b></span><span>즉시 낙찰가<b><AnimatedBidValue value={buyNowPrice!}/></b></span></div>
       <section className="buy-now-notice"><h3>즉시 낙찰 안내</h3><p>즉시 낙찰 시 경매가 바로 종료되며, 이후 취소할 수 없습니다.</p><label className="buy-now-agreement"><input type="checkbox" checked={buyNowAgreed} onChange={event=>setBuyNowAgreed(event.target.checked)}/><span>즉시 낙찰 시 취소할 수 없음에 동의합니다.</span></label></section>
       <div className="bid-balance"><span>낙찰 후 잔여 포인트</span><b>{Math.max(0,wallet-buyNowPrice!).toLocaleString()}P</b></div>{insufficientBuyNow&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">즉시 낙찰하지 못했습니다. 현재 상태와 잔액을 다시 확인해 주세요.</p>}
-      <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!})}>{closed?'경매 종료':bidMutation.isPending?'즉시 낙찰 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 낙찰하기`}</button>
+      <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>{closed?'경매 종료':bidMutation.isPending?'즉시 낙찰 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 낙찰하기`}</button>
     </>}
+    {buyNowConfirmationOpen&&<div className="buy-now-confirm-backdrop"><section className="buy-now-confirm" role="dialog" aria-modal="true" aria-label="즉시 낙찰 확인"><h3>즉시 낙찰로 진행할까요?</h3><p>입력한 입찰가가 즉시 낙찰가보다 높습니다. <b>{buyNowPrice!.toLocaleString()}원</b>에 즉시 낙찰되며 경매가 종료됩니다.</p><div><button type="button" onClick={()=>setBuyNowConfirmationOpen(false)}>취소</button><button type="button" onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>확인</button></div></section></div>}
   </section></div>;
 }
