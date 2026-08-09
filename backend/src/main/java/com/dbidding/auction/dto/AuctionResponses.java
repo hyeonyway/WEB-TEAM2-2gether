@@ -106,6 +106,14 @@ public final class AuctionResponses {
     ) {
     }
 
+    public record FailedAuctionSummary(
+            Integer id,
+            @JsonProperty("card_name") String cardName,
+            @JsonProperty("start_price") Long startPrice,
+            @JsonProperty("closed_at") Instant closedAt
+    ) {
+    }
+
     public record AuctionPhoto(
             Integer id,
             String url,

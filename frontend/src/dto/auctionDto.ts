@@ -210,3 +210,17 @@ export type AuctionDto={
   myBidStatus:MyBidStatus;
   myBidAmount:number|null;
 };
+
+export type FailedAuctionResponseDto={
+  id:number;
+  card_name:string;
+  start_price:number;
+  closed_at:string;
+};
+
+export type FailedAuctionDto={
+  id:number;
+  cardName:string;
+  startPrice:number;
+  closedAt:string;
+};

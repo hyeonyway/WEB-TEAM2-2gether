@@ -41,7 +41,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class AuctionQueryService {
+public class    AuctionQueryService {
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
@@ -100,6 +100,21 @@ public class AuctionQueryService {
         Map<Integer, List<AuctionImage>> images = imagesByAuction(auctions);
         return latestBids.values().stream()
                 .map(bid -> dashboardAuction(bid, cards.get(bid.getAuction().getItemId()), firstImage(images, bid.getAuction())))
+                .toList();
+    }
+
+    public List<AuctionResponses.FailedAuctionSummary> getFailedAuctions(Integer sellerId) {
+        List<Auction> auctions = auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(
+                sellerId, AuctionStatus.FAILED
+        );
+        Map<Integer, CardSnapshot> cards = cardSnapshots(auctions);
+        return auctions.stream()
+                .map(auction -> new AuctionResponses.FailedAuctionSummary(
+                        auction.getId(),
+                        cards.get(auction.getItemId()).name(),
+                        auction.getStartPrice(),
+                        auction.getCloseTime()
+                ))
                 .toList();
     }
 
