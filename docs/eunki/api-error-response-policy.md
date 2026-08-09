@@ -84,6 +84,16 @@
 
 기존 wallet의 `{ code, message }` 형식을 기준으로 유지한다. 빈 본문 또는 단일 `code`를 반환하던 API는 후속 PR에서 공통 형식으로 전환하며, 프론트엔드 호출부와 계약 테스트를 함께 갱신한다.
 
+## 프론트엔드 소비 규칙
+
+- 공통 HTTP client는 오류 응답 JSON의 `code`와 `message`를 각각 파싱해 `HttpError`에 저장한다.
+- JSON 형식이 아니거나 `message`가 없는 응답은 HTTP 상태 코드별 기본 메시지를 사용한다.
+- UI는 인증·인가 흐름을 HTTP 상태 코드로 처리하고, 세부 비즈니스 분기가 필요한 경우 `code`를 사용한다.
+- 서버가 반환한 원문 오류 body, HTML 오류 페이지, JSON 문자열 전체를 사용자에게 직접 표시하지 않는다.
+- `fetch`를 직접 사용하는 OCR·S3 업로드 등은 공통 HTTP client를 사용하도록 전환하거나, 동일한 오류 파싱 규칙을 적용한다.
+
+현재 `HttpError`는 오류 body 전체를 `message`로 저장하고 `code`만 파싱한다. 공통 오류 응답 도입과 함께 `message`도 파싱하도록 전환해야 한다.
+
 ## 현재 상태
 
 - wallet은 `WalletErrorResponse(code, message)`를 사용한다.
