@@ -178,6 +178,17 @@ describe('SellPage card selection',()=>{
     expect(mocks.lookupPsaCertification).not.toHaveBeenCalled();
   });
 
+  it('예시 인증번호 조회가 실패하면 인라인 오류를 표시한다',async()=>{
+    mocks.fetchPsaCertificationSample.mockRejectedValue(new Error('sample unavailable'));
+    const user=userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
+    await user.click(screen.getByRole('button',{name:'예시 인증번호 채우기'}));
+
+    expect(await screen.findByText('예시 인증번호를 불러오지 못했습니다. 다시 시도해 주세요.')).toBeInTheDocument();
+  });
+
   it('PSA 인증 후 예시 인증번호를 채우면 자체 평가 상태로 돌아간다',async()=>{
     mocks.fetchCardDetail.mockResolvedValue({
       id:104,name:'피카츄 프로모',set_name:'Pokemon TCG',psa_grade:'PSA 7',language:'JP',
