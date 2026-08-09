@@ -36,8 +36,8 @@ grep -rln "WalletProvisioningPort" src/main src/test
 # -> account/adapter/WalletProvisioningAdapter.java (구현)
 # -> account/service/AuthTransactionService.java (유일한 소비자)
 # -> account/port/WalletProvisioningPort.java (정의)
-# -> 테스트 4개: AuthServiceSignupTest, AuthServiceRefreshTest,
-#    SignupTransactionTest, AuthTransactionScopeTest
+# -> 테스트 5개: AuthServiceSignupTest, AuthServiceRefreshTest,
+#    SignupTransactionTest, AuthTransactionScopeTest, WalletProvisioningAdapterTest
 ```
 
 `WalletProvisioningPort`는 `WalletProvisioningAdapter` 하나만 구현하고(`@Profile` 분기 없음),
@@ -71,7 +71,7 @@ grep -rln "WalletProvisioningPort" src/main src/test
 - Preserves: `auction-mock` 프로필의 나머지 mock 빈, `AuctionCommandService`의 기존 `WalletService`
   직접 의존(변경 없음)
 
-- [ ] **Step 1: 삭제 전 마지막으로 사용처가 없는지 재확인한다**
+- [x] **Step 1: 삭제 전 마지막으로 사용처가 없는지 재확인한다**
 
 ```bash
 cd backend
@@ -80,7 +80,7 @@ grep -rn "WalletPort\b" src/main src/test
 
 Expected: 두 파일 자기 자신의 선언/구현부 외에는 히트 없음.
 
-- [ ] **Step 2: 두 파일을 삭제하고 컴파일을 확인한다**
+- [x] **Step 2: 두 파일을 삭제하고 컴파일을 확인한다**
 
 ```bash
 git rm backend/src/main/java/com/dbidding/auction/port/WalletPort.java \
@@ -88,7 +88,7 @@ git rm backend/src/main/java/com/dbidding/auction/port/WalletPort.java \
 ./gradlew compileJava compileTestJava
 ```
 
-- [ ] **Step 3: auction-mock 프로필 관련 테스트를 재실행한다**
+- [x] **Step 3: auction-mock 프로필 관련 테스트를 재실행한다**
 
 ```bash
 ./gradlew test --tests 'com.dbidding.auction.config.AuctionProfileConfigurationTest' \
@@ -97,7 +97,7 @@ git rm backend/src/main/java/com/dbidding/auction/port/WalletPort.java \
 
 Expected: 실패 0건 — 이 테스트들은 애초에 `WalletPort`/`FakeWalletAdapter`를 참조하지 않았다.
 
-- [ ] **Step 4: 커밋한다**
+- [x] **Step 4: 커밋한다** (`317feb6`)
 
 ```bash
 git commit -m "chore: 사용되지 않는 Auction WalletPort·FakeWalletAdapter 제거"
@@ -108,6 +108,7 @@ git commit -m "chore: 사용되지 않는 Auction WalletPort·FakeWalletAdapter 
 **Files:**
 - Delete: `backend/src/main/java/com/dbidding/account/port/WalletProvisioningPort.java`
 - Delete: `backend/src/main/java/com/dbidding/account/adapter/WalletProvisioningAdapter.java`
+- Delete: `backend/src/test/java/com/dbidding/account/adapter/WalletProvisioningAdapterTest.java`
 - Modify: `backend/src/main/java/com/dbidding/account/service/AuthTransactionService.java`
 - Modify: `backend/src/test/java/com/dbidding/account/service/AuthServiceSignupTest.java`
 - Modify: `backend/src/test/java/com/dbidding/account/service/AuthServiceRefreshTest.java`
@@ -122,21 +123,23 @@ git commit -m "chore: 사용되지 않는 Auction WalletPort·FakeWalletAdapter 
 - Preserves: `createAccountWithWallet(...)`의 트랜잭션 경계와 예외 변환(`DuplicateEmailException`/
   `DuplicateNicknameException`) 동작
 
-- [ ] **Step 1: 단위 테스트 2개를 WalletService 목으로 바꾼다**
+- [x] **Step 1: 단위 테스트를 WalletService 목으로 바꾼다**
 
-`AuthServiceSignupTest`, `AuthServiceRefreshTest`에서 `@Mock private WalletProvisioningPort
-walletProvisioningPort`를 `@Mock private WalletService walletService`로 바꾸고,
-`verify(walletProvisioningPort).createFor(id)`류 검증을 `verify(walletService).provision(id)`로
-바꾼다.
+`AuthServiceSignupTest`는 `@Mock private WalletProvisioningPort walletProvisioningPort`를
+`@Mock private WalletService walletService`로 바꾸고,
+`verify(walletProvisioningPort).createFor(id)`류 검증을
+`verify(walletService).provision(id)`로 바꾼다. `AuthServiceRefreshTest`의 Port 목은 사용되지
+않으므로 제거한다.
 
-- [ ] **Step 2: 통합 테스트 2개를 WalletService 스파이로 바꾼다**
+- [x] **Step 2: 통합 테스트 2개의 관찰 지점을 WalletRepository로 옮긴다**
 
-`SignupTransactionTest`, `AuthTransactionScopeTest`에서 `@MockitoSpyBean private
-WalletProvisioningPort walletProvisioningPort`를 `@MockitoSpyBean private WalletService
-walletService`로 바꾸고, `doAnswer`/`doThrow` 등 스텁 대상 메서드를 `createFor(...)`에서
-`provision(...)`으로 바꾼다. 트랜잭션 활성 여부를 검증하는 로직 자체는 그대로 둔다.
+`WalletService.provision(...)`은 `MANDATORY` 트랜잭션 프록시 메서드라 해당 빈을
+`@MockitoSpyBean`으로 스텁하면 스텁 설정 시점에 트랜잭션 검증이 실행된다. 따라서
+`SignupTransactionTest`의 실패 주입과 `AuthTransactionScopeTest`의 트랜잭션 관찰을 실제
+`WalletService`가 호출하는 `WalletRepository`로 옮긴다. 가입 트랜잭션의 원자성과 활성 여부는
+그대로 검증한다.
 
-- [ ] **Step 3: 테스트가 컴파일 실패로 막히는지 확인한다**
+- [x] **Step 3: 테스트가 컴파일 실패로 막히는지 확인한다**
 
 ```bash
 cd backend
@@ -146,7 +149,7 @@ cd backend
 Expected: `AuthTransactionService` 생성자가 아직 `WalletProvisioningPort`를 받아서 타입 불일치로
 컴파일 실패.
 
-- [ ] **Step 4: AuthTransactionService가 WalletService를 직접 호출하도록 바꾸고 Port·Adapter를 삭제한다**
+- [x] **Step 4: AuthTransactionService가 WalletService를 직접 호출하도록 바꾸고 Port·Adapter를 삭제한다**
 
 ```java
 private final AccountRepository accountRepository;
@@ -158,7 +161,7 @@ walletService.provision(account.getId());
 
 `WalletProvisioningPort`, `WalletProvisioningAdapter`를 삭제한다.
 
-- [ ] **Step 5: Account·Wallet 관련 테스트를 재실행한다**
+- [x] **Step 5: Account·Wallet 관련 테스트를 재실행한다**
 
 ```bash
 ./gradlew test \
@@ -168,7 +171,7 @@ walletService.provision(account.getId());
   --tests 'com.dbidding.account.integration.AuthTransactionScopeTest'
 ```
 
-- [ ] **Step 6: 커밋한다**
+- [x] **Step 6: 커밋한다** (`386ad04`)
 
 ```bash
 git add backend/src/main/java/com/dbidding/account/service/AuthTransactionService.java \
@@ -186,17 +189,19 @@ git commit -m "refactor: Account의 지갑 발급을 Port·Adapter 없이 직접
 **Files:**
 - Modify: `docs/hyeonmoon/wallet/README.md`
 
-- [ ] **Step 1: 전체 백엔드 테스트를 실행한다**
+- [x] **Step 1: 전체 백엔드 테스트를 실행한다**
 
 ```bash
 cd backend
 ./gradlew clean test
 ```
 
-Expected: 실패 0건. 테스트 소스가 없는 패턴은 통과로 표현하지 않고, 이번 변경과 무관한 기존
-실패가 있으면 별도로 명시한다.
+결과: `./gradlew clean test`에서 이번 변경 대상 테스트는 통과했다. 전체 실행은
+`OrderWalletSettlementConcurrencyTest.서로_다른_주문을_같은_판매자에게_동시_정산해도_모두_반영된다`
+1건이 `notification`을 먼저 정리하지 않고 `users`를 삭제해 FK 제약으로 실패했다. 이 실패는
+이번 변경 범위 밖의 기존 테스트 정리 문제다.
 
-- [ ] **Step 2: Wallet README 구현 단계 목록을 갱신한다**
+- [x] **Step 2: Wallet README 구현 단계 목록을 갱신한다**
 
 `docs/hyeonmoon/wallet/README.md`의 구현 단계 목록에 이번 문서를 추가한다. 문서
 [6-consumer-owned-port-adapter-refactor.md](6-consumer-owned-port-adapter-refactor.md)가 원래
@@ -204,7 +209,7 @@ Expected: 실패 0건. 테스트 소스가 없는 패턴은 통과로 표현하�
 걷어낸다)이라는 점을 README에 짧게 남긴다 — 두 문서가 모순돼 보이지 않도록, "대체 구현이 필요한
 이벤트 발행/실제 정책은 Port 유지, 단일 구현으로 굳어진 값 호출은 직접 호출"이라는 기준을 명시한다.
 
-- [ ] **Step 3: 커밋한다**
+- [x] **Step 3: 커밋한다**
 
 ```bash
 git add docs/hyeonmoon/wallet/README.md
@@ -219,6 +224,6 @@ git commit -m "docs: Wallet Port·Adapter 잔여 구조 제거 문서 반영"
 - `AuthTransactionService`가 `WalletService.provision(...)`을 직접 호출하고, 회원가입 트랜잭션
   계약(Account 저장 실패 시 Wallet도 생성되지 않음, 반대도 마찬가지)은 그대로 유지된다.
 - `auction-mock` 프로필의 나머지 mock 빈은 영향받지 않는다.
-- 전체 백엔드 테스트가 실패 없이 통과한다.
+- 이번 변경 대상 테스트가 통과하고, 전체 백엔드 테스트의 기존 실패는 원인과 범위를 별도로 기록한다.
 
-> 이 문서는 AI의 도움을 받아 작성하였습니다
+> 이 문서는 codex의 도움을 받아 작성하였습니다

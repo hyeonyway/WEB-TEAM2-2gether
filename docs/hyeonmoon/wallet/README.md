@@ -12,13 +12,15 @@ Wallet은 사용자의 총 포인트, 실제 잔액 변경 원장, 경매에 묶
 6. [소비자 소유 Port·Adapter 경계 리팩터링](6-consumer-owned-port-adapter-refactor.md) — 완료
 7. [동시 입찰 Hold 초과 버그 조사 보고서](7-concurrent-hold-overrun-bug-report.md) — 조사 완료, 수정 미착수
 8. [주문 정산·환불 Wallet 연동](8-order-settlement-and-refund.md) — 완료
-9. [Wallet로 향하는 남은 Port·Adapter 제거](9-remove-wallet-port-adapter.md) — 진행 중
+9. [Wallet로 향하는 남은 Port·Adapter 제거](9-remove-wallet-port-adapter.md) — 완료
 
 충전·환불 원장과 Wallet 잠금을 먼저 구현해야 잔액 조회와 Auction 연동이 같은 계산식과 동시성 규칙을 재사용할 수 있다.
 
-Account의 `WalletProvisioningPort`와 Auction의 `WalletPort`는 각 소비자 도메인이
-연결 Adapter와 함께 소유한다. Wallet은 자금 규칙을 제공하는 `WalletService`와
-Entity·Repository를 소유하며 Account·Auction의 Port를 import하지 않는다.
+6번 문서의 Port·Adapter 경계는 대체 구현이나 이벤트 발행 정책이 필요한 경우에 유지한다.
+반면 Account의 지갑 발급과 Auction의 자금 변경처럼 단일 구현으로 굳어진 동기 값 호출은
+`WalletService`를 직접 호출한다. Wallet은 자금 규칙을 제공하는 `WalletService`와
+Entity·Repository를 소유하며, Account·Auction은 여전히 Wallet의 Entity·Repository를 직접
+import하지 않는다.
 
 ## 잔액 정의
 
@@ -63,7 +65,7 @@ Wallet 거래의 409 응답은 프론트가 원인을 안정적으로 구분할 
 ## 동시성 원칙
 
 - 충전·환불·홀드·해제·낙찰 차감은 모두 대상 wallet row를 `PESSIMISTIC_WRITE`로 잠근다.
-- Auction은 공개된 `WalletPort` 메서드만 호출하고 Wallet의 락 메서드나 Repository를 직접 사용하지 않는다.
+- Auction은 `WalletService`의 공개 메서드만 호출하고 Wallet의 락 메서드나 Repository를 직접 사용하지 않는다.
 - 입찰과 Wallet 변경은 같은 Spring 트랜잭션에서 동기 처리한다.
 - SSE·알림 이벤트만 DB 커밋 이후 처리한다.
 - 실제 잔액 변경과 `point_records` 저장은 반드시 한 트랜잭션이다.
