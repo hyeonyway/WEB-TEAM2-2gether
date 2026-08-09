@@ -138,11 +138,7 @@ export default function AuctionDetailPage(){
           <span>등급 및 상태<b>{gradeLabel}</b></span>
         </div>
         {context&&<div className="auction-wallet-summary"><span><Wallet/>보유 포인트</span><strong>{context.wallet.available_balance.toLocaleString()}P</strong></div>}
-        <button className="auction-detail-bid-button" disabled={ended||isSeller} onClick={async()=>{
-          if(!authGate.requestNavigation())return;
-          await queryClient.refetchQueries({queryKey:auctionQueryKeys.bidContext(auctionId),type:'active'});
-          setBidOpen(true);
-        }}>
+        <button className="auction-detail-bid-button" disabled={ended||isSeller} onClick={()=>{if(authGate.requestNavigation())setBidOpen(true)}}>
           {ended?'경매 종료':isSeller?'내가 등록한 경매':`${minimumBid.toLocaleString()}원부터 입찰하기`}
         </button>
         <Link className="auction-card-price-link" to={`/cards/${detail.card.id}`}>카드 시세 상세 <ChevronRight/></Link>
