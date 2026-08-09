@@ -42,6 +42,20 @@
 | 외부 의존성 일시 실패 | 502 Bad Gateway 또는 503 Service Unavailable | 구현 시 의존성 성격에 따라 결정 |
 | 처리 중 알 수 없는 오류 | 500 Internal Server Error | `INTERNAL_SERVER_ERROR` |
 
+## Validation 오류 세부 규격
+
+- `@Valid`, `@NotNull`, `@NotBlank`, `@Size` 등의 DTO 본문 검증 실패인
+  `MethodArgumentNotValidException`과 요청 파라미터·모델 바인딩 실패인 `BindException`은
+  모두 `400 Bad Request`, `code: "INVALID_REQUEST"`로 변환한다.
+- `message`에는 선언한 validation 메시지 중 **첫 번째 field error의 기본 메시지**를 넣는다.
+  예: `"비밀번호는 필수 입력값입니다."`
+- 이번 공통 계약은 `code`, `message`만 포함하므로 필드별 오류 목록이나 필드명은 응답에
+  추가하지 않는다. 폼 단위의 복수 오류 표시가 필요해질 때는 호환성을 검토한 별도 계약으로
+  `errors` 배열을 추가한다.
+- JSON 파싱 실패, 타입 변환 실패, 필수 request parameter·header 누락도 클라이언트가 수정할
+  수 있는 요청 오류로 보고 같은 `INVALID_REQUEST` 정책을 적용한다. 멱등성 키의 형식 오류처럼
+  명확한 독립 계약이 있는 경우에만 기존의 세부 코드(`INVALID_IDEMPOTENCY_KEY`)를 유지한다.
+
 ## 계층별 책임
 
 ### Domain
@@ -65,8 +79,32 @@
 ### ControllerAdvice 밖의 경로
 
 - Spring Security filter·authentication entry point·access denied handler는 동일한 `{ code, message }` 계약을 직접 작성한다.
-- SSE 연결 수립 전의 인증 오류는 위 계약을 사용한다. 연결 수립 후 오류는 SSE event 또는 연결 종료 정책을 별도로 정의한다.
+- `JwtAuthFilter`, `SseTicketAuthFilter`처럼 현재 `response.sendError(...)`를 사용하는 경로는
+  컨테이너 기본 HTML 또는 빈 본문이 아닌 JSON을 반환하도록 전환한다.
+- 후속 구현에서는 status, `Content-Type: application/json`, UTF-8 인코딩과
+  `ApiErrorResponse` 직렬화를 한 곳에서 처리하는 공통 **Filter Error Response Writer**를 둔다.
+  Filter, `AuthenticationEntryPoint`, `AccessDeniedHandler`가 이를 함께 사용해 응답 형식과
+  오류 코드가 갈라지지 않게 한다.
+- SSE 연결 수립 전의 인증 오류는 위 JSON 계약을 사용한다.
 - 파일 업로드·외부 API 호출 실패도 공통 오류 코드로 변환한다.
+
+### SSE 연결 수립 후 오류
+
+- HTTP 응답이 이미 SSE로 시작된 뒤에는 상태 코드나 JSON HTTP 오류 본문으로 전환하지 않는다.
+- 클라이언트가 처리 가능한 업무 오류는 아래처럼 `error` 이벤트로 전송한다. data는 공통 오류
+  계약과 동일하게 `code`, `message`만 포함한다.
+
+  ```text
+  event: error
+  data: {"code":"AUCTION_CLOSED","message":"이미 종료된 경매입니다."}
+
+  ```
+
+- 오류 이벤트를 보낸 뒤 연결을 유지할지 종료할지는 오류 성격에 따라 구현에서 결정한다.
+  인증 무효·재연결이 필요한 오류는 연결을 종료하고, 일시적 또는 특정 경매의 업무 오류는
+  연결 유지 여부를 해당 SSE 기능의 계약과 함께 명시한다.
+- 전송 자체 실패, client disconnect, emitter timeout은 클라이언트에 재전송할 수 없으므로
+  서버에서 연결을 정리하고 로그·메트릭으로만 기록한다.
 
 ## 로깅 기준
 
@@ -82,17 +120,38 @@
 4. card·wishlist·notification·upload·SSE 경로를 전환한다.
 5. 각 단계에서 대표 실패 응답의 status, `code`, `message`를 API 테스트로 고정한다.
 
+### 테스트 전환 기준
+
+- 서비스·도메인 단위 테스트는 HTTP 예외인 `ResponseStatusException`의 발생 여부 대신,
+  전환된 도메인 또는 애플리케이션 예외(예: `AuctionNotFoundException`)와 그 의미를 검증한다.
+- `@RestControllerAdvice`가 적용되는 Web Controller 테스트는 HTTP status뿐 아니라
+  `jsonPath("$.code")`, `jsonPath("$.message")`를 검증한다. Validation 오류는 첫 번째 field
+  error 메시지와 `INVALID_REQUEST`를 함께 고정한다.
+- Security filter·entry point·access denied handler 테스트는 JSON content type, UTF-8,
+  status, `code`, `message`를 검증한다. `sendError`의 빈 본문에 의존하는 기존 기대값은 제거한다.
+- SSE 테스트는 연결 수립 전 JSON 오류와 연결 수립 후 `event: error` payload를 구분해 검증한다.
+- `AuctionCursorCodecTest`, `AuctionCommandServiceTest` 등 기존에
+  `ResponseStatusException`을 직접 검증하는 테스트는 해당 예외 전환 PR에서 함께 수정한다.
+  이 정책 문서 PR에서는 테스트 구현을 바꾸지 않는다.
+
 기존 wallet의 `{ code, message }` 형식을 기준으로 유지한다. 빈 본문 또는 단일 `code`를 반환하던 API는 후속 PR에서 공통 형식으로 전환하며, 프론트엔드 호출부와 계약 테스트를 함께 갱신한다.
 
 ## 프론트엔드 소비 규칙
 
 - 공통 HTTP client는 오류 응답 JSON의 `code`와 `message`를 각각 파싱해 `HttpError`에 저장한다.
-- JSON 형식이 아니거나 `message`가 없는 응답은 HTTP 상태 코드별 기본 메시지를 사용한다.
+- 응답 body를 한 번 읽은 뒤 JSON object인지 확인하고, 문자열 `code`와 비어 있지 않은 문자열
+  `message`만 채택한다. JSON 파싱 실패, HTML 오류 페이지, 빈 본문, `message` 누락은 서버 원문을
+  노출하지 않는다.
+- 위 경우 HTTP 상태 코드 기반 fallback 메시지를 사용한다. 예: 400은 `"요청 정보를 확인해 주세요."`,
+  401은 `"로그인이 필요하거나 로그인 정보가 만료되었습니다."`, 403은 `"접근 권한이 없습니다."`,
+  404는 `"요청한 정보를 찾을 수 없습니다."`, 그 외에는 `"요청 처리 중 오류가 발생했습니다."`를 사용한다.
 - UI는 인증·인가 흐름을 HTTP 상태 코드로 처리하고, 세부 비즈니스 분기가 필요한 경우 `code`를 사용한다.
 - 서버가 반환한 원문 오류 body, HTML 오류 페이지, JSON 문자열 전체를 사용자에게 직접 표시하지 않는다.
 - `fetch`를 직접 사용하는 OCR·S3 업로드 등은 공통 HTTP client를 사용하도록 전환하거나, 동일한 오류 파싱 규칙을 적용한다.
 
-현재 `HttpError`는 오류 body 전체를 `message`로 저장하고 `code`만 파싱한다. 공통 오류 응답 도입과 함께 `message`도 파싱하도록 전환해야 한다.
+현재 `httpClient.ts`의 `HttpError`는 오류 body 전체를 `message`로 저장하고 `code`만 파싱한다.
+공통 오류 응답 도입 PR에서 위 규칙으로 `code`와 `message`를 분리해 전달하도록 전환하고, JSON·빈
+본문·HTML 응답의 fallback 동작을 단위 테스트로 고정한다.
 
 ## 현재 상태
 
