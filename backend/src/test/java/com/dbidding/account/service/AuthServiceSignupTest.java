@@ -27,7 +27,7 @@ import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.password.PasswordHasher;
-import com.dbidding.account.port.WalletProvisioningPort;
+import com.dbidding.wallet.service.WalletService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceSignupTest {
@@ -42,7 +42,7 @@ class AuthServiceSignupTest {
 	private AccountRepository accountRepository;
 
 	@Mock
-	private WalletProvisioningPort walletProvisioningPort;
+	private WalletService walletService;
 
 	@Mock
 	private PasswordHasher passwordHasher;
@@ -53,7 +53,7 @@ class AuthServiceSignupTest {
 	void setUp() {
 		AuthTransactionService authTransactionService = new AuthTransactionService(
 			accountRepository,
-			walletProvisioningPort
+			walletService
 		);
 		signupService = new SignupService(
 			accountRepository,
@@ -71,7 +71,7 @@ class AuthServiceSignupTest {
 
 		then(accountRepository).should(never()).saveAndFlush(any(Account.class));
 		then(passwordHasher).shouldHaveNoInteractions();
-		then(walletProvisioningPort).shouldHaveNoInteractions();
+		then(walletService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -83,7 +83,7 @@ class AuthServiceSignupTest {
 
 		then(accountRepository).should(never()).saveAndFlush(any(Account.class));
 		then(passwordHasher).shouldHaveNoInteractions();
-		then(walletProvisioningPort).shouldHaveNoInteractions();
+		then(walletService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -108,7 +108,7 @@ class AuthServiceSignupTest {
 			"USER",
 			"ACTIVE"
 		));
-		then(walletProvisioningPort).should().createFor(1);
+		then(walletService).should().provision(1);
 	}
 
 	@Test

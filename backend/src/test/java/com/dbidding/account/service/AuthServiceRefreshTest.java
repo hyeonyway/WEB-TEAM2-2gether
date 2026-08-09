@@ -30,7 +30,6 @@ import com.dbidding.account.authentication.jwt.Authentication;
 import com.dbidding.account.dto.RefreshResponse;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
 import com.dbidding.account.password.PasswordHasher;
-import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.authentication.jwt.IssuedTokens;
 import com.dbidding.account.authentication.jwt.JwtTokenProvider;
@@ -55,9 +54,6 @@ class AuthServiceRefreshTest {
 
 	@Mock
 	private AccountRepository accountRepository;
-
-	@Mock
-	private WalletProvisioningPort walletProvisioningPort;
 
 	@Mock
 	private PasswordHasher passwordHasher;
