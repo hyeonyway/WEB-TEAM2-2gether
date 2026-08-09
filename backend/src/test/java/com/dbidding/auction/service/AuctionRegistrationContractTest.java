@@ -67,6 +67,7 @@ class AuctionRegistrationContractTest {
                         imageUploadPort,
                         auctionEventPublisher,
                         cardService,
+                        null,
                         Clock.fixed(Instant.parse("2026-08-04T00:00:00Z"), ZoneOffset.UTC),
                         eventPublisher,
                         new AuctionMetrics(new SimpleMeterRegistry())

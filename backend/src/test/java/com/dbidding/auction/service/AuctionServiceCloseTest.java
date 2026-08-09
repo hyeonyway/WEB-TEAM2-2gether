@@ -19,6 +19,7 @@ import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
+import com.dbidding.order.OrderService;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -50,6 +51,8 @@ class AuctionServiceCloseTest {
     @Mock
     private CardService cardService;
     @Mock
+    private OrderService orderService;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private final Clock clock = Clock.fixed(
@@ -70,6 +73,7 @@ class AuctionServiceCloseTest {
                 null,
                 auctionEventPublisher,
                 cardService,
+                orderService,
                 clock,
                 eventPublisher,
                 new AuctionMetrics(meterRegistry)
@@ -97,6 +101,7 @@ class AuctionServiceCloseTest {
         assertThat(response.winningBidId()).isEqualTo(1L);
         assertThat(response.winningPrice()).isEqualTo(45_000L);
         verify(walletService).capture(3, 1, 45_000L);
+        verify(orderService).createFromAuctionClosed(1, 3, 2, "리자몽", 45_000L);
         verify(auctionEventPublisher).publishClosed(argThat((AuctionClosedEvent closed) ->
                 closed.auctionId().equals(1)
                 && closed.itemId().equals(1)
@@ -127,6 +132,7 @@ class AuctionServiceCloseTest {
         assertThat(response.winningBidId()).isNull();
         assertThat(response.winningPrice()).isNull();
         verify(walletService, never()).capture(any(), any(), any(Long.class));
+        verifyNoInteractions(orderService);
         verify(auctionEventPublisher).publishClosed(argThat((AuctionClosedEvent closed) ->
                 closed.auctionId().equals(1)
                 && closed.cardName().equals("리자몽")
@@ -149,6 +155,7 @@ class AuctionServiceCloseTest {
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
         verify(walletService, never()).capture(any(), any(), any(Long.class));
         verifyNoInteractions(auctionEventPublisher);
+        verifyNoInteractions(orderService);
     }
 
     private Auction auction(Instant closeTime) {

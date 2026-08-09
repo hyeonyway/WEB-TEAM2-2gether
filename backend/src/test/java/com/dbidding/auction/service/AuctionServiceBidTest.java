@@ -22,6 +22,7 @@ import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.card.service.CardService;
+import com.dbidding.order.OrderService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;
@@ -53,6 +54,8 @@ class AuctionServiceBidTest {
     @Mock
     private CardService cardService;
     @Mock
+    private OrderService orderService;
+    @Mock
     private AuctionEventPublisher auctionEventPublisher;
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -75,6 +78,7 @@ class AuctionServiceBidTest {
                 null,
                 auctionEventPublisher,
                 cardService,
+                orderService,
                 clock,
                 eventPublisher,
                 new AuctionMetrics(meterRegistry)
@@ -151,6 +155,7 @@ class AuctionServiceBidTest {
         assertThat(response.bid().amount()).isEqualTo(100_000L);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
         verify(walletService).capture(2, 1, 100_000L);
+        verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
         verify(auctionEventPublisher).publishClosed(any(AuctionClosedEvent.class));
     }
 
@@ -172,6 +177,7 @@ class AuctionServiceBidTest {
 
         verify(walletService).release(3, 1);
         verify(walletService).capture(2, 1, 100_000L);
+        verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
     }
 
     @Test
@@ -193,6 +199,7 @@ class AuctionServiceBidTest {
         verify(walletService).hold(2, 1, 100_000L);
         verify(walletService, never()).release(2, 1);
         verify(walletService).capture(2, 1, 100_000L);
+        verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
     }
 
     @Test
