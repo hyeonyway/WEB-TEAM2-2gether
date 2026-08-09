@@ -11,5 +11,6 @@ Notification은 경매 생성/상회 입찰/낙찰 이벤트를 구독해 알림
 5. [알림 실시간 푸시(SSE) 프론트엔드 연동 계획](5-frontend-sse-integration.md) — 설계 중, 피드백 대기
 6. [알림 저장 소실 복구 배치 설계](6-notification-recovery-batch.md) — 구현 완료(이슈 #189 / PR #193)
 7. [경매 생성 알림 fan-out을 batch insert로 개선](7-notification-fanout-batch-insert.md) — 구현 완료(이슈 #190), PR 진행 중
+8. [NotificationEventListener 전용 Executor 지정 및 SSE push 릴레이 구조 분리](8-notification-sse-async-executor-and-push-relay.md) — 이슈 #239, Redis 전환은 #281로 분리
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
