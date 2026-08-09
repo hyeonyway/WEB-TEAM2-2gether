@@ -127,14 +127,14 @@ describe('AuctionBidDialog',()=>{
     expect(await screen.findByRole('tab',{name:'즉시 낙찰'})).toBeDisabled();
   });
 
-  it('일반 입찰가가 즉시 낙찰가보다 높으면 확인 후 즉시 낙찰가로 요청한다',async()=>{
+  it('일반 입찰가가 즉시 낙찰가와 같거나 높으면 확인 후 즉시 낙찰가로 요청한다',async()=>{
     mocks.createBid.mockResolvedValue({bid:{id:12,amount:20_000,status:'WON',created_at:'2026-08-04T01:00:00Z'},auction:{id:1,current_price:20_000,minimum_bid:20_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},wallet:{available_balance:80_000,frozen_balance:0}});
     renderDialog();
     const user=userEvent.setup();
     const input=await screen.findByRole('spinbutton');
     await user.clear(input);
-    await user.type(input,'25000');
-    await user.click(screen.getByRole('button',{name:'25,000원 입찰하기'}));
+    await user.type(input,'20000');
+    await user.click(screen.getByRole('button',{name:'20,000원 입찰하기'}));
     expect(screen.getByRole('dialog',{name:'즉시 낙찰 확인'})).toHaveTextContent('20,000원에 즉시 낙찰');
     expect(mocks.createBid).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button',{name:'확인'}));
