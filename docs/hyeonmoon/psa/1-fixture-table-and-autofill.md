@@ -67,7 +67,7 @@ GET /api/psa-certifications/sample
 **Interfaces:**
 - Produces: `psa_certification_fixtures(id, certification_number UNIQUE, item_id FK → card_metadata.id)`
 
-- [ ] **Step 1: 스키마에 테이블을 추가한다**
+- [x] **Step 1: 스키마에 테이블을 추가한다**
 
 ```sql
 CREATE TABLE psa_certification_fixtures
@@ -87,7 +87,7 @@ CREATE TABLE psa_certification_fixtures
 카드마다 고정될 필요가 없으므로, 응답 생성 시점에 인증번호를 시드로 계산한다(기존
 `PsaCertificationMockService`의 population 계산 방식 재사용).
 
-- [ ] **Step 2: 시드 데이터를 추가한다**
+- [x] **Step 2: 시드 데이터를 추가한다**
 
 `001-pokemon-card.sql`에 이미 있는 PSA 등급 카드(예: `item_id=1`, `피카츄 P 메가 에볼루션
 프로모카드`, `PSA 10`) 중 2~3개를 골라 실제처럼 보이는 7~10자리 인증번호와 매핑한다.
@@ -100,12 +100,12 @@ VALUES
 ON DUPLICATE KEY UPDATE `item_id` = VALUES(`item_id`);
 ```
 
-- [ ] **Step 3: 로컬 DB에 적용하고 확인한다**
+- [x] **Step 3: 로컬 DB에 적용하고 확인한다**
 
 `DB_SETUP.md` 절차대로 `schema.sql` → `required-data/*.sql` 순서로 적용한 뒤,
 `SELECT * FROM psa_certification_fixtures;`로 확인한다.
 
-- [ ] **Step 4: 커밋한다**
+- [x] **Step 4: 커밋한다** (`cf3e99b`)
 
 ```bash
 git add backend/src/main/resources/schema.sql \
@@ -117,6 +117,7 @@ git commit -m "feat: PSA 인증 fixture 테이블과 시드 데이터 추가"
 
 **Files:**
 - Create: `backend/src/main/java/com/dbidding/psa/PsaCertificationFixtureRepository.java`
+- Create: `backend/src/main/java/com/dbidding/card/service/CardPsaGradeQueryService.java`
 - Modify: `backend/src/main/java/com/dbidding/psa/PsaCertificationMockService.java`
   (→ `PsaCertificationService`로 이름 변경)
 - Modify: `backend/src/main/java/com/dbidding/psa/PsaCertificationMockController.java`
@@ -130,33 +131,34 @@ git commit -m "feat: PSA 인증 fixture 테이블과 시드 데이터 추가"
 - Produces:
   - `GET /api/psa-certifications/{certificationNumber}` → `PsaCertificationResponse(itemId, gradeType, psaGrade, population)` 또는 404
   - `GET /api/psa-certifications/sample` → `{ certificationNumber }` (fixture 중 하나, 없으면 404)
-- Consumes: `CardMetadataRepository`(또는 동등한 카드 조회) — `item_id`로 `psa_grade` 조회
+- Consumes: `CardPsaGradeQueryService` — `item_id`로 `psa_grade`만 조회한다. PSA는 card의
+  Repository나 Entity를 직접 참조하지 않는다.
 
-- [ ] **Step 1: 실패하는 테스트를 먼저 작성한다**
+- [x] **Step 1: 실패하는 테스트를 먼저 작성한다**
 
 등록된 인증번호 → `itemId`/`psaGrade`(= 해당 카드의 `card_metadata.psa_grade`)/양수
 `population` 반환. 미등록 번호 → `PsaCertificationNotFoundException`(404). `/sample`은
 fixture 중 하나의 `certification_number`를 반환.
 
-- [ ] **Step 2: 테스트가 실패하는지 확인한다**
+- [x] **Step 2: 테스트가 실패하는지 확인한다**
 
 ```bash
 cd backend
 ./gradlew test --tests 'com.dbidding.psa.*'
 ```
 
-- [ ] **Step 3: 서비스·컨트롤러를 구현한다**
+- [x] **Step 3: 서비스·컨트롤러를 구현한다**
 
 ```java
 public PsaCertificationResponse lookup(String certificationNumber) {
     PsaCertificationFixture fixture = fixtureRepository.findByCertificationNumber(certificationNumber)
         .orElseThrow(PsaCertificationNotFoundException::new);
-    CardMetadata card = cardMetadataRepository.findById(fixture.getItemId())
+    String psaGrade = cardPsaGradeQueryService.findPsaGrade(fixture.getItemId())
         .orElseThrow(PsaCertificationNotFoundException::new);
     return new PsaCertificationResponse(
-        card.getId(),
+        fixture.getItemId(),
         "psa",
-        normalizeGrade(card.getPsaGrade()),
+        normalizeGrade(psaGrade),
         population(certificationNumber)
     );
 }
@@ -165,7 +167,7 @@ public PsaCertificationResponse lookup(String certificationNumber) {
 `population(certificationNumber)`는 기존 mock의 해시 기반 계산을 그대로 재사용한다.
 `PsaCertificationNotFoundException`은 `@ResponseStatus(HttpStatus.NOT_FOUND)`.
 
-- [ ] **Step 4: 테스트를 통과시키고 커밋한다**
+- [x] **Step 4: 테스트를 통과시키고 커밋한다** (`cf3e99b`, `daa3ec6`)
 
 ```bash
 ./gradlew test --tests 'com.dbidding.psa.*'
@@ -178,37 +180,36 @@ git commit -m "feat: PSA 조회를 fixture 테이블 기반으로 교체하고 �
 **Files:**
 - Modify: `frontend/src/api/sellApi.ts`
 - Modify: `frontend/src/pages/sell/index.tsx`
-- Modify: `frontend/src/dto/sellDto.ts` (`CardRecognition`에 `itemId` 추가)
+- Modify: `frontend/src/dto/sellDto.ts` (`PsaCertification`에 `itemId` 추가)
 
 **Interfaces:**
 - Modifies: `lookupPsa()`가 성공 시 `fetchCardDetail(certification.itemId)`로 카드를 완전히
   선택하고, 실패(404) 시 폼은 그대로 두고 에러 상태만 세팅
 - Produces: "예시 인증번호 채우기" 버튼 — `/api/psa-certifications/sample` 호출 후 입력값 채움
 
-- [ ] **Step 1: 실패 응답 처리를 추가한다**
+- [x] **Step 1: 실패 응답 처리를 추가한다**
 
 `lookupPsa()`에서 404를 받으면 `setPsaStatus('error')`(또는 동등한 상태) + 에러 메시지
 상태만 세팅하고 `setForm(...)`을 호출하지 않는다. 인증번호 입력창 아래에 실패 시에만
 "등록된 PSA 번호가 아닙니다." 빨간 텍스트를 렌더링한다. 안내 문구나 버튼 유도 텍스트는
 추가하지 않는다.
 
-- [ ] **Step 2: 성공 시 카드 자동 선택으로 바꾼다**
+- [x] **Step 2: 성공 시 카드 자동 선택으로 바꾼다**
 
-`certification.itemId`가 있으면 `fetchCardDetail(itemId)` 결과로 `applyCardSelection`을
-호출해 카드 검색 없이 폼 전체(카드명·세트·언어·이미지·등급)를 채운다. 기존의 "이미 선택된
-variant 중에서 찾기" 로직은 카드가 이미 선택된 상태에서 재조회한 경우를 위해 유지해도 되지만,
-새 흐름에서는 `itemId` 기반 자동 선택이 우선한다.
+`certification.itemId`가 있으면 `fetchCardDetail(itemId)` 결과로 PSA 전용 카드 선택 상태를
+적용해 카드 검색 없이 카드명·세트·언어·등급·population을 채운다. 기존의 "이미 선택된 variant
+중에서 등급을 찾기" 흐름은 제거한다.
 
-- [ ] **Step 3: "예시 인증번호 채우기" 버튼을 추가한다**
+- [x] **Step 3: "예시 인증번호 채우기" 버튼을 추가한다**
 
 PSA 인증번호 입력창 위에 버튼을 두고, 클릭 시 `GET /api/psa-certifications/sample`로 받은
 번호를 입력 상태에 채운다(자동 조회까지 트리거할지는 UX 취향 — 채우기만 하고 조회는 사용자가
 누르게 해도 된다).
 
-- [ ] **Step 4: 로컬에서 확인하고 커밋한다**
+- [x] **Step 4: 테스트로 확인하고 커밋한다**
 
-등록된 인증번호로 카드 자동 선택 확인, 미등록 번호로 빨간 텍스트만 뜨고 폼이 안 바뀌는지 확인,
-예시 버튼 동작 확인.
+판매 등록 화면 테스트에서 등록된 인증번호의 카드 자동 선택, 미등록 번호의 기존 폼 유지와 빨간
+텍스트, 예시 버튼의 입력값 채움만 수행(자동 조회 없음)을 확인한다.
 
 ```bash
 git add frontend/src/api/sellApi.ts frontend/src/pages/sell/index.tsx frontend/src/dto/sellDto.ts
@@ -220,14 +221,17 @@ git commit -m "feat: PSA 조회 성공 시 카드 자동 선택, 실패 시 인�
 **Files:**
 - Modify: `docs/hyeonmoon/psa/README.md`
 
-- [ ] **Step 1: 전체 백엔드 테스트를 실행한다**
+- [x] **Step 1: 전체 백엔드 테스트를 실행한다**
 
 ```bash
 cd backend
 ./gradlew clean test
 ```
 
-- [ ] **Step 2: README 구현 단계를 갱신하고 커밋한다**
+결과: 로컬 DB에 `001-pokemon-card.sql`과 `008-psa-certification-fixture-seed.sql`을 순서대로
+적용해 fixture 3건을 확인했고, `./gradlew clean test`가 성공했다.
+
+- [x] **Step 2: README 구현 단계를 갱신하고 커밋한다**
 
 ```bash
 git add docs/hyeonmoon/psa/README.md

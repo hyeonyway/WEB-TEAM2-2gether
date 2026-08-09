@@ -6,4 +6,4 @@ Open API 구독 대신 fixture 기반 인증 흐름을 만드는 이번 작업�
 
 ## 구현 단계
 
-1. [PSA 인증 임시 테이블과 자동 채움](1-fixture-table-and-autofill.md) — 진행 중
+1. [PSA 인증 임시 테이블과 자동 채움](1-fixture-table-and-autofill.md) — 구현 및 로컬 DB 적용 확인 완료
