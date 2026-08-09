@@ -60,7 +60,15 @@ public class LocalNotificationPushPublisher implements NotificationPushPublisher
 ## 범위 밖으로 남긴 것
 
 - Redis pub/sub 실제 구현(발행자/구독자, 직렬화, 채널 전략, origin 인스턴스 처리, 구독 컨테이너 executor) — #281.
+- 배치 발행 시 유저별 `notificationId` 조립 없이 `(auctionId, message)` 기반으로 dedup·공유 payload 전환 — #281 구현에 반영할 세부 설계, #289로 별도 정리.
 - `AuctionSseConnectionManager`(전역 브로드캐스트)의 다중 인스턴스 대응 — 같은 문제가 있지만 이번엔 notification 패키지만 다룬다.
 - `AuctionSseConnectionManager`/`NotificationSseConnectionManager` 통합 검토 — #239 참고 섹션에 별도로 남겨둠, 인증 경계(익명 허용 vs 로그인 필수)가 달라 단순 통합이 어려움.
+
+## 보류된 고려사항 (이슈화 안 함)
+
+이슈로 만들 만큼 구체적인 실행 항목은 아니지만, 리뷰 논의 중 나온 열린 질문이라 기록해둔다.
+
+- **t4g.micro(2 vCPU, 1GiB RAM) 배포 스펙에 맞춘 executor pool 크기 재검토**: `notificationTaskExecutor`의 core/max/queue(4/8/2000)는 새로 정한 값이 아니라 `AuctionSseExecutorConfig`를 그대로 미러링한 것. vCPU가 2개뿐이라 core 4/max 8이 과할 수 있음. `@Value`로 뽑아놨으니 코드 변경 없이 배포 환경 변수로 튜닝 가능 — 실측 후 필요하면 기본값 자체를 낮추는 것도 검토.
+- **가상 스레드(Virtual Thread) 전환 검토**: SSE 전송(`emitter.send()`)은 네트워크 블로킹 I/O라 가상 스레드에 잘 맞는 워크로드일 수 있음(Tomcat 10.1+/JDK 21 조합에서 블로킹 I/O가 가상 스레드 park를 지원). 다만 `notificationTaskExecutor`처럼 이미 작게 bound된 풀에서는 스레드 메모리/컨텍스트 스위칭 이득이 미미하고, CPU(2 vCPU)나 DB 커넥션 풀(10개) 같은 다른 자원 제약은 가상 스레드로도 해결되지 않음 — 필요하면 나중에 별도로 재검토.
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
