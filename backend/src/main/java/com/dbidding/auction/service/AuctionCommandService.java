@@ -469,9 +469,10 @@ public class AuctionCommandService {
 
     private AuctionCloseResponse closeLockedAuction(Auction auction, Instant closedAt) {
         Optional<Bid> winningBid = highestBid(auction.getId());
+        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         if (winningBid.isEmpty()) {
             auction.closeWithoutTrade(closedAt);
-            publishAuctionClosed(auction, null, closedAt, cardService.getCardSnapshot(auction.getItemId()));
+            publishAuctionClosed(auction, null, closedAt, card);
             log.info("event=auction.closed.without_trade auctionId={} itemId={} sellerId={} closedAt={} status={} bidCount={}",
                     auction.getId(), auction.getItemId(), auction.getSellerId(), closedAt,
                     auction.getStatus(), auction.getBidCount());
@@ -482,7 +483,6 @@ public class AuctionCommandService {
         winner.markWon();
         auction.closeWithWinningBid(winner, closedAt);
         walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
-        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         orderService.createFromAuctionClosed(
                 auction.getId(), winner.getBidderId(), auction.getSellerId(), card.name(), winner.getBidPrice()
         );
