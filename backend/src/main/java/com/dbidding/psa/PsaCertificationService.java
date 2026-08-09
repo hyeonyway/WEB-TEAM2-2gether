@@ -18,13 +18,15 @@ public class PsaCertificationService {
     public PsaCertificationResponse lookup(String certificationNumber) {
         PsaCertificationFixture fixture = fixtureRepository.findByCertificationNumber(certificationNumber)
                 .orElseThrow(PsaCertificationNotFoundException::new);
-        String psaGrade = cardPsaGradeQueryService.findPsaGrade(fixture.getItemId())
+        CardPsaGradeQueryService.PsaCardInfo card = cardPsaGradeQueryService.findPsaCardInfo(fixture.getItemId())
                 .orElseThrow(PsaCertificationNotFoundException::new);
         return new PsaCertificationResponse(
                 fixture.getItemId(),
                 "psa",
-                normalizeGrade(psaGrade),
-                population(certificationNumber)
+                normalizeGrade(card.psaGrade()),
+                population(certificationNumber),
+                card.issuedYear(),
+                card.cardNumber()
         );
     }
 
@@ -46,7 +48,9 @@ public class PsaCertificationService {
             Integer itemId,
             String gradeType,
             String psaGrade,
-            String population
+            String population,
+            String issuedYear,
+            String cardNumber
     ) {
     }
 

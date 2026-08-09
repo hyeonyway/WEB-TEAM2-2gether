@@ -14,7 +14,11 @@ public class CardPsaGradeQueryService {
 
     private final CardMetadataRepository cardMetadataRepository;
 
-    public Optional<String> findPsaGrade(Integer itemId) {
-        return cardMetadataRepository.findById(itemId).map(CardMetadata::getPsaGrade);
+    public Optional<PsaCardInfo> findPsaCardInfo(Integer itemId) {
+        return cardMetadataRepository.findById(itemId)
+                .map(card -> new PsaCardInfo(card.getPsaGrade(), card.getIssuedYear(), card.getCardNumber()));
+    }
+
+    public record PsaCardInfo(String psaGrade, String issuedYear, String cardNumber) {
     }
 }

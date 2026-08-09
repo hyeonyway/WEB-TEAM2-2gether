@@ -25,10 +25,13 @@ class CardPsaGradeQueryServiceTest {
     private CardPsaGradeQueryService service;
 
     @Test
-    void 카드의_PSA_등급만_조회한다() {
+    void PSA_인증에_필요한_카드_메타데이터를_조회한다() {
         given(cardMetadataRepository.findById(27)).willReturn(Optional.of(cardMetadata));
         given(cardMetadata.getPsaGrade()).willReturn("PSA 10");
+        given(cardMetadata.getIssuedYear()).willReturn("2024");
+        given(cardMetadata.getCardNumber()).willReturn("SV-P 001");
 
-        assertThat(service.findPsaGrade(27)).contains("PSA 10");
+        assertThat(service.findPsaCardInfo(27))
+                .contains(new CardPsaGradeQueryService.PsaCardInfo("PSA 10", "2024", "SV-P 001"));
     }
 }

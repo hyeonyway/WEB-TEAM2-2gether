@@ -30,7 +30,8 @@ class PsaCertificationServiceTest {
     void 등록된_인증번호는_연결된_카드의_등급과_itemId를_반환한다() {
         PsaCertificationFixture fixture = new PsaCertificationFixture("12345678", 27);
         given(fixtureRepository.findByCertificationNumber("12345678")).willReturn(Optional.of(fixture));
-        given(cardPsaGradeQueryService.findPsaGrade(27)).willReturn(Optional.of("PSA 10"));
+        given(cardPsaGradeQueryService.findPsaCardInfo(27))
+                .willReturn(Optional.of(new CardPsaGradeQueryService.PsaCardInfo("PSA 10", "2024", "SV-P 001")));
 
         PsaCertificationService.PsaCertificationResponse response = service.lookup("12345678");
 
@@ -38,6 +39,8 @@ class PsaCertificationServiceTest {
         assertThat(response.gradeType()).isEqualTo("psa");
         assertThat(response.psaGrade()).isEqualTo("10");
         assertThat(response.population()).matches("\\d{4}");
+        assertThat(response.issuedYear()).isEqualTo("2024");
+        assertThat(response.cardNumber()).isEqualTo("SV-P 001");
     }
 
     @Test

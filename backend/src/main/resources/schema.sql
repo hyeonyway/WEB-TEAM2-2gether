@@ -82,6 +82,8 @@ CREATE TABLE card_metadata
     psa_grade       VARCHAR(15)  NULL,
     rarity          VARCHAR(30)  NULL,
     image_path      VARCHAR(500) NULL,
+    issued_year     CHAR(4)      NULL,
+    card_number     VARCHAR(50)  NULL,
 
     CONSTRAINT pk_card_metadata PRIMARY KEY (id),
     CONSTRAINT fk_card_metadata_card_set
