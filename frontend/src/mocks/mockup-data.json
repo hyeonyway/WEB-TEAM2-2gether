@@ -56,6 +56,7 @@
     "language":"일본어"
   },
   "psa_certification": {
+    "itemId": 1,
     "gradeType":"psa",
     "psaGrade":"10",
     "population":"1248"

@@ -9,6 +9,7 @@ const mocks=vi.hoisted(()=>({
   fetchCardPage:vi.fn(),
   fetchCardDetail:vi.fn(),
   lookupPsaCertification:vi.fn(),
+  fetchPsaCertificationSample:vi.fn(),
 }));
 
 vi.mock('../../api/auctionApi',()=>({
@@ -18,6 +19,7 @@ vi.mock('../../api/auctionApi',()=>({
 
 vi.mock('../../api/sellApi',()=>({
   lookupPsaCertification:mocks.lookupPsaCertification,
+  fetchPsaCertificationSample:mocks.fetchPsaCertificationSample,
   scanCardImage:vi.fn(),
 }));
 
@@ -59,7 +61,8 @@ describe('SellPage card selection',()=>{
       total_elements:1,
       has_next:false,
     });
-    mocks.lookupPsaCertification.mockResolvedValue({gradeType:'psa',psaGrade:'7',population:'1234'});
+    mocks.lookupPsaCertification.mockResolvedValue({itemId:104,gradeType:'psa',psaGrade:'7',population:'1234'});
+    mocks.fetchPsaCertificationSample.mockResolvedValue({certificationNumber:'12345678'});
   });
 
   it('등급 변형은 하나의 카드 검색 결과로 묶어 선택한다',async()=>{
@@ -85,6 +88,52 @@ describe('SellPage card selection',()=>{
     await user.type(screen.getByLabelText('카드명 필수'),'피카');
 
     expect(await screen.findByText('검색 결과에서 카드를 선택해 주세요.')).toBeInTheDocument();
+  });
+
+  it('등록된 PSA 인증번호는 카드 검색 없이 fixture 카드로 자동 선택한다',async()=>{
+    mocks.fetchCardDetail.mockResolvedValue({
+      id:104,name:'피카츄 프로모',set_name:'Pokemon TCG',psa_grade:'PSA 7',language:'JP',
+    });
+    const user=userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
+    await user.type(screen.getByLabelText('PSA 인증번호'),'12345678');
+    await user.click(screen.getByRole('button',{name:'조회'}));
+
+    await waitFor(()=>expect(mocks.fetchCardDetail).toHaveBeenCalledWith(104));
+    expect(await screen.findByText('선택됨: 피카츄 프로모 · Pokemon TCG · PSA 7')).toBeInTheDocument();
+  });
+
+  it('미등록 PSA 인증번호는 기존 카드 선택을 유지하고 인라인 오류를 표시한다',async()=>{
+    mocks.fetchCardDetail.mockResolvedValue({
+      id:100,name:'피카츄 프로모',set_name:'Pokemon TCG',psa_grade:'근민트',language:'JP',
+    });
+    mocks.lookupPsaCertification.mockRejectedValue(new Error('not found'));
+    const user=userEvent.setup();
+    renderPage();
+
+    await user.type(screen.getByLabelText('카드명 필수'),'피카');
+    await user.click((await screen.findAllByRole('button',{name:/피카츄 프로모/}))[0]);
+    await screen.findByText('선택됨: 피카츄 프로모 · Pokemon TCG · 근민트');
+    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
+    await user.type(screen.getByLabelText('PSA 인증번호'),'12345678');
+    await user.click(screen.getByRole('button',{name:'조회'}));
+
+    expect(await screen.findByText('등록된 PSA 번호가 아닙니다.')).toBeInTheDocument();
+    expect(screen.getByText('선택됨: 피카츄 프로모 · Pokemon TCG · 근민트')).toBeInTheDocument();
+  });
+
+  it('예시 인증번호 채우기는 조회 입력값만 채운다',async()=>{
+    const user=userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
+    await user.click(screen.getByRole('button',{name:'예시 인증번호 채우기'}));
+
+    expect(mocks.fetchPsaCertificationSample).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText('PSA 인증번호')).toHaveValue('12345678');
+    expect(mocks.lookupPsaCertification).not.toHaveBeenCalled();
   });
 
   it('카드 선택 뒤에도 자체 평가 등급을 한 번의 클릭으로 변경한다',async()=>{
@@ -121,47 +170,6 @@ describe('SellPage card selection',()=>{
 
     await waitFor(()=>expect(screen.getByText('선택됨: 피카츄 프로모 · Pokemon TCG · 10')).toBeInTheDocument());
     expect(screen.getByRole('button',{name:'PSA 등급'})).toHaveClass('active');
-  });
-
-  it('PSA 조회 결과와 일치하는 카드 variant로 자동 전환한다',async()=>{
-    mocks.fetchCardPage.mockResolvedValue({
-      content:[
-        {id:100,name:'피카츄 프로모',marketPrice:0,lowPrice:0,highPrice:0,changeRate:0,theme:'gold',bidCount:0,psaGrade:'근민트',language:'JP',imageUrl:null,setName:'Pokemon TCG'},
-        {id:104,name:'피카츄 프로모',marketPrice:0,lowPrice:0,highPrice:0,changeRate:0,theme:'gold',bidCount:0,psaGrade:'PSA 7',language:'JP',imageUrl:null,setName:'Pokemon TCG'},
-      ],page:0,size:100,total_elements:2,has_next:false,
-    });
-    mocks.fetchCardDetail.mockImplementation((id:number)=>Promise.resolve({
-      id,name:'피카츄 프로모',set_name:'Pokemon TCG',psa_grade:id===104?'PSA 7':'근민트',language:'JP',
-    }));
-    const user=userEvent.setup();
-    renderPage();
-
-    await user.type(screen.getByLabelText('카드명 필수'),'피카');
-    await user.click((await screen.findAllByRole('button',{name:/피카츄 프로모/}))[0]);
-    await screen.findByText(/선택됨: 피카츄 프로모/);
-    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
-    await user.type(screen.getByLabelText('PSA 인증번호'),'1234567');
-    await user.click(screen.getByRole('button',{name:'조회'}));
-
-    await waitFor(()=>expect(screen.getByText('선택됨: 피카츄 프로모 · Pokemon TCG · PSA 7')).toBeInTheDocument());
-  });
-
-  it('PSA 조회 결과와 일치하는 variant가 없으면 선택을 해제한다',async()=>{
-    mocks.fetchCardDetail.mockResolvedValue({
-      id:100,name:'피카츄 프로모',set_name:'Pokemon TCG',psa_grade:'근민트',language:'JP',
-    });
-    const user=userEvent.setup();
-    renderPage();
-
-    await user.type(screen.getByLabelText('카드명 필수'),'피카');
-    await user.click((await screen.findAllByRole('button',{name:/피카츄 프로모/}))[0]);
-    await screen.findByText(/선택됨: 피카츄 프로모/);
-    await user.click(screen.getByRole('button',{name:'PSA 인증 조회'}));
-    await user.type(screen.getByLabelText('PSA 인증번호'),'1234567');
-    await user.click(screen.getByRole('button',{name:'조회'}));
-
-    expect(await screen.findByText('인증 등급과 일치하는 카드 정보를 다시 선택해 주세요.')).toBeInTheDocument();
-    expect(screen.queryByText(/선택됨: 피카츄 프로모/)).not.toBeInTheDocument();
   });
 
   it('즉시 구매가를 켠 뒤 금액이 없으면 원인을 표시한다',async()=>{
