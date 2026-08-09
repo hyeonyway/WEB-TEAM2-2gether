@@ -277,14 +277,22 @@ export function useNotificationToasts(){
 ### 테스트/검증
 
 - 백엔드: 변경된 알림 테스트 클래스만 먼저 통과 확인 후, 최종적으로 전체 스위트(468개) 실행 —
-  `OrderWalletSettlementConcurrencyTest` 1건만 실패했는데, 단독 실행하면 통과한다. 로컬 MySQL을
-  공유하는 다른 테스트가 남긴 데이터 때문에 `DELETE FROM users`가 `notification` FK 제약에
-  걸리는 테스트 격리 문제로, 이번 변경과 무관하다(이슈 224 스코프 밖).
+  당시 `OrderWalletSettlementConcurrencyTest` 1건이 실패했다. 원인은 `orderService.confirm`/
+  `sellerCancel` 커밋 후 `NotificationEventListener`가 `@Async` + `AFTER_COMMIT`으로 알림을
+  비동기 insert하는데, 이 지연된 쓰기가 다음 테스트 메서드의 `setUp()`(`DELETE FROM notification`
+  →...→`DELETE FROM users` 순서로 정리) 사이에 끼어들어 방금 생긴 알림 행의 FK 때문에
+  `DELETE FROM users`가 실패하는 타이밍 레이스였다. `origin/dev`를 리베이스해서 당겨보니 이미
+  다른 커밋에서 이 테스트에 `@MockitoBean NotificationEventListener`를 추가해 리스너 자체를
+  mock으로 대체해뒀고(비동기 insert가 원천적으로 안 일어남), 리베이스 후 3회 반복 실행 모두
+  통과를 확인했다. 이번 알림 기능 변경과는 무관한 `order` 패키지 소속 이슈였고 이미 별도로
+  해결되어 있었다.
 - 프론트: 변경 대상 테스트(알림/대시보드 관련) 6개 파일 39개 전부 통과, `tsc --noEmit` 클린.
   전체 스위트 실행 시 auth/wallet 관련 17개 테스트가 실패했는데, 로컬 `.env`의
-  `VITE_API_BASE_URL=http://localhost:8080` 때문에 `fetch`가 절대 URL로 호출되어 기존 테스트의
-  상대 경로 기대값과 어긋나는 것으로, `dev` 브랜치에 동일한 `.env`를 넣고 재현해 사전에 존재하던
-  환경 의존 이슈임을 확인했다(이번 변경과 무관, 이슈 224 스코프 밖).
+  `VITE_API_BASE_URL=http://localhost:8080`이 `fetch` 호출에 그대로 붙어서 상대 경로를 기대하는
+  기존 테스트 어서션과 어긋나는 것이었다(`dev` 브랜치에 동일한 `.env`를 넣고 재현해 사전에
+  존재하던 환경 의존 이슈임을 확인). 사용자 지시로 `vite.config.ts`의 `test.env`에
+  `VITE_API_BASE_URL: ''`를 추가해 테스트 실행 시에만 오버라이드하도록 고쳤다 — 실제 로컬
+  개발 서버(`.env`) 동작은 그대로 유지되고, 전체 스위트(40개 파일, 255개)가 통과한다.
 - 사용자 지시로 브라우저 수동 확인은 생략했다.
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
