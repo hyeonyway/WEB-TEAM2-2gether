@@ -56,6 +56,7 @@ class AuctionDueClosingParallelIntegrationTest {
         jdbcTemplate.update("DELETE FROM point_records WHERE auction_id IN (1, 2, 3, 4)");
         jdbcTemplate.update("DELETE FROM wallet_holds WHERE auction_id IN (1, 2, 3, 4)");
         jdbcTemplate.update("DELETE FROM wallets WHERE user_id IN (2, 3, 4, 5)");
+        jdbcTemplate.update("DELETE FROM orders WHERE auction_id IN (1, 2, 3, 4)");
         jdbcTemplate.update("DELETE FROM bids WHERE auction_id IN (1, 2, 3, 4)");
         jdbcTemplate.update("DELETE FROM auctions WHERE id IN (1, 2, 3, 4)");
         jdbcTemplate.update("DELETE FROM card_metadata WHERE id IN (1, 2, 3, 4)");
@@ -77,6 +78,9 @@ class AuctionDueClosingParallelIntegrationTest {
                 + "AND transaction_type = 'AUCTION_CAPTURE'"))
                 .isEqualTo(4);
         assertThat(count("SELECT COUNT(*) FROM wallets WHERE user_id IN (2, 3, 4, 5) AND point = 88000"))
+                .isEqualTo(4);
+        assertThat(count("SELECT COUNT(*) FROM orders WHERE auction_id IN (1, 2, 3, 4) "
+                + "AND status = 'PENDING_CONFIRM' AND price = 12000"))
                 .isEqualTo(4);
     }
 
