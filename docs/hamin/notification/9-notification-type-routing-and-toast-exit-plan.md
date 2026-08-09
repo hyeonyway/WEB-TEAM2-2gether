@@ -255,4 +255,36 @@ export function useNotificationToasts(){
   컴포넌트 테스트를 안 만들었음) 이번에도 추가하지 않고 브라우저에서 직접
   `/dashboard?tab=orders` 진입 확인 + 알림 클릭 흐름을 눈으로 검증한다.
 
+## 실제 구현 결과
+
+계획과 동일하게 구현했다. 이슈 본문의 OUTBID 구조화 필드 항목은 사용자 지시로 이번
+스코프에서 제외하고 별도로 나중에 처리한다(관련 코드는 건드리지 않음).
+
+- 백엔드: `NotificationResponse`에 `type` 필드 추가. 기존에 위치 기반 생성자를 직접 호출하던
+  `NotificationSseConnectionManagerTest`/`LocalNotificationPushPublisherTest`에 `NotificationType`
+  인자를 추가해 컴파일을 맞추고, `NotificationControllerTest`에 `type` JSON 필드 검증을 추가했다.
+- 프론트: `NotificationDto`/mock seed에 `type` 반영, 공용 `utils/notificationNavigation.ts`
+  (`getNotificationPath`)로 `NotificationBell`/`NotificationToastStack`의 이동 분기를 통일했다.
+  기존 알림 fixture(`notificationStreamCache.test.ts`, `useNotificationStream.test.tsx` 등)에도
+  `type` 필드를 채워 타입 에러를 없앴다.
+- `DashboardPage.tsx`에 `useSearchParams`를 도입해 `?tab=orders` 딥링크를 지원한다. 기본 탭
+  (`participating`)일 때는 쿼리 파라미터를 붙이지 않아 URL이 깔끔하게 유지된다.
+- `useNotificationToasts.ts`에 `isDismissing` 플래그를 추가해 dismiss/자동소멸 모두 애니메이션
+  재생 시간(`DISMISS_ANIMATION_MS=200ms`) 뒤에 실제로 배열에서 제거되도록 2단계로 바꿨다.
+  `NotificationToastStack.tsx`는 `isDismissing`일 때 `dismissing` 클래스를 붙이고,
+  `tailwind.css`에 `notification-toast-out` 키프레임(페이드+슬라이드)을 추가했다.
+
+### 테스트/검증
+
+- 백엔드: 변경된 알림 테스트 클래스만 먼저 통과 확인 후, 최종적으로 전체 스위트(468개) 실행 —
+  `OrderWalletSettlementConcurrencyTest` 1건만 실패했는데, 단독 실행하면 통과한다. 로컬 MySQL을
+  공유하는 다른 테스트가 남긴 데이터 때문에 `DELETE FROM users`가 `notification` FK 제약에
+  걸리는 테스트 격리 문제로, 이번 변경과 무관하다(이슈 224 스코프 밖).
+- 프론트: 변경 대상 테스트(알림/대시보드 관련) 6개 파일 39개 전부 통과, `tsc --noEmit` 클린.
+  전체 스위트 실행 시 auth/wallet 관련 17개 테스트가 실패했는데, 로컬 `.env`의
+  `VITE_API_BASE_URL=http://localhost:8080` 때문에 `fetch`가 절대 URL로 호출되어 기존 테스트의
+  상대 경로 기대값과 어긋나는 것으로, `dev` 브랜치에 동일한 `.env`를 넣고 재현해 사전에 존재하던
+  환경 의존 이슈임을 확인했다(이번 변경과 무관, 이슈 224 스코프 밖).
+- 사용자 지시로 브라우저 수동 확인은 생략했다.
+
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
