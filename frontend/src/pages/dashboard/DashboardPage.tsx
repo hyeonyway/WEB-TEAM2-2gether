@@ -1,7 +1,7 @@
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Search} from 'lucide-react';
 import {useState} from 'react';
-import {Link} from 'react-router-dom';
+import {Link,useSearchParams} from 'react-router-dom';
 import {Header} from '../../components';
 import type {ParticipatingAuctionSort,RecentWinSort} from '../../api/dashboardApi';
 import {applyDashboardAuctionEvent,dashboardQueries,dashboardQueryKey} from '../../queries/dashboardQueries';
@@ -21,7 +21,14 @@ const sections=[
 
 type SectionId=(typeof sections)[number][0];
 export default function DashboardPage(){
-  const[active,setActive]=useState<SectionId>('participating');
+  const[searchParams,setSearchParams]=useSearchParams();
+  const tabParam=searchParams.get('tab');
+  const initialTab=sections.some(([id])=>id===tabParam)?tabParam as SectionId:'participating';
+  const[active,setActiveState]=useState<SectionId>(initialTab);
+  const setActive=(id:SectionId)=>{
+    setActiveState(id);
+    setSearchParams(id==='participating'?{}:{tab:id},{replace:true});
+  };
   const[query,setQuery]=useState('');
   const[participatingSort,setParticipatingSort]=useState<ParticipatingAuctionSort>('ENDING_SOON');
   const[recentWinSort,setRecentWinSort]=useState<RecentWinSort>('LATEST');
