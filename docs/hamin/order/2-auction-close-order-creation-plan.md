@@ -111,4 +111,17 @@ publishAuctionClosed(auction, winner, closedAt, card);
 직접 호출 한 줄(+ `CardSnapshot` 중복 조회 제거를 위한 `publishAuctionClosed` 시그니처 조정)만
 추가하면 이슈 232 요구사항이 충족된다.
 
+## 실제 구현 결과
+
+계획과 동일하게 구현했다. 추가로 확인/처리한 것:
+
+- `AuctionDueClosingParallelIntegrationTest`(실제 DB를 쓰는 병렬 마감 통합 테스트)는
+  `OrderService`를 목이 아닌 실제 빈으로 물고 있어, 이 변경으로 실제 `orders` 로우가 생기게
+  됐다. `tearDown`이 `auctions`를 지우기 전에 `orders`를 먼저 지우지 않아 FK 제약 위반으로
+  깨졌던 것을 수정했고, 겸사겸사 4건 모두 `orders`가 `PENDING_CONFIRM` 상태로 정상 생성됐는지
+  검증하는 어서션을 추가해 이 이슈의 end-to-end 동작을 실제로 증명하도록 했다.
+- `AuctionCommandService` 생성자를 직접 호출하는 단위 테스트 3곳(`AuctionServiceCloseTest`,
+  `AuctionServiceBidTest`, `AuctionRegistrationContractTest`)의 생성자 인자를 갱신하고, 낙찰/
+  유찰 각 분기에 `orderService` 호출 여부 검증을 추가했다.
+
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
