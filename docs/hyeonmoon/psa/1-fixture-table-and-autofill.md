@@ -12,7 +12,7 @@ PSA API도 없는 번호는 조회 실패를 반환하는 게 정상이므로, �
 
 ```text
 GET /api/psa-certifications/{number}
-  등록된 번호 → 200 { itemId, gradeType: "psa", psaGrade, population }
+  등록된 번호 → 200 { itemId, gradeType: "psa", psaGrade, population, issuedYear, cardNumber }
   미등록 번호 → 404
 
 GET /api/psa-certifications/sample
@@ -20,8 +20,9 @@ GET /api/psa-certifications/sample
 ```
 
 핵심 설계 결정: fixture 테이블은 `psa_grade`를 직접 저장하지 않고 `item_id`로
-`card_metadata`를 참조한다. 그래서 응답 등급은 항상 그 카드의 실제 `card_metadata.psa_grade`와
-같다는 게 스키마 레벨로 보장된다 — `AuctionCommandService.validatePsaCertification()`
+`card_metadata`를 참조한다. 등급뿐 아니라 카드 번호와 발행 연도도 카드 자체의 속성이므로
+`card_metadata`가 소유하고 fixture에는 중복하지 않는다. 그래서 응답 등급은 항상 그 카드의 실제
+`card_metadata.psa_grade`와 같다는 게 스키마 레벨로 보장된다 — `AuctionCommandService.validatePsaCertification()`
 ([AuctionCommandService.java:335](../../../backend/src/main/java/com/dbidding/auction/service/AuctionCommandService.java:335))의
 "인증 등급과 선택한 카드 등급이 일치해야 한다" 검증과 fixture 데이터가 절대 어긋날 수 없다.
 
@@ -54,7 +55,8 @@ GET /api/psa-certifications/sample
 - OCR(카드/라벨 사진 인식) 관련 버튼이나 자리는 추가하지 않는다 — 이번 범위 밖.
 - `AuctionCreateRequest`, `/api/auctions` 계약, `AuctionCommandService.validatePsaCertification()`의
   검증 로직 자체는 변경하지 않는다 — 이번 작업은 "폼을 얼마나 자동으로 채워주는가"만 바꾼다.
-- 기존 `card_metadata`, `auctions` 테이블 컬럼은 변경하지 않는다.
+- `card_sets`는 카드 컬렉션 기준 데이터로 유지한다. PSA fixture에 세트 정보를 중복하거나
+  `card_sets`를 제거하지 않는다.
 
 ---
 
@@ -238,6 +240,20 @@ git add docs/hyeonmoon/psa/README.md
 git commit -m "docs: PSA fixture 자동 채움 문서 반영"
 ```
 
+### 후속 변경: 카드 메타데이터 자동 채움과 등급 UI
+
+발행 연도와 카드 번호는 PSA 인증번호마다 달라지는 값이 아니라 카드 카탈로그의 속성이다.
+따라서 `psa_certification_fixtures`에는 추가하지 않고, 연결된 `card_metadata`에서 조회한다.
+`card_sets`는 카드 묶음의 기준 데이터이므로 그대로 둔다.
+
+- [x] `card_metadata`에 nullable `issued_year CHAR(4)`, `card_number VARCHAR(50)`를 추가했다.
+- [x] PSA fixture 시드의 연결 카드 3건에 발행 연도·카드 번호를 입력했다.
+- [x] PSA 응답에 두 값을 포함하고, 판매 등록 폼의 발행 연도·카드 번호를 자동 채운다.
+- [x] OCR 보조 기능은 판매 등록 화면에서 제거했다. API 자체의 제거는 이번 범위에 포함하지 않는다.
+- [x] PSA 인증 전에는 자체 평가만, 인증 완료 후에는 PSA 등급만 표시한다. 인증번호를 수정하면
+  자체 평가 상태로 되돌린다.
+- [x] PSA 서비스·카드 조회 서비스·판매 등록 화면 회귀 테스트를 실행했다.
+
 ## 완료 조건
 
 - 등록된 PSA 인증번호를 입력하면 카드 선택부터 등급·population까지 전부 자동으로 채워진다.
@@ -245,6 +261,8 @@ git commit -m "docs: PSA fixture 자동 채움 문서 반영"
 - fixture가 반환하는 등급은 항상 연결된 `card_metadata.psa_grade`와 같다(스키마 FK로 보장).
 - "예시 인증번호 채우기" 버튼이 입력창 위에 있고, 실제 등록된 번호를 채워준다.
 - OCR 관련 UI가 추가되지 않는다.
+- 발행 연도와 카드 번호는 fixture가 아닌 연결된 `card_metadata`가 소유한다.
+- PSA 인증 전에는 자체 평가만 보이고, 인증 완료 후에는 PSA 등급만 보인다.
 - `AuctionCreateRequest`/`/api/auctions` 계약과 기존 등급 일치 검증 로직은 변경되지 않는다.
 - 전체 백엔드 테스트가 실패 없이 통과한다.
 
