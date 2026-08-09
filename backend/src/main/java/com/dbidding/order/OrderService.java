@@ -6,7 +6,7 @@ import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
 import com.dbidding.order.port.OrderEventPort;
-import com.dbidding.order.port.WalletSettlementPort;
+import com.dbidding.wallet.service.WalletService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +24,7 @@ public class OrderService {
     private static final String AUCTION_UNIQUE_CONSTRAINT = "uk_orders_auction";
 
     private final OrderRepository orderRepository;
-    private final WalletSettlementPort walletSettlementPort;
+    private final WalletService walletService;
     private final OrderEventPort orderEventPort;
 
     public Order findOne(Integer orderId, Integer currentUserId) {
@@ -47,7 +47,7 @@ public class OrderService {
         requireBuyer(order, currentUserId);
 
         order.confirm();
-        walletSettlementPort.payoutToSeller(order.getSellerId(), order.getId(), order.getPrice());
+        walletService.settle(order.getSellerId(), order.getAuctionId(), order.getPrice());
         orderEventPort.publishCompleted(new OrderCompletedEvent(
                 order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId(), order.getCardName()
         ));
@@ -70,7 +70,7 @@ public class OrderService {
 
     private Order cancel(Order order, CancelledBy cancelledBy) {
         order.cancel();
-        walletSettlementPort.refundToBuyer(order.getBuyerId(), order.getId(), order.getPrice());
+        walletService.cancelRefund(order.getBuyerId(), order.getAuctionId(), order.getPrice());
         orderEventPort.publishCancelled(new OrderCancelledEvent(
                 order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId(),
                 order.getCardName(), cancelledBy
