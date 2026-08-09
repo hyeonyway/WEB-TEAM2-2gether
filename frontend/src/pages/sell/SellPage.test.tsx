@@ -90,12 +90,13 @@ describe('SellPage card selection',()=>{
     expect(await screen.findByText('검색 결과에서 카드를 선택해 주세요.')).toBeInTheDocument();
   });
 
-  it('OCR과 PSA 등급 수동 전환 버튼은 표시하지 않고 자체 평가만 표시한다',()=>{
+  it('인증 전 보조 기능과 자체 평가 버튼은 한 줄 전체를 사용한다',()=>{
     renderPage();
 
     expect(screen.queryByRole('button',{name:'OCR 자동 입력'})).not.toBeInTheDocument();
     expect(screen.queryByRole('button',{name:'PSA 등급'})).not.toBeInTheDocument();
-    expect(screen.getByRole('button',{name:'자체 평가'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'PSA 인증 조회'}).parentElement).toHaveClass('sell-single-action');
+    expect(screen.getByRole('button',{name:'자체 평가'}).parentElement).toHaveClass('sell-single-action');
   });
 
   it('등록된 PSA 인증번호는 카드 검색 없이 fixture 카드로 자동 선택한다',async()=>{
@@ -115,6 +116,7 @@ describe('SellPage card selection',()=>{
     expect(screen.getByLabelText('카드 번호')).toHaveValue('SV-P 001');
     expect(screen.queryByRole('button',{name:'자체 평가'})).not.toBeInTheDocument();
     expect(screen.getByRole('button',{name:'PSA 등급'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'PSA 등급'}).parentElement).toHaveClass('sell-single-action');
   });
 
   it('미등록 PSA 인증번호는 기존 카드 선택을 유지하고 인라인 오류를 표시한다',async()=>{
