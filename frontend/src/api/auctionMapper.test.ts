@@ -18,6 +18,7 @@ const auctionResponse:AuctionResponseDto={
   bid_increment:1000,
   minimum_bid:121000,
   bid_count:3,
+  buy_now_price:150000,
   starts_at:'2026-07-30T00:00:00',
   ends_at:'2026-07-31T12:00:00',
   status:'OPEN',
@@ -37,5 +38,6 @@ describe('mapAuction',()=>{
     });
 
     expect(auction.card.language).toBe(expected);
+    expect(auction.buyNowPrice).toBe(150000);
   });
 });

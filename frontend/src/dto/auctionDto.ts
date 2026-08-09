@@ -84,6 +84,7 @@ export type AuctionResponseDto={
   bid_increment:number;
   minimum_bid:number;
   bid_count:number;
+  buy_now_price?:number|null;
   starts_at:string;
   ends_at:string;
   status:AuctionStatus;
@@ -202,6 +203,7 @@ export type AuctionDto={
   currentPrice:number;
   bidIncrement:number;
   bidCount:number;
+  buyNowPrice?:number|null;
   startsAt?:string;
   endsAt:string;
   status:AuctionStatus;
