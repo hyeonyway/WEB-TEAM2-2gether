@@ -21,10 +21,10 @@ import com.dbidding.account.domain.Account;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.password.PasswordHash;
 import com.dbidding.account.password.PasswordHasher;
-import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.service.SignupService;
 import com.dbidding.account.support.AccountMySqlIntegrationTest;
+import com.dbidding.wallet.repository.WalletRepository;
 
 class AuthTransactionScopeTest extends AccountMySqlIntegrationTest {
 
@@ -47,7 +47,7 @@ class AuthTransactionScopeTest extends AccountMySqlIntegrationTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@MockitoSpyBean
-	private WalletProvisioningPort walletProvisioningPort;
+	private WalletRepository walletRepository;
 
 	@Test
 	void 로그인_비밀번호_검증은_트랜잭션_밖에서_하고_refresh_hash_저장은_트랜잭션_안에서_한다() {
@@ -96,8 +96,8 @@ class AuthTransactionScopeTest extends AccountMySqlIntegrationTest {
 			transactionActiveDuringWalletProvisioning.set(
 				TransactionSynchronizationManager.isActualTransactionActive()
 			);
-			return invocation.callRealMethod();
-		}).when(walletProvisioningPort).createFor(org.mockito.ArgumentMatchers.anyInt());
+			return false;
+		}).when(walletRepository).existsByUserId(org.mockito.ArgumentMatchers.anyInt());
 
 		var response = signupService.signup(new SignupRequest(
 			"signup-scope@example.com",

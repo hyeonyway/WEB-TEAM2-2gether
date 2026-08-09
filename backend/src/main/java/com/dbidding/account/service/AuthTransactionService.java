@@ -11,8 +11,8 @@ import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.password.PasswordHash;
-import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.repository.AccountRepository;
+import com.dbidding.wallet.service.WalletService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -24,7 +24,7 @@ public class AuthTransactionService {
 	private static final String NICKNAME_UNIQUE_CONSTRAINT = "uk_users_nickname";
 
 	private final AccountRepository accountRepository;
-	private final WalletProvisioningPort walletProvisioningPort;
+	private final WalletService walletService;
 
 	@Transactional
 	public SignupResponse createAccountWithWallet(SignupRequest request, PasswordHash password) {
@@ -45,7 +45,7 @@ public class AuthTransactionService {
 			}
 			throw exception;
 		}
-		walletProvisioningPort.createFor(account.getId());
+		walletService.provision(account.getId());
 		return SignupResponse.from(account);
 	}
 
