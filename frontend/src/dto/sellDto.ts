@@ -38,6 +38,8 @@ export type PsaCertification={
   gradeType:'psa';
   psaGrade:string;
   population:string;
+  issuedYear:string;
+  cardNumber:string;
 };
 
 export type PsaCertificationSample={
