@@ -26,6 +26,7 @@ import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.card.service.CardService;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.order.OrderService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -65,6 +66,7 @@ public class AuctionCommandService {
     private final ImageUploadPort imageUploadPort;
     private final AuctionEventPublisher auctionEventPublisher;
     private final CardService cardService;
+    private final OrderService orderService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
     private final AuctionMetrics auctionMetrics;
@@ -469,7 +471,7 @@ public class AuctionCommandService {
         Optional<Bid> winningBid = highestBid(auction.getId());
         if (winningBid.isEmpty()) {
             auction.closeWithoutTrade(closedAt);
-            publishAuctionClosed(auction, null, closedAt);
+            publishAuctionClosed(auction, null, closedAt, cardService.getCardSnapshot(auction.getItemId()));
             log.info("event=auction.closed.without_trade auctionId={} itemId={} sellerId={} closedAt={} status={} bidCount={}",
                     auction.getId(), auction.getItemId(), auction.getSellerId(), closedAt,
                     auction.getStatus(), auction.getBidCount());
@@ -480,7 +482,11 @@ public class AuctionCommandService {
         winner.markWon();
         auction.closeWithWinningBid(winner, closedAt);
         walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
-        publishAuctionClosed(auction, winner, closedAt);
+        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
+        orderService.createFromAuctionClosed(
+                auction.getId(), winner.getBidderId(), auction.getSellerId(), card.name(), winner.getBidPrice()
+        );
+        publishAuctionClosed(auction, winner, closedAt, card);
         log.info(
                 "event=auction.closed.with_winner auctionId={} itemId={} sellerId={} winnerId={} winningBidId={} winningPrice={} closedAt={} status={} bidCount={}",
                 auction.getId(), auction.getItemId(), auction.getSellerId(), winner.getBidderId(), winner.getId(),
@@ -512,8 +518,7 @@ public class AuctionCommandService {
         ));
     }
 
-    private void publishAuctionClosed(Auction auction, Bid winningBid, Instant occurredAt) {
-        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
+    private void publishAuctionClosed(Auction auction, Bid winningBid, Instant occurredAt, CardSnapshot card) {
         Integer winnerId = winningBid == null ? null : winningBid.getBidderId();
         Long winningPrice = winningBid == null ? null : winningBid.getBidPrice();
 
