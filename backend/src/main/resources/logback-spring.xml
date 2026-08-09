@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <property name="LOG_DIRECTORY" value="logs"/>
+    <springProperty scope="context" name="slackWebhookUrl" source="logging.slack.webhook-url" defaultValue=""/>
+    <springProperty scope="context" name="slackServiceName" source="spring.application.name" defaultValue="dbidding"/>
+    <springProperty scope="context" name="slackEnvironment" source="logging.slack.environment" defaultValue="default"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
@@ -24,8 +27,27 @@
         </rollingPolicy>
     </appender>
 
+    <appender name="SLACK" class="com.dbidding.global.logging.SlackWebhookAppender">
+        <webhookUrl>${slackWebhookUrl}</webhookUrl>
+        <service>${slackServiceName}</service>
+        <environment>${slackEnvironment}</environment>
+        <rateLimitWindowSeconds>60</rateLimitWindowSeconds>
+        <maximumAlertsPerWindow>3</maximumAlertsPerWindow>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+    </appender>
+
+    <appender name="SLACK_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>500</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="SLACK"/>
+    </appender>
+
     <root level="DEBUG">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="SLACK_ASYNC"/>
     </root>
 </configuration>
