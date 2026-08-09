@@ -12,6 +12,7 @@ import com.dbidding.auction.service.AuctionQueryService;
 import com.dbidding.global.security.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -84,6 +85,11 @@ public class AuctionController {
             @PathVariable @Min(1) Integer auctionId
     ) {
         return auctionQueryService.getBidContext(userId, auctionId);
+    }
+
+    @GetMapping("/mine/failed")
+    public List<AuctionResponses.FailedAuctionSummary> getFailedAuctions(@CurrentUser Integer userId) {
+        return auctionQueryService.getFailedAuctions(userId);
     }
 
 }
