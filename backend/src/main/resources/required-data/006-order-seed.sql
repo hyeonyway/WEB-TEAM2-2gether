@@ -26,20 +26,20 @@ INSERT INTO `auctions`
   (`id`, `user_id`, `item_id`, `auction_name`, `description`,
    `start_price`, `current_price`, `buy_now_price`, `delivery_fee`,
    `status`, `open_time`, `estimated_close_time`, `close_time`,
-   `bid_count`, `bid_price_unit`, `is_hyped`, `version`)
+   `bid_count`, `bid_price_unit`, `is_hyped`)
 VALUES
   (3000301, 1, 6, '피카츄 P 유나가바 소드&실드 프로모 카드 경매', '판매 주문 시드 #1',
    50000, 68000, 90000, 3000,
    'ENDED', NOW(6) - INTERVAL 3 DAY, NOW(6) - INTERVAL 2 DAY, NOW(6) - INTERVAL 2 DAY,
-   3, 3000, FALSE, 1),
+   3, 3000, FALSE),
   (3000302, 1, 7, '피카츄 P 스칼렛&바이올렛 프로모 카드 경매', '판매 주문 시드 #2',
    40000, 55000, 80000, 3000,
    'ENDED', NOW(6) - INTERVAL 2 DAY, NOW(6) - INTERVAL 1 DAY, NOW(6) - INTERVAL 1 DAY,
-   4, 3000, FALSE, 1),
+   4, 3000, FALSE),
   (3000303, 1, 8, '고라파덕 AR 메가 드림 ex 경매', '판매 주문 시드 #3',
    30000, 42000, 60000, 3000,
    'ENDED', NOW(6) - INTERVAL 1 DAY, NOW(6), NOW(6),
-   2, 2000, FALSE, 1);
+   2, 2000, FALSE);
 
 INSERT INTO `images` (`auction_id`, `image_path`)
 SELECT `auctions`.`id`, `card_metadata`.`image_path`

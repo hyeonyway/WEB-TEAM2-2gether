@@ -129,7 +129,7 @@ INSERT INTO `auctions`
   (`id`, `user_id`, `item_id`, `auction_name`, `description`,
    `start_price`, `current_price`, `buy_now_price`, `delivery_fee`,
    `status`, `open_time`, `estimated_close_time`, `close_time`,
-   `bid_count`, `bid_price_unit`, `is_hyped`, `version`)
+   `bid_count`, `bid_price_unit`, `is_hyped`)
 SELECT
   `seed`.`auction_id`,
   `seed`.`seller_id`,
@@ -159,8 +159,7 @@ SELECT
   ),
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,
-  MOD(`seed`.`item_id`, 8) = 0,
-  1
+  MOD(`seed`.`item_id`, 8) = 0
 FROM `_seed_ended_auctions` AS `seed`
 JOIN `card_metadata` AS `card` ON `card`.`id` = `seed`.`item_id`
 WHERE TRUE
@@ -179,8 +178,7 @@ ON DUPLICATE KEY UPDATE
   `close_time` = VALUES(`close_time`),
   `bid_count` = VALUES(`bid_count`),
   `bid_price_unit` = VALUES(`bid_price_unit`),
-  `is_hyped` = VALUES(`is_hyped`),
-  `version` = VALUES(`version`);
+  `is_hyped` = VALUES(`is_hyped`);
 
 INSERT INTO `images` (`auction_id`, `image_path`)
 SELECT
@@ -271,7 +269,7 @@ INSERT INTO `auctions`
   (`id`, `user_id`, `item_id`, `auction_name`, `description`,
    `start_price`, `current_price`, `buy_now_price`, `delivery_fee`,
    `status`, `open_time`, `estimated_close_time`, `close_time`,
-   `bid_count`, `bid_price_unit`, `is_hyped`, `version`)
+   `bid_count`, `bid_price_unit`, `is_hyped`)
 SELECT
   `seed`.`auction_id`,
   `seed`.`seller_id`,
@@ -294,8 +292,7 @@ SELECT
   END,
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,
-  MOD(`seed`.`item_id`, 3) = 0,
-  1
+  MOD(`seed`.`item_id`, 3) = 0
 FROM `_seed_current_auctions` AS `seed`
 JOIN `card_metadata` AS `card` ON `card`.`id` = `seed`.`item_id`
 WHERE TRUE
@@ -314,8 +311,7 @@ ON DUPLICATE KEY UPDATE
   `close_time` = VALUES(`close_time`),
   `bid_count` = VALUES(`bid_count`),
   `bid_price_unit` = VALUES(`bid_price_unit`),
-  `is_hyped` = VALUES(`is_hyped`),
-  `version` = VALUES(`version`);
+  `is_hyped` = VALUES(`is_hyped`);
 
 INSERT INTO `images` (`auction_id`, `image_path`)
 SELECT
