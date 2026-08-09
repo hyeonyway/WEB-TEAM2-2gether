@@ -1,7 +1,6 @@
 package com.dbidding.psa;
 
-import com.dbidding.card.domain.CardMetadata;
-import com.dbidding.card.repository.CardMetadataRepository;
+import com.dbidding.card.service.CardPsaGradeQueryService;
 import com.dbidding.psa.domain.PsaCertificationFixture;
 import com.dbidding.psa.exception.PsaCertificationNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -14,17 +13,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class PsaCertificationService {
 
     private final PsaCertificationFixtureRepository fixtureRepository;
-    private final CardMetadataRepository cardMetadataRepository;
+    private final CardPsaGradeQueryService cardPsaGradeQueryService;
 
     public PsaCertificationResponse lookup(String certificationNumber) {
         PsaCertificationFixture fixture = fixtureRepository.findByCertificationNumber(certificationNumber)
                 .orElseThrow(PsaCertificationNotFoundException::new);
-        CardMetadata card = cardMetadataRepository.findById(fixture.getItemId())
+        String psaGrade = cardPsaGradeQueryService.findPsaGrade(fixture.getItemId())
                 .orElseThrow(PsaCertificationNotFoundException::new);
         return new PsaCertificationResponse(
                 fixture.getItemId(),
                 "psa",
-                normalizeGrade(card.getPsaGrade()),
+                normalizeGrade(psaGrade),
                 population(certificationNumber)
         );
     }

@@ -4,8 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
-import com.dbidding.card.domain.CardMetadata;
-import com.dbidding.card.repository.CardMetadataRepository;
+import com.dbidding.card.service.CardPsaGradeQueryService;
 import com.dbidding.psa.domain.PsaCertificationFixture;
 import com.dbidding.psa.exception.PsaCertificationNotFoundException;
 import java.util.Optional;
@@ -22,10 +21,7 @@ class PsaCertificationServiceTest {
     private PsaCertificationFixtureRepository fixtureRepository;
 
     @Mock
-    private CardMetadataRepository cardMetadataRepository;
-
-    @Mock
-    private CardMetadata cardMetadata;
+    private CardPsaGradeQueryService cardPsaGradeQueryService;
 
     @InjectMocks
     private PsaCertificationService service;
@@ -34,8 +30,7 @@ class PsaCertificationServiceTest {
     void 등록된_인증번호는_연결된_카드의_등급과_itemId를_반환한다() {
         PsaCertificationFixture fixture = new PsaCertificationFixture("12345678", 27);
         given(fixtureRepository.findByCertificationNumber("12345678")).willReturn(Optional.of(fixture));
-        given(cardMetadataRepository.findById(27)).willReturn(Optional.of(cardMetadata));
-        given(cardMetadata.getPsaGrade()).willReturn("PSA 10");
+        given(cardPsaGradeQueryService.findPsaGrade(27)).willReturn(Optional.of("PSA 10"));
 
         PsaCertificationService.PsaCertificationResponse response = service.lookup("12345678");
 
