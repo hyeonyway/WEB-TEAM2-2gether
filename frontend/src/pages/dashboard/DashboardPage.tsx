@@ -11,6 +11,7 @@ import {HttpError} from '../../api/httpClient';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
 import AuctionCatalogSkeleton from '../auction/components/AuctionCatalogSkeleton';
 import OrdersPanel from './components/OrdersPanel';
+import './DashboardPage.css';
 
 const sections=[
   ['participating','참여 중인 경매','현재 참여 중인 경매를 확인하세요.'],
@@ -78,7 +79,7 @@ export default function DashboardPage(){
             <p className="catalog-count">
               전체 {auctions.length.toLocaleString()}개{normalizedQuery&&` · ${visible.length.toLocaleString()}개 표시 중`}
             </p>}
-          <section className={`cards-dash-section ${active==='participating'?'participating-section':''}`}>
+          <section className={`cards-dash-section ${active==='participating'?'participating-section':''} ${active==='recent-wins'?'recent-wins-section':''}`}>
             <div className="cards-dash-section-head"><div><h2>{section[1]}</h2><p>{section[2]}</p></div></div>
             {dashboard.isPending
               ? <AuctionCatalogSkeleton label="대시보드 경매 목록을 불러오는 중"/>
