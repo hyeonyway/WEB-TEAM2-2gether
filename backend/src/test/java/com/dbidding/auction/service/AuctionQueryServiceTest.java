@@ -224,6 +224,22 @@ class AuctionQueryServiceTest {
                 .containsExactly("/uploads/front.png", "/uploads/back.png");
     }
 
+    @Test
+    void 판매자의_유찰_경매를_마감_최신순으로_조회한다() {
+        Auction failed = auction(1, AuctionStatus.FAILED, 42_000L, 0);
+        when(auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(2, AuctionStatus.FAILED))
+                .thenReturn(List.of(failed));
+        when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
+
+        var response = auctionQueryService.getFailedAuctions(2);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().id()).isEqualTo(1);
+        assertThat(response.getFirst().cardName()).isEqualTo("Mock Card");
+        assertThat(response.getFirst().startPrice()).isEqualTo(42_000L);
+        assertThat(response.getFirst().closedAt()).isEqualTo(failed.getCloseTime());
+    }
+
     private CardSnapshot card(Integer itemId) {
         return new CardSnapshot(itemId, "Mock Card", "Mock Set", "10", "JP", "/mock/card.png");
     }
