@@ -4,6 +4,7 @@ import {useNavigate} from 'react-router-dom';
 import {showAuthRequiredToast} from '../auth/useAuthGate';
 import {useNotifications} from '../hooks/useNotifications';
 import {formatLocalDate} from '../utils/dateTime';
+import {getNotificationPath} from '../utils/notificationNavigation';
 import {showToast} from './Toast';
 import type {NotificationDto} from '../dto/notificationDto';
 
@@ -104,7 +105,7 @@ export default function NotificationBell(){
   const handleNavigate=(notification:NotificationDto)=>{
     markAsRead(notification.id);
     setIsOpen(false);
-    navigate(`/auction/${notification.auctionId}`);
+    navigate(getNotificationPath(notification));
   };
 
   return <div className="notification-bell">
