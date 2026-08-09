@@ -96,6 +96,24 @@ describe('AuctionDetailPage',()=>{
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('입찰 팝업을 열기 전에 최신 입찰 컨텍스트를 다시 조회한다',async()=>{
+    apiMocks.bidContext.mockResolvedValue({
+      auction_id:10,status:'OPEN',version:1,current_price:12000,minimum_bid:13000,bid_increment:1000,
+      my_bid_status:'OUTBID',my_bid_amount:12000,
+      wallet:{available_balance:100000,frozen_balance:0},recent_bids:[],
+    });
+    renderAnonymousDetail('authenticated');
+    const user=userEvent.setup();
+
+    await screen.findByRole('button',{name:'13,000원부터 입찰하기'});
+    expect(apiMocks.bidContext).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole('button',{name:'13,000원부터 입찰하기'}));
+
+    await waitFor(()=>expect(apiMocks.bidContext).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('dialog',{name:'피카츄 경매 참여'})).toBeInTheDocument();
+  });
+
   it('즉시 구매가가 없는 경매도 상세 정보를 표시한다',async()=>{
     apiMocks.detail.mockResolvedValue({...detail,buy_now_price:null});
 
