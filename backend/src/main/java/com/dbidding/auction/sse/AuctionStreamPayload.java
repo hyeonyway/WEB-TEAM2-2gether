@@ -32,7 +32,8 @@ public record AuctionStreamPayload(
         Instant endsAt,
         AuctionStatus status,
         Instant closedAt,
-        Instant occurredAt
+        Instant occurredAt,
+        Instant publishedAt
 ) {
     public static AuctionStreamPayload created(AuctionOpenedEvent event) {
         return new AuctionStreamPayload(
@@ -40,7 +41,7 @@ public record AuctionStreamPayload(
                 event.cardPsaGrade(), event.cardLanguage(), event.cardThumbnailUrl(), event.sellerId(),
                 null, null, null, event.startPrice(), event.currentPrice(), null,
                 event.bidIncrement(), event.bidCount(), event.closeTime(),
-                event.status(), null, event.occurredAt());
+                event.status(), null, event.occurredAt(), null);
     }
 
     public static AuctionStreamPayload bidPlaced(BidPlacedEvent event) {
@@ -48,7 +49,7 @@ public record AuctionStreamPayload(
                 AuctionStreamEventType.BID_PLACED, event.auctionId(), null, null, null, null, null, null,
                 event.bidderId(), event.previousBidderId(), null, event.startPrice(), event.currentPrice(), null,
                 event.bidIncrement(), event.bidCount(), event.closeTime(),
-                event.status(), null, event.occurredAt());
+                event.status(), null, event.occurredAt(), null);
     }
 
     public static AuctionStreamPayload closed(AuctionClosedEvent event) {
@@ -58,6 +59,14 @@ public record AuctionStreamPayload(
                 null, null, event.winnerId(), event.startPrice(), event.currentPrice(), event.winningPrice(),
                 event.bidIncrement(), event.bidCount(), event.closeTime(),
                 event.status(), event.closeTime(),
-                event.occurredAt());
+                event.occurredAt(), null);
+    }
+
+    public AuctionStreamPayload withPublishedAt(Instant publishedAt) {
+        return new AuctionStreamPayload(
+                type, auctionId, cardId, cardName, cardPsaGrade, cardLanguage, cardThumbnailUrl, sellerId,
+                bidderId, previousBidderId, winnerId, startPrice, currentPrice, finalPrice, bidIncrement,
+                bidCount, endsAt, status, closedAt, occurredAt, publishedAt
+        );
     }
 }

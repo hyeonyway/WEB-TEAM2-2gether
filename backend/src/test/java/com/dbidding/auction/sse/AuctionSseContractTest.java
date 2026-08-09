@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
 import java.util.Optional;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.context.annotation.Profile;
@@ -62,8 +63,20 @@ class AuctionSseContractTest {
     }
 
     @Test
+    void 발행시각은_SSE_payload에_직렬화한다() throws Exception {
+        var mapper = JsonMapper.builder().addModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
+        Instant publishedAt = now.plusMillis(50);
+
+        var json = mapper.readTree(mapper.writeValueAsBytes(bidPayload().withPublishedAt(publishedAt)));
+
+        assertThat(json.get("published_at").asText()).isEqualTo("2026-07-30T12:00:00.050Z");
+    }
+
+    @Test
     void 전달_실패한_연결은_제거한다() throws Exception {
-        var manager = new AuctionSseConnectionManager();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        var manager = manager(registry);
         SseEmitter emitter = mock(SseEmitter.class);
         manager.register(emitter);
         doThrow(new IOException("disconnected")).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
@@ -72,11 +85,12 @@ class AuctionSseContractTest {
 
         assertThat(manager.connectionCount()).isZero();
         verify(emitter).complete();
+        assertThat(registry.get("dbidding.auction.sse.send.failures").counter().count()).isEqualTo(1);
     }
 
     @Test
     void heartbeat은_연결된_emitter에_주석_메시지를_전송한다() throws Exception {
-        var manager = new AuctionSseConnectionManager();
+        var manager = manager();
         SseEmitter emitter = mock(SseEmitter.class);
         manager.register(emitter);
         SseEmitter.SseEventBuilder heartbeat = mock(SseEmitter.SseEventBuilder.class);
@@ -94,7 +108,7 @@ class AuctionSseContractTest {
 
     @Test
     void 테스트용_연결_종료는_모든_emitter를_완료하고_제거한다() {
-        var manager = new AuctionSseConnectionManager();
+        var manager = manager();
         SseEmitter first = mock(SseEmitter.class);
         SseEmitter second = mock(SseEmitter.class);
         manager.register(first);
@@ -165,7 +179,15 @@ class AuctionSseContractTest {
         return new AuctionStreamPayload(
                 AuctionStreamEventType.BID_PLACED, auctionId, null, null, null, null, null, null,
                 7, 5, null, 40_000L, 50_000L, null, 1_000L, 2,
-                now.plusSeconds(3600), AuctionStatus.OPEN, null, now
+                now.plusSeconds(3600), AuctionStatus.OPEN, null, now, null
         );
+    }
+
+    private AuctionSseConnectionManager manager() {
+        return manager(new SimpleMeterRegistry());
+    }
+
+    private AuctionSseConnectionManager manager(SimpleMeterRegistry registry) {
+        return new AuctionSseConnectionManager(Clock.fixed(now, java.time.ZoneOffset.UTC), new AuctionSseMetrics(registry));
     }
 }
