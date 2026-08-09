@@ -75,6 +75,11 @@ management:
       slo:
         http.server.requests: 100ms,300ms,500ms,1s,2s
 
+logging:
+  slack:
+    webhook-url: ${SLACK_LOG_WEBHOOK_URL:}
+    environment: ${SPRING_PROFILES_ACTIVE:default}
+
 cloud:
   aws:
     region: ${AWS_REGION:ap-northeast-2}
