@@ -60,7 +60,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
     <button className="bid-close" onClick={onClose} aria-label="닫기">×</button>
     <small>실시간 카드 경매</small><h2>경매 참여</h2><p className="bid-card-name">{auction.card.name}</p>
     <div className="bid-tabs" role="tablist" aria-label="경매 방식"><button type="button" role="tab" aria-selected={activeTab==='bid'} className={activeTab==='bid'?'active':''} onClick={()=>setActiveTab('bid')}>일반 경매</button><button type="button" role="tab" aria-selected={activeTab==='buy-now'} className={activeTab==='buy-now'?'active':''} disabled={buyNowPrice===null} onClick={()=>setActiveTab('buy-now')}>즉시 낙찰</button></div>
-    {leading&&<div className="bid-leading-notice"><CheckCircle2/><span><b>현재 최고가 입찰 중입니다.</b><small>입찰 현황은 확인할 수 있지만 추가 입찰은 제한됩니다.</small></span></div>}
+    {leading&&<div className="bid-leading-notice"><CheckCircle2/><span><b>현재 최고가 입찰 중입니다.</b><small>{activeTab==='buy-now'?'즉시 낙찰은 진행할 수 있습니다.':'입찰 현황은 확인할 수 있지만 추가 입찰은 제한됩니다.'}</small></span></div>}
     <div className="bid-wallet"><span><Wallet/>전자지갑 포인트</span><strong>{wallet.toLocaleString()}P</strong></div>
     {activeTab==='bid'?<>
       <div className="bid-current"><span>현재 경매가<b><AnimatedBidValue value={currentPrice}/></b></span><span>최소 입찰가<b><AnimatedBidValue value={minimum}/></b></span></div>
@@ -73,7 +73,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       <div className="bid-current"><span>현재 경매가<b><AnimatedBidValue value={currentPrice}/></b></span><span>즉시 낙찰가<b><AnimatedBidValue value={buyNowPrice!}/></b></span></div>
       <section className="buy-now-notice"><h3>즉시 낙찰 안내</h3><p>즉시 낙찰 시 경매가 바로 종료되며, 이후 취소할 수 없습니다.</p><label className="buy-now-agreement"><input type="checkbox" checked={buyNowAgreed} onChange={event=>setBuyNowAgreed(event.target.checked)}/><span>즉시 낙찰 시 취소할 수 없음에 동의합니다.</span></label></section>
       <div className="bid-balance"><span>낙찰 후 잔여 포인트</span><b>{Math.max(0,wallet-buyNowPrice!).toLocaleString()}P</b></div>{insufficientBuyNow&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">즉시 낙찰하지 못했습니다. 현재 상태와 잔액을 다시 확인해 주세요.</p>}
-      <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||leading||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!})}>{closed?'경매 종료':leading?'현재 최고가 입찰 중':bidMutation.isPending?'즉시 낙찰 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 낙찰하기`}</button>
+      <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!})}>{closed?'경매 종료':bidMutation.isPending?'즉시 낙찰 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 낙찰하기`}</button>
     </>}
   </section></div>;
 }

@@ -175,6 +175,27 @@ class AuctionServiceBidTest {
     }
 
     @Test
+    void 현재_최고가_입찰자도_즉시구매할_수_있다() {
+        Auction auction = auction(1);
+        Bid previous = Bid.leading(2, auction, 90_000L, clock.instant(), "previous", "hash");
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.of(previous));
+        when(walletService.hold(2, 1, 100_000L)).thenReturn(new WalletBalanceResponse(1_000_000L, 100_000L, 900_000L));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
+            Bid bid = invocation.getArgument(0);
+            when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING)).thenReturn(Optional.of(bid));
+            return bid;
+        });
+
+        auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+
+        assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
+        verify(walletService).hold(2, 1, 100_000L);
+        verify(walletService, never()).release(2, 1);
+        verify(walletService).capture(2, 1, 100_000L);
+    }
+
+    @Test
     void 서로_다른_두_지갑을_처리할_때_사용자_ID_오름차순으로_락을_획득한다() {
         Auction auction = auction(1);
         Bid previous = Bid.leading(3, auction, 90_000L, clock.instant(), "previous", "hash");

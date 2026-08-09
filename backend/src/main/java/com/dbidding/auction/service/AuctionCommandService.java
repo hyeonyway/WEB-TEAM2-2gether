@@ -184,7 +184,9 @@ public class AuctionCommandService {
         long bidPrice = bidPrice(auction, request.price());
         boolean buyNow = isBuyNowBid(auction, request.price());
         Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
-        validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
+        if (!buyNow) {
+            validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
+        }
 
         Instant bidAt = now();
         Instant previousCloseTime = auction.getCloseTime();
