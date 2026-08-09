@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {clearAccessToken,setAccessToken} from './accessTokenStore';
-import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions} from './auctionApi';
+import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchFailedAuctions} from './auctionApi';
 
 const auctionResponse={
   id:10,
@@ -79,6 +79,21 @@ describe('auctionApi',()=>{
     const headers=new Headers(options?.headers);
     expect(headers.get('Authorization')).toBe('Bearer auction-access-token');
     expect(headers.get('Idempotency-Key')).toBe('bid-key');
+  });
+
+  it('JWT로 판매자 본인의 유찰 경매 목록을 조회한다',async()=>{
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse([
+      {id:1,card_name:'리자몽',start_price:42000,closed_at:'2026-07-31T03:00:00Z'},
+    ]));
+
+    const failedAuctions=await fetchFailedAuctions();
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/auctions/mine/failed');
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization'))
+      .toBe('Bearer auction-access-token');
+    expect(failedAuctions).toEqual([
+      {id:1,cardName:'리자몽',startPrice:42000,closedAt:'2026-07-31T03:00:00Z'},
+    ]);
   });
 
   it('경매 상세와 입찰 이력은 공개로, 입찰 컨텍스트는 JWT로 조회한다',async()=>{
