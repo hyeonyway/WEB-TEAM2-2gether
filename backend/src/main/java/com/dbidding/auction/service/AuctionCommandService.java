@@ -1,8 +1,8 @@
 package com.dbidding.auction.service;
 
+import com.dbidding.auction.IdempotencyKeys;
 import com.dbidding.auction.bid.BidCommand;
 import com.dbidding.auction.bid.BidExecutor;
-import com.dbidding.auction.bid.IdempotencyKeys;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionStatus;

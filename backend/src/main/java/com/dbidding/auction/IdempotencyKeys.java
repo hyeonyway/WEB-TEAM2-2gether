@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction;
 
 import com.dbidding.auction.exception.AuctionException;
 import java.nio.charset.StandardCharsets;

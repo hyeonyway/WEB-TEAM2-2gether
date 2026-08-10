@@ -1,5 +1,6 @@
 package com.dbidding.auction.bid;
 
+import com.dbidding.auction.IdempotencyKeys;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
