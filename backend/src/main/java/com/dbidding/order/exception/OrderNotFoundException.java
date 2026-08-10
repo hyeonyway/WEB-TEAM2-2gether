@@ -1,12 +1,12 @@
 package com.dbidding.order.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.NOT_FOUND)
-public class OrderNotFoundException extends RuntimeException {
+import com.dbidding.global.exception.ApiException;
+
+public class OrderNotFoundException extends ApiException {
 
     public OrderNotFoundException() {
-        super("주문을 찾을 수 없습니다.");
+        super(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "주문을 찾을 수 없습니다.");
     }
 }
