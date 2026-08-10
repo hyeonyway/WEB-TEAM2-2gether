@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.dbidding.auction.dto.AuctionResponses;
+import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.service.AuctionCommandService;
 import com.dbidding.auction.service.AuctionQueryService;
 import com.dbidding.global.exception.UnauthorizedException;
@@ -48,10 +49,21 @@ class AuctionControllerTest {
     }
 
     @Test
-    void 미인증_요청은_401을_반환한다() throws Exception {
+	void 미인증_요청은_401을_반환한다() throws Exception {
         given(currentUserProvider.getCurrentUserId()).willThrow(new UnauthorizedException());
 
         mockMvc.perform(get("/api/auctions/mine/failed"))
-                .andExpect(status().isUnauthorized());
-    }
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 존재하지_않는_경매는_공통_오류_응답으로_반환한다() throws Exception {
+		given(currentUserProvider.getCurrentUserId()).willReturn(7);
+		given(auctionQueryService.getDetail(7, 999)).willThrow(AuctionException.notFound());
+
+		mockMvc.perform(get("/api/auctions/{auctionId}", 999))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("AUCTION_NOT_FOUND"))
+				.andExpect(jsonPath("$.message").value("경매를 찾을 수 없습니다."));
+	}
 }

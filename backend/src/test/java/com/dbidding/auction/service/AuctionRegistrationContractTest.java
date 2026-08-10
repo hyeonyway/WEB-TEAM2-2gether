@@ -34,7 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.web.server.ResponseStatusException;
+import com.dbidding.auction.exception.AuctionException;
 
 @ExtendWith(MockitoExtension.class)
 class AuctionRegistrationContractTest {
@@ -141,7 +141,7 @@ class AuctionRegistrationContractTest {
         );
 
         assertThatThrownBy(() -> auctionCommandService.create(1, request, "buy-now-range-key"))
-                .isInstanceOf(ResponseStatusException.class)
+				.isInstanceOf(AuctionException.class)
                 .hasMessageContaining("호가 단위");
     }
 
@@ -163,7 +163,7 @@ class AuctionRegistrationContractTest {
         );
 
         assertThatThrownBy(() -> auctionCommandService.create(1, request, "psa-required-key"))
-                .isInstanceOf(ResponseStatusException.class)
+				.isInstanceOf(AuctionException.class)
                 .hasMessageContaining("PSA 인증번호");
     }
 
@@ -201,7 +201,7 @@ class AuctionRegistrationContractTest {
         );
 
         assertThatThrownBy(() -> auctionCommandService.create(1, request, "psa-grade-mismatch-key"))
-                .isInstanceOf(ResponseStatusException.class)
+				.isInstanceOf(AuctionException.class)
                 .hasMessageContaining("등급이 일치하지 않습니다");
     }
 

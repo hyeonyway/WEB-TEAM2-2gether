@@ -1,10 +1,5 @@
 package com.dbidding.auction.service;
 
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.FORBIDDEN;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionStatus;
@@ -18,6 +13,7 @@ import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.metrics.AuctionMetrics.BidStep;
 import com.dbidding.auction.metrics.AuctionMetrics.BidResult;
@@ -50,7 +46,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -153,7 +148,7 @@ public class AuctionCommandService {
             BidResponses.BidResult result = participateInternal(userId, auctionId, request, idempotencyKey);
             auctionMetrics.finishBid(sample, BidResult.ACCEPTED);
             return result;
-        } catch (ResponseStatusException exception) {
+		} catch (AuctionException exception) {
             auctionMetrics.finishBid(sample, BidResult.REJECTED);
             throw exception;
         } catch (RuntimeException exception) {
@@ -171,7 +166,7 @@ public class AuctionCommandService {
         validateIdempotencyKey(idempotencyKey);
         String requestHash = bidRequestHash(request);
         Auction auction = findByIdForUpdate(auctionId, LockOperation.BID)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
+				.orElseThrow(AuctionException::notFound);
         Timer.Sample criticalSection = auctionMetrics.startBidCriticalSection();
         try {
         Optional<BidResponses.BidResult> idempotentResponse = findIdempotentBidResponse(
@@ -276,7 +271,7 @@ public class AuctionCommandService {
     private AuctionCloseResponse closeAuctionInternal(Integer auctionId) {
         Instant now = now();
         Auction auction = findByIdForUpdate(auctionId, LockOperation.CLOSE)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
+				.orElseThrow(AuctionException::notFound);
         if (auction.getStatus() == AuctionStatus.ENDED || auction.getStatus() == AuctionStatus.FAILED) {
             return closeResponse(auction, closedWinningBid(auction.getId()).orElse(null));
         }
@@ -305,10 +300,10 @@ public class AuctionCommandService {
 
     private void validateIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "Idempotency-Key 헤더가 필요합니다.");
+			throw AuctionException.invalidIdempotencyKey("Idempotency-Key 헤더가 필요합니다.");
         }
         if (idempotencyKey.length() > 64) {
-            throw new ResponseStatusException(BAD_REQUEST, "Idempotency-Key는 64자 이하여야 합니다.");
+			throw AuctionException.invalidIdempotencyKey("Idempotency-Key는 64자 이하여야 합니다.");
         }
     }
 
@@ -325,24 +320,24 @@ public class AuctionCommandService {
         if (auction.getSellerId().equals(userId)) {
             log.warn("event=auction.bid.rejected_self_bid auctionId={} sellerId={} bidderId={}",
                     auction.getId(), auction.getSellerId(), userId);
-            throw new ResponseStatusException(FORBIDDEN, "판매자는 자신의 경매에 입찰할 수 없습니다.");
+			throw AuctionException.sellerBidForbidden();
         }
     }
 
     private void validateNotCurrentLeadingBidder(Integer userId, Bid previousLeadingBid, Integer auctionId) {
         if (previousLeadingBid != null && previousLeadingBid.getBidderId().equals(userId)) {
             log.warn("event=auction.bid.rejected_leading_bidder auctionId={} bidderId={}", auctionId, userId);
-            throw new ResponseStatusException(CONFLICT, "현재 최고 입찰자는 추가 입찰할 수 없습니다.");
+			throw AuctionException.leadingBidderConflict();
         }
     }
 
     private void validateCreateRequest(AuctionCreateRequest request) {
         if (request.buyNowPrice() != null
                 && request.buyNowPrice() - request.startPrice() < request.bidIncrement()) {
-            throw new ResponseStatusException(BAD_REQUEST, "즉시구매가는 시작가와 호가 단위의 합 이상이어야 합니다.");
+			throw AuctionException.invalidRequest("즉시구매가는 시작가와 호가 단위의 합 이상이어야 합니다.");
         }
         if (request.imageUploadTokens().size() > MAX_IMAGE_COUNT) {
-            throw new ResponseStatusException(BAD_REQUEST, "이미지는 최대 8장까지 등록할 수 있습니다.");
+			throw AuctionException.invalidRequest("이미지는 최대 8장까지 등록할 수 있습니다.");
         }
     }
 
@@ -351,10 +346,10 @@ public class AuctionCommandService {
             return false;
         }
         if (request.psaCertification() == null || !request.psaCertification().matches("\\d{7,10}")) {
-            throw new ResponseStatusException(BAD_REQUEST, "PSA 등급 카드는 7~10자리 PSA 인증번호가 필요합니다.");
+			throw AuctionException.invalidRequest("PSA 등급 카드는 7~10자리 PSA 인증번호가 필요합니다.");
         }
         if (!normalizePsaGrade(card.psaGrade()).equals(normalizePsaGrade(request.psaGrade()))) {
-            throw new ResponseStatusException(BAD_REQUEST, "PSA 인증 등급과 선택한 카드 등급이 일치하지 않습니다.");
+			throw AuctionException.invalidRequest("PSA 인증 등급과 선택한 카드 등급이 일치하지 않습니다.");
         }
         return true;
     }
@@ -377,7 +372,7 @@ public class AuctionCommandService {
         }
         Auction auction = existingAuction.get();
         if (!Objects.equals(auction.getCreateIdempotencyRequestHash(), requestHash)) {
-            throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+			throw AuctionException.idempotencyConflict();
         }
         return Optional.of(createResponse(auction));
     }
@@ -399,17 +394,17 @@ public class AuctionCommandService {
         }
         Bid bid = existingBid.get();
         if (!Objects.equals(bid.getIdempotencyRequestHash(), requestHash)) {
-            throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+			throw AuctionException.idempotencyConflict();
         }
         return Optional.of(bidResult(bid, auction, walletService.getBalance(bidderId)));
     }
 
     private void validateImages(List<ImageUploadPort.ResolvedImage> images) {
         if (images.isEmpty()) {
-            throw new ResponseStatusException(BAD_REQUEST, "이미지는 1장 이상 필요합니다.");
+			throw AuctionException.invalidRequest("이미지는 1장 이상 필요합니다.");
         }
         if (images.size() > MAX_IMAGE_COUNT) {
-            throw new ResponseStatusException(BAD_REQUEST, "이미지는 최대 8장까지 등록할 수 있습니다.");
+			throw AuctionException.invalidRequest("이미지는 최대 8장까지 등록할 수 있습니다.");
         }
     }
 
@@ -422,7 +417,7 @@ public class AuctionCommandService {
                     auction.getId(), price, auction.getCurrentPrice(), auction.minimumBid(), auction.getStatus(),
                     auction.getCloseTime(), bidAt, exception.getMessage()
             );
-            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+			throw AuctionException.invalidBidRequest(exception.getMessage());
         }
     }
 
@@ -430,7 +425,7 @@ public class AuctionCommandService {
         try {
             return walletService.hold(bidderId, auctionId, price);
         } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+			throw AuctionException.invalidBidRequest(exception.getMessage());
         }
     }
 
@@ -469,10 +464,10 @@ public class AuctionCommandService {
 
     private void validateCloseDue(Auction auction, Instant now) {
         if (auction.getStatus() != AuctionStatus.OPEN && auction.getStatus() != AuctionStatus.ENDING) {
-            throw new ResponseStatusException(BAD_REQUEST, "진행 중인 경매만 종료할 수 있습니다.");
+			throw AuctionException.invalidRequest("진행 중인 경매만 종료할 수 있습니다.");
         }
         if (auction.getCloseTime().isAfter(now)) {
-            throw new ResponseStatusException(BAD_REQUEST, "아직 종료 시각이 지나지 않은 경매입니다.");
+			throw AuctionException.invalidRequest("아직 종료 시각이 지나지 않은 경매입니다.");
         }
     }
 
