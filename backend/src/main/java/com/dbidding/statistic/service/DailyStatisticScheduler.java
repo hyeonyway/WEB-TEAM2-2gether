@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -27,11 +28,21 @@ public class DailyStatisticScheduler {
     private final Clock clock;
 
     @EventListener(ApplicationReadyEvent.class)
+    @SchedulerLock(
+            name = "daily-statistic-aggregation",
+            lockAtLeastFor = "PT1M",
+            lockAtMostFor = "PT30M"
+    )
     public void aggregateOnStartup() {
         aggregateMissingDates();
     }
 
     @Scheduled(cron = "0 10 0 * * *", zone = "Asia/Seoul")
+    @SchedulerLock(
+            name = "daily-statistic-aggregation",
+            lockAtLeastFor = "PT1M",
+            lockAtMostFor = "PT30M"
+    )
     public void aggregateOnSchedule() {
         aggregateMissingDates();
     }
