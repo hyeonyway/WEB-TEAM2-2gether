@@ -3,10 +3,12 @@ package com.dbidding.auction.sse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("!local-sse")
 @RequiredArgsConstructor
 public class RedisAuctionStreamPublisher implements AuctionStreamPublisher {
     private final StringRedisTemplate redisTemplate;
