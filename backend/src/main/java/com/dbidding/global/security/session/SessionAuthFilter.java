@@ -4,10 +4,12 @@ import java.io.IOException;
 
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.account.authentication.session.SessionPrincipal;
 import com.dbidding.global.exception.UnauthorizedException;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 import com.dbidding.global.security.RequestUserIdWriter;
 
 import jakarta.servlet.FilterChain;
@@ -21,7 +23,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SessionAuthFilter extends OncePerRequestFilter {
 
+	private static final String UNAUTHORIZED = "UNAUTHORIZED";
+	private static final String UNAUTHORIZED_MESSAGE = "인증 정보가 일치하지 않습니다.";
+
 	private final RequestUserIdWriter requestUserIdWriter;
+	private final FilterErrorResponseWriter errorResponseWriter;
 
 	@Override
 	protected void doFilterInternal(
@@ -40,7 +46,7 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 				.ifPresent(principal -> requestUserIdWriter.write(request, principal.userId()));
 			filterChain.doFilter(request, response);
 		} catch (UnauthorizedException exception) {
-			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+			errorResponseWriter.write(response, HttpStatus.UNAUTHORIZED, UNAUTHORIZED, UNAUTHORIZED_MESSAGE);
 		}
 	}
 }

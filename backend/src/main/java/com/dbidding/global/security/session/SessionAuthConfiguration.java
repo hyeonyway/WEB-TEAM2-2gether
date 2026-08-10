@@ -12,6 +12,7 @@ import com.dbidding.account.authentication.session.SessionAuthenticationStrategy
 import com.dbidding.account.authentication.session.SessionCsrfTokenService;
 import com.dbidding.account.authentication.session.SessionProperties;
 import com.dbidding.global.security.RequestUserIdWriter;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "app.auth.mode", havingValue = "session")
@@ -29,8 +30,11 @@ public class SessionAuthConfiguration {
 	}
 
 	@Bean
-	SessionAuthFilter sessionAuthFilter(RequestUserIdWriter requestUserIdWriter) {
-		return new SessionAuthFilter(requestUserIdWriter);
+	SessionAuthFilter sessionAuthFilter(
+		RequestUserIdWriter requestUserIdWriter,
+		FilterErrorResponseWriter errorResponseWriter
+	) {
+		return new SessionAuthFilter(requestUserIdWriter, errorResponseWriter);
 	}
 
 	@Bean
@@ -44,7 +48,10 @@ public class SessionAuthConfiguration {
 	) { return new ServletListenerRegistrationBean<>(new SessionSseCleanupListener(registry)); }
 
 	@Bean
-	SessionCsrfFilter sessionCsrfFilter(SessionCsrfTokenService tokenService) {
-		return new SessionCsrfFilter(tokenService);
+	SessionCsrfFilter sessionCsrfFilter(
+		SessionCsrfTokenService tokenService,
+		FilterErrorResponseWriter errorResponseWriter
+	) {
+		return new SessionCsrfFilter(tokenService, errorResponseWriter);
 	}
 }

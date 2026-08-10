@@ -24,6 +24,8 @@ import com.dbidding.global.security.jwt.JwtAuthFilter;
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
 	RequestUserIdWriter.class,
+	FilterErrorResponseWriter.class,
+	FilterErrorResponseWriterTestConfiguration.class,
 	JwtAuthFilter.class
 })
 class JwtCurrentUserWebMvcTest {

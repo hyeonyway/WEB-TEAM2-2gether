@@ -28,6 +28,8 @@ import com.dbidding.global.security.jwt.TicketProvider;
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
 	RequestUserIdWriter.class,
+	FilterErrorResponseWriter.class,
+	FilterErrorResponseWriterTestConfiguration.class,
 	JwtAuthFilter.class,
 	SseTicketAuthFilter.class
 })

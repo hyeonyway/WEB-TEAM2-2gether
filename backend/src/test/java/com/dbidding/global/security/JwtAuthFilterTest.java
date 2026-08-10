@@ -19,6 +19,7 @@ import com.dbidding.account.authentication.jwt.JwtTokenProvider;
 import com.dbidding.account.authentication.jwt.TokenClaims;
 import com.dbidding.account.authentication.jwt.TokenType;
 import com.dbidding.global.security.jwt.JwtAuthFilter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class JwtAuthFilterTest {
@@ -27,10 +28,15 @@ class JwtAuthFilterTest {
 	private JwtTokenProvider jwtTokenProvider;
 
 	private JwtAuthFilter filter;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@BeforeEach
 	void setUp() {
-		filter = new JwtAuthFilter(jwtTokenProvider, new RequestUserIdWriter());
+		filter = new JwtAuthFilter(
+			jwtTokenProvider,
+			new RequestUserIdWriter(),
+			new FilterErrorResponseWriter(objectMapper)
+		);
 	}
 
 	@Test
@@ -70,6 +76,7 @@ class JwtAuthFilterTest {
 		filter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
+		assertError(response, "INVALID_TOKEN", "유효하지 않은 인증 토큰입니다.");
 		assertThat(chain.getRequest()).isNull();
 		then(jwtTokenProvider).should(never()).parseAccess("credentials");
 	}
@@ -86,6 +93,7 @@ class JwtAuthFilterTest {
 		filter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
+		assertError(response, "INVALID_TOKEN", "유효하지 않은 인증 토큰입니다.");
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE)).isNull();
 		assertThat(chain.getRequest()).isNull();
 	}
@@ -103,7 +111,16 @@ class JwtAuthFilterTest {
 		filter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
+		assertError(response, "UNAUTHORIZED", "인증 정보가 일치하지 않습니다.");
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE)).isEqualTo(8);
 		assertThat(chain.getRequest()).isNull();
+	}
+
+	private void assertError(MockHttpServletResponse response, String code, String message) throws Exception {
+		assertThat(response.getContentType()).startsWith("application/json");
+		assertThat(response.getCharacterEncoding()).isEqualTo("UTF-8");
+		var body = objectMapper.readTree(response.getContentAsString());
+		assertThat(body.path("code").asText()).isEqualTo(code);
+		assertThat(body.path("message").asText()).isEqualTo(message);
 	}
 }
