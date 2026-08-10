@@ -228,4 +228,40 @@ public class Auction {
         this.lastBidEventVersion = auctionVersion;
         return true;
     }
+
+    public boolean isNextBidEventVersion(long auctionVersion) {
+        return auctionVersion == lastBidEventVersion + 1;
+    }
+
+    public void validateStreamBid(
+            Integer bidderId,
+            long bidPrice,
+            int bidCount,
+            Instant closeTime,
+            AuctionStatus incomingStatus,
+            boolean buyNow
+    ) {
+        if (sellerId.equals(bidderId)) {
+            throw new IllegalArgumentException("판매자는 자신의 경매에 입찰할 수 없습니다.");
+        }
+        if (bidCount != this.bidCount + 1) {
+            throw new IllegalArgumentException("입찰 수가 이전 경매 상태와 일치하지 않습니다.");
+        }
+        if (buyNow) {
+            if (buyNowPrice == null || bidPrice != buyNowPrice || incomingStatus != AuctionStatus.ENDED) {
+                throw new IllegalArgumentException("즉시 낙찰 이벤트의 최종 상태가 올바르지 않습니다.");
+            }
+            return;
+        }
+        if ((status != AuctionStatus.OPEN && status != AuctionStatus.ENDING)
+                || (incomingStatus != AuctionStatus.OPEN && incomingStatus != AuctionStatus.ENDING)) {
+            throw new IllegalArgumentException("진행 중인 경매 입찰 이벤트만 처리할 수 있습니다.");
+        }
+        if (bidPrice < minimumBid()) {
+            throw new IllegalArgumentException("최소 입찰가 이상으로 입찰해야 합니다.");
+        }
+        if (closeTime.isBefore(this.closeTime)) {
+            throw new IllegalArgumentException("일반 입찰은 경매 마감 시각을 앞당길 수 없습니다.");
+        }
+    }
 }

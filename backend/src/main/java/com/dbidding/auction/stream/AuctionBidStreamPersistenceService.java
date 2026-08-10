@@ -92,6 +92,21 @@ public class AuctionBidStreamPersistenceService {
             Map<Integer, Bid> currentLeadingBids,
             List<Bid> bids
     ) {
+        if (event.auctionVersion() <= auction.getLastBidEventVersion()) {
+            return;
+        }
+        if (!auction.isNextBidEventVersion(event.auctionVersion())) {
+            throw new InvalidBidStreamEventException("경매 입찰 이벤트 버전이 연속적이지 않습니다.");
+        }
+        validateLeadingBidder(event, currentLeadingBids.get(auction.getId()));
+        try {
+            auction.validateStreamBid(
+                    event.bidderId(), event.bidPrice(), event.bidCount(), event.closeTime(),
+                    event.auctionStatus(), event.isBuyNow()
+            );
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidBidStreamEventException(exception.getMessage(), exception);
+        }
         if (!auction.applyStreamBid(
                 event.auctionVersion(), event.currentPrice(), event.bidCount(), event.closeTime(), event.auctionStatus()
         )) {
@@ -113,6 +128,16 @@ public class AuctionBidStreamPersistenceService {
             currentLeadingBids.put(auction.getId(), bid);
         }
         bids.add(bid);
+    }
+
+    private void validateLeadingBidder(BidAcceptedStreamEvent event, Bid currentLeadingBid) {
+        Integer actualPreviousBidderId = currentLeadingBid == null ? null : currentLeadingBid.getBidderId();
+        if (!java.util.Objects.equals(event.previousBidderId(), actualPreviousBidderId)) {
+            throw new InvalidBidStreamEventException("이전 최고 입찰자 정보가 DB 상태와 일치하지 않습니다.");
+        }
+        if (!event.isBuyNow() && actualPreviousBidderId != null && actualPreviousBidderId.equals(event.bidderId())) {
+            throw new InvalidBidStreamEventException("현재 최고 입찰자는 추가 입찰할 수 없습니다.");
+        }
     }
 
     private void applyWalletTransition(BidAcceptedStreamEvent event, Bid currentLeadingBid, Integer auctionId) {
