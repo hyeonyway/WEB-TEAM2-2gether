@@ -2,10 +2,8 @@ package com.dbidding.wishlist;
 
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional(readOnly = true)
@@ -20,7 +18,7 @@ public class WishlistService {
     @Transactional
     public Wishlist add(Integer userId, Integer cardId) {
         if (wishlistRepository.existsByUserIdAndCardId(userId, cardId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 찜한 카드입니다.");
+            throw WishlistException.alreadyExists();
         }
         return wishlistRepository.save(Wishlist.of(userId, cardId));
     }

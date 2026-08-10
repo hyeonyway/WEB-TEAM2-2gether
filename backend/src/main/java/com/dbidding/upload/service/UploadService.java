@@ -2,15 +2,15 @@ package com.dbidding.upload.service;
 
 import com.dbidding.upload.dto.ImageUploadRequests;
 import com.dbidding.upload.dto.ImageUploadResponses;
+import com.dbidding.upload.exception.UploadException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import software.amazon.awssdk.core.exception.SdkException;
 
 @Service
 public class UploadService {
@@ -41,12 +41,16 @@ public class UploadService {
     private ImageUploadResponses.PresignedUpload presign(ImageUploadRequests.FileMeta fileMeta) {
         String extension = ALLOWED_CONTENT_TYPES.get(fileMeta.contentType());
         if (extension == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "허용되지 않는 이미지 형식입니다: " + fileMeta.contentType());
+            throw UploadException.invalidContentType(fileMeta.contentType());
         }
 
         String key = generateKey(extension);
-        S3PresignedUrlProvider.PresignedUpload presigned = presignedUrlProvider.presign(key, fileMeta.contentType());
+        S3PresignedUrlProvider.PresignedUpload presigned;
+        try {
+            presigned = presignedUrlProvider.presign(key, fileMeta.contentType());
+        } catch (SdkException exception) {
+            throw UploadException.externalServiceUnavailable(exception);
+        }
         return new ImageUploadResponses.PresignedUpload(presigned.url(), key, presigned.expiresInSeconds());
     }
 

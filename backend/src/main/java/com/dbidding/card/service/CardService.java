@@ -1,7 +1,6 @@
 package com.dbidding.card.service;
 
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
+import com.dbidding.card.exception.CardException;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardTheme;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
@@ -14,7 +13,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional(readOnly = true)
@@ -24,7 +22,7 @@ public class CardService {
 
     public CardSnapshot getCardSnapshot(Integer cardId) {
         CardMetadata card = cardMetadataRepository.findById(cardId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "카드를 찾을 수 없습니다."));
+                .orElseThrow(CardException::notFound);
         return toSnapshot(card);
     }
 
