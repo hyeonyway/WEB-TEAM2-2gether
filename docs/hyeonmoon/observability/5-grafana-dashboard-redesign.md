@@ -10,12 +10,12 @@ Four Golden Signals(Latency/Traffic/Errors/Saturation) 프레임워크로 재확
 **이 문서는 이슈 #332 소속이지만, `/Users/admin/Documents/softeer/monitoring`이
 git 저장소가 아니라 별도의 코드 브랜치가 없다.** 이 저장소(WEB-TEAM2-2gether)에는
 문서만 남기고, 대시보드 JSON 자체는 모니터링 서버에 직접 반영한다. 문서는
-이 계측을 실제로 만드는 [`feature/331-observability-metrics-instrumentation`](2-metrics-gap-and-instrumentation.md)
+이 계측을 실제로 만드는 [`feature/331-observability-metrics-instrumentation`](4-metrics-gap-and-instrumentation.md)
 브랜치에 같이 실어둔다 — 대시보드가 소비할 메트릭을 만드는 작업과 가장
 가깝기 때문이다.
 
-**선행 조건:** [`1-slo-error-budget.md`](1-slo-error-budget.md)(목표치),
-[`2-metrics-gap-and-instrumentation.md`](2-metrics-gap-and-instrumentation.md)의
+**선행 조건:** [`2-slo-error-budget.md`](2-slo-error-budget.md)(목표치),
+[`4-metrics-gap-and-instrumentation.md`](4-metrics-gap-and-instrumentation.md)의
 신규 메트릭이 먼저 배포돼 있어야 Traffic(SSE 연결 수), Saturation(Tomcat
 커넥터별) 섹션의 패널을 채울 수 있다.
 
@@ -33,11 +33,11 @@ git 저장소가 아니라 별도의 코드 브랜치가 없다.** 이 저장소
 - **입찰 쓰기는 2xx/5xx 이분법이 아니라 상태코드별(201/400/409/500)로 전부
   따로** 표시한다 — 400도 락 획득 이후에 거부되는 구조라 락 경합 시
   201과 레이턴시가 크게 안 벌어질 수 있어, 뭉치면 성공 경로의 진짜 비용이
-  희석돼 보인다. 근거는 [`1-slo-error-budget.md`](1-slo-error-budget.md)의
+  희석돼 보인다. 근거는 [`2-slo-error-budget.md`](2-slo-error-budget.md)의
   "입찰 쓰기 — 상태코드별 레이턴시" 참고.
 - SSE 연결 수립 시간, SSE 이벤트 end-to-end 전달 지연(문서 2에서 추가된
   메트릭).
-- 패널마다 [`1-slo-error-budget.md`](1-slo-error-budget.md) 목표치를 임계선으로
+- 패널마다 [`2-slo-error-budget.md`](2-slo-error-budget.md) 목표치를 임계선으로
   표시.
 
 ### 2. Traffic (트래픽)

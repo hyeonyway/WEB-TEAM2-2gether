@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** [`1-slo-error-budget.md`](1-slo-error-budget.md)에서 정한 SLO 중 지금
+**Goal:** [`2-slo-error-budget.md`](2-slo-error-budget.md)에서 정한 SLO 중 지금
 계측이 없어 측정 불가능한 항목(SSE 연결 수, SSE 연결 수립 시간, SSE 이벤트
 end-to-end 전달, SSE 브로드캐스트 묵시적 실패, Tomcat 커넥터별 스레드)을
 Micrometer 메트릭으로 노출한다.
