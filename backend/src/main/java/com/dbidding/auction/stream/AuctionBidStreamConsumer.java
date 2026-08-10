@@ -67,6 +67,18 @@ public class AuctionBidStreamConsumer {
 
     @Scheduled(fixedDelayString = "${app.auction.redis-bid.poll-delay:100ms}")
     public void consume() {
+        try {
+            consumeOnce();
+        } catch (DataAccessException exception) {
+            if (!isMissingGroup(exception)) {
+                throw exception;
+            }
+            createGroup();
+            log.info("event=auction.bid.stream.group.recreated streamKey={} group={}", STREAM_KEY, GROUP);
+        }
+    }
+
+    private void consumeOnce() {
         List<MapRecord<String, Object, Object>> records = claimPending();
         if (records.isEmpty()) {
             records = redisTemplate.opsForStream().read(
@@ -79,6 +91,16 @@ public class AuctionBidStreamConsumer {
             return;
         }
         process(records);
+    }
+
+    private boolean isMissingGroup(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            String message = current.getMessage();
+            if (message != null && message.contains("NOGROUP")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<MapRecord<String, Object, Object>> claimPending() {
