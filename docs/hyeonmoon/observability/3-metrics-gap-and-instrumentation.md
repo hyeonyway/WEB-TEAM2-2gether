@@ -8,8 +8,8 @@ end-to-end 전달, SSE 브로드캐스트 묵시적 실패, Tomcat 커넥터별 
 Micrometer 메트릭으로 노출한다.
 
 **Architecture:** 기존 `AuctionSseConnectionManager`/`NotificationSseConnectionManager`에
-Gauge/Timer를 추가하고, `sseTaskExecutor`의 `RejectedExecutionHandler`를
-카운팅 가능한 구현으로 교체한다. Tomcat 스레드는 Boot 기본 바인더가 관리포트
+Gauge/Timer를 추가하고, SSE executor의 `RejectedExecutionHandler`를
+카운팅 가능한 구현으로 교체하되 기존 `CallerRuns` 정책은 유지한다. Tomcat 스레드는 Boot 기본 바인더가 관리포트
 분리 구조에서 하나만 잡아내는 문제가 있어, 커넥터별 태그를 붙인 커스텀
 `ApplicationListener<WebServerInitializedEvent>`로 대체한다.
 
@@ -75,20 +75,24 @@ Gauge/Timer를 추가하고, `sseTaskExecutor`의 `RejectedExecutionHandler`를
       가져와 `auctionSseDeliveryLatency` Trend와 `Invalid` Counter를 추가**
 - [ ] **Step 2: 로컬에서 짧게 실행해 지표가 0이 아닌 값으로 채워지는지 확인**
 
-## Task 4: `sseTaskExecutor` 묵시적 실패 카운터
+## Task 4: SSE executor 포화 카운터
 
 **Files:**
-- Modify: `backend/src/main/java/com/dbidding/sse/config/SseExecutorConfig.java`
-- Test: 해당 설정 클래스 테스트(없으면 신규 작성)
+- Modify: `backend/src/main/java/com/dbidding/sse/config/CountingCallerRunsPolicy.java`
+- Modify: Auction·Notification SSE executor 설정 클래스
+- Test: 각 설정 클래스 테스트
 
 **Interfaces:**
-- 기존 `DiscardPolicy`를 유지하되, 거부된 태스크 수를 세는 `Counter`
-  (`dbidding.sse.broadcast.rejected_total`)를 감싸는 커스텀
-  `RejectedExecutionHandler`로 교체한다. 큐가 넘쳐 조용히 버려지던 이벤트가
-  이제 카운터로 보인다.
+- Auction·Notification SSE executor의 기존 `CallerRuns` 정책을 유지하되, 포화로
+  `RejectedExecutionHandler`가 호출된 횟수를 `Counter`
+  (`dbidding.sse.broadcast.rejected`, Prometheus 노출명
+  `dbidding_sse_broadcast_rejected_total`)로 기록한다. 태그는 저카디널리티
+  `executor=auction|notification`만 사용한다.
+- 따라서 이 메트릭은 **유실된 이벤트 수가 아니라 포화되어 호출 스레드에서
+  처리한 작업 수**다. 작업을 버리는 `DiscardPolicy`로 바꾸지 않는다.
 
 - [ ] **Step 1: 실패하는 테스트 작성** — 풀+큐를 가득 채운 뒤 태스크를
-      추가로 제출하면 카운터가 증가하는지 검증
+      추가로 제출하면 카운터가 증가하고, 호출 스레드에서 실행되는지 검증
 - [ ] **Step 2: 테스트 실패 확인**
 - [ ] **Step 3: `RejectedExecutionHandler` 구현체 작성 후 `ThreadPoolTaskExecutor`에 설정**
 - [ ] **Step 4: 테스트 통과 확인**
@@ -123,3 +127,5 @@ Gauge/Timer를 추가하고, `sseTaskExecutor`의 `RejectedExecutionHandler`를
 - [ ] 로컬 기동 후 `/actuator/prometheus`에서 5개 신규 메트릭 계열 확인
 
 > 이 문서는 Claude의 도움을 받아 작성하였습니다
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -13,7 +14,8 @@ class NotificationExecutorConfigTest {
 
     @Test
     void executor가_포화되면_호출_스레드에서_작업을_실행한다() throws InterruptedException {
-        NotificationExecutorConfig config = new NotificationExecutorConfig();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        NotificationExecutorConfig config = new NotificationExecutorConfig(registry);
         ReflectionTestUtils.setField(config, "corePoolSize", 1);
         ReflectionTestUtils.setField(config, "maxPoolSize", 1);
         ReflectionTestUtils.setField(config, "queueCapacity", 1);
@@ -35,6 +37,7 @@ class NotificationExecutorConfigTest {
         executor.execute(() -> executionThread.set(Thread.currentThread().getName()));
 
         assertThat(executionThread).hasValue(Thread.currentThread().getName());
+        assertThat(registry.get("dbidding.sse.broadcast.rejected").tag("executor", "notification").counter().count()).isEqualTo(1);
         release.countDown();
         executor.shutdown();
     }

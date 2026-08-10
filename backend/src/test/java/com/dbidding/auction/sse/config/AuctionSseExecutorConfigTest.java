@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -13,7 +14,8 @@ class AuctionSseExecutorConfigTest {
 
     @Test
     void executor가_포화되면_호출_스레드에서_작업을_실행한다() throws InterruptedException {
-        AuctionSseExecutorConfig config = new AuctionSseExecutorConfig();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        AuctionSseExecutorConfig config = new AuctionSseExecutorConfig(registry);
         ReflectionTestUtils.setField(config, "corePoolSize", 1);
         ReflectionTestUtils.setField(config, "maxPoolSize", 1);
         ReflectionTestUtils.setField(config, "queueCapacity", 1);
@@ -35,6 +37,7 @@ class AuctionSseExecutorConfigTest {
         executor.execute(() -> executionThread.set(Thread.currentThread().getName()));
 
         assertThat(executionThread).hasValue(Thread.currentThread().getName());
+        assertThat(registry.get("dbidding.sse.broadcast.rejected").tag("executor", "auction").counter().count()).isEqualTo(1);
         release.countDown();
         executor.shutdown();
     }
