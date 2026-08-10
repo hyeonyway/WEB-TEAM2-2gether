@@ -21,12 +21,18 @@ function parseErrorBody(body:string):{code?:string;message?:string}{
   }
 }
 
-function fallbackErrorMessage(status:number){
+export function fallbackErrorMessage(status:number){
   if(status===400)return '요청 정보를 확인해 주세요.';
-  if(status===401)return '인증이 필요합니다.';
-  if(status===403)return '권한이 없습니다.';
-  if(status===404)return '요청한 리소스를 찾을 수 없습니다.';
+  if(status===401)return '로그인이 필요하거나 로그인 정보가 만료되었습니다.';
+  if(status===403)return '접근 권한이 없습니다.';
+  if(status===404)return '요청한 정보를 찾을 수 없습니다.';
   return '요청 처리 중 오류가 발생했습니다.';
+}
+
+export async function toHttpError(response:Response):Promise<HttpError>{
+  const error=parseErrorBody(await response.text());
+  if(error.code&&error.message)return new HttpError(response.status,error.message,error.code);
+  return new HttpError(response.status,fallbackErrorMessage(response.status));
 }
 
 export async function request<T>(path:string,options?:RequestInit):Promise<T>{
@@ -43,9 +49,7 @@ export async function request<T>(path:string,options?:RequestInit):Promise<T>{
     headers,
   });
   if(!response.ok){
-    const body=await response.text();
-    const error=parseErrorBody(body);
-    throw new HttpError(response.status,error.message??fallbackErrorMessage(response.status),error.code);
+    throw await toHttpError(response);
   }
   if(response.status===204)return undefined as T;
   return response.json() as Promise<T>;

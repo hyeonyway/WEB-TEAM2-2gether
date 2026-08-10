@@ -20,7 +20,18 @@ describe('request', () => {
     } satisfies Partial<HttpError>);
   });
 
-  it('JSON이 아니거나 message가 없으면 상태 기반 fallback 메시지를 사용한다', async () => {
+  it.each([
+    [400, '', '요청 정보를 확인해 주세요.'],
+    [401, '<html>login</html>', '로그인이 필요하거나 로그인 정보가 만료되었습니다.'],
+    [403, '{', '접근 권한이 없습니다.'],
+    [404, JSON.stringify({code: 'MISSING_MESSAGE'}), '요청한 정보를 찾을 수 없습니다.'],
+    [500, '<html>error</html>', '요청 처리 중 오류가 발생했습니다.'],
+  ])('상태 %i와 유효하지 않은 오류 본문에는 fallback 메시지를 사용한다', async(status,body,message) => {
+    vi.mocked(fetch).mockResolvedValue(new Response(body, {status}));
+    await expect(request('/api/cards/1')).rejects.toMatchObject({status,message});
+  });
+
+  it('code 또는 message가 누락되면 서버 오류 값을 사용하지 않는다', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response('<html>error</html>', {status: 500}));
     await expect(request('/api/cards/1')).rejects.toMatchObject({
       status: 500,
@@ -30,7 +41,6 @@ describe('request', () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({code: 'UNKNOWN'}), {status: 400}));
     await expect(request('/api/cards/1')).rejects.toMatchObject({
       status: 400,
-      code: 'UNKNOWN',
       message: '요청 정보를 확인해 주세요.',
     } satisfies Partial<HttpError>);
   });
