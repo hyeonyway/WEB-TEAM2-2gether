@@ -46,7 +46,7 @@ public class AuctionBidStreamConsumer {
     void createGroup() {
         try {
             redisTemplate.execute((RedisCallback<String>) connection -> connection.streamCommands().xGroupCreate(
-                    STREAM_KEY.getBytes(StandardCharsets.UTF_8), GROUP, ReadOffset.latest(), true
+                    STREAM_KEY.getBytes(StandardCharsets.UTF_8), GROUP, ReadOffset.from("0-0"), true
             ));
         } catch (DataAccessException exception) {
             if (!isExistingGroup(exception)) {
