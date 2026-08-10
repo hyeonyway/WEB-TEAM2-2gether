@@ -96,7 +96,10 @@ public class AuctionBidStreamPersistenceService {
             return;
         }
         if (!auction.isNextBidEventVersion(event.auctionVersion())) {
-            throw new InvalidBidStreamEventException("경매 입찰 이벤트 버전이 연속적이지 않습니다.");
+            throw new InvalidBidStreamEventException(
+                    "경매 입찰 이벤트 버전이 연속적이지 않습니다. auctionId=%d eventVersion=%d lastAppliedVersion=%d"
+                            .formatted(auction.getId(), event.auctionVersion(), auction.getLastBidEventVersion())
+            );
         }
         validateLeadingBidder(event, currentLeadingBids.get(auction.getId()));
         try {
