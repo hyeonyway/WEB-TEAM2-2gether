@@ -89,17 +89,19 @@ class WalletTransactionControllerTest {
 	}
 
 	@Test
-	void idempotency_key가_없거나_비어_있으면_400이다() throws Exception {
+	void idempotency_key가_없거나_비어_있으면_구조화된_400을_반환한다() throws Exception {
 		mockMvc.perform(post("/api/wallet/refunds")
 				.contentType(APPLICATION_JSON)
 				.content("{\"amount\":1000}"))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
 		mockMvc.perform(post("/api/wallet/refunds")
 				.header("Idempotency-Key", " ")
 				.contentType(APPLICATION_JSON)
 				.content("{\"amount\":1000}"))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 	}
 
 	@Test
@@ -112,12 +114,24 @@ class WalletTransactionControllerTest {
 	}
 
 	@Test
-	void 요청_금액이_양수가_아니면_400이다() throws Exception {
+	void 요청_금액이_양수가_아니면_첫_validation_메시지를_포함한_구조화된_400을_반환한다() throws Exception {
 		mockMvc.perform(post("/api/wallet/charges")
 				.header("Idempotency-Key", "charge-key")
 				.contentType(APPLICATION_JSON)
 				.content("{\"amount\":0}"))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+			.andExpect(jsonPath("$.message").value("must be greater than 0"));
+	}
+
+	@Test
+	void JSON_파싱에_실패하면_구조화된_400을_반환한다() throws Exception {
+		mockMvc.perform(post("/api/wallet/charges")
+				.header("Idempotency-Key", "charge-key")
+				.contentType(APPLICATION_JSON)
+				.content("{\"amount\":"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 	}
 
 	@ParameterizedTest
