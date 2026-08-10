@@ -1,7 +1,10 @@
 package com.dbidding.auction.service;
 
 import com.dbidding.auction.IdempotencyKeys;
+import com.dbidding.auction.bid.AuctionCloseData;
 import com.dbidding.auction.bid.BidCommand;
+import com.dbidding.auction.bid.BidEventData;
+import com.dbidding.auction.bid.BidExecutionResult;
 import com.dbidding.auction.bid.BidExecutor;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
@@ -15,6 +18,7 @@ import com.dbidding.auction.dto.BidCreateRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
+import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.metrics.AuctionMetrics.BidResult;
@@ -22,6 +26,8 @@ import com.dbidding.auction.metrics.AuctionMetrics.CloseResult;
 import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.auction.sse.AuctionStreamPayload;
+import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.card.service.CardService;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.order.OrderService;
@@ -55,6 +61,7 @@ public class AuctionCommandService {
     private final WalletService walletService;
     private final ImageUploadPort imageUploadPort;
     private final AuctionEventPublisher auctionEventPublisher;
+    private final AuctionStreamPublisher auctionStreamPublisher;
     private final CardService cardService;
     private final OrderService orderService;
     private final Clock clock;
@@ -109,7 +116,7 @@ public class AuctionCommandService {
                 .map(image -> new AuctionImage(savedAuction, image.imagePath()))
                 .toList();
         auctionImageRepository.saveAll(auctionImages);
-        auctionEventPublisher.publishOpened(new AuctionOpenedEvent(
+        AuctionOpenedEvent openedEvent = new AuctionOpenedEvent(
                 savedAuction.getId(),
                 card.cardId(),
                 card.name(),
@@ -124,7 +131,9 @@ public class AuctionCommandService {
                 savedAuction.getCloseTime(),
                 savedAuction.getStatus(),
                 now
-        ));
+        );
+        auctionEventPublisher.publishOpened(openedEvent);
+        auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
 
         AuctionCreateResponse response = createResponse(savedAuction);
         publishCloseScheduleChanged(savedAuction, "auction_created");
@@ -139,17 +148,57 @@ public class AuctionCommandService {
     ) {
         Timer.Sample sample = auctionMetrics.start();
         try {
-            BidResponses.BidResult result = bidExecutor.execute(
+            BidExecutionResult outcome = bidExecutor.execute(
                     new BidCommand(userId, auctionId, request.price(), idempotencyKey)
             );
+            publishBidEvents(userId, auctionId, outcome);
             auctionMetrics.finishBid(sample, BidResult.ACCEPTED);
-            return result;
+            return outcome.result();
         } catch (AuctionException exception) {
             auctionMetrics.finishBid(sample, BidResult.REJECTED);
             throw exception;
         } catch (RuntimeException exception) {
             auctionMetrics.finishBid(sample, BidResult.ERROR);
             throw exception;
+        }
+    }
+
+    /**
+     * {@code bidExecutor.execute()}는 이벤트를 발행하지 않으므로(#281), 여기서 result로부터
+     * 조립해서 발행한다. buyNow로 즉시낙찰된 경우 {@code AuctionClosedEvent}도, 마감시간이
+     * 연장된 경우 {@code AuctionCloseScheduleChangedEvent}도 같은 자리에서 순서대로 발행한다.
+     */
+    private void publishBidEvents(Integer userId, Integer auctionId, BidExecutionResult outcome) {
+        BidEventData data = outcome.eventData();
+        if (data == null) {
+            return;
+        }
+        BidResponses.AuctionSnapshot auction = outcome.result().auction();
+        Instant occurredAt = outcome.result().bid().createdAt();
+
+        BidPlacedEvent bidPlaced = new BidPlacedEvent(
+                auctionId, data.itemId(), userId, data.previousBidderId(), data.previousBidId(),
+                data.startPrice(), auction.currentPrice(), data.bidIncrement(), auction.bidCount(),
+                auction.endsAt(), data.status(), occurredAt
+        );
+        auctionEventPublisher.publishBidPlaced(bidPlaced);
+        auctionStreamPublisher.publish(AuctionStreamPayload.bidPlaced(bidPlaced));
+
+        if (data.closeData() != null) {
+            AuctionCloseData close = data.closeData();
+            AuctionClosedEvent closed = new AuctionClosedEvent(
+                    auctionId, close.cardId(), close.cardName(), close.cardPsaGrade(), close.cardLanguage(),
+                    close.cardThumbnailUrl(), userId, close.sellerId(), data.startPrice(), auction.currentPrice(),
+                    auction.currentPrice(), data.bidIncrement(), auction.bidCount(), auction.endsAt(), data.status(),
+                    occurredAt
+            );
+            auctionEventPublisher.publishClosed(closed);
+            auctionStreamPublisher.publish(AuctionStreamPayload.closed(closed));
+        }
+        if (data.closeTimeExtended()) {
+            eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
+                    auctionId, auction.endsAt(), "close_time_extended"
+            ));
         }
     }
 
@@ -309,7 +358,7 @@ public class AuctionCommandService {
         Integer winnerId = winningBid == null ? null : winningBid.getBidderId();
         Long winningPrice = winningBid == null ? null : winningBid.getBidPrice();
 
-        auctionEventPublisher.publishClosed(new AuctionClosedEvent(
+        AuctionClosedEvent event = new AuctionClosedEvent(
                 auction.getId(),
                 card.cardId(),
                 card.name(),
@@ -326,7 +375,9 @@ public class AuctionCommandService {
                 auction.getCloseTime(),
                 auction.getStatus(),
                 occurredAt
-        ));
+        );
+        auctionEventPublisher.publishClosed(event);
+        auctionStreamPublisher.publish(AuctionStreamPayload.closed(event));
     }
 
     private Optional<Bid> highestBid(Integer auctionId) {
