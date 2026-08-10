@@ -6,6 +6,7 @@ import java.util.Map;
 
 public record BidAcceptedStreamEvent(
         String streamId,
+        BidStreamEventType eventType,
         Integer auctionId,
         Long auctionVersion,
         Integer bidderId,
@@ -22,8 +23,14 @@ public record BidAcceptedStreamEvent(
     public static BidAcceptedStreamEvent from(String streamId, Map<String, String> values) {
         requireEventType(values);
         try {
+            BidStreamEventType eventType = BidStreamEventType.from(required(values, "eventType"));
+            AuctionStatus auctionStatus = AuctionStatus.valueOf(required(values, "auctionStatus"));
+            if (eventType == BidStreamEventType.BUY_NOW && auctionStatus != AuctionStatus.ENDED) {
+                throw new InvalidBidStreamEventException("즉시 낙찰 이벤트의 경매 상태는 ENDED여야 합니다.");
+            }
             return new BidAcceptedStreamEvent(
                     streamId,
+                    eventType,
                     Integer.valueOf(required(values, "auctionId")),
                     Long.valueOf(required(values, "auctionVersion")),
                     Integer.valueOf(required(values, "bidderId")),
@@ -34,7 +41,7 @@ public record BidAcceptedStreamEvent(
                     Long.valueOf(required(values, "currentPrice")),
                     Integer.valueOf(required(values, "bidCount")),
                     Instant.parse(required(values, "closeTime")),
-                    AuctionStatus.valueOf(required(values, "auctionStatus")),
+                    auctionStatus,
                     Instant.parse(required(values, "occurredAt"))
             );
         } catch (IllegalArgumentException exception) {
@@ -43,9 +50,13 @@ public record BidAcceptedStreamEvent(
     }
 
     private static void requireEventType(Map<String, String> values) {
-        if (!"bid.accepted.v1".equals(values.get("eventType")) || !"1".equals(values.get("schemaVersion"))) {
+        if (!"1".equals(values.get("schemaVersion"))) {
             throw new InvalidBidStreamEventException("지원하지 않는 입찰 Stream 이벤트입니다.");
         }
+    }
+
+    public boolean isBuyNow() {
+        return eventType == BidStreamEventType.BUY_NOW;
     }
 
     private static String required(Map<String, String> values, String key) {

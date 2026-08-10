@@ -103,7 +103,12 @@ public class AuctionBidStreamPersistenceService {
                 event.bidderId(), auction, event.bidPrice(), event.occurredAt(),
                 event.idempotencyKey(), event.idempotencyRequestHash()
         );
-        currentLeadingBids.put(auction.getId(), bid);
+        if (event.isBuyNow()) {
+            bid.markWon();
+            currentLeadingBids.remove(auction.getId());
+        } else {
+            currentLeadingBids.put(auction.getId(), bid);
+        }
         bids.add(bid);
     }
 }
