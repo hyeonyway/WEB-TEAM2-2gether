@@ -25,12 +25,13 @@ SSE 전파, 지갑 hold/release, 즉시구매와 마감 정산은 다른 담당 
 
 ## 생산 이벤트 계약
 
-Lua Script는 입찰 승인 뒤 아래 field를 한 Stream entry에 `XADD`한다. 모든 이름은
+Lua Script는 일반 입찰 승인 뒤 `bid.accepted.v1`, 즉시 낙찰 승인 뒤
+`auction.buy-now.v1` 이벤트를 한 Stream entry에 `XADD`한다. 모든 이름은
 camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 
 | field | 형식 | 설명 |
 | --- | --- | --- |
-| `eventType` | `bid.accepted.v1` | 이벤트 타입 |
+| `eventType` | `bid.accepted.v1` / `auction.buy-now.v1` | 이벤트 타입 |
 | `schemaVersion` | `1` | 계약 버전 |
 | `auctionId` | integer | 경매 ID |
 | `auctionVersion` | long | 경매별 단조 증가 입찰 버전 |
@@ -48,6 +49,11 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 `auctionVersion`은 경매 context에서 승인 때마다 증가한다. 같은 경매의 더 낮거나 같은
 버전은 DB 상태를 변경하지 않는다. 생산자는 `idempotencyKey`와 request hash를 생략하지
 않아야 하며, 동일 키로 다른 요청을 승인하면 안 된다.
+
+`auction.buy-now.v1`은 `auctionStatus=ENDED`, 최종 `bidPrice/currentPrice`, 종료 시각을
+반드시 포함한다. Consumer는 기존 LEADING bid를 OUTBID로 바꾸고 현재 bid를 WON으로 저장하며
+경매 스냅샷을 ENDED로 반영한다. Wallet capture, 주문 생성, SSE 종료 전파는 별도 도메인
+소유자와의 연동이 필요한 후속 범위다.
 
 ## DB 영속화와 멱등성
 
