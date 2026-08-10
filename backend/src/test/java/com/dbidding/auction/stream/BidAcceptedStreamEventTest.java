@@ -38,6 +38,26 @@ class BidAcceptedStreamEventTest {
         assertThat(event.isBuyNow()).isTrue();
     }
 
+    @Test
+    void 입찰가와_현재가가_다르면_거부한다() {
+        Map<String, String> fields = fields();
+        fields.put("currentPrice", "13000");
+
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("입찰가와 현재가");
+    }
+
+    @Test
+    void idempotency_hash가_SHA256_형식이_아니면_거부한다() {
+        Map<String, String> fields = fields();
+        fields.put("idempotencyRequestHash", "invalid");
+
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("SHA-256");
+    }
+
     private Map<String, String> fields() {
         return new java.util.HashMap<>(Map.ofEntries(
                 Map.entry("eventType", "bid.accepted.v1"),

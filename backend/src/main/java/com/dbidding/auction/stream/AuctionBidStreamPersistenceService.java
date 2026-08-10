@@ -104,7 +104,7 @@ public class AuctionBidStreamPersistenceService {
         validateLeadingBidder(event, currentLeadingBids.get(auction.getId()));
         try {
             auction.validateStreamBid(
-                    event.bidderId(), event.bidPrice(), event.bidCount(), event.closeTime(),
+                    event.bidderId(), event.bidPrice(), event.currentPrice(), event.bidCount(), event.closeTime(), event.occurredAt(),
                     event.auctionStatus(), event.isBuyNow()
             );
         } catch (IllegalArgumentException exception) {

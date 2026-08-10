@@ -236,8 +236,10 @@ public class Auction {
     public void validateStreamBid(
             Integer bidderId,
             long bidPrice,
+            long currentPrice,
             int bidCount,
             Instant closeTime,
+            Instant occurredAt,
             AuctionStatus incomingStatus,
             boolean buyNow
     ) {
@@ -246,6 +248,12 @@ public class Auction {
         }
         if (bidCount != this.bidCount + 1) {
             throw new IllegalArgumentException("입찰 수가 이전 경매 상태와 일치하지 않습니다.");
+        }
+        if (bidPrice != currentPrice) {
+            throw new IllegalArgumentException("입찰가와 현재가는 일치해야 합니다.");
+        }
+        if (!occurredAt.isBefore(this.closeTime)) {
+            throw new IllegalArgumentException("이미 종료된 경매입니다.");
         }
         if (buyNow) {
             if (buyNowPrice == null || bidPrice != buyNowPrice || incomingStatus != AuctionStatus.ENDED) {
