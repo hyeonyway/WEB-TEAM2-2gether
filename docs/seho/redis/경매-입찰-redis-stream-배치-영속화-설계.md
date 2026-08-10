@@ -60,6 +60,16 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 `auction_bid_event_inbox`는 `stream_id` UNIQUE 제약을 가진다. consumer는 각 entry를
 처리할 때 inbox를 먼저 기록한다. 이미 존재하면 DB 변경 없이 성공으로 간주하고 ACK한다.
 
+`auctions.last_bid_event_version`은 경매별 마지막 반영 버전이다. Stream ID 중복 방지와는
+다른 역할을 한다. Consumer 재시도 또는 다중 consumer의 처리 타이밍 때문에 version 11이
+DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10 <= 11`이면 이전 이벤트의
+현재가·입찰 수·마감 시각·상태를 적용하지 않아 최신 상태가 되돌아가는 것을 막는다.
+
+| 저장 값 | 목적 |
+| --- | --- |
+| `auction_bid_event_inbox.stream_id` | 같은 Redis Stream 메시지의 중복 DB 반영 방지 |
+| `auctions.last_bid_event_version` | 같은 경매의 오래된 상태 이벤트가 최신 상태를 덮는 것 방지 |
+
 새 entry는 한 DB 트랜잭션에서 다음 순서로 처리한다.
 
 1. inbox를 저장한다.
