@@ -39,7 +39,7 @@ public class RedisBidExecutor implements BidExecutor {
     }
 
     @Override
-    public BidResponses.BidResult execute(BidCommand command) {
+    public BidExecutionResult execute(BidCommand command) {
         String raw = redisTemplate.execute(
                 bidStubScript,
                 List.of("auction:%d".formatted(command.auctionId())),
@@ -47,10 +47,11 @@ public class RedisBidExecutor implements BidExecutor {
         );
         log.debug("event=auction.bid.redis_executor.stub_response auctionId={} raw={}", command.auctionId(), raw);
         Instant now = clock.instant();
-        return new BidResponses.BidResult(
+        BidResponses.BidResult result = new BidResponses.BidResult(
                 new BidResponses.BidDetail(0L, command.price(), BidStatus.LEADING, now),
                 new BidResponses.AuctionSnapshot(command.auctionId(), command.price(), command.price(), 0, now),
                 new BidResponses.WalletSummary(0L, 0L)
         );
+        return new BidExecutionResult(result, null);
     }
 }

@@ -4,18 +4,13 @@ import com.dbidding.auction.IdempotencyKeys;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
-import com.dbidding.auction.dto.AuctionCloseResponse;
 import com.dbidding.auction.dto.BidResponses;
-import com.dbidding.auction.event.AuctionClosedEvent;
-import com.dbidding.auction.event.AuctionEventPublisher;
-import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.metrics.AuctionMetrics.BidStep;
 import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
-import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
@@ -29,7 +24,6 @@ import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +33,12 @@ import org.springframework.transaction.annotation.Transactional;
  * 구현체. 즉시구매(buyNow) 시 낙찰 처리({@code closeLockedAuction} 계열)는 마감 스케줄러
  * 경로({@code AuctionCommandService})와 공유하지 않고 이 클래스에 복제되어 있다 — 마감
  * 스케줄러는 이 작업 범위 밖이라 건드리지 않기 위한 의도적인 중복이다.
+ *
+ * <p>이벤트 발행은 전혀 하지 않는다(#281) — 입찰 가능여부 판단, wallet 처리, (buyNow 시)
+ * Bid/Order 등 원자적 쓰기만 담당하고, 이벤트 조립·발행은 {@code AuctionCommandService}가
+ * 이 클래스의 반환값({@link BidExecutionResult})으로부터 한다. {@code RedisBidExecutor}(Lua
+ * 기반)는 애초에 Lua 안에서 publish를 할 수 없으므로, 두 구현체가 동일한 계약을 갖기 위한
+ * 정리다.
  */
 @Service
 @Profile("!redis")
@@ -51,8 +51,6 @@ public class DbBidExecutor implements BidExecutor {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
-    private final AuctionEventPublisher auctionEventPublisher;
-    private final ApplicationEventPublisher eventPublisher;
     private final CardService cardService;
     private final OrderService orderService;
     private final Clock clock;
@@ -60,7 +58,7 @@ public class DbBidExecutor implements BidExecutor {
 
     @Override
     @Transactional
-    public BidResponses.BidResult execute(BidCommand command) {
+    public BidExecutionResult execute(BidCommand command) {
         IdempotencyKeys.validate(command.idempotencyKey());
         String requestHash = IdempotencyKeys.sha256(command.price());
         Integer auctionId = command.auctionId();
@@ -69,7 +67,7 @@ public class DbBidExecutor implements BidExecutor {
                 .orElseThrow(AuctionException::notFound);
         Timer.Sample criticalSection = auctionMetrics.startBidCriticalSection();
         try {
-            Optional<BidResponses.BidResult> idempotentResponse = findIdempotentBidResponse(
+            Optional<BidExecutionResult> idempotentResponse = findIdempotentBidResponse(
                     userId,
                     auctionId,
                     command.idempotencyKey(),
@@ -111,23 +109,20 @@ public class DbBidExecutor implements BidExecutor {
             Bid currentLeadingBid = auctionMetrics.recordBidStep(BidStep.SAVE, () -> bidRepository.save(Bid.leading(
                     userId, auction, bidPrice, bidAt, command.idempotencyKey(), requestHash
             )));
-            publishBidPlaced(auction, userId, auction.getItemId(), previousLeadingBid, bidAt);
-            if (buyNow) {
-                closeLockedAuction(auction, bidAt);
-            }
+            AuctionCloseData closeData = buyNow ? closeLockedAuction(auction, bidAt) : null;
+            boolean scheduleExtended = closeTimeExtended && !buyNow;
             log.info(
                     "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
                     auction.getId(), userId, currentLeadingBid.getId(), command.price(), auction.getCurrentPrice(),
                     auction.getBidCount(), previousLeadingBid == null ? null : previousLeadingBid.getId(),
                     closeTimeExtended, previousCloseTime, auction.getCloseTime(), auction.getStatus()
             );
-            if (closeTimeExtended && !buyNow) {
+            if (scheduleExtended) {
                 log.info(
                         "event=auction.close_time.extended auctionId={} bidId={} bidAt={} previousCloseTime={} extendedCloseTime={} extensionWindowMinutes={} extensionDurationMinutes={}",
                         auction.getId(), currentLeadingBid.getId(), bidAt, previousCloseTime, auction.getCloseTime(),
                         BID_EXTENSION_WINDOW.toMinutes(), BID_EXTENSION_DURATION.toMinutes()
                 );
-                publishCloseScheduleChanged(auction, "close_time_extended");
             }
 
             Timer.Sample flush = auctionMetrics.startBidFlush();
@@ -136,7 +131,17 @@ public class DbBidExecutor implements BidExecutor {
             } finally {
                 auctionMetrics.finishBidFlush(flush);
             }
-            return bidResult(currentLeadingBid, auction, wallet);
+            BidEventData eventData = new BidEventData(
+                    auction.getItemId(),
+                    previousLeadingBid == null ? null : previousLeadingBid.getBidderId(),
+                    previousLeadingBid == null ? null : previousLeadingBid.getId(),
+                    auction.getStartPrice(),
+                    auction.getBidPriceUnit(),
+                    auction.getStatus(),
+                    scheduleExtended,
+                    closeData
+            );
+            return new BidExecutionResult(bidResult(currentLeadingBid, auction, wallet), eventData);
         } finally {
             auctionMetrics.finishBidCriticalSection(criticalSection);
         }
@@ -176,7 +181,7 @@ public class DbBidExecutor implements BidExecutor {
         }
     }
 
-    private Optional<BidResponses.BidResult> findIdempotentBidResponse(
+    private Optional<BidExecutionResult> findIdempotentBidResponse(
             Integer bidderId,
             Integer auctionId,
             String idempotencyKey,
@@ -195,7 +200,8 @@ public class DbBidExecutor implements BidExecutor {
         if (!Objects.equals(bid.getIdempotencyRequestHash(), requestHash)) {
             throw AuctionException.idempotencyConflict();
         }
-        return Optional.of(bidResult(bid, auction, walletService.getBalance(bidderId)));
+        BidResponses.BidResult result = bidResult(bid, auction, walletService.getBalance(bidderId));
+        return Optional.of(new BidExecutionResult(result, null));
     }
 
     private boolean placeBid(Auction auction, Long price, Instant bidAt) {
@@ -244,16 +250,19 @@ public class DbBidExecutor implements BidExecutor {
                 && previousLeadingBid.getBidderId() < currentBidderId;
     }
 
-    private AuctionCloseResponse closeLockedAuction(Auction auction, Instant closedAt) {
+    private AuctionCloseData closeLockedAuction(Auction auction, Instant closedAt) {
         Optional<Bid> winningBid = highestBid(auction.getId());
         CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
+        AuctionCloseData closeData = new AuctionCloseData(
+                card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
+                auction.getSellerId()
+        );
         if (winningBid.isEmpty()) {
             auction.closeWithoutTrade(closedAt);
-            publishAuctionClosed(auction, null, closedAt, card);
             log.info("event=auction.closed.without_trade auctionId={} itemId={} sellerId={} closedAt={} status={} bidCount={}",
                     auction.getId(), auction.getItemId(), auction.getSellerId(), closedAt,
                     auction.getStatus(), auction.getBidCount());
-            return closeResponse(auction, null);
+            return closeData;
         }
 
         Bid winner = winningBid.get();
@@ -263,75 +272,16 @@ public class DbBidExecutor implements BidExecutor {
         orderService.createFromAuctionClosed(
                 auction.getId(), winner.getBidderId(), auction.getSellerId(), card.name(), winner.getBidPrice()
         );
-        publishAuctionClosed(auction, winner, closedAt, card);
         log.info(
                 "event=auction.closed.with_winner auctionId={} itemId={} sellerId={} winnerId={} winningBidId={} winningPrice={} closedAt={} status={} bidCount={}",
                 auction.getId(), auction.getItemId(), auction.getSellerId(), winner.getBidderId(), winner.getId(),
                 winner.getBidPrice(), closedAt, auction.getStatus(), auction.getBidCount()
         );
-        return closeResponse(auction, winner);
-    }
-
-    private void publishBidPlaced(
-            Auction auction,
-            Integer bidderId,
-            Integer itemId,
-            Bid previousLeadingBid,
-            Instant occurredAt
-    ) {
-        auctionEventPublisher.publishBidPlaced(new BidPlacedEvent(
-                auction.getId(),
-                itemId,
-                bidderId,
-                previousLeadingBid == null ? null : previousLeadingBid.getBidderId(),
-                previousLeadingBid == null ? null : previousLeadingBid.getId(),
-                auction.getStartPrice(),
-                auction.getCurrentPrice(),
-                auction.getBidPriceUnit(),
-                auction.getBidCount(),
-                auction.getCloseTime(),
-                auction.getStatus(),
-                occurredAt
-        ));
-    }
-
-    private void publishAuctionClosed(Auction auction, Bid winningBid, Instant occurredAt, CardSnapshot card) {
-        Integer winnerId = winningBid == null ? null : winningBid.getBidderId();
-        Long winningPrice = winningBid == null ? null : winningBid.getBidPrice();
-
-        auctionEventPublisher.publishClosed(new AuctionClosedEvent(
-                auction.getId(),
-                card.cardId(),
-                card.name(),
-                card.psaGrade(),
-                card.language(),
-                card.thumbnailUrl(),
-                winnerId,
-                auction.getSellerId(),
-                auction.getStartPrice(),
-                auction.getCurrentPrice(),
-                winningPrice,
-                auction.getBidPriceUnit(),
-                auction.getBidCount(),
-                auction.getCloseTime(),
-                auction.getStatus(),
-                occurredAt
-        ));
+        return closeData;
     }
 
     private Optional<Bid> highestBid(Integer auctionId) {
         return bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auctionId, BidStatus.LEADING);
-    }
-
-    private AuctionCloseResponse closeResponse(Auction auction, Bid winningBid) {
-        return new AuctionCloseResponse(
-                auction.getId(),
-                auction.getStatus(),
-                winningBid == null ? null : winningBid.getBidderId(),
-                winningBid == null ? null : winningBid.getId(),
-                winningBid == null ? null : winningBid.getBidPrice(),
-                auction.getCloseTime()
-        );
     }
 
     private BidResponses.BidResult bidResult(
@@ -359,13 +309,5 @@ public class DbBidExecutor implements BidExecutor {
 
     private Instant now() {
         return clock.instant();
-    }
-
-    private void publishCloseScheduleChanged(Auction auction, String reason) {
-        eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
-                auction.getId(),
-                auction.getCloseTime(),
-                reason
-        ));
     }
 }

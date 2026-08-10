@@ -17,6 +17,7 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
@@ -49,6 +50,8 @@ class AuctionServiceCloseTest {
     @Mock
     private AuctionEventPublisher auctionEventPublisher;
     @Mock
+    private AuctionStreamPublisher auctionStreamPublisher;
+    @Mock
     private CardService cardService;
     @Mock
     private OrderService orderService;
@@ -72,6 +75,7 @@ class AuctionServiceCloseTest {
                 walletService,
                 null,
                 auctionEventPublisher,
+                auctionStreamPublisher,
                 cardService,
                 orderService,
                 clock,
@@ -112,6 +116,7 @@ class AuctionServiceCloseTest {
                 && closed.winningPrice().equals(45_000L)
                 && closed.currentPrice().equals(45_000L)
                 && closed.status() == AuctionStatus.ENDED));
+        verify(auctionStreamPublisher).publish(any());
         assertThat(meterRegistry.get("dbidding.auction.lock.wait")
                 .tag("operation", "close")
                 .timer()
@@ -142,6 +147,7 @@ class AuctionServiceCloseTest {
                 && closed.winningPrice() == null
                 && closed.currentPrice().equals(42_000L)
                 && closed.status() == AuctionStatus.FAILED));
+        verify(auctionStreamPublisher).publish(any());
     }
 
     @Test

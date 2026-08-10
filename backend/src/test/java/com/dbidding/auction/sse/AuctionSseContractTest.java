@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
-import com.dbidding.auction.event.BidPlacedEvent;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -119,21 +118,6 @@ class AuctionSseContractTest {
         assertThat(manager.connectionCount()).isZero();
         verify(first).complete();
         verify(second).complete();
-    }
-
-    @Test
-    void 커밋_후_전달_리스너는_도메인_이벤트를_SSE_payload로_변환하여_브로드캐스트한다() {
-        AuctionSseConnectionManager manager = mock(AuctionSseConnectionManager.class);
-        AuctionSseEventListener listener = new AuctionSseEventListener(manager);
-        Instant occurredAt = Instant.parse("2026-08-03T11:00:00Z");
-        BidPlacedEvent event = new BidPlacedEvent(
-                10, 1, 7, 5, 20L, 40_000L, 50_000L, 1_000L, 2,
-                occurredAt.plus(Duration.ofHours(1)), AuctionStatus.OPEN, occurredAt
-        );
-
-        listener.onBidPlaced(event);
-
-        verify(manager).broadcast(AuctionStreamPayload.bidPlaced(event));
     }
 
     @Test

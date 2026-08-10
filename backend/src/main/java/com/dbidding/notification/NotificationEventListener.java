@@ -48,8 +48,10 @@ public class NotificationEventListener {
                         notificationPushPublisher.publish(notification.getUserId(), NotificationResponse.from(notification)));
     }
 
+    // fallbackExecution=true: #281 이후 이 이벤트가 트랜잭션 밖(AuctionCommandService, 이미
+    // 커밋된 뒤)에서도 발행되므로, 없으면 활성 트랜잭션이 없을 때 조용히 드랍된다.
     @Async("notificationTaskExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleBidPlaced(BidPlacedEvent event) {
         if (event.previousBidderId() == null) {
             return;
@@ -59,8 +61,9 @@ public class NotificationEventListener {
         saveAndPush(event.previousBidderId(), event.auctionId(), NotificationType.OUTBID, event.previousBidId(), message);
     }
 
+    // fallbackExecution=true: 위 handleBidPlaced와 동일한 이유(즉시낙찰 시 트랜잭션 밖에서 발행됨).
     @Async("notificationTaskExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleAuctionClosed(AuctionClosedEvent event) {
         boolean won = event.winnerId() != null;
         NotificationType type = won ? NotificationType.AUCTION_WON : NotificationType.AUCTION_UNSOLD;

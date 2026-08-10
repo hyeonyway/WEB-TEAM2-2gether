@@ -14,6 +14,7 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
@@ -53,6 +54,8 @@ class AuctionRegistrationContractTest {
     @Mock
     private AuctionEventPublisher auctionEventPublisher;
     @Mock
+    private AuctionStreamPublisher auctionStreamPublisher;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private AuctionCommandService auctionCommandService;
@@ -66,6 +69,7 @@ class AuctionRegistrationContractTest {
                         walletService,
                         imageUploadPort,
                         auctionEventPublisher,
+                        auctionStreamPublisher,
                         cardService,
                         null,
                         Clock.fixed(Instant.parse("2026-08-04T00:00:00Z"), ZoneOffset.UTC),
@@ -92,6 +96,7 @@ class AuctionRegistrationContractTest {
         ArgumentCaptor<Auction> captor = ArgumentCaptor.forClass(Auction.class);
         verify(auctionRepository).save(captor.capture());
         assertThat(captor.getValue().getBuyNowPrice()).isNull();
+        verify(auctionStreamPublisher).publish(any());
     }
 
     @Test
