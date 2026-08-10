@@ -130,6 +130,7 @@ function waitForSse(token) {
 function placeBid(token, auctionId, metricName) {
   const headers = {Authorization: `Bearer ${token}`, Accept: 'application/json'};
   const context = http.get(`${baseUrl}/api/auctions/${auctionId}/bid-context`, {headers, tags: {name: `${metricName}_context`}});
+  bidServerError.add(context.status >= 500, {phase: 'main'});
   if (context.status !== 200) { if (metricName === 'bid') bidOk.add(false); return false; }
   const price = Number(context.json('minimum_bid'));
   if (!Number.isSafeInteger(price) || price < 1) { if (metricName === 'bid') bidOk.add(false); return false; }

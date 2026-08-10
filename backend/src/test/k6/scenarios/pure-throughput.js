@@ -93,6 +93,7 @@ export function bidContextRead(data) {
   const auction = randomAuction(data.auctions);
   http.get(`${baseUrl}/api/auctions/${auction.id}/bid-context`, {
     headers: authorization(data.tokens),
+    responseCallback: http.expectedStatuses(200),
     tags: {name: 'GET /api/auctions/:id/bid-context'},
   });
 }
@@ -112,10 +113,10 @@ export function bidWrite(data) {
 export function generalRead(data) {
   const headers = authorization(data.tokens);
   if (__ITER % 2 === 0) {
-    http.get(`${baseUrl}/api/auctions?size=20`, {headers, tags: {name: 'GET /api/auctions'}});
+    http.get(`${baseUrl}/api/auctions?size=20`, {headers, responseCallback: http.expectedStatuses(200), tags: {name: 'GET /api/auctions'}});
   } else {
     const auction = randomAuction(data.auctions);
-    http.get(`${baseUrl}/api/auctions/${auction.id}`, {headers, tags: {name: 'GET /api/auctions/:id'}});
+    http.get(`${baseUrl}/api/auctions/${auction.id}`, {headers, responseCallback: http.expectedStatuses(200), tags: {name: 'GET /api/auctions/:id'}});
   }
 }
 
