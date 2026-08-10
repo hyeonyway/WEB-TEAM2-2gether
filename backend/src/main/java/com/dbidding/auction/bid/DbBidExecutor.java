@@ -97,10 +97,10 @@ public class DbBidExecutor implements BidExecutor {
                             () -> outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt));
                 }
                 wallet = auctionMetrics.recordBidStep(BidStep.HOLD,
-                        () -> holdBidAmount(userId, auction.getId(), bidPrice));
+                        () -> walletService.hold(userId, auction.getId(), bidPrice));
             } else {
                 wallet = auctionMetrics.recordBidStep(BidStep.HOLD,
-                        () -> holdBidAmount(userId, auction.getId(), bidPrice));
+                        () -> walletService.hold(userId, auction.getId(), bidPrice));
                 if (previousLeadingBid != null) {
                     auctionMetrics.recordBidStep(BidStep.OUTBID,
                             () -> outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt));
@@ -206,14 +206,6 @@ public class DbBidExecutor implements BidExecutor {
                     auction.getId(), price, auction.getCurrentPrice(), auction.minimumBid(), auction.getStatus(),
                     auction.getCloseTime(), bidAt, exception.getMessage()
             );
-            throw AuctionException.invalidBidRequest(exception.getMessage());
-        }
-    }
-
-    private WalletBalanceResponse holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
-        try {
-            return walletService.hold(bidderId, auctionId, price);
-        } catch (IllegalArgumentException exception) {
             throw AuctionException.invalidBidRequest(exception.getMessage());
         }
     }

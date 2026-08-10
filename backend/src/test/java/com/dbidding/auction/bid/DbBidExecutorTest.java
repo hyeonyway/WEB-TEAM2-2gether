@@ -42,6 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.dbidding.auction.exception.AuctionException;
+import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 
 @ExtendWith(MockitoExtension.class)
 class DbBidExecutorTest {
@@ -105,6 +106,21 @@ class DbBidExecutorTest {
                 .tag("operation", "bid")
                 .timer()
                 .count()).isEqualTo(1);
+    }
+
+    @Test
+    void 예치금이_부족하면_지갑_예외가_그대로_전파된다() {
+        Auction auction = auction(1);
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
+                .thenReturn(Optional.empty());
+        when(walletService.hold(2, 1, 43_000L)).thenThrow(new InsufficientAvailableBalanceException());
+
+        assertThatThrownBy(() -> dbBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key")))
+                .isInstanceOf(InsufficientAvailableBalanceException.class);
+
+        verify(bidRepository, never()).save(any(Bid.class));
+        verifyNoInteractions(auctionEventPublisher);
     }
 
     @Test
