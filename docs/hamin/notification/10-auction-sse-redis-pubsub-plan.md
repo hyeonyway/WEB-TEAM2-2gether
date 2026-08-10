@@ -245,7 +245,7 @@ public class RedisAuctionStreamPublisher implements AuctionStreamPublisher {
 
     @Override
     public void publish(AuctionStreamPayload payload) {
-        redisTemplate.convertAndSend(AUCTION_STREAM_CHANNEL, writeJson(payload));
+        redisTemplate.convertAndSend(CHANNEL, writeJson(new AuctionStreamMessage(payload.type(), payload)));
     }
 }
 
@@ -257,12 +257,20 @@ public class AuctionStreamRedisSubscriber implements MessageListener {
 
     @Override
     public void onMessage(Message message, byte[] pattern) {
-        connectionManager.broadcast(readJson(message.getBody(), AuctionStreamPayload.class));
+        AuctionStreamMessage parsed = readJson(message.getBody(), AuctionStreamMessage.class);
+        connectionManager.broadcast(parsed.payload().withType(parsed.type()));
         // broadcast() 자체가 이미 @Async("auctionSseTaskExecutor") — origin이 이 executor를
         // 더 이상 안 쓰므로 경쟁 없이 재사용 가능.
     }
 }
 ```
+
+**구현하며 계획과 달라진 점**: `AuctionStreamPayload.type()`이 `@JsonIgnore`라(SSE 클라이언트로
+나가는 JSON 바디에는 굳이 안 실어도 되게) Redis용 JSON 왕복에서도 그대로 유실된다 — 그대로
+뒀으면 구독자가 `payload.type()`을 `null`로 받아 `connectionManager.broadcast()`의
+`event().name(payload.type().name())`에서 NPE가 난다. `AuctionStreamMessage(type, payload)`로
+감싸서 publish하고, `AuctionStreamPayload`에 `withType(AuctionStreamEventType)`(기존
+`withPublishedAt`과 동일한 패턴)을 추가해 구독자가 복원하도록 고쳤다.
 
 `AuctionSseEventListener`(로컬 이벤트 → `connectionManager.broadcast()` 직접 호출, 순수
 배관)는 삭제한다. `auction.sse` 패키지에는 이제 커넥션 매니저, 컨트롤러, 위 publisher/구독자만
@@ -291,10 +299,19 @@ public class RedisPubSubConfig {
 }
 ```
 
-직렬화는 Spring Boot가 자동 구성하는 `ObjectMapper` 빈을 그대로 쓴다(JSON 문자열로
-`convertAndSend`, 수신 시 `message.getBody()`를 UTF-8 문자열로 읽어 역직렬화) — `AuctionStreamPayload`/
-`BidPlacedEvent`/`AuctionClosedEvent`/`NotificationResponse` 모두 이미 Jackson으로 직렬화되는
-평범한 record라 별도 커스텀 직렬화가 필요 없다. 채널 이름 상수(`"auction:stream"`,
+**구현하며 계획과 달라진 점**: Spring Boot가 자동 구성하는 `ObjectMapper` 빈을 그대로 쓰려고
+했으나, 이 프로젝트가 Spring Boot 4.1.0 + `spring-boot-starter-webmvc`(세분화 스타터) 조합이라
+자동 구성이 Jackson 3 계열(`tools.jackson.databind.ObjectMapper`) 빈만 노출하고, 기존 코드가
+쓰는 Jackson 2 계열(`com.fasterxml.jackson.databind.ObjectMapper`, `@JsonInclude`/`@JsonNaming`
+등 기존 어노테이션과 동일 계열) 빈은 등록돼있지 않았다(`AuctionBidWalletLockOrderConcurrencyTest`
+실행 중 `NoSuchBeanDefinitionException`으로 발견). `RedisPubSubConfig`에 `JavaTimeModule`을 얹은
+Jackson 2 계열 `ObjectMapper`(`JsonMapper`) 빈을 직접 추가해서 해결했다 — `Instant` 직렬화를
+위해 `AuctionSseContractTest`가 로컬 검증용으로 쓰던 것과 동일한 모듈 구성이다.
+
+직렬화는 위 빈으로 JSON 문자열로 `convertAndSend`, 수신 시 `message.getBody()`를 UTF-8
+문자열로 읽어 역직렬화한다 — `AuctionStreamPayload`/`BidPlacedEvent`/`AuctionClosedEvent`/
+`NotificationResponse` 모두 이미 Jackson으로 직렬화되는 평범한 record라 별도 커스텀 직렬화가
+필요 없다. 채널 이름 상수(`"auction:stream"`,
 `"notification:push"`)는 각 publisher/subscriber와 같은 패키지에 둔다.
 
 ### 6. `fallbackExecution` 수정
