@@ -1,7 +1,5 @@
 package com.dbidding.auction.service;
 
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionSort;
@@ -15,6 +13,7 @@ import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
+import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.card.service.CardService;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.auction.repository.AuctionImageRepository;
@@ -36,7 +35,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional(readOnly = true)
@@ -207,7 +205,7 @@ public class    AuctionQueryService {
 
     private Auction getAuction(Integer auctionId) {
         return auctionRepository.findById(auctionId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
+				.orElseThrow(AuctionException::notFound);
     }
 
     private Map<Integer, CardSnapshot> cardSnapshots(List<Auction> auctions) {

@@ -41,7 +41,7 @@ import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
+import com.dbidding.auction.exception.AuctionException;
 
 @ExtendWith(MockitoExtension.class)
 class AuctionServiceBidTest {
@@ -92,9 +92,9 @@ class AuctionServiceBidTest {
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
 
         assertThatThrownBy(() -> auctionService.participate(1, 1, new BidCreateRequest(43_000L), "bid-key"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
-                .isEqualTo(403);
+				.isInstanceOf(AuctionException.class)
+				.extracting(exception -> ((AuctionException) exception).getCode())
+				.isEqualTo("AUCTION_SELLER_BID_FORBIDDEN");
 
         assertThat(auction.getCurrentPrice()).isEqualTo(42_000L);
         assertThat(auction.getBidCount()).isZero();

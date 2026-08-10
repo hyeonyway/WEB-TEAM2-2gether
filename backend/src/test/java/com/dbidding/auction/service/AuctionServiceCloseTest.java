@@ -36,7 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
+import com.dbidding.auction.exception.AuctionException;
 
 @ExtendWith(MockitoExtension.class)
 class AuctionServiceCloseTest {
@@ -149,9 +149,9 @@ class AuctionServiceCloseTest {
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
 
         assertThatThrownBy(() -> auctionService.closeAuction(1))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
-                .isEqualTo(400);
+				.isInstanceOf(AuctionException.class)
+				.extracting(exception -> ((AuctionException) exception).getCode())
+				.isEqualTo("INVALID_AUCTION_REQUEST");
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
         verify(walletService, never()).capture(any(), any(), any(Long.class));
         verifyNoInteractions(auctionEventPublisher);

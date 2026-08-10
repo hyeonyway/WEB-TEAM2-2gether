@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.AuctionSort;
+import com.dbidding.auction.exception.AuctionException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.server.ResponseStatusException;
 
 class AuctionCursorCodecTest {
     private final AuctionCursorCodec codec = new AuctionCursorCodec();
@@ -28,15 +28,15 @@ class AuctionCursorCodecTest {
         String encoded = codec.encode(new AuctionCursor(AuctionSort.BID_COUNT, 5L, null, 17));
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.PRICE_LOW))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("400 BAD_REQUEST");
+				.isInstanceOf(AuctionException.class)
+				.extracting(exception -> ((AuctionException) exception).getCode())
+				.isEqualTo("INVALID_AUCTION_CURSOR");
     }
 
     @Test
     void 손상된_cursor는_거부한다() {
         assertThatThrownBy(() -> codec.decode("not-a-cursor", AuctionSort.BID_COUNT))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("400 BAD_REQUEST");
+				.isInstanceOf(AuctionException.class);
     }
 
     @Test
@@ -58,8 +58,7 @@ class AuctionCursorCodecTest {
         String encoded = encodeRaw("v4|BID_COUNT|||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("400 BAD_REQUEST");
+				.isInstanceOf(AuctionException.class);
     }
 
     @Test
@@ -67,8 +66,7 @@ class AuctionCursorCodecTest {
         String encoded = encodeRaw("v4|LATEST|||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.LATEST))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("400 BAD_REQUEST");
+				.isInstanceOf(AuctionException.class);
     }
 
     @Test
@@ -76,8 +74,7 @@ class AuctionCursorCodecTest {
         String encoded = encodeRaw("v4|PRICE_HIGH|45000||0");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.PRICE_HIGH))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("400 BAD_REQUEST");
+				.isInstanceOf(AuctionException.class);
     }
 
     @Test
@@ -85,8 +82,7 @@ class AuctionCursorCodecTest {
         String encoded = encodeRaw("v4|BID_COUNT|-1||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("400 BAD_REQUEST");
+				.isInstanceOf(AuctionException.class);
     }
 
     @Test
@@ -94,8 +90,7 @@ class AuctionCursorCodecTest {
         String encoded = encodeRaw("v4|BID_COUNT|2147483648||17");
 
         assertThatThrownBy(() -> codec.decode(encoded, AuctionSort.BID_COUNT))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("400 BAD_REQUEST");
+				.isInstanceOf(AuctionException.class);
     }
 
     private String encodeRaw(String raw) {

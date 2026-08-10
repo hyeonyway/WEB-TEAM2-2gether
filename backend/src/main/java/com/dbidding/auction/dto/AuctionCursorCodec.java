@@ -1,13 +1,11 @@
 package com.dbidding.auction.dto;
 
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-
+import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.domain.AuctionSort;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class AuctionCursorCodec {
@@ -41,7 +39,7 @@ public class AuctionCursorCodec {
             Integer auctionId = Integer.valueOf(parts[4]);
             validate(cursorSort, value, timeValue, auctionId);
             return new AuctionCursor(cursorSort, value, timeValue, auctionId);
-        } catch (ResponseStatusException exception) {
+		} catch (AuctionException exception) {
             throw exception;
         } catch (RuntimeException exception) {
             throw invalidCursor();
@@ -71,7 +69,7 @@ public class AuctionCursorCodec {
         }
     }
 
-    private ResponseStatusException invalidCursor() {
-        return new ResponseStatusException(BAD_REQUEST, "유효하지 않은 경매 cursor입니다.");
-    }
+	private AuctionException invalidCursor() {
+		return AuctionException.invalidCursor();
+	}
 }
