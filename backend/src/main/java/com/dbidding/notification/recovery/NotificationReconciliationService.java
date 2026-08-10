@@ -43,19 +43,23 @@ public class NotificationReconciliationService {
     private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
 
+    /**
+     * 경매당 찜 유저가 많을 수 있어(인기 카드) 유저별 존재 체크 대신
+     * {@link NotificationService#saveAllIgnoringDuplicates}로 한 번에 저장한다 —
+     * INSERT IGNORE가 이미 있는 유저를 알아서 건너뛰므로 이 메서드에서는
+     * 유니크 제약 위반 예외가 나지 않는다.
+     */
     public void recoverAuctionOpenedNotifications(Instant windowStart) {
         List<Auction> recentlyOpened = auctionRepository
                 .findByStatusInAndOpenTimeGreaterThanEqual(OPEN_STATUSES, windowStart);
 
         for (Auction auction : recentlyOpened) {
-            for (Integer userId : wishlistService.findUserIdsByCardId(auction.getItemId())) {
-                ensureNotification(
-                        userId,
-                        auction.getId(),
-                        NotificationType.AUCTION_OPENED,
-                        auction.getAuctionName() + " 카드의 경매가 등록되었습니다."
-                );
-            }
+            notificationService.saveAllIgnoringDuplicates(
+                    wishlistService.findUserIdsByCardId(auction.getItemId()),
+                    auction.getId(),
+                    NotificationType.AUCTION_OPENED,
+                    auction.getAuctionName() + " 카드의 경매가 등록되었습니다."
+            );
         }
     }
 
