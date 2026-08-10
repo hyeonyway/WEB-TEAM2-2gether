@@ -76,7 +76,8 @@ class AuctionServiceCloseTest {
                 orderService,
                 clock,
                 eventPublisher,
-                new AuctionMetrics(meterRegistry)
+                new AuctionMetrics(meterRegistry),
+                null
         );
         lenient().when(cardService.getCardSnapshot(1)).thenReturn(new CardSnapshot(
                 1, "리자몽", "기본 세트", "10", "JP", "/cards/charizard.png"

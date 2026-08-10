@@ -70,7 +70,8 @@ class AuctionRegistrationContractTest {
                         null,
                         Clock.fixed(Instant.parse("2026-08-04T00:00:00Z"), ZoneOffset.UTC),
                         eventPublisher,
-                        new AuctionMetrics(new SimpleMeterRegistry())
+                        new AuctionMetrics(new SimpleMeterRegistry()),
+                        null
                 );
         when(auctionRepository.findBySellerIdAndCreateIdempotencyKey(any(), anyString()))
                 .thenReturn(Optional.empty());
