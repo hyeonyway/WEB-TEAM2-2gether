@@ -1,7 +1,5 @@
 package com.dbidding.auction.stream;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
@@ -41,7 +39,6 @@ public class AuctionBidStreamConsumer {
     private final StringRedisTemplate redisTemplate;
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
-    private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
     private final String consumerName = "auction-bid-" + UUID.randomUUID();
 
@@ -143,10 +140,9 @@ public class AuctionBidStreamConsumer {
     }
 
     private String payload(Map<String, String> values) {
-        try {
-            return objectMapper.writeValueAsString(values);
-        } catch (JsonProcessingException exception) {
-            return values.toString();
-        }
+        return values.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(java.util.stream.Collectors.joining("&"));
     }
 }
