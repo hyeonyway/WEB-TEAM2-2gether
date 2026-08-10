@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -57,7 +58,7 @@ public class DbBidExecutor implements BidExecutor {
     private final AuctionMetrics auctionMetrics;
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BidExecutionResult execute(BidCommand command) {
         IdempotencyKeys.validate(command.idempotencyKey());
         String requestHash = IdempotencyKeys.sha256(command.price());
