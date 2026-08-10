@@ -18,9 +18,15 @@ hold 상태까지 원자적으로 예약하고, Consumer는 그 결과를 기존
 - consumer group: `auction-bid-persistence`
 - DLQ key: `auction:bid-events:dlq:v1`
 - retry counter hash: `auction:bid-events:retry-count:v1`
+- version pause hash: `auction:bid-events:paused-auctions:v1`
+- consumer lease lock: `auction:bid-events:consumer-leader-lock:v1`
 - 한 consumer는 `XREADGROUP GROUP auction-bid-persistence <instance-id> COUNT 100 BLOCK 1000`
   으로 읽는다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
-- PEL의 30초 이상 유휴 메시지는 `XAUTOCLAIM`으로 회수한다.
+- PEL의 30초 이상 유휴 메시지는 pending 조회 뒤 `XCLAIM`으로 회수한다.
+- 여러 애플리케이션 인스턴스가 떠도 Redis lease 락을 획득한 인스턴스만 poll 전체를 실행한다.
+  `poll → DB transaction → ACK`가 끝나면 소유자 token을 비교해 락을 해제한다. 기본 최대 lease는
+  5분(`AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR`)이며, 운영 환경의 최장 배치 처리 시간보다
+  길게 설정해야 한다.
 
 현재 전제는 단일 Redis 인스턴스다. Lua Script가 경매별 context key와 전역 Stream key를
 같은 호출에서 갱신하므로 Redis Cluster 전환 시 hash slot 토폴로지를 별도로 설계한다.
@@ -45,7 +51,7 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 | `currentPrice` | long | 갱신된 현재가 |
 | `bidCount` | integer | 갱신된 입찰 수 |
 | `closeTime` | instant | 갱신된 마감 시각 |
-| `auctionStatus` | enum | `OPEN` 또는 `ENDING` |
+| `auctionStatus` | enum | 일반 입찰은 `OPEN`/`ENDING`, 즉시 낙찰은 `ENDED` |
 | `occurredAt` | instant | Lua 승인 시각 |
 
 `auctionVersion`은 경매 context에서 승인 때마다 증가한다. 같은 경매의 더 낮거나 같은
@@ -55,7 +61,8 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 `auction.buy-now.v1`은 `auctionStatus=ENDED`, 최종 `bidPrice/currentPrice`, 종료 시각을
 반드시 포함한다. Consumer는 기존 LEADING bid를 OUTBID로 바꾸고 현재 bid를 WON으로 저장하며
 경매 스냅샷을 ENDED로 반영한다. 낙찰자 wallet hold와 capture도 같은 DB 트랜잭션에서 처리한다.
-주문 생성과 SSE 종료 전파는 별도 도메인 소유자와의 연동이 필요한 후속 범위다.
+같은 트랜잭션에서 `orders`를 생성하고 `AuctionClosedEvent`를 발행해 기존 종료/SSE listener 흐름도
+연결한다.
 
 ## DB 영속화와 멱등성
 
@@ -74,13 +81,14 @@ DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10
 
 새 entry는 한 DB 트랜잭션에서 다음 순서로 처리한다.
 
-1. inbox를 저장한다.
-2. 대상 auction을 비관적 잠금으로 조회한다.
+1. 기존 inbox를 일괄 조회해 이미 처리된 Stream ID를 제외한다.
+2. 대상 auction을 비관적 잠금으로 일괄 조회하고 현재 LEADING bid를 일괄 조회한다.
 3. `auctionVersion`이 마지막 적용 버전보다 작거나 같으면 inbox만 유지하고 끝낸다.
 4. 새 입찰자 DB wallet에 `hold`하고, 이전 최고 입찰자의 DB wallet hold를 `release`한다.
    두 지갑을 함께 처리할 때는 사용자 ID 오름차순으로 호출해 기존 락 순서를 유지한다.
 5. 현재 LEADING bid를 OUTBID로 전환하고 새 `Bid`를 LEADING으로 저장한다.
-6. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신한다.
+6. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신하고 inbox와 새 bid를
+   `saveAll`로 저장한다.
 
 `auction.buy-now.v1`은 새 입찰자의 hold 직후 같은 트랜잭션에서 `capture`한다. 따라서
 이전 최고 입찰자 release, 낙찰자 hold/capture, bid WON, auction ENDED가 DB에서 함께
@@ -111,7 +119,8 @@ Consumer는 Lua 승인 이벤트라도 DB 반영 전에 기존 입찰 규칙을 
 
 읽기·DB·락 오류는 retry counter를 증가시켜 최대 3회 재시도한다. 성공 ACK 후에는 retry
 counter를 제거한다. 계약 파싱 오류와 존재하지 않는 경매 같은 업무 오류, 또는 3회 초과
-실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다.
+실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 배치 트랜잭션이 실패하면 같은
+배치의 정상 이벤트까지 DLQ로 보내지 않도록 각 Stream entry를 개별 트랜잭션으로 다시 처리한다.
 
 단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:bid-events:paused-auctions:v1` hash에
 경매 ID, 누락 직전 기대 버전, 원본 Stream ID, 사유를 기록하고 해당 경매의 PEL 메시지를 보류한다.
