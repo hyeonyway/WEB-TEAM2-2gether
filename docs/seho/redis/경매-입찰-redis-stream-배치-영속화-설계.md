@@ -6,8 +6,10 @@ Redis Lua Script가 원자적으로 승인한 입찰을 Redis Stream에 기록�
 비동기 consumer가 DB의 입찰 이력과 경매 스냅샷으로 영속화한다. Stream 전달은
 at-least-once이므로 DB inbox와 트랜잭션 후 ACK로 중복 반영을 막는다.
 
-이번 범위는 Stream 소비·재시도·DLQ다. Lua 입찰 검증, HTTP 즉시 응답, Redis Pub/Sub
-SSE 전파, 지갑 hold/release, 즉시구매와 마감 정산은 다른 담당 영역이다.
+이번 범위는 Stream 소비·재시도·DLQ와 기존 DB 입찰 반영이다. Lua 입찰 검증·HTTP 즉시
+응답·Redis Pub/Sub SSE 전파는 다른 담당 영역이다. Lua는 Redis 지갑 mirror의 가용 잔액과
+hold 상태까지 원자적으로 예약하고, Consumer는 그 결과를 기존 DB 지갑과 경매 테이블에
+영속화한다.
 
 ## 프로필과 토폴로지
 
@@ -52,8 +54,8 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 
 `auction.buy-now.v1`은 `auctionStatus=ENDED`, 최종 `bidPrice/currentPrice`, 종료 시각을
 반드시 포함한다. Consumer는 기존 LEADING bid를 OUTBID로 바꾸고 현재 bid를 WON으로 저장하며
-경매 스냅샷을 ENDED로 반영한다. Wallet capture, 주문 생성, SSE 종료 전파는 별도 도메인
-소유자와의 연동이 필요한 후속 범위다.
+경매 스냅샷을 ENDED로 반영한다. 낙찰자 wallet hold와 capture도 같은 DB 트랜잭션에서 처리한다.
+주문 생성과 SSE 종료 전파는 별도 도메인 소유자와의 연동이 필요한 후속 범위다.
 
 ## DB 영속화와 멱등성
 
@@ -75,8 +77,14 @@ DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10
 1. inbox를 저장한다.
 2. 대상 auction을 비관적 잠금으로 조회한다.
 3. `auctionVersion`이 마지막 적용 버전보다 작거나 같으면 inbox만 유지하고 끝낸다.
-4. 현재 LEADING bid를 OUTBID로 전환하고 새 `Bid`를 LEADING으로 저장한다.
-5. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신한다.
+4. 새 입찰자 DB wallet에 `hold`하고, 이전 최고 입찰자의 DB wallet hold를 `release`한다.
+   두 지갑을 함께 처리할 때는 사용자 ID 오름차순으로 호출해 기존 락 순서를 유지한다.
+5. 현재 LEADING bid를 OUTBID로 전환하고 새 `Bid`를 LEADING으로 저장한다.
+6. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신한다.
+
+`auction.buy-now.v1`은 새 입찰자의 hold 직후 같은 트랜잭션에서 `capture`한다. 따라서
+이전 최고 입찰자 release, 낙찰자 hold/capture, bid WON, auction ENDED가 DB에서 함께
+커밋되며, 실패하면 Stream entry는 ACK되지 않아 재시도한다.
 
 커밋에 성공한 entry만 ACK한다. DB 커밋 전 프로세스가 종료되어도 PEL 재전달과 inbox
 UNIQUE 제약이 재처리를 안전하게 만든다.
