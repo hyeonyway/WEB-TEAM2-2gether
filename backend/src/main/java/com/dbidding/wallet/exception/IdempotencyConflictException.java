@@ -1,12 +1,16 @@
 package com.dbidding.wallet.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.CONFLICT)
-public class IdempotencyConflictException extends RuntimeException {
+import com.dbidding.global.exception.ApiException;
+
+public class IdempotencyConflictException extends ApiException {
 
 	public IdempotencyConflictException() {
-		super("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+		super(
+			HttpStatus.CONFLICT,
+			"IDEMPOTENCY_CONFLICT",
+			"같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다."
+		);
 	}
 }
