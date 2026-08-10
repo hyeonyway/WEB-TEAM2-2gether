@@ -22,19 +22,21 @@ Four Golden Signals 기준으로 재구성한다. 동시에 Redis 도입 전 기
 ## 관련 이슈와 문서
 
 문서 하나만으로는 이슈/브랜치를 따로 두지 않고, 머지 순서가 같은 것끼리
-묶었다. #330(SLO)과 #333(Redis 베이스라인)은 각각 #334에, #332(Grafana)는
-#331에 합쳤다.
+묶었다. #330(SLO)은 #334에, #332(Grafana)는 #331에 합쳤다. #333(Redis
+베이스라인)은 나머지가 전부 병합된 뒤 마지막에 한 번만 재는 게 맞아서
+독립 이슈로 유지한다 — DB/락 지연과 SSE 계측을 따로 두 번 잴 이유가 없다.
 
 | 이슈 | 브랜치 | 포함 문서 | 선행 조건 |
 |---|---|---|---|
-| #334 | `fix/334-k6-policy-failure-and-scenario-design` | [1. k6 시나리오 설계](1-k6-scenario-design.md), [2. SLO/Error Budget](2-slo-error-budget.md), [3. Redis 베이스라인](3-redis-baseline-comparison.md) | 없음 — 제일 먼저 `dev`에 머지 |
-| #331 | `feature/331-observability-metrics-instrumentation` | [4. 관측 공백 및 계측 보강](4-metrics-gap-and-instrumentation.md), [5. Grafana 대시보드 재구성](5-grafana-dashboard-redesign.md) | #334 (metrics가 대시보드 패널로 쓰이고, SLO 목표선을 참조함) |
+| #334 | `fix/334-k6-policy-failure-and-scenario-design` | [1. k6 시나리오 설계](1-k6-scenario-design.md), [2. SLO/Error Budget](2-slo-error-budget.md) | 없음 — 제일 먼저 `dev`에 머지 |
+| #331 | `feature/331-observability-metrics-instrumentation` | [3. 관측 공백 및 계측 보강](3-metrics-gap-and-instrumentation.md), [4. Grafana 대시보드 재구성](4-grafana-dashboard-redesign.md) | #334 (metrics가 대시보드 패널로 쓰이고, SLO 목표선을 참조함) |
+| #333 | `chore/333-redis-pre-migration-baseline` | [5. Redis 도입 전 베이스라인](5-redis-baseline-comparison.md) | #334, #331 둘 다 병합 완료 |
 
 문서 번호(1~5)는 실제로 실행/머지돼야 하는 순서를 그대로 나타낸다:
 k6 시나리오가 있어야 뭐라도 돌릴 수 있고 → SLO로 그 결과를 판정할 기준을
-잡고 → 그 시나리오로 Redis 도입 전 베이스라인을 재고 → (다음 이슈에서)
-그 과정에서 드러난 관측 공백을 메우고 → 마지막으로 전부 한 대시보드에
-모은다.
+잡고 → (다음 이슈에서) 관측 공백을 메우고 → 전부 한 대시보드에 모은 뒤 →
+**모든 계측이 갖춰진 상태에서 마지막에 한 번만** Redis 도입 전 베이스라인을
+잰다.
 
 인증 성능 개선(#335)은 팀 소유 도메인 폴더인 [`../auth/6-password-hash-cost-tuning.md`](../auth/6-password-hash-cost-tuning.md)에
 별도로 둔다(관측성 작업이 아니라 Account 도메인 작업이라 폴더 성격상 분리,
