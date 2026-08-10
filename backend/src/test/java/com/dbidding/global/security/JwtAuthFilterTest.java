@@ -19,7 +19,7 @@ import com.dbidding.account.authentication.jwt.JwtTokenProvider;
 import com.dbidding.account.authentication.jwt.TokenClaims;
 import com.dbidding.account.authentication.jwt.TokenType;
 import com.dbidding.global.security.jwt.JwtAuthFilter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class JwtAuthFilterTest {

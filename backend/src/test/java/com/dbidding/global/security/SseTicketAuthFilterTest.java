@@ -26,7 +26,7 @@ import com.dbidding.global.exception.UnauthorizedException;
 import com.dbidding.global.security.jwt.InMemoryTicketProvider;
 import com.dbidding.global.security.jwt.SseTicketAuthFilter;
 import com.dbidding.global.security.jwt.TicketProvider;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class SseTicketAuthFilterTest {

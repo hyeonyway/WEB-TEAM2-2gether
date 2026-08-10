@@ -23,7 +23,7 @@ import com.dbidding.global.security.jwt.TicketProvider;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
 import com.dbidding.global.security.session.SessionAuthFilter;
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 class JwtAuthenticationConfigurationTest {
 

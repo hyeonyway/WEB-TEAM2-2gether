@@ -13,7 +13,7 @@ import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.FilterErrorResponseWriter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 class SessionAuthConfigurationTest {
 

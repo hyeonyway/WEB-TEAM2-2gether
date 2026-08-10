@@ -12,7 +12,7 @@ import org.springframework.mock.web.MockHttpSession;
 import com.dbidding.account.authentication.session.SessionPrincipal;
 import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.FilterErrorResponseWriter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 class SessionAuthFilterTest {
 
