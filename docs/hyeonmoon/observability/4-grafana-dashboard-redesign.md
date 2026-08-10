@@ -10,12 +10,12 @@ Four Golden Signals(Latency/Traffic/Errors/Saturation) 프레임워크로 재확
 **이 문서는 이슈 #332 소속이지만, `/Users/admin/Documents/softeer/monitoring`이
 git 저장소가 아니라 별도의 코드 브랜치가 없다.** 이 저장소(WEB-TEAM2-2gether)에는
 문서만 남기고, 대시보드 JSON 자체는 모니터링 서버에 직접 반영한다. 문서는
-이 계측을 실제로 만드는 [`feature/331-observability-metrics-instrumentation`](4-metrics-gap-and-instrumentation.md)
+이 계측을 실제로 만드는 [`feature/331-observability-metrics-instrumentation`](3-metrics-gap-and-instrumentation.md)
 브랜치에 같이 실어둔다 — 대시보드가 소비할 메트릭을 만드는 작업과 가장
 가깝기 때문이다.
 
 **선행 조건:** [`2-slo-error-budget.md`](2-slo-error-budget.md)(목표치),
-[`4-metrics-gap-and-instrumentation.md`](4-metrics-gap-and-instrumentation.md)의
+[`3-metrics-gap-and-instrumentation.md`](3-metrics-gap-and-instrumentation.md)의
 신규 메트릭이 먼저 배포돼 있어야 Traffic(SSE 연결 수), Saturation(Tomcat
 커넥터별) 섹션의 패널을 채울 수 있다.
 
