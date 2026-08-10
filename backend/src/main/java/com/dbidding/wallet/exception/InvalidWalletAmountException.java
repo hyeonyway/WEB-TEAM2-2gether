@@ -1,12 +1,12 @@
 package com.dbidding.wallet.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.BAD_REQUEST)
-public class InvalidWalletAmountException extends RuntimeException {
+import com.dbidding.global.exception.ApiException;
+
+public class InvalidWalletAmountException extends ApiException {
 
 	public InvalidWalletAmountException(String message) {
-		super(message);
+		super(HttpStatus.BAD_REQUEST, "INVALID_WALLET_AMOUNT", message);
 	}
 }

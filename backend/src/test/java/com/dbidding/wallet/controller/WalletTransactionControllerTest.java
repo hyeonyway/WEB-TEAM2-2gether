@@ -155,9 +155,11 @@ class WalletTransactionControllerTest {
 
 	@ParameterizedTest
 	@MethodSource("domainExceptionMappings")
-	void Wallet_도메인_예외를_약속한_HTTP_상태로_반환한다(
+	void Wallet_도메인_예외를_공통_JSON_오류_응답으로_반환한다(
 		RuntimeException exception,
-		HttpStatus expectedStatus
+		HttpStatus expectedStatus,
+		String expectedCode,
+		String expectedMessage
 	) throws Exception {
 		given(walletService.charge(1, 10_000L, "charge-key"))
 			.willThrow(exception);
@@ -166,19 +168,49 @@ class WalletTransactionControllerTest {
 				.header("Idempotency-Key", "charge-key")
 				.contentType(APPLICATION_JSON)
 				.content("{\"amount\":10000}"))
-			.andExpect(status().is(expectedStatus.value()));
+			.andExpect(status().is(expectedStatus.value()))
+			.andExpect(jsonPath("$.code").value(expectedCode))
+			.andExpect(jsonPath("$.message").value(expectedMessage));
 	}
 
 	private static Stream<Arguments> domainExceptionMappings() {
 		return Stream.of(
-			Arguments.of(new InvalidIdempotencyKeyException(), HttpStatus.BAD_REQUEST),
+			Arguments.of(
+				new InvalidIdempotencyKeyException(),
+				HttpStatus.BAD_REQUEST,
+				"INVALID_IDEMPOTENCY_KEY",
+				"Idempotency-Key는 1자 이상 64자 이하여야 합니다."
+			),
 			Arguments.of(
 				new InvalidWalletAmountException("유효하지 않은 금액입니다."),
-				HttpStatus.BAD_REQUEST
+				HttpStatus.BAD_REQUEST,
+				"INVALID_WALLET_AMOUNT",
+				"유효하지 않은 금액입니다."
 			),
-			Arguments.of(new WalletNotFoundException(), HttpStatus.NOT_FOUND),
-			Arguments.of(new InsufficientAvailableBalanceException(), HttpStatus.CONFLICT),
-			Arguments.of(new IdempotencyConflictException(), HttpStatus.CONFLICT)
+			Arguments.of(
+				new WalletNotFoundException(),
+				HttpStatus.NOT_FOUND,
+				"WALLET_NOT_FOUND",
+				"지갑을 찾을 수 없습니다."
+			),
+			Arguments.of(
+				new InsufficientAvailableBalanceException(),
+				HttpStatus.CONFLICT,
+				"INSUFFICIENT_AVAILABLE_BALANCE",
+				"사용 가능한 잔액이 부족합니다."
+			),
+			Arguments.of(
+				new IdempotencyConflictException(),
+				HttpStatus.CONFLICT,
+				"IDEMPOTENCY_CONFLICT",
+				"같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다."
+			),
+			Arguments.of(
+				new InvalidWalletBalanceException(),
+				HttpStatus.CONFLICT,
+				"INVALID_WALLET_BALANCE",
+				"지갑 잔액 상태가 올바르지 않습니다."
+			)
 		);
 	}
 
