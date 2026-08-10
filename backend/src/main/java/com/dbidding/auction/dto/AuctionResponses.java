@@ -1,6 +1,7 @@
 package com.dbidding.auction.dto;
 
 import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
@@ -37,10 +38,10 @@ public final class AuctionResponses {
             @JsonProperty("bid_increment") Long bidIncrement,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_count") Integer bidCount,
+            @JsonProperty("buy_now_price") Long buyNowPrice,
             @JsonProperty("starts_at") Instant startsAt,
             @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
-            Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
             @JsonProperty("my_bid_amount") Long myBidAmount
     ) {
@@ -59,7 +60,6 @@ public final class AuctionResponses {
             @JsonProperty("starts_at") Instant startsAt,
             @JsonProperty("ends_at") Instant endsAt,
             AuctionStatus status,
-            Long version,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
             @JsonProperty("my_bid_amount") Long myBidAmount,
             String description,
@@ -87,6 +87,30 @@ public final class AuctionResponses {
             String nickname,
             @JsonProperty("trade_count") Integer tradeCount,
             @JsonProperty("trust_score") Integer trustScore
+    ) {
+    }
+
+    public record DashboardAuction(
+            Integer id,
+            Integer sellerId,
+            CardSummary card,
+            Long startPrice,
+            Long currentPrice,
+            Long bidIncrement,
+            Integer bidCount,
+            Instant estimatedCloseTime,
+            Instant closeTime,
+            AuctionStatus status,
+            BidStatus bidStatus,
+            Long bidAmount
+    ) {
+    }
+
+    public record FailedAuctionSummary(
+            Integer id,
+            @JsonProperty("card_name") String cardName,
+            @JsonProperty("start_price") Long startPrice,
+            @JsonProperty("closed_at") Instant closedAt
     ) {
     }
 

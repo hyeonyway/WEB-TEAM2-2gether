@@ -1,6 +1,7 @@
 package com.dbidding.card.service;
 
 import com.dbidding.auction.adapter.CardAuctionAdapter;
+import com.dbidding.auction.service.AuctionInsightQueryService;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
@@ -10,29 +11,43 @@ import com.dbidding.statistic.domain.ItemDailyStatistic;
 import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
-import com.dbidding.statistic.adapter.CardStatisticAdapter;
-import com.dbidding.wishlist.WishlistCardAdapter;
+import com.dbidding.statistic.service.StatisticQueryService;
+import com.dbidding.wishlist.WishlistService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.mysql.MySQLContainer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
+@Testcontainers(disabledWithoutDocker = true)
+@DataJpaTest(properties = "spring.sql.init.mode=always")
 @Import({
         CardPriceService.class,
-        CardStatisticAdapter.class,
+        StatisticQueryService.class,
+        AuctionInsightQueryService.class,
+        CardService.class,
         CardAuctionAdapter.class,
-        WishlistCardAdapter.class,
+        WishlistService.class,
         TimeConfig.class
 })
 class CardPriceServiceTest {
+    @Container
+    @ServiceConnection
+    static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4")
+            .withDatabaseName("dbidding");
+
     @Autowired CardPriceService cardPriceService;
     @Autowired CardMetadataRepository cardRepository;
     @Autowired ItemStatisticRepository statisticRepository;
@@ -108,25 +123,32 @@ class CardPriceServiceTest {
                     (99001, :itemId),
                     (99002, :itemId)
                 """).setParameter("itemId", card.getId()).executeUpdate();
+        Instant now = Instant.now();
         entityManager.createNativeQuery("""
                 insert into auctions (
                     user_id, item_id, auction_name, description,
                     start_price, current_price, buy_now_price, delivery_fee,
                     status, open_time, estimated_close_time, close_time,
-                    bid_count, bid_price_unit, is_hyped, version
+                    bid_count, bid_price_unit, is_hyped
                 ) values
                     (99001, :itemId, '진행 경매', '테스트', 1000, 1000, 2000, 0,
-                     'OPEN', now(), date_add(now(), interval 1 hour),
-                     date_add(now(), interval 1 hour), 0, 1000, false, 1),
+                     'OPEN', :now, :activeCloseTime,
+                     :activeCloseTime, 0, 1000, false),
                     (99001, :itemId, '마감 임박 경매', '테스트', 1000, 1000, 2000, 0,
-                     'ENDING', now(), date_add(now(), interval 1 hour),
-                     date_add(now(), interval 1 hour), 0, 1000, false, 1),
+                     'ENDING', :now, :activeCloseTime,
+                     :activeCloseTime, 0, 1000, false),
                     (99001, :itemId, '상태 갱신이 지연된 경매', '테스트', 1000, 1000, 2000, 0,
-                     'OPEN', date_sub(now(), interval 2 hour), date_sub(now(), interval 1 hour),
-                     date_sub(now(), interval 1 hour), 0, 1000, false, 1),
+                     'OPEN', :staleOpenTime, :staleCloseTime,
+                     :staleCloseTime, 0, 1000, false),
                     (99001, :itemId, '종료 경매', '테스트', 1000, 1000, 2000, 0,
-                     'ENDED', now(), now(), now(), 0, 1000, false, 1)
-                """).setParameter("itemId", card.getId()).executeUpdate();
+                     'ENDED', :now, :now, :now, 0, 1000, false)
+                """)
+                .setParameter("itemId", card.getId())
+                .setParameter("now", now)
+                .setParameter("activeCloseTime", now.plus(Duration.ofHours(1)))
+                .setParameter("staleOpenTime", now.minus(Duration.ofHours(2)))
+                .setParameter("staleCloseTime", now.minus(Duration.ofHours(1)))
+                .executeUpdate();
         dailyStatisticRepository.save(new ItemDailyStatistic(
                 card.getId(), yesterday.minusDays(10), 120_000L, 118_000L,
                 115_000L, 120_000L, 12, 1));

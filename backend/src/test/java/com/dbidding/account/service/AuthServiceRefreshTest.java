@@ -7,7 +7,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +30,6 @@ import com.dbidding.account.authentication.jwt.Authentication;
 import com.dbidding.account.dto.RefreshResponse;
 import com.dbidding.account.exception.InvalidRefreshTokenException;
 import com.dbidding.account.password.PasswordHasher;
-import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.authentication.jwt.IssuedTokens;
 import com.dbidding.account.authentication.jwt.JwtTokenProvider;
@@ -55,9 +56,6 @@ class AuthServiceRefreshTest {
 	private AccountRepository accountRepository;
 
 	@Mock
-	private WalletProvisioningPort walletProvisioningPort;
-
-	@Mock
 	private PasswordHasher passwordHasher;
 
 	@Mock
@@ -77,7 +75,8 @@ class AuthServiceRefreshTest {
 			accountRepository,
 			authenticationRepository,
 			jwtTokenProvider,
-			refreshTokenHasher
+			refreshTokenHasher,
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
 		);
 	}
 

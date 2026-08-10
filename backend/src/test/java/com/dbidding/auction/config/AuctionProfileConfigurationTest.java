@@ -7,7 +7,6 @@ import com.dbidding.auction.service.AuctionClosingScheduler;
 import com.dbidding.auction.service.AuctionCommandService;
 import com.dbidding.auction.service.AuctionDeadlineScheduler;
 import com.dbidding.auction.service.AuctionQueryService;
-import com.dbidding.auction.service.AuctionService;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -24,7 +23,6 @@ class AuctionProfileConfigurationTest {
     private static Stream<Class<?>> profileNeutralAuctionComponents() {
         return Stream.of(
                 AuctionController.class,
-                AuctionService.class,
                 AuctionCommandService.class,
                 AuctionQueryService.class,
                 AuctionClosingScheduler.class,

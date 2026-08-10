@@ -3,9 +3,12 @@ package com.dbidding.notification;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
+import com.dbidding.card.service.CardPriceService;
 import com.dbidding.notification.dto.NotificationResponse;
-import com.dbidding.notification.port.CardNameFinder;
-import com.dbidding.notification.port.WishlistUserFinder;
+import com.dbidding.notification.sse.NotificationPushPublisher;
+import com.dbidding.order.event.OrderCancelledEvent;
+import com.dbidding.order.event.OrderCompletedEvent;
+import com.dbidding.wishlist.WishlistService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,37 +29,37 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class NotificationEventListener {
 
-    private final WishlistUserFinder wishlistUserFinder;
-    private final CardNameFinder cardNameFinder;
+    private final WishlistService wishlistService;
+    private final CardPriceService cardPriceService;
     private final NotificationService notificationService;
     private final NotificationRepository notificationRepository;
-    private final NotificationSseConnectionManager notificationSseConnectionManager;
+    private final NotificationPushPublisher notificationPushPublisher;
 
-    @Async
+    @Async("notificationTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleAuctionOpened(AuctionOpenedEvent event) {
         String message = event.cardName() + " 카드의 경매가 등록되었습니다.";
-        List<Integer> userIds = wishlistUserFinder.findUserIdsByCardId(event.itemId());
+        List<Integer> userIds = wishlistService.findUserIdsByCardId(event.itemId());
         if (userIds.isEmpty()) {
             return;
         }
         notificationService.saveAllIgnoringDuplicates(userIds, event.auctionId(), NotificationType.AUCTION_OPENED, message)
                 .forEach(notification ->
-                        notificationSseConnectionManager.push(notification.getUserId(), NotificationResponse.from(notification)));
+                        notificationPushPublisher.publish(notification.getUserId(), NotificationResponse.from(notification)));
     }
 
-    @Async
+    @Async("notificationTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBidPlaced(BidPlacedEvent event) {
         if (event.previousBidderId() == null) {
             return;
         }
-        String cardName = cardNameFinder.findNameById(event.itemId());
+        String cardName = cardPriceService.getCard(event.itemId(), 1).name();
         String message = cardName + " 카드 경매에 " + "%,d".formatted(event.currentPrice()) + "원에 상회 입찰이 발생했습니다.";
         saveAndPush(event.previousBidderId(), event.auctionId(), NotificationType.OUTBID, event.previousBidId(), message);
     }
 
-    @Async
+    @Async("notificationTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleAuctionClosed(AuctionClosedEvent event) {
         boolean won = event.winnerId() != null;
@@ -67,6 +70,29 @@ public class NotificationEventListener {
         }
         String sellerMessage = event.cardName() + " 카드 경매가 " + (won ? "낙찰되었습니다." : "유찰되었습니다.");
         saveAndPush(event.sellerId(), event.auctionId(), type, Notification.NO_BID, sellerMessage);
+    }
+
+    @Async("notificationTaskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleOrderCompleted(OrderCompletedEvent event) {
+        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID,
+                event.cardName() + " 카드 구매가 확정되었습니다.");
+        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID,
+                event.cardName() + " 카드 판매 대금이 정산되었습니다.");
+    }
+
+    @Async("notificationTaskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleOrderCancelled(OrderCancelledEvent event) {
+        boolean cancelledBySeller = event.cancelledBy() == OrderCancelledEvent.CancelledBy.SELLER;
+        String buyerMessage = cancelledBySeller
+                ? "판매자가 " + event.cardName() + " 카드 거래를 취소하여 환불되었습니다."
+                : event.cardName() + " 카드 구매가 취소되어 환불되었습니다.";
+        String sellerMessage = cancelledBySeller
+                ? event.cardName() + " 카드 판매를 취소했습니다."
+                : "구매자가 " + event.cardName() + " 카드 거래를 취소했습니다.";
+        saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, buyerMessage);
+        saveAndPush(event.sellerId(), event.auctionId(), NotificationType.ORDER_CANCELLED, Notification.NO_BID, sellerMessage);
     }
 
     private void saveAndPush(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {
@@ -80,6 +106,6 @@ public class NotificationEventListener {
             notification = notificationRepository.findByUserIdAndAuctionIdAndTypeAndBidId(userId, auctionId, type, bidId)
                     .orElseThrow(() -> exception);
         }
-        notificationSseConnectionManager.push(userId, NotificationResponse.from(notification));
+        notificationPushPublisher.publish(userId, NotificationResponse.from(notification));
     }
 }

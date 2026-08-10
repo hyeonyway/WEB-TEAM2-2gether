@@ -6,7 +6,8 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,9 +53,9 @@ class BidRepositoryTest {
                 .startPrice(40_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(LocalDateTime.now().minusHours(2))
-                .estimatedCloseTime(LocalDateTime.now().plusHours(1))
-                .closeTime(LocalDateTime.now().plusHours(1))
+                .openTime(Instant.now().minus(Duration.ofHours(2)))
+                .estimatedCloseTime(Instant.now().plus(Duration.ofHours(1)))
+                .closeTime(Instant.now().plus(Duration.ofHours(1)))
                 .bidPriceUnit(1_000L)
                 .hyped(false)
                 .build());
@@ -62,7 +63,7 @@ class BidRepositoryTest {
 
     @Test
     void 낙찰된_bid를_경매와_상태로_조회한다() {
-        Bid leading = bidRepository.save(Bid.leading(bidderId, auction, 45_000L, LocalDateTime.now().minusMinutes(10)));
+        Bid leading = bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
         leading.markWon();
         bidRepository.save(leading);
 
@@ -81,7 +82,7 @@ class BidRepositoryTest {
 
     @Test
     void LEADING_상태인_bid의_경매_id를_조회한다() {
-        bidRepository.save(Bid.leading(bidderId, auction, 45_000L, LocalDateTime.now().minusMinutes(10)));
+        bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
 
         List<Integer> auctionIds = bidRepository.findAuctionIdsByStatus(BidStatus.LEADING);
 
@@ -91,17 +92,17 @@ class BidRepositoryTest {
     @Test
     void 유저별_최신_bid만_추출한다() {
         Bid firstBid = bidRepository.save(
-                Bid.leading(bidderId, auction, 41_000L, LocalDateTime.now().minusMinutes(30)));
+                Bid.leading(bidderId, auction, 41_000L, Instant.now().minus(Duration.ofMinutes(30))));
         firstBid.markOutbid();
         bidRepository.save(firstBid);
 
         Bid secondBid = bidRepository.save(
-                Bid.leading(bidderId, auction, 43_000L, LocalDateTime.now().minusMinutes(20)));
+                Bid.leading(bidderId, auction, 43_000L, Instant.now().minus(Duration.ofMinutes(20))));
         secondBid.markOutbid();
         bidRepository.save(secondBid);
 
         Bid otherUserBid = bidRepository.save(
-                Bid.leading(otherBidderId, auction, 45_000L, LocalDateTime.now().minusMinutes(10)));
+                Bid.leading(otherBidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
 
         List<Bid> latestBids = bidRepository.findLatestBidPerBidderByAuctionIdIn(List.of(auction.getId()));
 

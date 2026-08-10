@@ -1,6 +1,6 @@
 package com.dbidding.wallet.service;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Optional;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -46,6 +46,7 @@ public class WalletService {
 	private final PointRecordRepository pointRecordRepository;
 	private final WalletHoldRepository walletHoldRepository;
 	private final WalletMetrics walletMetrics;
+	private final Clock clock;
 
 	@Transactional(readOnly = true)
 	public WalletBalanceResponse getBalance(Integer userId) {
@@ -157,7 +158,7 @@ public class WalletService {
 			.map(WalletHold::getAmount)
 			.orElse(0L);
 		latest.filter(WalletHold::isHeld)
-			.ifPresent(hold -> hold.release(Instant.now()));
+			.ifPresent(hold -> hold.release(clock.instant()));
 		return balance(wallet, Math.subtractExact(frozenBefore, releasedAmount));
 	}
 
@@ -167,6 +168,28 @@ public class WalletService {
 			Operation.CAPTURE,
 			() -> captureObserved(userId, auctionId, amount)
 		);
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
+		validatePositive(amount);
+		Wallet wallet = lockWallet(sellerId);
+		wallet.credit(amount);
+		PointRecord record = pointRecordRepository.save(
+			PointRecord.orderSettlement(wallet.getId(), auctionId, amount, wallet.getPoint())
+		);
+		return WalletTransactionResponse.from(record);
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletTransactionResponse cancelRefund(Integer buyerId, Integer auctionId, long amount) {
+		validatePositive(amount);
+		Wallet wallet = lockWallet(buyerId);
+		wallet.credit(amount);
+		PointRecord record = pointRecordRepository.save(
+			PointRecord.orderCancelRefund(wallet.getId(), auctionId, amount, wallet.getPoint())
+		);
+		return WalletTransactionResponse.from(record);
 	}
 
 	private WalletBalanceResponse captureObserved(Integer userId, Integer auctionId, long amount) {
@@ -186,7 +209,7 @@ public class WalletService {
 		validateFrozenBalance(wallet, frozenBefore);
 
 		wallet.debit(amount);
-		hold.capture(Instant.now());
+		hold.capture(clock.instant());
 		pointRecordRepository.save(
 			PointRecord.auctionCapture(
 				wallet.getId(),

@@ -4,18 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class AuctionTest {
     @Test
     void 마감_시간_근처에_입찰하면_종료_시간을_연장한다() {
-        LocalDateTime closeTime = LocalDateTime.of(2026, 7, 29, 10, 0);
+        Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
         Auction auction = auction(closeTime);
 
         boolean extended = auction.placeBid(
                 43_000L,
-                closeTime.minusMinutes(3),
+                closeTime.minus(Duration.ofMinutes(3)),
                 Duration.ofMinutes(5),
                 Duration.ofMinutes(5)
         );
@@ -23,19 +23,19 @@ class AuctionTest {
         assertThat(extended).isTrue();
         assertThat(auction.getCurrentPrice()).isEqualTo(43_000L);
         assertThat(auction.getBidCount()).isEqualTo(1);
-        assertThat(auction.getCloseTime()).isEqualTo(closeTime.plusMinutes(5));
-        assertThat(auction.getEstimatedCloseTime()).isEqualTo(closeTime.plusMinutes(5));
+        assertThat(auction.getCloseTime()).isEqualTo(closeTime.plus(Duration.ofMinutes(5)));
+        assertThat(auction.getEstimatedCloseTime()).isEqualTo(closeTime.plus(Duration.ofMinutes(5)));
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDING);
     }
 
     @Test
     void 마감_시간_근처가_아닌_입찰은_종료_시간을_연장하지_않는다() {
-        LocalDateTime closeTime = LocalDateTime.of(2026, 7, 29, 10, 0);
+        Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
         Auction auction = auction(closeTime);
 
         boolean extended = auction.placeBid(
                 43_000L,
-                closeTime.minusMinutes(10),
+                closeTime.minus(Duration.ofMinutes(10)),
                 Duration.ofMinutes(5),
                 Duration.ofMinutes(5)
         );
@@ -48,7 +48,7 @@ class AuctionTest {
 
     @Test
     void 종료_시간이_지난_경매에는_입찰할_수_없다() {
-        LocalDateTime closeTime = LocalDateTime.of(2026, 7, 29, 10, 0);
+        Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
         Auction auction = auction(closeTime);
 
         assertThatThrownBy(() -> auction.placeBid(
@@ -60,7 +60,7 @@ class AuctionTest {
                 .hasMessage("이미 종료된 경매입니다.");
     }
 
-    private Auction auction(LocalDateTime closeTime) {
+    private Auction auction(Instant closeTime) {
         return Auction.builder()
                 .sellerId(1)
                 .itemId(1)
@@ -69,7 +69,7 @@ class AuctionTest {
                 .startPrice(42_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(closeTime.minusHours(1))
+                .openTime(closeTime.minus(Duration.ofHours(1)))
                 .estimatedCloseTime(closeTime)
                 .closeTime(closeTime)
                 .bidPriceUnit(1_000L)

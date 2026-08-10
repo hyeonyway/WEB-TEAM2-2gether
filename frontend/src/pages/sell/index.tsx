@@ -3,7 +3,8 @@ import{useMutation}from'@tanstack/react-query';
 import{CheckCircle2,Info,Search,X}from'lucide-react';
 import{useNavigate}from'react-router-dom';
 import{SellPageHeader,SellProgress,SellStepActions}from'./components';
-import{lookupPsaCertification,scanCardImage}from'../../api/sellApi';
+import{fetchPsaCertificationSample,lookupPsaCertification}from'../../api/sellApi';
+import{HttpError}from'../../api/httpClient';
 import{fetchCardDetail,fetchCardPage}from'../../api/auctionApi';
 import type{CardDetailResponseDto,CardDto}from'../../dto/auctionDto';
 import type{SellPhoto}from'../../dto/sellDto';
@@ -15,6 +16,9 @@ const money=value=>value?Number(value).toLocaleString():'';
 const formLanguage=language=>({JP:'일본어',Japanese:'일본어',EN:'영어',English:'영어',KR:'한국어',Korean:'한국어'}[language]??'기타');
 const psaValue=grade=>grade.replace(/^PSA\s*/i,'');
 const isPsaGrade=grade=>/^PSA\s*/i.test(grade??'')||/^(10|[1-9])$/.test((grade??'').trim());
+const isNotFoundPsaError=(error:unknown)=>error instanceof HttpError
+  ?error.status===404
+  :typeof error==='object'&&error!==null&&'status' in error&&(error as {status?:unknown}).status===404;
 type SelectedCard=Pick<CardDetailResponseDto,'id'|'name'|'set_name'|'psa_grade'|'language'>;
 type CardCandidate={key:string;name:string;setName:string;language:CardDto['language'];imageUrl:string|null;variants:CardDto[]};
 
@@ -40,10 +44,9 @@ export default function SellPage({Header}){
   const[step,setStep]=useState(1);
   const[form,setForm]=useState(initialSellForm);
   const[panel,setPanel]=useState(null);
-  const[ocrFile,setOcrFile]=useState(null);
-  const[ocrStatus,setOcrStatus]=useState('idle');
   const[psaNumber,setPsaNumber]=useState('');
   const[psaStatus,setPsaStatus]=useState('idle');
+  const[samplePsaError,setSamplePsaError]=useState('');
   const[photos,setPhotos]=useState<SellPhoto[]>([]);
   const[photoError,setPhotoError]=useState('');
   const[submitStatus,setSubmitStatus]=useState('idle');
@@ -53,6 +56,7 @@ export default function SellPage({Header}){
   const[cardResults,setCardResults]=useState<CardDto[]>([]);
   const[cardSearchStatus,setCardSearchStatus]=useState('idle');
   const[psaMismatch,setPsaMismatch]=useState(false);
+  const[cardSelectionError,setCardSelectionError]=useState('');
   const registrationSubmission=useRef(createRegistrationSubmission()).current;
   const submittingRef=useRef(false);
   const cardNameInputRef=useRef<HTMLInputElement>(null);
@@ -90,7 +94,7 @@ export default function SellPage({Header}){
     return()=>{cancelled=true;window.clearTimeout(timer)};
   },[form.cardName,selectedCard]);
 
-  const clearSelectedCard=()=>{selectedCardIdRef.current=null;setSelectedCard(null);setCardVariants([]);setPsaMismatch(false)};
+  const clearSelectedCard=()=>{selectedCardIdRef.current=null;setSelectedCard(null);setCardVariants([]);setPsaMismatch(false);setCardSelectionError('')};
   const resetCardSelection=()=>{
     clearSelectedCard();
     setCardResults([]);
@@ -98,48 +102,84 @@ export default function SellPage({Header}){
     setField('cardName','');
     window.setTimeout(()=>cardNameInputRef.current?.focus());
   };
-  const chooseOcr=event=>{const file=event.target.files?.[0];if(!file)return;if(!['image/png','image/jpeg'].includes(file.type)||file.size>10*1024*1024){setOcrStatus('error');return}setOcrFile(file);setOcrStatus('idle')};
-  const scan=async()=>{if(!ocrFile)return;setOcrStatus('loading');const recognized=await scanCardImage(ocrFile);clearSelectedCard();setForm(current=>({...current,...recognized}));setOcrStatus('success')};
+  const resetPsaVerification=()=>{
+    if(form.gradeType==='psa')clearSelectedCard();
+    setForm(current=>({...current,gradeType:'self',psaGrade:'',population:''}));
+    setPsaStatus('idle');
+  };
   const lookupPsa=async()=>{
     if(!validPsa)return;
     const requestedNumber=psaNumber;
     const sequence=++psaLookupSequence.current;
     setPsaStatus('loading');
-    const certification=await lookupPsaCertification(psaNumber);
-    if(sequence!==psaLookupSequence.current||psaNumberRef.current!==requestedNumber)return;
-    const matchingVariant=cardVariants.find(card=>
-      isPsaGrade(card.psaGrade)&&psaValue(card.psaGrade)===certification.psaGrade
-    );
-    setForm(current=>({...current,...certification}));
-    setPsaStatus('success');
-    if(cardVariants.length>0){
-      if(matchingVariant)applyCardSelection(matchingVariant,cardVariants);
-      else{
-        setSelectedCard(null);
-        setPsaMismatch(true);
-      }
+    let certification;
+    try{
+      certification=await lookupPsaCertification(requestedNumber);
+    }catch(error){
+      if(sequence!==psaLookupSequence.current||psaNumberRef.current!==requestedNumber)return;
+      setPsaStatus(isNotFoundPsaError(error)?'not-found':'error');
+      return;
+    }
+    try{
+      const detail=await fetchCardDetail(certification.itemId);
+      if(sequence!==psaLookupSequence.current||psaNumberRef.current!==requestedNumber)return;
+      applyPsaCardSelection(detail,certification);
+      setPsaStatus('success');
+    }catch{
+      if(sequence!==psaLookupSequence.current||psaNumberRef.current!==requestedNumber)return;
+      setPsaStatus('card-error');
+    }
+  };
+  const fillSamplePsa=async()=>{
+    setSamplePsaError('');
+    try{
+      const sample=await fetchPsaCertificationSample();
+      psaLookupSequence.current++;
+      psaNumberRef.current=sample.certificationNumber;
+      setPsaNumber(sample.certificationNumber);
+      resetPsaVerification();
+    }catch{
+      setSamplePsaError('예시 인증번호를 불러오지 못했습니다. 다시 시도해 주세요.');
     }
   };
   const applyCardSelection=(card:CardDto,variants:CardDto[])=>{
     const grade=card.psaGrade;
-    const psaCard=isPsaGrade(grade);
     setCardVariants(variants);
     setCardResults([]);
     setCardSearchStatus('idle');
     setPsaMismatch(false);
+    setCardSelectionError('');
     selectedCardIdRef.current=card.id;
     setSelectedCard({id:card.id,name:card.name,set_name:card.setName??'세트 정보 확인 중',psa_grade:grade,language:card.language});
     setForm(current=>({...current,
       cardName:card.name,
       language:formLanguage(card.language),
-      gradeType:psaCard?'psa':'self',
-      psaGrade:psaCard?psaValue(grade):'',
-      selfGrade:psaCard?current.selfGrade:grade,
+      gradeType:'self',
+      psaGrade:'',
+      selfGrade:grade,
     }));
     void fetchCardDetail(card.id).then(detail=>{
       setSelectedCard(current=>current?.id===card.id?detail:current);
       setForm(current=>selectedCardIdRef.current===card.id?{...current,setName:detail.set_name}:current);
     }).catch(()=>{});
+  };
+  const applyPsaCardSelection=(detail:CardDetailResponseDto,certification:{psaGrade:string;population:string;issuedYear:string;cardNumber:string})=>{
+    setCardVariants([]);
+    setCardResults([]);
+    setCardSearchStatus('idle');
+    setPsaMismatch(false);
+    selectedCardIdRef.current=detail.id;
+    setSelectedCard(detail);
+    setForm(current=>({...current,
+      cardName:detail.name,
+      setName:detail.set_name,
+      language:formLanguage(detail.language),
+      gradeType:'psa',
+      psaGrade:certification.psaGrade,
+      population:certification.population,
+      year:certification.issuedYear,
+      cardNumber:certification.cardNumber,
+    }));
   };
   const selectCard=(candidate:CardCandidate)=>{
     const variant=form.gradeType==='psa'&&form.psaGrade
@@ -149,20 +189,17 @@ export default function SellPage({Header}){
       setPsaMismatch(true);
       return;
     }
-    applyCardSelection(variant??initialVariant(candidate.variants,form.selfGrade),candidate.variants);
+    const selected=variant??initialVariant(candidate.variants,form.selfGrade);
+    if(isPsaGrade(selected.psaGrade)){
+      setCardSelectionError('PSA 등급 카드는 인증번호 조회로만 선택할 수 있습니다.');
+      return;
+    }
+    applyCardSelection(selected,candidate.variants);
   };
   const selectSelfGrade=(grade:string)=>{
     const variant=cardVariants.find(card=>card.psaGrade===grade);
     if(!variant)return;
     applyCardSelection(variant,cardVariants);
-  };
-  const selectGradeType=(gradeType:'self'|'psa')=>{
-    if(cardVariants.length===0){setField('gradeType',gradeType);return}
-    const variant=gradeType==='psa'
-      ?cardVariants.find(card=>isPsaGrade(card.psaGrade)&&psaValue(card.psaGrade)==='10')
-        ??cardVariants.find(card=>isPsaGrade(card.psaGrade))
-      :initialVariant(cardVariants,form.selfGrade);
-    if(variant)applyCardSelection(variant,cardVariants);
   };
   const addPhotos=event=>{const selected=[...(event.target.files||[])],accepted=selected.filter(file=>['image/png','image/jpeg'].includes(file.type)&&file.size<=10*1024*1024),room=8-photos.length;if(selected.length>room)setPhotoError('사진은 최대 8장까지 등록할 수 있습니다.');else if(accepted.length!==selected.length)setPhotoError('PNG, JPG 형식의 10MB 이하 이미지만 등록할 수 있습니다.');else setPhotoError('');setPhotos(current=>[...current,...accepted.slice(0,room).map(file=>({id:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))]);event.target.value=''};
   const removePhoto=id=>setPhotos(current=>{const target=current.find(item=>item.id===id);if(target)URL.revokeObjectURL(target.url);return current.filter(item=>item.id!==id)});
@@ -191,7 +228,7 @@ export default function SellPage({Header}){
   return <div className="sell-page">{Header&&<Header/>}<main><SellPageHeader/>
     <SellProgress step={step}/>
     <section className="sell-step-card">
-      {step===1&&<StepOne form={form} setField={setField} panel={panel} setPanel={setPanel} ocrFile={ocrFile} chooseOcr={chooseOcr} scan={scan} ocrStatus={ocrStatus} psaNumber={psaNumber} setPsaNumber={value=>{const next=digits(value);psaNumberRef.current=next;psaLookupSequence.current++;setPsaNumber(next);setPsaStatus('idle')}} validPsa={validPsa} lookupPsa={lookupPsa} psaStatus={psaStatus} validYear={validYear} validPopulation={validPopulation} selectedCard={selectedCard} psaMismatch={psaMismatch} cardResults={groupCards(cardResults)} cardSearchStatus={cardSearchStatus} clearSelectedCard={clearSelectedCard} resetCardSelection={resetCardSelection} selectCard={selectCard} selectSelfGrade={selectSelfGrade} selectGradeType={selectGradeType} psaVerified={psaVerified} cardNameInputRef={cardNameInputRef}/>} 
+      {step===1&&<StepOne form={form} setField={setField} panel={panel} setPanel={setPanel} psaNumber={psaNumber} setPsaNumber={value=>{const next=digits(value);psaNumberRef.current=next;psaLookupSequence.current++;setPsaNumber(next);resetPsaVerification()}} validPsa={validPsa} lookupPsa={lookupPsa} fillSamplePsa={fillSamplePsa} psaStatus={psaStatus} samplePsaError={samplePsaError} validYear={validYear} validPopulation={validPopulation} selectedCard={selectedCard} psaMismatch={psaMismatch} cardSelectionError={cardSelectionError} cardResults={groupCards(cardResults)} cardSearchStatus={cardSearchStatus} clearSelectedCard={clearSelectedCard} resetCardSelection={resetCardSelection} selectCard={selectCard} selectSelfGrade={selectSelfGrade} psaVerified={psaVerified} cardNameInputRef={cardNameInputRef}/>}
       {step===2&&<StepTwo form={form} setField={setField} photos={photos} addPhotos={addPhotos} removePhoto={removePhoto} photoError={photoError}/>}
       {step===3&&<StepThree form={form} setField={setField}/>}
       {step===4&&<Review form={form} photos={photos} psaStatus={psaStatus} psaNumber={psaNumber} review={review} submitStatus={submitStatus} submitError={submitError}/>}
@@ -203,12 +240,11 @@ export default function SellPage({Header}){
 function Title({step,title,copy}){return <div className="sell-step-title"><small>STEP {step}</small><h2>{title}</h2><p>{copy}</p></div>}
 function ErrorText({children}){return <p className="form-error" role="alert">{children}</p>}
 
-function StepOne({form,setField,panel,setPanel,ocrFile,chooseOcr,scan,ocrStatus,psaNumber,setPsaNumber,validPsa,lookupPsa,psaStatus,validYear,validPopulation,selectedCard,psaMismatch,cardResults,cardSearchStatus,clearSelectedCard,resetCardSelection,selectCard,selectSelfGrade,selectGradeType,psaVerified,cardNameInputRef}){
-  return <><Title step="1" title="카드 정보" copy="직접 입력하거나 보조 기능으로 카드 정보를 자동 완성하세요."/><div className="sell-assist-buttons"><button type="button" className={panel==='ocr'?'active':''} onClick={()=>setPanel(panel==='ocr'?null:'ocr')}>OCR 자동 입력</button><button type="button" className={panel==='psa'?'active':''} onClick={()=>setPanel(panel==='psa'?null:'psa')}>PSA 인증 조회</button></div>
-  {panel==='ocr'&&<div className="sell-assist-panel"><h3>OCR 자동 입력</h3><label className="sell-file-picker" htmlFor="ocr-file">{ocrFile?ocrFile.name:'카드 이미지 선택'}<small>PNG, JPG · 최대 10MB</small></label><input id="ocr-file" className="visually-hidden" type="file" accept="image/png,image/jpeg" onChange={chooseOcr}/>{ocrFile&&<button type="button" disabled={ocrStatus==='loading'} onClick={scan}>{ocrStatus==='loading'?'스캔 중…':'스캔 시작'}</button>}{ocrStatus==='success'&&<p className="form-success"><CheckCircle2/>카드 정보를 자동 입력했습니다. 수정할 수 있습니다.</p>}{ocrStatus==='error'&&<ErrorText>PNG, JPG 형식의 10MB 이하 이미지를 선택해 주세요.</ErrorText>}</div>}
-  {panel==='psa'&&<div className="sell-assist-panel"><h3>PSA 인증 조회</h3><label htmlFor="psa-number">PSA 인증번호</label><div className="sell-inline-control"><input id="psa-number" inputMode="numeric" maxLength={10} value={psaNumber} onChange={e=>setPsaNumber(e.target.value)} placeholder="7~10자리 인증번호" aria-describedby="psa-help"/><button type="button" disabled={!validPsa||psaStatus==='loading'} onClick={lookupPsa}>{psaStatus==='loading'?'조회 중…':'조회'}</button></div><small id="psa-help">숫자 7~10자리 인증번호를 입력해 주세요.</small>{psaNumber&&!validPsa&&<ErrorText>인증번호는 숫자 7~10자리여야 합니다.</ErrorText>}{psaStatus==='success'&&<p className="form-success"><CheckCircle2/>PSA {psaNumber} 인증이 완료되었습니다.</p>}</div>}
-  <div className="sell-field-list"><label htmlFor="card-name">카드명 <em>필수</em></label><div className="sell-card-search"><Search/><input ref={cardNameInputRef} id="card-name" value={form.cardName} onChange={e=>{clearSelectedCard();setField('cardName',e.target.value)}} autoComplete="off" placeholder="카드명을 입력해 선택하세요" required/>{form.cardName.trim()&&<button type="button" onClick={resetCardSelection} aria-label="입력한 카드명 지우기"><X/></button>}</div>{selectedCard?<p className="sell-card-selected"><CheckCircle2/>선택됨: {selectedCard.name} · {selectedCard.set_name} · {selectedCard.psa_grade}</p>:psaMismatch?<ErrorText>인증 등급과 일치하는 카드 정보를 다시 선택해 주세요.</ErrorText>:!psaVerified?<p className="sell-card-search-status">PSA 인증 조회 후 해당 등급의 카드를 선택할 수 있습니다.</p>:<><CardSearchResults status={cardSearchStatus} cards={cardResults} onSelect={selectCard}/>{cardSearchStatus==='success'&&cardResults.length>0&&<p className="sell-card-search-status">검색 결과에서 카드를 선택해 주세요.</p>}</>}<div className="sell-field-row"><Field id="set-name" label="세트명" value={form.setName} onChange={value=>setField('setName',value)}/><Field id="year" label="발행 연도" value={form.year} inputMode="numeric" onChange={value=>setField('year',digits(value))} error={!validYear?'연도는 숫자 4자리로 입력해 주세요.':''}/></div><div className="sell-field-row"><Field id="card-number" label="카드 번호" value={form.cardNumber} onChange={value=>setField('cardNumber',value)}/><div><label htmlFor="language">언어</label><select id="language" value={form.language} onChange={e=>setField('language',e.target.value)}>{['일본어','영어','한국어','기타'].map(value=><option key={value}>{value}</option>)}</select></div></div></div>
-  <fieldset className="sell-grade-fieldset"><legend>등급 및 상태</legend><div className="sell-segment"><button type="button" className={form.gradeType==='self'?'active':''} onClick={()=>selectGradeType('self')}>자체 평가</button><button type="button" className={form.gradeType==='psa'?'active':''} onClick={()=>selectGradeType('psa')}>PSA 등급</button></div>{form.gradeType==='psa'?<div className="sell-field-row"><div><label htmlFor="psa-grade">PSA 등급</label><select id="psa-grade" value={form.psaGrade} disabled><option value="">PSA 인증 조회 필요</option>{Array.from({length:10},(_,i)=>10-i).map(value=><option key={value}>{value}</option>)}</select></div><Field id="population" label="Population" value={form.population} disabled onChange={()=>{}}/></div>:<Options values={['민트','근민트','우량','양호','보통','하']} value={form.selfGrade} onChange={selectSelfGrade}/>}</fieldset></>;
+function StepOne({form,setField,panel,setPanel,psaNumber,setPsaNumber,validPsa,lookupPsa,fillSamplePsa,psaStatus,samplePsaError,validYear,validPopulation,selectedCard,psaMismatch,cardSelectionError,cardResults,cardSearchStatus,clearSelectedCard,resetCardSelection,selectCard,selectSelfGrade,psaVerified,cardNameInputRef}){
+  return <><Title step="1" title="카드 정보" copy="직접 입력하거나 PSA 인증으로 카드 정보를 자동 완성하세요."/><div className="sell-assist-buttons sell-single-action"><button type="button" className={panel==='psa'?'active':''} onClick={()=>setPanel(panel==='psa'?null:'psa')}>PSA 인증 조회</button></div>
+  {panel==='psa'&&<div className="sell-assist-panel"><h3>PSA 인증 조회</h3><button type="button" onClick={fillSamplePsa}>예시 인증번호 채우기</button><label htmlFor="psa-number">PSA 인증번호</label><div className="sell-inline-control"><input id="psa-number" inputMode="numeric" maxLength={10} value={psaNumber} onChange={e=>setPsaNumber(e.target.value)} placeholder="7~10자리 인증번호" aria-describedby="psa-help"/><button type="button" disabled={!validPsa||psaStatus==='loading'} onClick={lookupPsa}>{psaStatus==='loading'?'조회 중…':'조회'}</button></div><small id="psa-help">숫자 7~10자리 인증번호를 입력해 주세요.</small>{samplePsaError&&<ErrorText>{samplePsaError}</ErrorText>}{psaNumber&&!validPsa&&<ErrorText>인증번호는 숫자 7~10자리여야 합니다.</ErrorText>}{psaStatus==='not-found'&&<ErrorText>등록된 PSA 번호가 아닙니다.</ErrorText>}{psaStatus==='card-error'&&<ErrorText>카드 정보를 불러오지 못했습니다. 다시 시도해 주세요.</ErrorText>}{psaStatus==='error'&&<ErrorText>PSA 인증 조회에 실패했습니다. 다시 시도해 주세요.</ErrorText>}{psaStatus==='success'&&<p className="form-success"><CheckCircle2/>PSA {psaNumber} 인증이 완료되었습니다.</p>}</div>}
+  <div className="sell-field-list"><label htmlFor="card-name">카드명 <em>필수</em></label><div className="sell-card-search"><Search/><input ref={cardNameInputRef} id="card-name" value={form.cardName} onChange={e=>{clearSelectedCard();setField('cardName',e.target.value)}} autoComplete="off" placeholder="카드명을 입력해 선택하세요" required/>{form.cardName.trim()&&<button type="button" onClick={resetCardSelection} aria-label="입력한 카드명 지우기"><X/></button>}</div>{selectedCard?<p className="sell-card-selected"><CheckCircle2/>선택됨: {selectedCard.name} · {selectedCard.set_name} · {selectedCard.psa_grade}</p>:cardSelectionError?<ErrorText>{cardSelectionError}</ErrorText>:psaMismatch?<ErrorText>인증 등급과 일치하는 카드 정보를 다시 선택해 주세요.</ErrorText>:!psaVerified?<p className="sell-card-search-status">PSA 인증 조회 후 해당 등급의 카드를 선택할 수 있습니다.</p>:<><CardSearchResults status={cardSearchStatus} cards={cardResults} onSelect={selectCard}/>{cardSearchStatus==='success'&&cardResults.length>0&&<p className="sell-card-search-status">검색 결과에서 카드를 선택해 주세요.</p>}</>}<div className="sell-field-row"><Field id="set-name" label="세트명" value={form.setName} onChange={value=>setField('setName',value)}/><Field id="year" label="발행 연도" value={form.year} inputMode="numeric" onChange={value=>setField('year',digits(value))} error={!validYear?'연도는 숫자 4자리로 입력해 주세요.':''}/></div><div className="sell-field-row"><Field id="card-number" label="카드 번호" value={form.cardNumber} onChange={value=>setField('cardNumber',value)}/><div><label htmlFor="language">언어</label><select id="language" value={form.language} onChange={e=>setField('language',e.target.value)}>{['일본어','영어','한국어','기타'].map(value=><option key={value}>{value}</option>)}</select></div></div></div>
+  <fieldset className="sell-grade-fieldset"><legend>등급 및 상태</legend>{psaStatus==='success'?<><div className="sell-segment sell-single-action"><button type="button" className="active">PSA 등급</button></div><div className="sell-field-row"><div><label htmlFor="psa-grade">PSA 등급</label><select id="psa-grade" value={form.psaGrade} disabled><option value="">PSA 인증 조회 필요</option>{Array.from({length:10},(_,i)=>10-i).map(value=><option key={value}>{value}</option>)}</select></div><Field id="population" label="Population" value={form.population} disabled onChange={()=>{}}/></div></>:<><div className="sell-segment sell-single-action"><button type="button" className="active">자체 평가</button></div><Options values={['민트','근민트','우량','양호','보통','하']} value={form.selfGrade} onChange={selectSelfGrade}/></>}</fieldset></>;
 }
 
 function CardSearchResults({status,cards,onSelect}:{status:string;cards:CardCandidate[];onSelect:(candidate:CardCandidate)=>void}){

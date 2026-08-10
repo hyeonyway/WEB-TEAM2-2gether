@@ -4,14 +4,14 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 import com.dbidding.auction.domain.AuctionSort;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Base64;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class AuctionCursorCodec {
-    private static final String VERSION = "v3";
+    private static final String VERSION = "v4";
 
     public String encode(AuctionCursor cursor) {
         String raw = "%s|%s|%s|%s|%d".formatted(
@@ -37,7 +37,7 @@ public class AuctionCursorCodec {
                 throw invalidCursor();
             }
             Long value = parts[2].isBlank() ? null : Long.valueOf(parts[2]);
-            LocalDateTime timeValue = parts[3].isBlank() ? null : LocalDateTime.parse(parts[3]);
+            Instant timeValue = parts[3].isBlank() ? null : Instant.parse(parts[3]);
             Integer auctionId = Integer.valueOf(parts[4]);
             validate(cursorSort, value, timeValue, auctionId);
             return new AuctionCursor(cursorSort, value, timeValue, auctionId);
@@ -51,7 +51,7 @@ public class AuctionCursorCodec {
     private void validate(
             AuctionSort sort,
             Long value,
-            LocalDateTime timeValue,
+            Instant timeValue,
             Integer auctionId
     ) {
         if (auctionId == null || auctionId <= 0) {

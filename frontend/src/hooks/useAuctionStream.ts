@@ -11,7 +11,7 @@ type AuctionStreamBase={
   bid_count:number;
   ends_at:string;
   status:AuctionStatus;
-  auction_version:number;
+  event_id:number;
   occurred_at:string;
 };
 
@@ -45,22 +45,27 @@ type AuctionStreamEventType=typeof AUCTION_STREAM_EVENT_TYPES[number];
 type UseAuctionStreamOptions={
   enabled?:boolean;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
+  onReconnected?:()=>void;
 };
 
-type AuctionStreamSubscriber=(payload:AuctionStreamPayload)=>void;
+type AuctionStreamSubscriber={
+  onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
+  onReconnected?:()=>void;
+};
 
 const subscribers=new Set<AuctionStreamSubscriber>();
 let sharedEventSource:EventSource|null=null;
-let sharedListeners:ReadonlyArray<readonly[AuctionStreamEventType,EventListener]>=[];
+let sharedListeners:ReadonlyArray<readonly[string,EventListener]>=[];
+let hasOpenedSharedEventSource=false;
 
 function auctionStreamUrl(){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
   return `${apiBaseUrl}/api/auctions/stream`;
 }
 
-function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayload|null{
+function parsePayload(type:AuctionStreamEventType,event:MessageEvent<string>):AuctionStreamPayload|null{
   try{
-    const raw=JSON.parse(data) as Record<string,unknown>;
+    const raw=JSON.parse(event.data) as Record<string,unknown>;
     const value={
       type,
       auction_id:raw.auction_id??raw.auctionId,
@@ -84,7 +89,7 @@ function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayl
       bid_count:raw.bid_count??raw.bidCount,
       ends_at:raw.ends_at??raw.endsAt,
       status:raw.status,
-      auction_version:raw.auction_version??raw.auctionVersion,
+      event_id:Number(event.lastEventId),
       occurred_at:raw.occurred_at??raw.occurredAt,
     } as Partial<AuctionStreamPayload>;
     if(
@@ -93,7 +98,7 @@ function parsePayload(type:AuctionStreamEventType,data:string):AuctionStreamPayl
       ||!Number.isFinite(value.bid_increment)
       ||!Number.isInteger(value.bid_count)
       ||typeof value.ends_at!=='string'
-      ||!Number.isFinite(value.auction_version)
+      ||!Number.isFinite(value.event_id)
       ||typeof value.occurred_at!=='string'
     )return null;
     if(value.type!=='BID_PLACED'&&(
@@ -113,10 +118,14 @@ function connectSharedEventSource(){
 
   const eventSource=new EventSource(auctionStreamUrl());
   sharedEventSource=eventSource;
+  eventSource.onopen=()=>{
+    if(hasOpenedSharedEventSource)subscribers.forEach(subscriber=>subscriber.onReconnected?.());
+    hasOpenedSharedEventSource=true;
+  };
   sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
     const listener:EventListener=event=>{
-      const payload=parsePayload(type,(event as MessageEvent<string>).data);
-      if(payload)subscribers.forEach(subscriber=>subscriber(payload));
+      const payload=parsePayload(type,event as MessageEvent<string>);
+      if(payload)subscribers.forEach(subscriber=>subscriber.onAuctionUpdated(payload));
     };
     eventSource.addEventListener(type,listener);
     return [type,listener] as const;
@@ -135,18 +144,25 @@ function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
     sharedEventSource.close();
     sharedEventSource=null;
     sharedListeners=[];
+    hasOpenedSharedEventSource=false;
   };
 }
 
 export function useAuctionStream({
   enabled=true,
   onAuctionUpdated,
+  onReconnected,
 }:UseAuctionStreamOptions){
   const onAuctionUpdatedRef=useRef(onAuctionUpdated);
+  const onReconnectedRef=useRef(onReconnected);
   onAuctionUpdatedRef.current=onAuctionUpdated;
+  onReconnectedRef.current=onReconnected;
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
-    return subscribeToAuctionStream(payload=>onAuctionUpdatedRef.current(payload));
+    return subscribeToAuctionStream({
+      onAuctionUpdated:payload=>onAuctionUpdatedRef.current(payload),
+      onReconnected:()=>onReconnectedRef.current?.(),
+    });
   },[enabled]);
 }

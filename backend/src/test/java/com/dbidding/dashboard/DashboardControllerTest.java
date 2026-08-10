@@ -63,6 +63,7 @@ class DashboardControllerTest {
                 ParticipatingAuctionSort.ENDING_SOON
         )).willReturn(List.of(new DashboardResponse.AuctionSnapshot(
                 1,
+                9,
                 new DashboardResponse.CardSnapshot(1, "카드", "10", "KR", null),
                 10_000L,
                 12_000L,
@@ -70,14 +71,14 @@ class DashboardControllerTest {
                 2,
                 Instant.parse("2026-07-31T03:00:00Z"),
                 AuctionStatus.OPEN,
-                1L,
                 MyBidStatus.LEADING,
                 12_000L
         )));
 
         mockMvc.perform(get("/api/dashboard/participating-auctions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].ends_at").value("2026-07-31T03:00:00Z"));
+                .andExpect(jsonPath("$[0].ends_at").value("2026-07-31T03:00:00Z"))
+                .andExpect(jsonPath("$[0].seller_id").value(9));
     }
 
     @Test

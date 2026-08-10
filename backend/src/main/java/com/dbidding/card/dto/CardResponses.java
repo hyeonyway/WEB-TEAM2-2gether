@@ -25,6 +25,24 @@ public final class CardResponses {
     ) {
     }
 
+    public record CardSnapshot(
+            Integer cardId,
+            String name,
+            String setName,
+            String psaGrade,
+            String language,
+            String thumbnailUrl
+    ) {
+    }
+
+    public record StatisticCardSnapshot(
+            Integer cardId,
+            String name,
+            String theme,
+            String imageUrl
+    ) {
+    }
+
     public record Page<T>(
             List<T> content,
             int page,

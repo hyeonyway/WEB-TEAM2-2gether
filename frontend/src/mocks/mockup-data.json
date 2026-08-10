@@ -56,8 +56,11 @@
     "language":"일본어"
   },
   "psa_certification": {
+    "itemId": 1,
     "gradeType":"psa",
     "psaGrade":"10",
-    "population":"1248"
+    "population":"1248",
+    "issuedYear":"2024",
+    "cardNumber":"SV-P 001"
   }
 }

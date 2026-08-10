@@ -6,12 +6,15 @@ import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.dto.AuctionCursorCodec;
-import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
+import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -24,14 +27,15 @@ class AuctionRegistrationDetailContractTest {
         AuctionRepository auctionRepository = mock(AuctionRepository.class);
         AuctionImageRepository auctionImageRepository = mock(AuctionImageRepository.class);
         BidRepository bidRepository = mock(BidRepository.class);
-        AuctionCardPort auctionCardPort = mock(AuctionCardPort.class);
+        CardService cardService = mock(CardService.class);
         AuctionQueryService service = new AuctionQueryService(
                 auctionRepository,
                 auctionImageRepository,
                 bidRepository,
-                mock(WalletPort.class),
-                auctionCardPort,
-                new AuctionCursorCodec()
+                mock(WalletService.class),
+                cardService,
+                new AuctionCursorCodec(),
+                Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
         );
         Auction auction = Auction.builder()
                 .sellerId(1)
@@ -45,16 +49,16 @@ class AuctionRegistrationDetailContractTest {
                 .startPrice(10_000L)
                 .buyNowPrice(null)
                 .deliveryFee(3_000L)
-                .openTime(LocalDateTime.of(2026, 8, 4, 10, 0))
-                .estimatedCloseTime(LocalDateTime.of(2026, 8, 4, 22, 0))
-                .closeTime(LocalDateTime.of(2026, 8, 4, 22, 0))
+                .openTime(Instant.parse("2026-08-04T10:00:00Z"))
+                .estimatedCloseTime(Instant.parse("2026-08-04T22:00:00Z"))
+                .closeTime(Instant.parse("2026-08-04T22:00:00Z"))
                 .bidPriceUnit(1_000L)
                 .hyped(false)
                 .build();
         ReflectionTestUtils.setField(auction, "id", 1);
 
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
-        when(auctionCardPort.getCardSnapshot(10)).thenReturn(new AuctionCardPort.CardSnapshot(
+        when(cardService.getCardSnapshot(10)).thenReturn(new CardSnapshot(
                 10, "피카츄", "세트", "PSA 10", "JP", "/card.png"
         ));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());

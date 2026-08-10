@@ -16,7 +16,6 @@ public final class BidResponses {
     public record BidContext(
             @JsonProperty("auction_id") Integer auctionId,
             AuctionStatus status,
-            Long version,
             @JsonProperty("current_price") Long currentPrice,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_increment") Long bidIncrement,
@@ -60,7 +59,6 @@ public final class BidResponses {
 
     public record AuctionSnapshot(
             Integer id,
-            Long version,
             @JsonProperty("current_price") Long currentPrice,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_count") Integer bidCount,

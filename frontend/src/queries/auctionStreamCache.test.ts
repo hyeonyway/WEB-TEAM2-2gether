@@ -6,7 +6,7 @@ const auction=(id:number,overrides:Partial<AuctionDto>={}):AuctionDto=>({
   id,
   card:{id,name:`card-${id}`,marketPrice:10_000,lowPrice:10_000,highPrice:10_000,changeRate:0,theme:'gold',bidCount:0,psaGrade:'10',language:'KR',imageUrl:null},
   startPrice:10_000,currentPrice:10_000,bidIncrement:1_000,bidCount:0,
-  startsAt:'2026-08-04T10:00:00Z',endsAt:'2026-08-05T10:00:00Z',status:'OPEN',version:1,
+  startsAt:'2026-08-04T10:00:00Z',endsAt:'2026-08-05T10:00:00Z',status:'OPEN',eventId:1,
   myBidStatus:'NONE',myBidAmount:null,
   ...overrides,
 });

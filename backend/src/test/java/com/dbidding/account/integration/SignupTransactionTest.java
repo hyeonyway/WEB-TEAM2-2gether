@@ -11,7 +11,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
-import com.dbidding.account.port.WalletProvisioningPort;
 import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.service.SignupService;
 import com.dbidding.account.domain.Account;
@@ -35,7 +34,7 @@ class SignupTransactionTest extends AccountMySqlIntegrationTest {
 	private AuthenticationRepository authenticationRepository;
 
 	@MockitoSpyBean
-	private WalletProvisioningPort walletProvisioningPort;
+	private WalletRepository walletRepositorySpy;
 
 	@Test
 	void 회원가입하면_사용자와_잔액_0원_지갑만_함께_생성된다() {
@@ -66,8 +65,8 @@ class SignupTransactionTest extends AccountMySqlIntegrationTest {
 			"signup-rollback"
 		);
 		doThrow(new IllegalStateException("wallet creation failed"))
-			.when(walletProvisioningPort)
-			.createFor(any(Integer.class));
+			.when(walletRepositorySpy)
+			.saveAndFlush(any(Wallet.class));
 
 		assertThatThrownBy(() -> signupService.signup(request))
 			.isInstanceOf(IllegalStateException.class);

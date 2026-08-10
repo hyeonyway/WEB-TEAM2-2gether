@@ -30,6 +30,8 @@ const bidEndToEndDuration = new Trend('bid_end_to_end_duration', true);
 const sseAuctionConnectSuccess = new Rate('sse_auction_connect_success');
 const sseAuctionConnectionErrors = new Counter('sse_auction_connection_errors');
 const sseAuctionEvents = new Counter('sse_auction_events');
+const auctionSseDeliveryLatency = new Trend('auction_sse_delivery_latency', true);
+const auctionSseDeliveryTimestampInvalid = new Counter('auction_sse_delivery_timestamp_invalid');
 const sseNotificationConnectSuccess = new Rate('sse_notification_connect_success');
 const sseNotificationConnectionErrors = new Counter('sse_notification_connection_errors');
 const sseNotificationEvents = new Counter('sse_notification_events');
@@ -120,8 +122,26 @@ export function auctionSse() {
       sseAuctionConnectionErrors.add(1);
       sseAuctionConnectSuccess.add(false);
     });
-    client.on('event', () => sseAuctionEvents.add(1));
+    client.on('event', event => {
+      sseAuctionEvents.add(1);
+      recordAuctionSseDeliveryLatency(event);
+    });
   });
+}
+
+function recordAuctionSseDeliveryLatency(event) {
+  if (!['AUCTION_CREATED', 'BID_PLACED', 'AUCTION_CLOSED'].includes(event.name)) return;
+  try {
+    const publishedAt = Date.parse(JSON.parse(event.data).published_at);
+    const latency = Date.now() - publishedAt;
+    if (!Number.isFinite(publishedAt) || latency < 0) {
+      auctionSseDeliveryTimestampInvalid.add(1);
+      return;
+    }
+    auctionSseDeliveryLatency.add(latency);
+  } catch {
+    auctionSseDeliveryTimestampInvalid.add(1);
+  }
 }
 
 export function notificationSse({notificationTickets, notificationUserIds}) {

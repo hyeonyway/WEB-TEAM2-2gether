@@ -22,7 +22,7 @@ const auction=(id:number,name:string):AuctionDto=>({
   id,
   card:{id,name,marketPrice:10_000,lowPrice:10_000,highPrice:10_000,changeRate:0,theme:'gold',bidCount:1,psaGrade:'10',language:'KR',imageUrl:null},
   startPrice:10_000,currentPrice:10_000,bidIncrement:1_000,bidCount:1,
-  endsAt:'2099-08-04T10:00:00Z',status:'OPEN',version:1,myBidStatus:'NONE',myBidAmount:null,
+  endsAt:'2099-08-04T10:00:00Z',status:'OPEN',myBidStatus:'NONE',myBidAmount:null,
 });
 
 let intersectionCallback:IntersectionObserverCallback;
@@ -126,7 +126,7 @@ describe('AuctionPage',()=>{
     await act(async()=>onAuctionUpdated({
       type:'BID_PLACED',auction_id:2,bidder_id:7,previous_bidder_id:null,
       start_price:10_000,current_price:15_000,bid_increment:1_000,bid_count:2,
-      ends_at:'2099-08-04T10:00:00Z',status:'OPEN',auction_version:2,
+      ends_at:'2099-08-04T10:00:00Z',status:'OPEN',event_id:2,
       occurred_at:'2026-08-04T10:00:00Z',
     }));
 
@@ -148,12 +148,14 @@ describe('AuctionPage',()=>{
     await act(async()=>onAuctionUpdated({
       type:'BID_PLACED',auction_id:1,bidder_id:7,previous_bidder_id:null,
       start_price:10_000,current_price:15_000,bid_increment:1_000,bid_count:10,
-      ends_at:'2099-08-04T10:00:00Z',status:'OPEN',auction_version:2,
+      ends_at:'2099-08-04T10:00:00Z',status:'OPEN',event_id:2,
       occurred_at:'2026-08-04T10:00:00Z',
     }));
 
-    const cards=screen.getAllByRole('article');
-    expect(within(cards[0]).getByRole('heading')).toHaveTextContent('입찰 수가 많은 경매');
+    await waitFor(()=>{
+      const cards=screen.getAllByRole('article');
+      expect(within(cards[0]).getByRole('heading')).toHaveTextContent('입찰 수가 많은 경매');
+    });
   });
 
   it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{

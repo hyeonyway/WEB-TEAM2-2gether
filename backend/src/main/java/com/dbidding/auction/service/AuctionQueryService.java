@@ -1,7 +1,6 @@
 package com.dbidding.auction.service;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static com.dbidding.global.time.UtcTime.toInstant;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
@@ -16,13 +15,17 @@ import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.PageRequestDto;
-import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.card.service.CardService;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
-import java.time.LocalDateTime;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,13 +41,14 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class AuctionQueryService {
+public class    AuctionQueryService {
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
-    private final WalletPort walletPort;
-    private final AuctionCardPort auctionCardPort;
+    private final WalletService walletService;
+    private final CardService cardService;
     private final AuctionCursorCodec auctionCursorCodec;
+    private final Clock clock;
 
     public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
             Integer userId,
@@ -66,12 +70,12 @@ public class AuctionQueryService {
                 openTimeCursor(cursor),
                 cursor == null ? null : cursor.auctionId(),
                 activeOnly(request),
-                LocalDateTime.now(),
+                clock.instant(),
                 PageRequest.of(0, size + 1)
         );
         boolean hasNext = fetched.size() > size;
         List<Auction> content = hasNext ? List.copyOf(fetched.subList(0, size)) : fetched;
-        Map<Integer, AuctionCardPort.CardSnapshot> cards = cardSnapshots(content);
+        Map<Integer, CardSnapshot> cards = cardSnapshots(content);
         Map<Integer, List<AuctionImage>> images = imagesByAuction(content);
         Map<Integer, Bid> myBids = myBids(userId, content);
         List<AuctionResponses.AuctionSummary> items = content.stream()
@@ -87,6 +91,33 @@ public class AuctionQueryService {
         );
     }
 
+    public List<AuctionResponses.DashboardAuction> getDashboardAuctions(Integer userId) {
+        Map<Integer, Bid> latestBids = new LinkedHashMap<>();
+        bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(userId)
+                .forEach(bid -> latestBids.putIfAbsent(bid.getAuction().getId(), bid));
+        List<Auction> auctions = latestBids.values().stream().map(Bid::getAuction).distinct().toList();
+        Map<Integer, CardSnapshot> cards = cardSnapshots(auctions);
+        Map<Integer, List<AuctionImage>> images = imagesByAuction(auctions);
+        return latestBids.values().stream()
+                .map(bid -> dashboardAuction(bid, cards.get(bid.getAuction().getItemId()), firstImage(images, bid.getAuction())))
+                .toList();
+    }
+
+    public List<AuctionResponses.FailedAuctionSummary> getFailedAuctions(Integer sellerId) {
+        List<Auction> auctions = auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(
+                sellerId, AuctionStatus.FAILED
+        );
+        Map<Integer, CardSnapshot> cards = cardSnapshots(auctions);
+        return auctions.stream()
+                .map(auction -> new AuctionResponses.FailedAuctionSummary(
+                        auction.getId(),
+                        cards.get(auction.getItemId()).name(),
+                        auction.getStartPrice(),
+                        auction.getCloseTime()
+                ))
+                .toList();
+    }
+
     private Integer bidCountCursor(AuctionCursor cursor) {
         return cursor != null && cursor.sort() == AuctionSort.BID_COUNT
                 ? Math.toIntExact(cursor.value())
@@ -100,7 +131,7 @@ public class AuctionQueryService {
                 : null;
     }
 
-    private LocalDateTime openTimeCursor(AuctionCursor cursor) {
+    private Instant openTimeCursor(AuctionCursor cursor) {
         return cursor != null && cursor.sort() == AuctionSort.LATEST
                 ? cursor.timeValue()
                 : null;
@@ -119,7 +150,7 @@ public class AuctionQueryService {
             case PRICE_HIGH, PRICE_LOW -> auction.getCurrentPrice();
             case CHANGE_HIGH -> auction.getChangeRateBasisPoints();
         };
-        LocalDateTime timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
+        Instant timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
         return new AuctionCursor(sort, value, timeValue, auction.getId());
     }
 
@@ -131,7 +162,7 @@ public class AuctionQueryService {
 
     public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
         Auction auction = getAuction(auctionId);
-        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(auction.getItemId());
+        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         List<AuctionImage> images = auctionImageRepository.findByAuctionIdOrderById(auction.getId());
         Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
         return detail(auction, card, images, myBid);
@@ -158,13 +189,12 @@ public class AuctionQueryService {
 
     public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
         Auction auction = getAuction(auctionId);
-        WalletPort.WalletSnapshot wallet = walletPort.getWallet(userId);
+        WalletBalanceResponse wallet = walletService.getBalance(userId);
         Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
         var recentBids = getBids(auctionId, new PageRequestDto(0, 5)).content();
         return BidResponses.BidContext.builder()
                 .auctionId(auction.getId())
                 .status(auction.getStatus())
-                .version(auction.getVersion())
                 .currentPrice(auction.getCurrentPrice())
                 .minimumBid(auction.minimumBid())
                 .bidIncrement(auction.getBidPriceUnit())
@@ -180,9 +210,9 @@ public class AuctionQueryService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
     }
 
-    private Map<Integer, AuctionCardPort.CardSnapshot> cardSnapshots(List<Auction> auctions) {
+    private Map<Integer, CardSnapshot> cardSnapshots(List<Auction> auctions) {
         List<Integer> itemIds = auctions.stream().map(Auction::getItemId).distinct().toList();
-        return itemIds.isEmpty() ? Map.of() : auctionCardPort.getCardSnapshots(itemIds);
+        return itemIds.isEmpty() ? Map.of() : cardService.getCardSnapshots(itemIds);
     }
 
     private Map<Integer, List<AuctionImage>> imagesByAuction(List<Auction> auctions) {
@@ -228,7 +258,7 @@ public class AuctionQueryService {
 
     private AuctionResponses.AuctionSummary summary(
             Auction auction,
-            AuctionCardPort.CardSnapshot card,
+            CardSnapshot card,
             AuctionImage representativeImage,
             Bid myBid
     ) {
@@ -241,18 +271,32 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(toInstant(auction.getOpenTime()))
-                .endsAt(toInstant(auction.getCloseTime()))
+                .buyNowPrice(auction.getBuyNowPrice())
+                .startsAt(auction.getOpenTime())
+                .endsAt(auction.getCloseTime())
                 .status(auction.getStatus())
-                .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .build();
     }
 
+    private AuctionResponses.DashboardAuction dashboardAuction(
+            Bid bid,
+            CardSnapshot card,
+            AuctionImage representativeImage
+    ) {
+        Auction auction = bid.getAuction();
+        return new AuctionResponses.DashboardAuction(
+                auction.getId(), auction.getSellerId(), cardSummary(card, representativeImage),
+                auction.getStartPrice(), auction.getCurrentPrice(), auction.getBidPriceUnit(), auction.getBidCount(),
+                auction.getEstimatedCloseTime(), auction.getCloseTime(), auction.getStatus(),
+                bid.getStatus(), bid.getBidPrice()
+        );
+    }
+
     private AuctionResponses.AuctionDetail detail(
             Auction auction,
-            AuctionCardPort.CardSnapshot card,
+            CardSnapshot card,
             List<AuctionImage> images,
             Bid myBid
     ) {
@@ -265,10 +309,9 @@ public class AuctionQueryService {
                 .bidIncrement(auction.getBidPriceUnit())
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
-                .startsAt(toInstant(auction.getOpenTime()))
-                .endsAt(toInstant(auction.getCloseTime()))
+                .startsAt(auction.getOpenTime())
+                .endsAt(auction.getCloseTime())
                 .status(auction.getStatus())
-                .version(auction.getVersion())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .description(auction.getDescription())
@@ -293,10 +336,10 @@ public class AuctionQueryService {
                 && psaCertification.matches("\\d{7,10}");
     }
 
-    private AuctionResponses.CardSummary cardSummary(AuctionCardPort.CardSnapshot card, AuctionImage representativeImage) {
+    private AuctionResponses.CardSummary cardSummary(CardSnapshot card, AuctionImage representativeImage) {
         String thumbnailUrl = representativeImage == null ? card.thumbnailUrl() : representativeImage.getImagePath();
         return new AuctionResponses.CardSummary(
-                card.itemId(),
+                card.cardId(),
                 card.name(),
                 card.setName(),
                 card.psaGrade(),
@@ -330,7 +373,7 @@ public class AuctionQueryService {
                 .amount(bid.getBidPrice())
                 .bidderAlias(bidderAlias(bid.getBidderId()))
                 .isHighest(Objects.equals(bid.getId(), highestBidId))
-                .createdAt(toInstant(bid.getCreatedAt()))
+                .createdAt(bid.getCreatedAt())
                 .build();
     }
 

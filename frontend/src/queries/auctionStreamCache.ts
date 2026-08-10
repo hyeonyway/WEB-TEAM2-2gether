@@ -27,7 +27,7 @@ export function applyAuctionEvent(
     return auctions.filter(auction=>auction.id!==event.auction_id);
   }
   return auctions.map(auction=>{
-    if(auction.id!==event.auction_id||auction.version>=event.auction_version)return auction;
+    if(auction.id!==event.auction_id||(auction.eventId??0)>=event.event_id)return auction;
     return {
       ...auction,
       currentPrice:event.current_price??auction.currentPrice,
@@ -35,7 +35,7 @@ export function applyAuctionEvent(
       bidIncrement:event.bid_increment,
       endsAt:event.ends_at,
       status:event.status,
-      version:event.auction_version,
+      eventId:event.event_id,
       myBidStatus:myBidStatusAfterEvent(auction.myBidStatus,event),
       card:{...auction.card,bidCount:event.bid_count},
     };
@@ -49,6 +49,7 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
   const currentPrice=event.current_price??event.final_price??event.start_price;
   return {
     id:event.auction_id,
+    sellerId:event.seller_id,
     card:{
       id:event.card_id,
       name:event.card_name,
@@ -69,7 +70,7 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
     startsAt:event.occurred_at,
     endsAt:event.ends_at,
     status:event.status,
-    version:event.auction_version,
+    eventId:event.event_id,
     myBidStatus:'NONE',
     myBidAmount:null,
   };

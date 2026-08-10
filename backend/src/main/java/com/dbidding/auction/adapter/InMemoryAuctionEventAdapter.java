@@ -3,7 +3,7 @@ package com.dbidding.auction.adapter;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
-import com.dbidding.auction.port.AuctionEventPort;
+import com.dbidding.auction.event.AuctionEventPublisher;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.springframework.context.annotation.Profile;
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Profile("auction-mock")
-public class InMemoryAuctionEventAdapter implements AuctionEventPort {
+public class InMemoryAuctionEventAdapter implements AuctionEventPublisher {
     private final List<AuctionOpenedEvent> openedEvents = new CopyOnWriteArrayList<>();
     private final List<BidPlacedEvent> bidPlacedEvents = new CopyOnWriteArrayList<>();
     private final List<AuctionClosedEvent> closedEvents = new CopyOnWriteArrayList<>();

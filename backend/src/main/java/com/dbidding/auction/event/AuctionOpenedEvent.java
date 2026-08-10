@@ -1,7 +1,7 @@
 package com.dbidding.auction.event;
 
 import com.dbidding.auction.domain.AuctionStatus;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record AuctionOpenedEvent(
         Integer auctionId,
@@ -15,9 +15,8 @@ public record AuctionOpenedEvent(
         Long currentPrice,
         Long bidIncrement,
         Integer bidCount,
-        LocalDateTime closeTime,
+        Instant closeTime,
         AuctionStatus status,
-        Long version,
-        LocalDateTime occurredAt
+        Instant occurredAt
 ) {
 }

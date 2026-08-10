@@ -4,8 +4,7 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
@@ -29,22 +28,22 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class AuctionDeadlineScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
 
-    private final AuctionService auctionService;
+    private final AuctionDueClosingService auctionDueClosingService;
     private final AuctionRepository auctionRepository;
     private final TaskScheduler taskScheduler;
     private final Clock clock;
     private final Object scheduleLock = new Object();
     private ScheduledFuture<?> scheduledTask;
     private Integer scheduledAuctionId;
-    private LocalDateTime scheduledCloseTime;
+    private Instant scheduledCloseTime;
 
     public AuctionDeadlineScheduler(
-            AuctionService auctionService,
+            AuctionDueClosingService auctionDueClosingService,
             AuctionRepository auctionRepository,
             @Qualifier("auctionDeadlineTaskScheduler") TaskScheduler taskScheduler,
             Clock clock
     ) {
-        this.auctionService = auctionService;
+        this.auctionDueClosingService = auctionDueClosingService;
         this.auctionRepository = auctionRepository;
         this.taskScheduler = taskScheduler;
         this.clock = clock;
@@ -86,7 +85,7 @@ public class AuctionDeadlineScheduler {
             scheduledCloseTime = nextTarget.getCloseTime();
             scheduledTask = taskScheduler.schedule(
                     this::closeDueAuctionsAtDeadline,
-                    scheduledCloseTime.atZone(zone()).toInstant()
+                    scheduledCloseTime
             );
             log.info(
                     "event=auction.close.deadline.scheduled auctionId={} closeTime={} reason={}",
@@ -98,7 +97,7 @@ public class AuctionDeadlineScheduler {
     }
 
     private void closeDueAuctionsAtDeadline() {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = clock.instant();
         log.info(
                 "event=auction.close.deadline.triggered scheduledAuctionId={} scheduledCloseTime={} now={} batchSize={}",
                 scheduledAuctionId,
@@ -107,7 +106,7 @@ public class AuctionDeadlineScheduler {
                 CLOSE_BATCH_SIZE
         );
         try {
-            var closedAuctions = auctionService.closeDueAuctions(now, CLOSE_BATCH_SIZE);
+            var closedAuctions = auctionDueClosingService.closeDueAuctions(now, CLOSE_BATCH_SIZE);
             log.info(
                     "event=auction.close.deadline.completed closedCount={} auctionIds={}",
                     closedAuctions.size(),
@@ -132,9 +131,5 @@ public class AuctionDeadlineScheduler {
         if (scheduledTask != null && !scheduledTask.isDone()) {
             scheduledTask.cancel(false);
         }
-    }
-
-    private ZoneId zone() {
-        return clock.getZone();
     }
 }

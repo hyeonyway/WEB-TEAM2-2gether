@@ -4,7 +4,6 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static com.dbidding.global.time.UtcTime.toInstant;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
@@ -20,22 +19,26 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.metrics.AuctionMetrics.BidStep;
+import com.dbidding.auction.metrics.AuctionMetrics.BidResult;
+import com.dbidding.auction.metrics.AuctionMetrics.CloseResult;
 import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
-import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.AuctionCardStatisticPort;
-import com.dbidding.auction.port.AuctionEventPort;
 import com.dbidding.auction.port.ImageUploadPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.card.service.CardService;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.order.OrderService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.Comparator;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -44,8 +47,8 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -60,11 +63,11 @@ public class AuctionCommandService {
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
-    private final WalletPort walletPort;
+    private final WalletService walletService;
     private final ImageUploadPort imageUploadPort;
-    private final AuctionCardPort auctionCardPort;
-    private final AuctionCardStatisticPort auctionCardStatisticPort;
-    private final AuctionEventPort auctionEventPort;
+    private final AuctionEventPublisher auctionEventPublisher;
+    private final CardService cardService;
+    private final OrderService orderService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
     private final AuctionMetrics auctionMetrics;
@@ -84,13 +87,13 @@ public class AuctionCommandService {
             return idempotentResponse.get();
         }
 
-        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(request.itemId());
+        CardSnapshot card = cardService.getCardSnapshot(request.itemId());
         boolean psaVerified = validatePsaCertification(card, request);
         List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
         validateImages(images);
 
-        LocalDateTime now = now();
-        LocalDateTime endsAt = now.plusHours(request.durationHours());
+        Instant now = now();
+        Instant endsAt = now.plus(Duration.ofHours(request.durationHours()));
         Auction auction = Auction.builder()
                 .sellerId(userId)
                 .itemId(request.itemId())
@@ -112,14 +115,13 @@ public class AuctionCommandService {
         auction.recordCreateIdempotency(idempotencyKey, requestHash);
         Auction savedAuction = auctionRepository.save(auction);
         List<AuctionImage> auctionImages = images.stream()
-                .sorted(Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
+                .sorted(java.util.Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
                 .map(image -> new AuctionImage(savedAuction, image.imagePath()))
                 .toList();
         auctionImageRepository.saveAll(auctionImages);
-        auctionCardStatisticPort.recordAuctionOpened(savedAuction.getItemId(), now);
-        auctionEventPort.publishOpened(new AuctionOpenedEvent(
+        auctionEventPublisher.publishOpened(new AuctionOpenedEvent(
                 savedAuction.getId(),
-                card.itemId(),
+                card.cardId(),
                 card.name(),
                 card.psaGrade(),
                 card.language(),
@@ -131,7 +133,6 @@ public class AuctionCommandService {
                 savedAuction.getBidCount(),
                 savedAuction.getCloseTime(),
                 savedAuction.getStatus(),
-                savedAuction.getVersion(),
                 now
         ));
 
@@ -147,10 +148,32 @@ public class AuctionCommandService {
             BidCreateRequest request,
             String idempotencyKey
     ) {
+        Timer.Sample sample = auctionMetrics.start();
+        try {
+            BidResponses.BidResult result = participateInternal(userId, auctionId, request, idempotencyKey);
+            auctionMetrics.finishBid(sample, BidResult.ACCEPTED);
+            return result;
+        } catch (ResponseStatusException exception) {
+            auctionMetrics.finishBid(sample, BidResult.REJECTED);
+            throw exception;
+        } catch (RuntimeException exception) {
+            auctionMetrics.finishBid(sample, BidResult.ERROR);
+            throw exception;
+        }
+    }
+
+    private BidResponses.BidResult participateInternal(
+            Integer userId,
+            Integer auctionId,
+            BidCreateRequest request,
+            String idempotencyKey
+    ) {
         validateIdempotencyKey(idempotencyKey);
         String requestHash = bidRequestHash(request);
         Auction auction = findByIdForUpdate(auctionId, LockOperation.BID)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "존재하지 않는 경매입니다."));
+        Timer.Sample criticalSection = auctionMetrics.startBidCriticalSection();
+        try {
         Optional<BidResponses.BidResult> idempotentResponse = findIdempotentBidResponse(
                 userId,
                 auctionId,
@@ -163,37 +186,47 @@ public class AuctionCommandService {
         }
 
         validateNotSellerBid(userId, auction);
+        long bidPrice = bidPrice(auction, request.price());
+        boolean buyNow = isBuyNowBid(auction, request.price());
         Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
-
-        LocalDateTime bidAt = now();
-        LocalDateTime previousCloseTime = auction.getCloseTime();
-        boolean closeTimeExtended = placeBid(auction, request.price(), bidAt);
-        WalletPort.WalletSnapshot wallet;
-        if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
-            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
-            wallet = holdBidAmount(userId, auction.getId(), request.price());
-        } else {
-            wallet = holdBidAmount(userId, auction.getId(), request.price());
-            outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt);
+        if (!buyNow) {
+            validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
         }
 
-        Bid currentLeadingBid = bidRepository.save(Bid.leading(
-                userId,
-                auction,
-                request.price(),
-                bidAt,
-                idempotencyKey,
-                requestHash
-        ));
-        auctionCardStatisticPort.recordBid(auction.getItemId(), bidAt);
+        Instant bidAt = now();
+        Instant previousCloseTime = auction.getCloseTime();
+        boolean closeTimeExtended = placeBid(auction, bidPrice, bidAt);
+        WalletBalanceResponse wallet;
+        if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
+            if (previousLeadingBid != null) {
+                auctionMetrics.recordBidStep(BidStep.OUTBID,
+                        () -> outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt));
+            }
+            wallet = auctionMetrics.recordBidStep(BidStep.HOLD,
+                    () -> holdBidAmount(userId, auction.getId(), bidPrice));
+        } else {
+            wallet = auctionMetrics.recordBidStep(BidStep.HOLD,
+                    () -> holdBidAmount(userId, auction.getId(), bidPrice));
+            if (previousLeadingBid != null) {
+                auctionMetrics.recordBidStep(BidStep.OUTBID,
+                        () -> outbidPreviousLeadingBid(previousLeadingBid, userId, auction, bidAt));
+            }
+        }
+
+        Bid currentLeadingBid = auctionMetrics.recordBidStep(BidStep.SAVE, () -> bidRepository.save(Bid.leading(
+                userId, auction, bidPrice, bidAt, idempotencyKey, requestHash
+        )));
         publishBidPlaced(auction, userId, auction.getItemId(), previousLeadingBid, bidAt);
+        if (buyNow) {
+            closeLockedAuction(auction, bidAt);
+        }
         log.info(
                 "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
                 auction.getId(), userId, currentLeadingBid.getId(), request.price(), auction.getCurrentPrice(),
                 auction.getBidCount(), previousLeadingBid == null ? null : previousLeadingBid.getId(),
                 closeTimeExtended, previousCloseTime, auction.getCloseTime(), auction.getStatus()
         );
-        if (closeTimeExtended) {
+        if (closeTimeExtended && !buyNow) {
             log.info(
                     "event=auction.close_time.extended auctionId={} bidId={} bidAt={} previousCloseTime={} extendedCloseTime={} extensionWindowMinutes={} extensionDurationMinutes={}",
                     auction.getId(), currentLeadingBid.getId(), bidAt, previousCloseTime, auction.getCloseTime(),
@@ -202,13 +235,46 @@ public class AuctionCommandService {
             publishCloseScheduleChanged(auction, "close_time_extended");
         }
 
-        auctionRepository.flush();
+        Timer.Sample flush = auctionMetrics.startBidFlush();
+        try {
+            auctionRepository.flush();
+        } finally {
+            auctionMetrics.finishBidFlush(flush);
+        }
         return bidResult(currentLeadingBid, auction, wallet);
+        } finally {
+            auctionMetrics.finishBidCriticalSection(criticalSection);
+        }
+    }
+
+    private long bidPrice(Auction auction, long requestedPrice) {
+        Long buyNowPrice = auction.getBuyNowPrice();
+        return buyNowPrice != null && requestedPrice >= buyNowPrice ? buyNowPrice : requestedPrice;
+    }
+
+    private boolean isBuyNowBid(Auction auction, long requestedPrice) {
+        Long buyNowPrice = auction.getBuyNowPrice();
+        return buyNowPrice != null && requestedPrice >= buyNowPrice;
     }
 
     @Transactional
     public AuctionCloseResponse closeAuction(Integer auctionId) {
-        LocalDateTime now = now();
+        Timer.Sample sample = auctionMetrics.start();
+        try {
+            AuctionCloseResponse response = closeAuctionInternal(auctionId);
+            CloseResult result = response.winnerId() == null
+                    ? CloseResult.WITHOUT_TRADE
+                    : CloseResult.WITH_WINNER;
+            auctionMetrics.finishClose(sample, result);
+            return response;
+        } catch (RuntimeException exception) {
+            auctionMetrics.finishClose(sample, CloseResult.ERROR);
+            throw exception;
+        }
+    }
+
+    private AuctionCloseResponse closeAuctionInternal(Integer auctionId) {
+        Instant now = now();
         Auction auction = findByIdForUpdate(auctionId, LockOperation.CLOSE)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "경매를 찾을 수 없습니다."));
         if (auction.getStatus() == AuctionStatus.ENDED || auction.getStatus() == AuctionStatus.FAILED) {
@@ -218,36 +284,23 @@ public class AuctionCommandService {
         return closeLockedAuction(auction, now);
     }
 
-    @Transactional
-    public List<AuctionCloseResponse> closeDueAuctions(LocalDateTime now, int limit) {
-        if (limit < 1) {
-            throw new ResponseStatusException(BAD_REQUEST, "종료 처리 개수는 1 이상이어야 합니다.");
-        }
-        log.debug("event=auction.close.batch.finding now={} limit={}", now, limit);
-        Timer.Sample lockSample = auctionMetrics.start();
-        List<Auction> auctions;
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<AuctionCloseResponse> closeDueAuction(Integer auctionId, Instant now) {
+        Timer.Sample sample = auctionMetrics.start();
         try {
-            auctions = auctionRepository.findCloseTargetsForUpdate(
-                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
-                    now,
-                    PageRequest.of(0, limit)
-            );
-        } finally {
-            auctionMetrics.finishAuctionLockWait(lockSample, LockOperation.CLOSE);
+            Optional<Auction> auction = findByIdForUpdate(auctionId, LockOperation.CLOSE);
+            if (auction.isEmpty() || !isDueCloseTarget(auction.get(), now)) {
+                return Optional.empty();
+            }
+            AuctionCloseResponse response = closeLockedAuction(auction.get(), now);
+            auctionMetrics.finishClose(sample, response.winnerId() == null
+                    ? CloseResult.WITHOUT_TRADE
+                    : CloseResult.WITH_WINNER);
+            return Optional.of(response);
+        } catch (RuntimeException exception) {
+            auctionMetrics.finishClose(sample, CloseResult.ERROR);
+            throw exception;
         }
-        if (auctions.isEmpty()) {
-            log.debug("event=auction.close.batch.empty now={} limit={}", now, limit);
-        } else {
-            log.info("event=auction.close.batch.started count={} now={} limit={}", auctions.size(), now, limit);
-        }
-        List<AuctionCloseResponse> responses = auctions.stream()
-                .map(auction -> closeLockedAuction(auction, now))
-                .toList();
-        if (!responses.isEmpty()) {
-            log.info("event=auction.close.batch.completed count={} auctionIds={}", responses.size(),
-                    responses.stream().map(AuctionCloseResponse::auctionId).toList());
-        }
-        return responses;
     }
 
     private void validateIdempotencyKey(String idempotencyKey) {
@@ -276,6 +329,13 @@ public class AuctionCommandService {
         }
     }
 
+    private void validateNotCurrentLeadingBidder(Integer userId, Bid previousLeadingBid, Integer auctionId) {
+        if (previousLeadingBid != null && previousLeadingBid.getBidderId().equals(userId)) {
+            log.warn("event=auction.bid.rejected_leading_bidder auctionId={} bidderId={}", auctionId, userId);
+            throw new ResponseStatusException(CONFLICT, "현재 최고 입찰자는 추가 입찰할 수 없습니다.");
+        }
+    }
+
     private void validateCreateRequest(AuctionCreateRequest request) {
         if (request.buyNowPrice() != null
                 && request.buyNowPrice() - request.startPrice() < request.bidIncrement()) {
@@ -286,7 +346,7 @@ public class AuctionCommandService {
         }
     }
 
-    private boolean validatePsaCertification(AuctionCardPort.CardSnapshot card, AuctionCreateRequest request) {
+    private boolean validatePsaCertification(CardSnapshot card, AuctionCreateRequest request) {
         if (!"psa".equalsIgnoreCase(request.gradeType())) {
             return false;
         }
@@ -341,7 +401,7 @@ public class AuctionCommandService {
         if (!Objects.equals(bid.getIdempotencyRequestHash(), requestHash)) {
             throw new ResponseStatusException(CONFLICT, "같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
         }
-        return Optional.of(bidResult(bid, auction, walletPort.getWallet(bidderId)));
+        return Optional.of(bidResult(bid, auction, walletService.getBalance(bidderId)));
     }
 
     private void validateImages(List<ImageUploadPort.ResolvedImage> images) {
@@ -353,7 +413,7 @@ public class AuctionCommandService {
         }
     }
 
-    private boolean placeBid(Auction auction, Long price, LocalDateTime bidAt) {
+    private boolean placeBid(Auction auction, Long price, Instant bidAt) {
         try {
             return auction.placeBid(price, bidAt, BID_EXTENSION_WINDOW, BID_EXTENSION_DURATION);
         } catch (IllegalArgumentException exception) {
@@ -366,9 +426,9 @@ public class AuctionCommandService {
         }
     }
 
-    private WalletPort.WalletSnapshot holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
+    private WalletBalanceResponse holdBidAmount(Integer bidderId, Integer auctionId, Long price) {
         try {
-            return walletPort.holdBidAmount(bidderId, auctionId, price);
+            return walletService.hold(bidderId, auctionId, price);
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
         }
@@ -378,14 +438,14 @@ public class AuctionCommandService {
             Bid previousLeadingBid,
             Integer currentBidderId,
             Auction auction,
-            LocalDateTime occurredAt
+            Instant occurredAt
     ) {
         if (previousLeadingBid == null) {
             return;
         }
         previousLeadingBid.markOutbid();
         if (requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)) {
-            walletPort.releaseBidHold(previousLeadingBid.getBidderId(), auction.getId());
+            walletService.release(previousLeadingBid.getBidderId(), auction.getId());
             log.info(
                     "event=auction.bid.previous_hold.released auctionId={} previousBidId={} previousBidderId={} previousBidPrice={} currentBidderId={}",
                     auction.getId(), previousLeadingBid.getId(), previousLeadingBid.getBidderId(),
@@ -407,7 +467,7 @@ public class AuctionCommandService {
                 && previousLeadingBid.getBidderId() < currentBidderId;
     }
 
-    private void validateCloseDue(Auction auction, LocalDateTime now) {
+    private void validateCloseDue(Auction auction, Instant now) {
         if (auction.getStatus() != AuctionStatus.OPEN && auction.getStatus() != AuctionStatus.ENDING) {
             throw new ResponseStatusException(BAD_REQUEST, "진행 중인 경매만 종료할 수 있습니다.");
         }
@@ -416,12 +476,17 @@ public class AuctionCommandService {
         }
     }
 
-    private AuctionCloseResponse closeLockedAuction(Auction auction, LocalDateTime closedAt) {
+    private boolean isDueCloseTarget(Auction auction, Instant now) {
+        return (auction.getStatus() == AuctionStatus.OPEN || auction.getStatus() == AuctionStatus.ENDING)
+                && !auction.getCloseTime().isAfter(now);
+    }
+
+    private AuctionCloseResponse closeLockedAuction(Auction auction, Instant closedAt) {
         Optional<Bid> winningBid = highestBid(auction.getId());
+        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         if (winningBid.isEmpty()) {
             auction.closeWithoutTrade(closedAt);
-            auctionCardStatisticPort.recordAuctionClosedWithoutTrade(auction.getItemId(), closedAt);
-            publishAuctionClosed(auction, null, closedAt);
+            publishAuctionClosed(auction, null, closedAt, card);
             log.info("event=auction.closed.without_trade auctionId={} itemId={} sellerId={} closedAt={} status={} bidCount={}",
                     auction.getId(), auction.getItemId(), auction.getSellerId(), closedAt,
                     auction.getStatus(), auction.getBidCount());
@@ -431,9 +496,11 @@ public class AuctionCommandService {
         Bid winner = winningBid.get();
         winner.markWon();
         auction.closeWithWinningBid(winner, closedAt);
-        walletPort.confirmWinningBid(winner.getBidderId(), auction.getId(), winner.getBidPrice());
-        auctionCardStatisticPort.recordAuctionCompleted(auction.getItemId(), winner.getBidPrice(), closedAt);
-        publishAuctionClosed(auction, winner, closedAt);
+        walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        orderService.createFromAuctionClosed(
+                auction.getId(), winner.getBidderId(), auction.getSellerId(), card.name(), winner.getBidPrice()
+        );
+        publishAuctionClosed(auction, winner, closedAt, card);
         log.info(
                 "event=auction.closed.with_winner auctionId={} itemId={} sellerId={} winnerId={} winningBidId={} winningPrice={} closedAt={} status={} bidCount={}",
                 auction.getId(), auction.getItemId(), auction.getSellerId(), winner.getBidderId(), winner.getId(),
@@ -447,9 +514,9 @@ public class AuctionCommandService {
             Integer bidderId,
             Integer itemId,
             Bid previousLeadingBid,
-            LocalDateTime occurredAt
+            Instant occurredAt
     ) {
-        auctionEventPort.publishBidPlaced(new BidPlacedEvent(
+        auctionEventPublisher.publishBidPlaced(new BidPlacedEvent(
                 auction.getId(),
                 itemId,
                 bidderId,
@@ -461,19 +528,17 @@ public class AuctionCommandService {
                 auction.getBidCount(),
                 auction.getCloseTime(),
                 auction.getStatus(),
-                auction.getVersion(),
                 occurredAt
         ));
     }
 
-    private void publishAuctionClosed(Auction auction, Bid winningBid, LocalDateTime occurredAt) {
-        AuctionCardPort.CardSnapshot card = auctionCardPort.getCardSnapshot(auction.getItemId());
+    private void publishAuctionClosed(Auction auction, Bid winningBid, Instant occurredAt, CardSnapshot card) {
         Integer winnerId = winningBid == null ? null : winningBid.getBidderId();
         Long winningPrice = winningBid == null ? null : winningBid.getBidPrice();
 
-        auctionEventPort.publishClosed(new AuctionClosedEvent(
+        auctionEventPublisher.publishClosed(new AuctionClosedEvent(
                 auction.getId(),
-                card.itemId(),
+                card.cardId(),
                 card.name(),
                 card.psaGrade(),
                 card.language(),
@@ -487,7 +552,6 @@ public class AuctionCommandService {
                 auction.getBidCount(),
                 auction.getCloseTime(),
                 auction.getStatus(),
-                auction.getVersion(),
                 occurredAt
         ));
     }
@@ -507,8 +571,7 @@ public class AuctionCommandService {
                 winningBid == null ? null : winningBid.getBidderId(),
                 winningBid == null ? null : winningBid.getId(),
                 winningBid == null ? null : winningBid.getBidPrice(),
-                auction.getCloseTime(),
-                auction.getVersion()
+                auction.getCloseTime()
         );
     }
 
@@ -516,38 +579,36 @@ public class AuctionCommandService {
         return AuctionCreateResponse.builder()
                 .id(auction.getId())
                 .status(auction.getStatus())
-                .startsAt(toInstant(auction.getOpenTime()))
-                .endsAt(toInstant(auction.getCloseTime()))
-                .version(auction.getVersion())
+                .startsAt(auction.getOpenTime())
+                .endsAt(auction.getCloseTime())
                 .build();
     }
 
     private BidResponses.BidResult bidResult(
             Bid bid,
             Auction auction,
-            WalletPort.WalletSnapshot wallet
+            WalletBalanceResponse wallet
     ) {
         return new BidResponses.BidResult(
                 new BidResponses.BidDetail(
                         bid.getId(),
                         bid.getBidPrice(),
                         bid.getStatus(),
-                        toInstant(bid.getCreatedAt())
+                        bid.getCreatedAt()
                 ),
                 new BidResponses.AuctionSnapshot(
                         auction.getId(),
-                        auction.getVersion(),
                         auction.getCurrentPrice(),
                         auction.minimumBid(),
                         auction.getBidCount(),
-                        toInstant(auction.getCloseTime())
+                        auction.getCloseTime()
                 ),
                 new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance())
         );
     }
 
-    private LocalDateTime now() {
-        return LocalDateTime.now(clock);
+    private Instant now() {
+        return clock.instant();
     }
 
     private void publishCloseScheduleChanged(Auction auction, String reason) {

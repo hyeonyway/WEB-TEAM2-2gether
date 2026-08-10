@@ -1,7 +1,7 @@
 package com.dbidding.statistic.repository;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -32,8 +32,8 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
                 bid_count = values(bid_count), ended_auction_count = values(ended_auction_count)
             """, nativeQuery = true)
     void aggregateItems(@Param("date") LocalDate date,
-                        @Param("from") LocalDateTime from,
-                        @Param("to") LocalDateTime to);
+                        @Param("from") Instant from,
+                        @Param("to") Instant to);
 
     @Modifying
     @Query(value = """
@@ -80,8 +80,8 @@ public interface StatisticAggregationRepository extends Repository<com.dbidding.
                 ended_auction_count = values(ended_auction_count)
             """, nativeQuery = true)
     void aggregateMarket(@Param("date") LocalDate date,
-                         @Param("from") LocalDateTime from,
-                         @Param("to") LocalDateTime to);
+                         @Param("from") Instant from,
+                         @Param("to") Instant to);
 
     @Modifying
     @Query(value = """

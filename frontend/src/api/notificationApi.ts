@@ -5,11 +5,12 @@ import type {NotificationDto,NotificationPageDto} from '../dto/notificationDto';
 const MOCK_STORAGE_KEY='mock-notifications';
 
 const MOCK_SEED:NotificationDto[]=[
-  {id:5,auctionId:12,message:'찜한 카드 "피카츄 P 메가 에볼루션 프로모카드"의 경매가 종료 임박입니다.',isRead:false,createdAt:'2026-07-30T09:12:00Z'},
-  {id:4,auctionId:9,message:'회원님의 입찰이 상회되었습니다.',isRead:false,createdAt:'2026-07-29T22:40:00Z'},
-  {id:3,auctionId:9,message:'경매가 낙찰되었습니다.',isRead:true,createdAt:'2026-07-28T14:05:00Z'},
-  {id:2,auctionId:3,message:'찜한 카드의 경매가 등록되었습니다.',isRead:true,createdAt:'2026-07-27T11:00:00Z'},
-  {id:1,auctionId:1,message:'찜한 카드의 경매가 등록되었습니다.',isRead:true,createdAt:'2026-07-25T08:30:00Z'},
+  {id:6,auctionId:9,type:'ORDER_COMPLETED',message:'주문이 완료되었습니다.',isRead:false,createdAt:'2026-07-30T10:00:00Z'},
+  {id:5,auctionId:12,type:'AUCTION_OPENED',message:'찜한 카드 "피카츄 P 메가 에볼루션 프로모카드"의 경매가 종료 임박입니다.',isRead:false,createdAt:'2026-07-30T09:12:00Z'},
+  {id:4,auctionId:9,type:'OUTBID',message:'회원님의 입찰이 상회되었습니다.',isRead:false,createdAt:'2026-07-29T22:40:00Z'},
+  {id:3,auctionId:9,type:'AUCTION_WON',message:'경매가 낙찰되었습니다.',isRead:true,createdAt:'2026-07-28T14:05:00Z'},
+  {id:2,auctionId:3,type:'AUCTION_OPENED',message:'찜한 카드의 경매가 등록되었습니다.',isRead:true,createdAt:'2026-07-27T11:00:00Z'},
+  {id:1,auctionId:1,type:'AUCTION_OPENED',message:'찜한 카드의 경매가 등록되었습니다.',isRead:true,createdAt:'2026-07-25T08:30:00Z'},
 ];
 
 function readMockNotifications():NotificationDto[]{

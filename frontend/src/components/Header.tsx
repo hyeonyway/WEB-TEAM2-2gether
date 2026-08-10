@@ -3,8 +3,9 @@ import{useMutation,useQueryClient}from'@tanstack/react-query';
 import React,{useEffect,useState,useSyncExternalStore}from'react';
 import{Wallet}from'lucide-react';
 import{Link,useLocation,useNavigate}from'react-router-dom';
-import{getAccessToken,subscribeAccessToken}from'../api/accessTokenStore';
 import{useAuthGate}from'../auth/useAuthGate';
+import{isSessionAuthMode}from'../auth/authMode';
+import{getAccessToken,subscribeAccessToken}from'../api/accessTokenStore';
 import{authMutations}from'../queries/authMutations';
 import{useWalletBalance}from'../queries/walletQueries';
 import{walletQueryKeys}from'../queries/walletQueryKeys';
@@ -29,10 +30,12 @@ export default function Header(){
   const{pathname:path}=useLocation();
   const navigate=useNavigate();
   const authGate=useAuthGate();
-  const walletQuery=useWalletBalance();
   const accessToken=useSyncExternalStore(subscribeAccessToken,getAccessToken,getAccessToken);
+  const walletQuery=useWalletBalance();
   const queryClient=useQueryClient();
-  const chargeWallet=authGate.status==='authenticated'
+  const authenticated=authGate.status==='authenticated'
+    ||(!isSessionAuthMode()&&Boolean(accessToken));
+  const chargeWallet=authenticated
     &&walletQuery.isSuccess
     &&!walletQuery.isError
     ?walletQuery.data
@@ -50,7 +53,7 @@ export default function Header(){
   });
 
   const wallet=walletQuery.data?.availableBalance;
-  const walletControl=authGate.status==='authenticated'
+  const walletControl=authenticated
     ?walletQuery.isPending
       ?<div className="header-wallet header-wallet-skeleton" role="status" aria-label="전자지갑 잔액 불러오는 중"/>
       :walletQuery.isError
@@ -59,5 +62,5 @@ export default function Header(){
         ?<button className="header-wallet" onClick={()=>setChargeOpen(true)}><Wallet/><span><small>내 전자지갑</small><strong>{wallet.toLocaleString()}P</strong></span><b>충전하기</b></button>
         :null
     :null;
-  return <><header><div className="head-inner"><Link className="logo" to="/" aria-label="홈으로 이동"><img src={dbiddingLogo} alt="DBIDDING"/></Link><nav className="header-main-nav" aria-label="주요 메뉴">{mainNavigation.map(item=><Link key={item.href} to={item.href} className={isActivePath(item.href,path)?'active':''} aria-current={isActivePath(item.href,path)?'page':undefined} onClick={event=>{if(item.requiresAuth&&!authGate.requestNavigation())event.preventDefault()}}>{item.label}</Link>)}</nav><div className="head-account-actions">{walletControl}<NotificationBell/><nav className="header-account-nav" aria-label="계정 메뉴"><Link to="/mypage" className={isActivePath('/mypage',path)?'active':''} onClick={event=>{if(!authGate.requestNavigation())event.preventDefault()}}>마이페이지</Link>{accessToken?<button type="button" disabled={logoutMutation.isPending} onClick={()=>logoutMutation.mutate()}>{logoutMutation.isPending?'로그아웃 중...':'로그아웃'}</button>:<button type="button" onClick={()=>setAuthOpen(true)}>로그인</button>}</nav></div></div></header>{chargeOpen&&chargeWallet&&<WalletChargeDialog wallet={chargeWallet} onClose={()=>setChargeOpen(false)}/>}<AuthModal open={authOpen} onClose={()=>setAuthOpen(false)} onLoginSuccess={()=>setAuthOpen(false)}/></>;
+  return <><header><div className="head-inner"><Link className="logo" to="/" aria-label="홈으로 이동"><img src={dbiddingLogo} alt="DBIDDING"/></Link><nav className="header-main-nav" aria-label="주요 메뉴">{mainNavigation.map(item=><Link key={item.href} to={item.href} className={isActivePath(item.href,path)?'active':''} aria-current={isActivePath(item.href,path)?'page':undefined} onClick={event=>{if(item.requiresAuth&&!authGate.requestNavigation())event.preventDefault()}}>{item.label}</Link>)}</nav><div className="head-account-actions">{walletControl}<NotificationBell/><nav className="header-account-nav" aria-label="계정 메뉴"><Link to="/mypage" className={isActivePath('/mypage',path)?'active':''} onClick={event=>{if(!authGate.requestNavigation())event.preventDefault()}}>마이페이지</Link>{authenticated?<button type="button" disabled={logoutMutation.isPending} onClick={()=>logoutMutation.mutate()}>{logoutMutation.isPending?'로그아웃 중...':'로그아웃'}</button>:<button type="button" onClick={()=>setAuthOpen(true)}>로그인</button>}</nav></div></div></header>{chargeOpen&&chargeWallet&&<WalletChargeDialog wallet={chargeWallet} onClose={()=>setChargeOpen(false)}/>}<AuthModal open={authOpen} onClose={()=>setAuthOpen(false)} onLoginSuccess={()=>setAuthOpen(false)}/></>;
 }

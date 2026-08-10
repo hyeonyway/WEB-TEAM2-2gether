@@ -7,6 +7,7 @@ const themes:CardTheme[]=['gold','water','dark','multi','sketch'];
 
 const mapDashboardAuction=(dto:DashboardAuctionResponseDto):AuctionDto=>({
   id:dto.id,
+  sellerId:dto.seller_id,
   card:{
     id:dto.card.id,
     name:dto.card.name,
@@ -26,7 +27,6 @@ const mapDashboardAuction=(dto:DashboardAuctionResponseDto):AuctionDto=>({
   bidCount:dto.bid_count,
   endsAt:dto.ends_at,
   status:dto.status,
-  version:dto.version,
   myBidStatus:dto.my_bid_status,
   myBidAmount:dto.my_bid_amount,
 });

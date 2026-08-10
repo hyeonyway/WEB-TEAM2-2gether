@@ -21,6 +21,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
@@ -46,4 +47,9 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Testcontainers @ServiceConnection이 자체적으로 JDBC URL을 구성하기 때문에
+	// application.yml의 connectionTimeZone=UTC가 테스트에는 적용되지 않는다. Instant를
+	// TIMESTAMP 컬럼에 바인딩할 때는 이 값이 없으면 JVM 기본 타임존이 쓰이므로, 운영
+	// 환경(Dockerfile의 TZ=UTC)과 동일하게 테스트 JVM의 기본 타임존도 UTC로 고정한다.
+	systemProperty 'user.timezone', 'UTC'
 }

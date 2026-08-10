@@ -82,6 +82,8 @@ CREATE TABLE card_metadata
     psa_grade       VARCHAR(15)  NULL,
     rarity          VARCHAR(30)  NULL,
     image_path      VARCHAR(500) NULL,
+    issued_year     CHAR(4)      NULL,
+    card_number     VARCHAR(50)  NULL,
 
     CONSTRAINT pk_card_metadata PRIMARY KEY (id),
     CONSTRAINT fk_card_metadata_card_set
@@ -89,6 +91,21 @@ CREATE TABLE card_metadata
 
     INDEX idx_card_metadata_card_set_id (card_set_id),
     INDEX idx_card_metadata_name (name)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE psa_certification_fixtures
+(
+    id                   INT         NOT NULL AUTO_INCREMENT,
+    certification_number VARCHAR(10) NOT NULL,
+    item_id              INT         NOT NULL,
+
+    CONSTRAINT pk_psa_certification_fixtures PRIMARY KEY (id),
+    CONSTRAINT uk_psa_certification_fixtures_number UNIQUE (certification_number),
+    CONSTRAINT fk_psa_certification_fixtures_item
+        FOREIGN KEY (item_id) REFERENCES card_metadata (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -189,7 +206,6 @@ CREATE TABLE auctions
     bid_count            INT          NOT NULL,
     bid_price_unit       BIGINT       NOT NULL,
     is_hyped             BOOLEAN      NOT NULL,
-    version              BIGINT       NOT NULL DEFAULT 1,
     idempotency_key      VARCHAR(64)
         CHARACTER SET ascii COLLATE ascii_bin NULL,
     idempotency_request_hash CHAR(64)
@@ -396,6 +412,33 @@ CREATE TABLE notification
 
     INDEX idx_notification_user_id (user_id),
     INDEX idx_notification_user_id_is_read (user_id, is_read)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE orders
+(
+    id         INT          NOT NULL AUTO_INCREMENT,
+    auction_id INT          NOT NULL,
+    buyer_id   INT          NOT NULL,
+    seller_id  INT          NOT NULL,
+    card_name  VARCHAR(200) NOT NULL,
+    price      BIGINT       NOT NULL,
+    status     VARCHAR(32)  NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    CONSTRAINT pk_orders PRIMARY KEY (id),
+    CONSTRAINT uk_orders_auction UNIQUE (auction_id),
+    CONSTRAINT fk_orders_auction
+        FOREIGN KEY (auction_id) REFERENCES auctions (id),
+    CONSTRAINT fk_orders_buyer
+        FOREIGN KEY (buyer_id) REFERENCES users (id),
+    CONSTRAINT fk_orders_seller
+        FOREIGN KEY (seller_id) REFERENCES users (id),
+
+    INDEX idx_orders_buyer_status (buyer_id, status),
+    INDEX idx_orders_seller_status (seller_id, status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

@@ -8,7 +8,6 @@ import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -28,7 +27,7 @@ class CardAuctionAdapterTest {
 
     @Test
     void 종료_시각이_지나지_않은_OPEN과_ENDING_경매만_진행_경매로_집계한다() {
-        LocalDateTime now = LocalDateTime.of(2026, 7, 31, 12, 0);
+        Instant now = clock.instant();
         CardAuctionAdapter adapter = new CardAuctionAdapter(auctionRepository, clock);
         when(auctionRepository.countByItemIdAndStatusInAndCloseTimeAfter(
                 47,

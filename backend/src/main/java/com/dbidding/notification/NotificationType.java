@@ -4,5 +4,7 @@ public enum NotificationType {
     AUCTION_OPENED,
     OUTBID,
     AUCTION_WON,
-    AUCTION_UNSOLD
+    AUCTION_UNSOLD,
+    ORDER_COMPLETED,
+    ORDER_CANCELLED
 }

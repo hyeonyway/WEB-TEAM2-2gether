@@ -1,4 +1,4 @@
-import type {AuctionPayload,CardRecognition,SellPhoto,UploadedPhoto} from '../dto/sellDto';
+import type {AuctionPayload,CardRecognition,PsaCertification,PsaCertificationSample,SellPhoto,UploadedPhoto} from '../dto/sellDto';
 import mockupData from '../mocks/mockup-data.json';
 import {request} from './httpClient';
 import {authenticatedRequest} from './authenticatedRequest';
@@ -15,9 +15,14 @@ export async function scanCardImage(file:File):Promise<CardRecognition>{
   return response.json() as Promise<CardRecognition>;
 }
 
-export async function lookupPsaCertification(certificationNumber:string):Promise<CardRecognition>{
-  if(isMockApiEnabled()){await wait(700);return {...mockupData.card_recognition,...mockupData.psa_certification} as CardRecognition}
-  return request<CardRecognition>(`/api/psa-certifications/${certificationNumber}`);
+export async function lookupPsaCertification(certificationNumber:string):Promise<PsaCertification>{
+  if(isMockApiEnabled()){await wait(700);return mockupData.psa_certification as PsaCertification}
+  return request<PsaCertification>(`/api/psa-certifications/${certificationNumber}`);
+}
+
+export async function fetchPsaCertificationSample():Promise<PsaCertificationSample>{
+  if(isMockApiEnabled()){await wait(250);return {certificationNumber:'12345678'}}
+  return request<PsaCertificationSample>('/api/psa-certifications/sample');
 }
 
 export async function uploadSellImages(photos:SellPhoto[]):Promise<UploadedPhoto[]>{

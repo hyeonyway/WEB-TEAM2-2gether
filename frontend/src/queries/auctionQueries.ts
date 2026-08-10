@@ -1,5 +1,5 @@
 import {infiniteQueryOptions,keepPreviousData,queryOptions} from '@tanstack/react-query';
-import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards} from '../api/auctionApi';
+import {fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchCardDetail,fetchCardPage,fetchCards,fetchFailedAuctions} from '../api/auctionApi';
 import type {AuctionListRequestDto,BidContextResponseDto,CardListRequestDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {myBidStatusAfterEvent} from './auctionStreamCache';
@@ -13,6 +13,7 @@ export const auctionQueryKeys={
   detail:(auctionId:number,viewerScope:AuctionViewerScope)=>[...auctionQueryKeys.all,'detail',auctionId,viewerScope] as const,
   bidContext:(auctionId:number)=>[...auctionQueryKeys.all,'bid-context',auctionId] as const,
   bids:(auctionId:number)=>[...auctionQueryKeys.all,'bids',auctionId] as const,
+  failedForSeller:()=>[...auctionQueryKeys.all,'failed-for-seller'] as const,
 };
 
 export const cardQueryKeys={
@@ -45,6 +46,11 @@ export const auctionQueries={
     queryFn:()=>fetchAuctionBidContext(auctionId),
     staleTime:5_000,
   }),
+  failedForSeller:()=>queryOptions({
+    queryKey:auctionQueryKeys.failedForSeller(),
+    queryFn:fetchFailedAuctions,
+    staleTime:10_000,
+  }),
 };
 
 export const cardQueries={
@@ -72,11 +78,11 @@ export function applyBidContextEvent(
   context:BidContextResponseDto|undefined,
   event:AuctionStreamPayload,
 ):BidContextResponseDto|undefined{
-  if(!context||context.auction_id!==event.auction_id||context.version>=event.auction_version)return context;
+  if(!context||context.auction_id!==event.auction_id||(context.eventId??0)>=event.event_id)return context;
   const currentPrice=event.current_price??event.final_price??context.current_price;
   const recentBids=event.type==='BID_PLACED'
     ?[{
-      id:-event.auction_version,
+      id:-event.event_id,
       amount:currentPrice,
       bidder_alias:`user-${String(event.bidder_id).slice(0,2)}***`,
       is_highest:true,
@@ -86,7 +92,7 @@ export function applyBidContextEvent(
   return {
     ...context,
     status:event.status,
-    version:event.auction_version,
+    eventId:event.event_id,
     current_price:currentPrice,
     minimum_bid:currentPrice+event.bid_increment,
     bid_increment:event.bid_increment,

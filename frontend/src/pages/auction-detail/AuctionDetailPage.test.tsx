@@ -7,6 +7,10 @@ import {AuthContext} from '../../auth/AuthProvider';
 import ToastContainer from '../../components/Toast';
 import AuctionDetailPage from './AuctionDetailPage';
 
+const currentUserId=vi.hoisted(()=>vi.fn());
+
+vi.mock('../../auth/useCurrentUserId',()=>({useCurrentUserId:currentUserId}));
+
 const apiMocks=vi.hoisted(()=>({
   detail:vi.fn(),
   bids:vi.fn(),
@@ -26,7 +30,7 @@ const detail={
   seller:{id:2,nickname:'판매자',trade_count:3,trust_score:95},
   start_price:10000,current_price:12000,bid_increment:1000,minimum_bid:13000,bid_count:1,
   starts_at:'2026-08-01T10:00:00',ends_at:'2099-08-01T20:00:00',status:'OPEN' as const,
-  my_bid_status:'NONE' as const,my_bid_amount:null,version:1,
+  my_bid_status:'NONE' as const,my_bid_amount:null,
   description:'상태 좋음',seller_memo:null,seller_grade:null,shipping_fee:3000,buy_now_price:20000,
   photos:[
     {id:11,url:'/uploads/front.png',order:0,representative:true},
@@ -34,11 +38,11 @@ const detail={
   ],psa_certification:null,
 };
 
-function renderAnonymousDetail(){
+function renderAnonymousDetail(status:'anonymous'|'authenticated'='anonymous'){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   return render(<QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={['/auction/10']}>
-      <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+      <AuthContext.Provider value={{status,retryInitialization:vi.fn()}}>
         <Routes>
           <Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/>
           <Route path="/cards/:cardId" element={<h1>카드 시세 Route</h1>}/>
@@ -51,12 +55,26 @@ function renderAnonymousDetail(){
 
 describe('AuctionDetailPage',()=>{
   beforeEach(()=>{
+    currentUserId.mockReturnValue(null);
     apiMocks.detail.mockReset().mockResolvedValue(detail);
     apiMocks.bids.mockReset().mockResolvedValue({
       content:[{id:1,amount:12000,bidder_alias:'user-1***',is_highest:true,created_at:'2026-08-01T11:00:00'}],
       page:0,size:5,total_elements:1,has_next:false,
     });
     apiMocks.bidContext.mockReset().mockResolvedValue({});
+  });
+
+  it('내가 등록한 경매의 입찰 버튼을 비활성화한다',async()=>{
+    currentUserId.mockReturnValue(2);
+    apiMocks.bidContext.mockResolvedValue({
+      auction_id:10,status:'OPEN',version:1,current_price:12000,minimum_bid:13000,bid_increment:1000,
+      my_bid_status:'NONE',my_bid_amount:null,
+      wallet:{available_balance:100000,frozen_balance:0},recent_bids:[],
+    });
+
+    renderAnonymousDetail('authenticated');
+
+    expect(await screen.findByRole('button',{name:'내가 등록한 경매'})).toBeDisabled();
   });
 
   it('비로그인 상세에서 공개 정보와 입찰 이력만 조회한다',async()=>{
@@ -76,6 +94,24 @@ describe('AuctionDetailPage',()=>{
 
     await waitFor(()=>expect(screen.getByText('로그인이 필요합니다')).toBeInTheDocument());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('입찰 팝업을 열기 전에 최신 입찰 컨텍스트를 다시 조회한다',async()=>{
+    apiMocks.bidContext.mockResolvedValue({
+      auction_id:10,status:'OPEN',version:1,current_price:12000,minimum_bid:13000,bid_increment:1000,
+      my_bid_status:'OUTBID',my_bid_amount:12000,
+      wallet:{available_balance:100000,frozen_balance:0},recent_bids:[],
+    });
+    renderAnonymousDetail('authenticated');
+    const user=userEvent.setup();
+
+    await screen.findByRole('button',{name:'13,000원부터 입찰하기'});
+    expect(apiMocks.bidContext).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole('button',{name:'13,000원부터 입찰하기'}));
+
+    await waitFor(()=>expect(apiMocks.bidContext).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('dialog',{name:'피카츄 경매 참여'})).toBeInTheDocument();
   });
 
   it('즉시 구매가가 없는 경매도 상세 정보를 표시한다',async()=>{

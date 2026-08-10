@@ -42,8 +42,8 @@ data: { ...payload }
 ```
 
 브라우저 `EventSource`는 연결 종료 시 서버가 전달한 재연결 시간을 기준으로
-자동 재연결한다. 현재 구현은 이벤트 replay buffer와 `Last-Event-ID` 복구를
-지원하지 않는다.
+자동 재연결한다. 서버는 이벤트 replay buffer와 `Last-Event-ID` 복구를 지원하지
+않으며, 재연결 후 프론트가 활성 화면의 REST query를 다시 조회한다.
 
 ## 3. 연결 관리
 
@@ -288,6 +288,5 @@ k6는 SSE 연결 부하와 이 API의 일정 속도 호출을 함께 수행한�
 
 - auction 담당 영역에서 트랜잭션 완료 후 SSE payload 발행 연결
 - 멀티 인스턴스 전환 시 인스턴스 간 이벤트 relay 검토
-- 필요 시 짧은 replay buffer와 `Last-Event-ID` 복구 정책 추가
 
 > 이 문서는 Codex의 도움을 받아 작성하였습니다.

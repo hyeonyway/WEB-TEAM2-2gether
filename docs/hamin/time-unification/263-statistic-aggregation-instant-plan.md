@@ -1,0 +1,108 @@
+# 이슈 263 — 통계 집계 경계 계산 Instant 전환
+
+담당: 임하민. 이슈: [#263](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/263)
+(브랜치 `refactor/263-statistic-aggregation-instant`).
+
+`AGENTS.md`상 원래 담당 범위는 `notifications`/`psa`/`upload`/`wishlist`인데, #261/#262와
+동일하게 사용자가 채팅에서 명시적으로 지시해서 `statistic` 패키지까지 진행한다.
+
+## 이슈 생성 시점과 달라진 점
+
+이슈를 처음 만들 때는 "#262에서 `Auction.closeTime`이 `Instant`로 바뀌면
+`StatisticAggregationRepository`의 `LocalDateTime` 파라미터와 타입이 안 맞게 된다"고
+적었는데, #262 작업 중 직접 확인해보니 **사실이 아니었다**:
+`StatisticAggregationRepository.aggregateItems`/`aggregateMarket`은 native query라
+`:from`/`:to` 파라미터가 `Auction` 엔티티의 Java 필드 타입과 무관하게 독립적으로
+바인딩된다(엔티티 프로퍼티 경로를 안 타고 raw SQL에 직접 바인딩). 그래서 #262를 그대로
+머지해도 이 리포지토리는 컴파일도, 동작도 깨지지 않는다.
+
+또 하나 정정(및 재정정): 원래 "전체 마이그레이션 후 `UtcTime` 헬퍼를 삭제한다"고
+적었는데, #262 조사 중 `auction/sse/AuctionSseTestBidApplicationService`가
+`AuctionSseTestAuctionReader`로 raw JDBC를 통해 읽은 `LocalDateTime`을
+`UtcTime.toInstant()`로 변환하는 걸 확인하고 "그래서 삭제할 수 없다"고 결론 내렸었다.
+그런데 이건 헬퍼 메서드 하나 호출을 인라인 변환(`.toInstant(ZoneOffset.UTC)`)으로
+바꾸면 그만인 정도라, "삭제 불가능"이 아니라 "이 한 줄을 안 건드렸을 뿐"이었다.
+`AuctionSseTestBidApplicationService`의 그 한 줄을 인라인으로 바꾸고 `UtcTime`을
+삭제했다.
+
+## 그럼 이 이슈에서 왜 바꾸나
+
+타입이 안 맞아서 강제로 바꿔야 하는 건 아니지만, `DailyStatisticAggregationService`가
+경계를 계산해서 `LocalDateTime`으로 넘기는 방식은 여전히 "이 `LocalDateTime`은 UTC
+벽시계 값"이라는 암묵적 규약에 의존한다 — #261/#262로 없애려던 바로 그 종류의
+모호함이다. `Instant`로 바꾸면 이 규약 의존이 없어지고, 계산 자체도 더 단순해진다
+(`ZonedDateTime.toInstant()`는 애초에 타임존 무관하게 같은 절대 시점을 내므로
+`.withZoneSameInstant(UTC)` 단계가 통째로 불필요해짐).
+
+## Instant 네이티브 쿼리 바인딩과 JVM 타임존 — #262에서 배운 것
+
+#262에서 `Instant` 파라미터를 파생(JPQL) 쿼리에 바인딩할 때 JVM 기본 타임존의 영향을
+받는 걸 발견해 `backend/build.gradle`의 테스트 태스크에
+`systemProperty 'user.timezone', 'UTC'`를 추가했다. 이번에 보니
+`StatisticAggregationMySqlIntegrationTest`는 **native 쿼리 + `LocalDateTime`**
+조합에서도 정확히 같은 현상이 있어(이미 이슈 #255에서 발견되어 `@BeforeAll`/`@AfterAll`로
+JVM 타임존을 UTC로 고정해둔 상태) — 즉 이건 `Instant`만의 문제가 아니라
+"Hibernate native query 파라미터 바인딩이 `hibernate.jdbc.time_zone`과 무관하게 JVM
+기본 타임존을 탄다"는 더 넓은 현상이다. 이 테스트는 이미 스스로 보호되어 있고,
+`build.gradle`의 전역 수정도 있어 이중으로 안전하다. `Instant`로 바꿔도 새로운 리스크가
+아니다.
+
+## 변경 범위
+
+- `statistic/repository/StatisticAggregationRepository.java` — `aggregateItems`/
+  `aggregateMarket`의 `from`/`to`: `LocalDateTime` → `Instant`
+- `statistic/service/DailyStatisticAggregationService.java` — `fromUtc`/`toUtc` 계산을
+  `Instant`로, `UTC` `ZoneId` 상수와 `.withZoneSameInstant(UTC).toLocalDateTime()` 단계
+  제거하고 `date.atStartOfDay(SEOUL).toInstant()`로 단순화
+- `card.service.DailyStatisticAggregationServiceTest` — mock 검증 리터럴을 `Instant`로
+
+- `auction/sse/AuctionSseTestBidApplicationService.java` — `UtcTime.toInstant(auction.endsAt())`를
+  `auction.endsAt().toInstant(ZoneOffset.UTC)` 인라인 변환으로 교체
+- `global/time/UtcTime.java` — 위 변경으로 실제 소비자가 없어져 삭제
+- `auction/sse/AuctionSseTestAuctionReader.java` — `Snapshot.endsAt`을 `Instant`로 전환.
+  MySQL Connector/J가 `resultSet.getObject(column, Instant.class)`를 지원하지 않는 걸
+  실제 Testcontainers MySQL로 직접 확인했다(`SQLException: Conversion not supported for
+  type java.time.Instant`). JDBC 읽기 자체는 `LocalDateTime`으로 할 수밖에 없지만, 그
+  자리에서 바로 `.toInstant(ZoneOffset.UTC)`로 변환해 `Snapshot`을 포함한 나머지
+  타입에는 `LocalDateTime`이 노출되지 않는다
+- `card/service/CardPriceServiceTest.java`의 native query 파라미터
+  (`LocalDateTime.now(UTC)`)도 `Instant`로 전환
+- `statistic/service/StatisticQueryServiceTest.java`의 미사용 `LocalDateTime` import 제거
+
+사용자가 "native query라 의미 없어도 남은 LocalDateTime을 전부 Instant로 바꿔라"고
+명시적으로 요청해서 진행했다. `src/main`/`src/test` 전체에서 실제 타입으로 쓰이는
+`LocalDateTime`은 이제 없다(주석 텍스트 한 곳 제외).
+
+## 변경하지 않는 것
+
+- `StatisticAggregationMySqlIntegrationTest` — raw SQL 문자열 리터럴로 데이터를 넣고
+  `aggregate(LocalDate)` 시그니처만 호출하는 테스트라 내부 타입 변경과 무관, 수정 불필요
+- `refreshRollingSnapshots`/`refreshChangeRates`, `StatisticQueryService`,
+  `DailyStatisticScheduler` — `LocalDate`만 다뤄서 대상 아님
+- `AuctionInsightQueryRepository`의 `CURRENT_TIMESTAMP` JPQL 비교 — 바인딩 파라미터가
+  없어 무관
+
+## 결과
+
+- `compileJava`/`compileTestJava` 통과
+- `DailyStatisticAggregationServiceTest`(mock), `StatisticAggregationMySqlIntegrationTest`
+  (실제 MySQL), `DailyStatisticSchedulerTest` 전부 통과 — native query에 `Instant`를
+  바인딩해도 실제 MySQL에서 정상 동작함을 확인
+- `AuctionSseTestAuctionReader`의 `resultSet.getObject(column, Instant.class)`가 실제로
+  드라이버 예외를 내는 것도 임시 디버그 테스트(커밋에는 포함하지 않음)로 직접 확인한 뒤
+  `LocalDateTime` 읽기 + 즉시 변환 방식으로 고쳤고, 같은 임시 테스트로 최종 수정본이
+  실제 MySQL에서 `Instant`를 정상적으로 반환하는 것까지 확인
+- 전체 스위트(449개) 실행 결과 `WalletTransactionConcurrencyTest`의
+  `같은_경매의_동시_hold는_HELD를_중복_생성하지_않는다()` 1건만 실패, 나머지 전부 통과.
+  이 실패는 `dev`에 이번 변경 없이 그대로 체크아웃해서 돌려봐도 동일하게 발생해 **이번
+  이슈와 무관함**을 확인했다. 원인은 방금 머지된 PR #267(`WalletHoldRepository`의
+  `@Lock(PESSIMISTIC_WRITE)` 제거)로 추정되며, wallet 패키지 소관이라 별도로
+  플래그만 하고 이 PR에는 포함하지 않는다.
+
+## 커밋 이력
+
+1. `refactor: 통계 집계 경계 계산을 Instant로 전환`
+2. `refactor: UtcTime 헬퍼의 마지막 소비자를 인라인 변환으로 바꾸고 삭제`
+3. `refactor: 남아있던 LocalDateTime을 전부 Instant로 전환`
+
+> 이 문서는 claude의 도움을 받아 작성하였습니다.

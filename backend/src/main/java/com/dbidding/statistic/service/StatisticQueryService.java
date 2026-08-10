@@ -1,12 +1,14 @@
 package com.dbidding.statistic.service;
 
+import com.dbidding.card.dto.CardResponses.StatisticCardSnapshot;
+import com.dbidding.card.service.CardService;
+import com.dbidding.auction.service.AuctionInsightQueryService;
 import com.dbidding.statistic.dto.StatisticResponses;
-import com.dbidding.statistic.port.StatisticCardPort;
-import com.dbidding.statistic.port.StatisticCardPort.CardSnapshot;
-import com.dbidding.statistic.port.StatisticAuctionPort;
 import com.dbidding.statistic.domain.ItemDailyStatistic;
+import com.dbidding.statistic.domain.ItemStatistic;
 import com.dbidding.statistic.domain.MarketDailyStatistic;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
+import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.MarketDailyStatisticRepository;
 import com.dbidding.statistic.repository.PriceMovementCandidate;
 import java.math.BigDecimal;
@@ -17,8 +19,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -33,14 +37,15 @@ public class StatisticQueryService {
     private static final DateTimeFormatter MONTH_DAY = DateTimeFormatter.ofPattern("MM/dd");
     private static final BigDecimal ZERO_RATE = BigDecimal.ZERO.setScale(2);
 
-    private final StatisticAuctionPort auctionPort;
+    private final AuctionInsightQueryService auctionInsightQueryService;
     private final ItemDailyStatisticRepository dailyStatisticRepository;
+    private final ItemStatisticRepository statisticRepository;
     private final MarketDailyStatisticRepository marketStatisticRepository;
-    private final StatisticCardPort cardPort;
+    private final CardService cardService;
     private final Clock clock;
 
     public List<StatisticResponses.Insight> getInsights() {
-        var aggregate = auctionPort.aggregateInsights();
+        var aggregate = auctionInsightQueryService.getOpenAuctionInsight();
         long total = value(aggregate.totalCount());
         long rising = value(aggregate.risingCount());
         long withBids = value(aggregate.bidAuctionCount());
@@ -58,6 +63,27 @@ public class StatisticQueryService {
                         "ACTIVE", "프리미엄 경매", premium, null,
                         "현재 경매가가 높은 경매부터 확인하세요.", "PRICE_HIGH")
         );
+    }
+
+    public Map<Integer, CardSummary> getCardSummaries(Collection<Integer> cardIds) {
+        if (cardIds.isEmpty()) {
+            return Map.of();
+        }
+        return statisticRepository.findAllByItemIds(cardIds).stream()
+                .map(this::toCardSummary)
+                .collect(Collectors.toMap(CardSummary::cardId, Function.identity()));
+    }
+
+    public Optional<CardSummary> getCardSummary(Integer cardId) {
+        return statisticRepository.findById(cardId).map(this::toCardSummary);
+    }
+
+    public List<DailyPrice> getDailyPrices(Integer cardId, LocalDate from, LocalDate to) {
+        return dailyStatisticRepository
+                .findByItemIdAndStatisticsDateGreaterThanEqualAndStatisticsDateLessThanOrderByStatisticsDate(
+                        cardId, from, to).stream()
+                .map(this::toDailyPrice)
+                .toList();
     }
 
     public StatisticResponses.Market getMarket(int days) {
@@ -108,7 +134,7 @@ public class StatisticQueryService {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
         LocalDate from = today.minusDays(30);
         var priceCandidates = dailyStatisticRepository.findPriceMovementCandidates(from, today);
-        Map<Integer, CardSnapshot> cards = cardPort.getCards(
+        Map<Integer, StatisticCardSnapshot> cards = cardService.getStatisticCardSnapshots(
                 priceCandidates.stream().map(PriceMovementCandidate::getCardId).toList());
         List<StatisticResponses.Ranking> candidates = priceCandidates.stream()
                 .map(candidate -> ranking(candidate, cards.get(candidate.getCardId())))
@@ -146,7 +172,7 @@ public class StatisticQueryService {
     }
 
     private StatisticResponses.Ranking ranking(
-            PriceMovementCandidate candidate, CardSnapshot card) {
+            PriceMovementCandidate candidate, StatisticCardSnapshot card) {
         long currentPrice = value(candidate.getCurrentPrice());
         long previousPrice = value(candidate.getPreviousPrice());
         if (card == null || currentPrice <= 0 || previousPrice <= 0 || currentPrice == previousPrice) {
@@ -163,6 +189,30 @@ public class StatisticQueryService {
                 candidate.getCurrentDate(),
                 candidate.getPreviousDate(),
                 List.of()
+        );
+    }
+
+    private CardSummary toCardSummary(ItemStatistic statistic) {
+        return new CardSummary(
+                statistic.getItemId(),
+                statistic.getLatestPrice(),
+                statistic.getAveragePrice30d(),
+                statistic.getLowestPrice30d(),
+                statistic.getHighestPrice30d(),
+                statistic.getBidCount30d(),
+                statistic.getEndedAuctionCount30d(),
+                statistic.getWishlistCount(),
+                statistic.getDailyChangeRate(),
+                statistic.getWeeklyChangeRate(),
+                statistic.getMonthlyChangeRate()
+        );
+    }
+
+    private DailyPrice toDailyPrice(ItemDailyStatistic statistic) {
+        return new DailyPrice(
+                statistic.getStatisticsDate(),
+                statistic.getAveragePrice(),
+                statistic.getEndedAuctionCount()
         );
     }
 
@@ -215,5 +265,27 @@ public class StatisticQueryService {
 
     private long value(Integer value) {
         return value == null ? 0 : value.longValue();
+    }
+
+    public record CardSummary(
+            Integer cardId,
+            Long latestPrice,
+            Long averagePrice30d,
+            Long lowestPrice30d,
+            Long highestPrice30d,
+            Integer bidCount30d,
+            Integer endedAuctionCount30d,
+            Integer wishlistCount,
+            BigDecimal dailyChangeRate,
+            BigDecimal weeklyChangeRate,
+            BigDecimal monthlyChangeRate
+    ) {
+    }
+
+    public record DailyPrice(
+            LocalDate date,
+            Long averagePrice,
+            Integer endedAuctionCount
+    ) {
     }
 }

@@ -48,6 +48,7 @@ class NotificationControllerTest {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.items.length()").value(2))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.items[1].auctionId").value(20))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.items[1].type").value("AUCTION_OPENED"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.items[1].message").value("메시지2"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.hasNext").value(false))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.nextCursor").doesNotExist());

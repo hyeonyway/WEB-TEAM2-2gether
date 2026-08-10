@@ -63,7 +63,7 @@ INSERT INTO `auctions`
   (`id`, `user_id`, `item_id`, `auction_name`, `description`,
    `start_price`, `current_price`, `buy_now_price`, `delivery_fee`,
    `status`, `open_time`, `estimated_close_time`, `close_time`,
-   `bid_count`, `bid_price_unit`, `is_hyped`, `version`)
+   `bid_count`, `bid_price_unit`, `is_hyped`)
 SELECT
   `seed`.`auction_id`,
   `seed`.`seller_id`,
@@ -88,8 +88,7 @@ SELECT
   END,
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,
-  MOD(`seed`.`item_id`, 4) = 0,
-  1
+  MOD(`seed`.`item_id`, 4) = 0
 FROM `_seed_dashboard_auctions` AS `seed`
 JOIN `card_metadata` AS `card` ON `card`.`id` = `seed`.`item_id`;
 
@@ -190,7 +189,7 @@ INSERT INTO `auctions`
   (`id`, `user_id`, `item_id`, `auction_name`, `description`,
    `start_price`, `current_price`, `buy_now_price`, `delivery_fee`,
    `status`, `open_time`, `estimated_close_time`, `close_time`,
-   `bid_count`, `bid_price_unit`, `is_hyped`, `version`)
+   `bid_count`, `bid_price_unit`, `is_hyped`)
 SELECT
   `seed`.`auction_id`,
   `seed`.`seller_id`,
@@ -207,8 +206,7 @@ SELECT
   TIMESTAMPADD(DAY, -`seed`.`sequence`, NOW(6)),
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,
-  MOD(`seed`.`sequence`, 3) = 0,
-  2
+  MOD(`seed`.`sequence`, 3) = 0
 FROM `_seed_dashboard_wins` AS `seed`
 JOIN `card_metadata` AS `card` ON `card`.`id` = `seed`.`item_id`;
 

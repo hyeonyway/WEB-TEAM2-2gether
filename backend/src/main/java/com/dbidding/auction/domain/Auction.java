@@ -8,9 +8,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -70,13 +69,13 @@ public class Auction {
     private AuctionStatus status;
 
     @Column(name = "open_time", nullable = false)
-    private LocalDateTime openTime;
+    private Instant openTime;
 
     @Column(name = "estimated_close_time", nullable = false)
-    private LocalDateTime estimatedCloseTime;
+    private Instant estimatedCloseTime;
 
     @Column(name = "close_time", nullable = false)
-    private LocalDateTime closeTime;
+    private Instant closeTime;
 
     @Column(name = "bid_count", nullable = false)
     private Integer bidCount;
@@ -86,10 +85,6 @@ public class Auction {
 
     @Column(name = "is_hyped", nullable = false)
     private Boolean hyped;
-
-    @Version
-    @Column(nullable = false)
-    private Long version;
 
     @Column(name = "idempotency_key", length = 64)
     private String createIdempotencyKey;
@@ -110,9 +105,9 @@ public class Auction {
             Long startPrice,
             Long buyNowPrice,
             Long deliveryFee,
-            LocalDateTime openTime,
-            LocalDateTime estimatedCloseTime,
-            LocalDateTime closeTime,
+            Instant openTime,
+            Instant estimatedCloseTime,
+            Instant closeTime,
             Long bidPriceUnit,
             Boolean hyped
     ) {
@@ -135,7 +130,6 @@ public class Auction {
         this.bidCount = 0;
         this.bidPriceUnit = bidPriceUnit;
         this.hyped = hyped == null ? Boolean.FALSE : hyped;
-        this.version = 1L;
     }
 
     public void recordCreateIdempotency(String idempotencyKey, String requestHash) {
@@ -144,10 +138,11 @@ public class Auction {
     }
 
     public Long minimumBid() {
-        return currentPrice + bidPriceUnit;
+        long nextBid = currentPrice + bidPriceUnit;
+        return buyNowPrice == null ? nextBid : Math.min(nextBid, buyNowPrice);
     }
 
-    public void closeWithWinningBid(Bid winningBid, LocalDateTime closedAt) {
+    public void closeWithWinningBid(Bid winningBid, Instant closedAt) {
         validateClosable();
         if (winningBid == null) {
             throw new IllegalArgumentException("낙찰 입찰이 필요합니다.");
@@ -157,7 +152,7 @@ public class Auction {
         closeTime = closedAt;
     }
 
-    public void closeWithoutTrade(LocalDateTime closedAt) {
+    public void closeWithoutTrade(Instant closedAt) {
         validateClosable();
         status = AuctionStatus.FAILED;
         closeTime = closedAt;
@@ -170,7 +165,7 @@ public class Auction {
     }
 
     private boolean extendCloseTimeIfNeeded(
-            LocalDateTime bidAt,
+            Instant bidAt,
             Duration extensionWindow,
             Duration extensionDuration
     ) {
@@ -180,11 +175,11 @@ public class Auction {
         if (extensionDuration.isNegative() || extensionDuration.isZero()) {
             return false;
         }
-        LocalDateTime extensionThreshold = closeTime.minus(extensionWindow);
+        Instant extensionThreshold = closeTime.minus(extensionWindow);
         if (bidAt.isBefore(extensionThreshold)) {
             return false;
         }
-        LocalDateTime extendedCloseTime = closeTime.plus(extensionDuration);
+        Instant extendedCloseTime = closeTime.plus(extensionDuration);
         closeTime = extendedCloseTime;
         estimatedCloseTime = extendedCloseTime;
         status = AuctionStatus.ENDING;
@@ -193,7 +188,7 @@ public class Auction {
 
     public boolean placeBid(
             Long bidPrice,
-            LocalDateTime bidAt,
+            Instant bidAt,
             Duration extensionWindow,
             Duration extensionDuration
     ) {

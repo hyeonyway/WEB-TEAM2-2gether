@@ -16,15 +16,16 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
-import com.dbidding.auction.port.AuctionCardPort;
-import com.dbidding.auction.port.AuctionCardStatisticPort;
-import com.dbidding.auction.port.AuctionEventPort;
-import com.dbidding.auction.port.WalletPort;
+import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
+import com.dbidding.order.OrderService;
+import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -44,13 +45,13 @@ class AuctionServiceCloseTest {
     @Mock
     private BidRepository bidRepository;
     @Mock
-    private WalletPort walletPort;
+    private WalletService walletService;
     @Mock
-    private AuctionCardStatisticPort auctionCardStatisticPort;
+    private AuctionEventPublisher auctionEventPublisher;
     @Mock
-    private AuctionEventPort auctionEventPort;
+    private CardService cardService;
     @Mock
-    private AuctionCardPort auctionCardPort;
+    private OrderService orderService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -68,28 +69,23 @@ class AuctionServiceCloseTest {
                 auctionRepository,
                 null,
                 bidRepository,
-                walletPort,
+                walletService,
                 null,
-                auctionCardPort,
-                auctionCardStatisticPort,
-                auctionEventPort,
+                auctionEventPublisher,
+                cardService,
+                orderService,
                 clock,
                 eventPublisher,
                 new AuctionMetrics(meterRegistry)
         );
-        lenient().when(auctionCardPort.getCardSnapshot(1)).thenReturn(new AuctionCardPort.CardSnapshot(
-                1,
-                "리자몽",
-                "기본 세트",
-                "10",
-                "JP",
-                "/cards/charizard.png"
+        lenient().when(cardService.getCardSnapshot(1)).thenReturn(new CardSnapshot(
+                1, "리자몽", "기본 세트", "10", "JP", "/cards/charizard.png"
         ));
     }
 
     @Test
     void 종료_시각이_지난_경매의_최고_입찰을_낙찰_처리한다() {
-        Auction auction = auction(LocalDateTime.now(clock).minusMinutes(1));
+        Auction auction = auction(clock.instant().minus(Duration.ofMinutes(1)));
         Bid winningBid = bid(1L, 3, auction, 45_000L, BidStatus.LEADING);
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
@@ -104,9 +100,9 @@ class AuctionServiceCloseTest {
         assertThat(response.winnerId()).isEqualTo(3);
         assertThat(response.winningBidId()).isEqualTo(1L);
         assertThat(response.winningPrice()).isEqualTo(45_000L);
-        verify(walletPort).confirmWinningBid(3, 1, 45_000L);
-        verify(auctionCardStatisticPort).recordAuctionCompleted(1, 45_000L, auction.getCloseTime());
-        verify(auctionEventPort).publishClosed(argThat((AuctionClosedEvent closed) ->
+        verify(walletService).capture(3, 1, 45_000L);
+        verify(orderService).createFromAuctionClosed(1, 3, 2, "리자몽", 45_000L);
+        verify(auctionEventPublisher).publishClosed(argThat((AuctionClosedEvent closed) ->
                 closed.auctionId().equals(1)
                 && closed.itemId().equals(1)
                 && closed.cardName().equals("리자몽")
@@ -123,7 +119,7 @@ class AuctionServiceCloseTest {
 
     @Test
     void 입찰이_없는_종료_대상_경매는_거래_없이_종료한다() {
-        Auction auction = auction(LocalDateTime.now(clock).minusMinutes(1));
+        Auction auction = auction(clock.instant().minus(Duration.ofMinutes(1)));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
@@ -135,9 +131,9 @@ class AuctionServiceCloseTest {
         assertThat(response.winnerId()).isNull();
         assertThat(response.winningBidId()).isNull();
         assertThat(response.winningPrice()).isNull();
-        verify(walletPort, never()).confirmWinningBid(any(), any(), any(Long.class));
-        verify(auctionCardStatisticPort).recordAuctionClosedWithoutTrade(1, auction.getCloseTime());
-        verify(auctionEventPort).publishClosed(argThat((AuctionClosedEvent closed) ->
+        verify(walletService, never()).capture(any(), any(), any(Long.class));
+        verifyNoInteractions(orderService);
+        verify(auctionEventPublisher).publishClosed(argThat((AuctionClosedEvent closed) ->
                 closed.auctionId().equals(1)
                 && closed.cardName().equals("리자몽")
                 && closed.winnerId() == null
@@ -149,7 +145,7 @@ class AuctionServiceCloseTest {
 
     @Test
     void 종료_시각이_지나지_않은_경매는_낙찰_처리하지_않는다() {
-        Auction auction = auction(LocalDateTime.now(clock).plusMinutes(1));
+        Auction auction = auction(clock.instant().plus(Duration.ofMinutes(1)));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
 
         assertThatThrownBy(() -> auctionService.closeAuction(1))
@@ -157,12 +153,12 @@ class AuctionServiceCloseTest {
                 .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
                 .isEqualTo(400);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
-        verify(walletPort, never()).confirmWinningBid(any(), any(), any(Long.class));
-        verify(auctionCardStatisticPort, never()).recordAuctionCompleted(any(), any(Long.class), any());
-        verifyNoInteractions(auctionEventPort);
+        verify(walletService, never()).capture(any(), any(), any(Long.class));
+        verifyNoInteractions(auctionEventPublisher);
+        verifyNoInteractions(orderService);
     }
 
-    private Auction auction(LocalDateTime closeTime) {
+    private Auction auction(Instant closeTime) {
         Auction auction = Auction.builder()
                 .sellerId(2)
                 .itemId(1)
@@ -171,7 +167,7 @@ class AuctionServiceCloseTest {
                 .startPrice(42_000L)
                 .buyNowPrice(100_000L)
                 .deliveryFee(3_000L)
-                .openTime(LocalDateTime.now().minusHours(2))
+                .openTime(Instant.now().minus(Duration.ofHours(2)))
                 .estimatedCloseTime(closeTime)
                 .closeTime(closeTime)
                 .bidPriceUnit(1_000L)
@@ -182,7 +178,7 @@ class AuctionServiceCloseTest {
     }
 
     private Bid bid(Long id, Integer bidderId, Auction auction, Long bidPrice, BidStatus status) {
-        Bid bid = new Bid(bidderId, auction, bidPrice, LocalDateTime.now().minusMinutes(5), status);
+        Bid bid = new Bid(bidderId, auction, bidPrice, Instant.now().minus(Duration.ofMinutes(5)), status);
         ReflectionTestUtils.setField(bid, "id", id);
         return bid;
     }

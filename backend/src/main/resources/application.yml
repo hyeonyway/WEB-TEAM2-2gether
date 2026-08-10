@@ -8,6 +8,16 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_TIMEOUT:1s}
+
   jpa:
     # 테이블은 schema.sql로 직접 관리하므로 JPA가 생성/변경하지 않게 함
     hibernate:
@@ -25,6 +35,16 @@ spring:
     init:
       # schema.sql은 앱이 자동 실행하지 않음 (최초 1회 수동 실행 방식 - DB_SETUP.md 참고)
       mode: never
+
+server:
+  servlet:
+    session:
+      timeout: ${SESSION_TIMEOUT:30m}
+      cookie:
+        name: ${SESSION_COOKIE_NAME:SESSION}
+        http-only: true
+        secure: ${SESSION_SECURE_COOKIE:true}
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
 
 springdoc:
   swagger-ui:
@@ -55,6 +75,11 @@ management:
       slo:
         http.server.requests: 100ms,300ms,500ms,1s,2s
 
+logging:
+  slack:
+    webhook-url: ${SLACK_LOG_WEBHOOK_URL:}
+    environment: ${SPRING_PROFILES_ACTIVE:default}
+
 cloud:
   aws:
     region: ${AWS_REGION:ap-northeast-2}
@@ -64,6 +89,12 @@ cloud:
 app:
   auth:
     mode: ${AUTH_MODE:jwt}
+    session-enabled: ${SESSION_AUTH_ENABLED:false}
+  session:
+    store: ${SESSION_STORE:}
+    cookie-name: ${SESSION_COOKIE_NAME:SESSION}
+    secure-cookie: ${SESSION_SECURE_COOKIE:true}
+    same-site: ${SESSION_COOKIE_SAME_SITE:lax}
   jwt:
     secret: ${JWT_SECRET}
     access-token-seconds: ${JWT_ACCESS_SECONDS:1800}

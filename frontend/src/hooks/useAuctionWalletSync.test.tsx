@@ -51,7 +51,7 @@ function setup(userId=7){
     availableBalance:80_000,
   });
   const wrapper=({children}:{children:ReactNode})=><QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-  renderHook(()=>useAuctionWalletSync(accessToken(userId),true),{wrapper});
+  renderHook(()=>useAuctionWalletSync(userId,true),{wrapper});
   return queryClient;
 }
 
@@ -108,4 +108,5 @@ describe('useAuctionWalletSync',()=>{
 
     expectWalletInvalidated(queryClient,false);
   });
+
 });

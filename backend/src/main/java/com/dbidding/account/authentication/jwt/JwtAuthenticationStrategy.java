@@ -1,6 +1,6 @@
 package com.dbidding.account.authentication.jwt;
 
-import java.time.Instant;
+import java.time.Clock;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -24,11 +24,12 @@ public class JwtAuthenticationStrategy implements AuthenticationStrategy {
 	private final JwtTokenProvider jwtTokenProvider;
 	private final RefreshTokenHasher refreshTokenHasher;
 	private final RefreshCookieFactory refreshCookieFactory;
+	private final Clock clock;
 
 	@Override
 	@Transactional
 	public ResponseEntity<?> establish(AuthenticatedAccount account, HttpServletRequest request) {
-		IssuedTokens tokens = jwtTokenProvider.issue(account.userId(), account.role(), Instant.now());
+		IssuedTokens tokens = jwtTokenProvider.issue(account.userId(), account.role(), clock.instant());
 		String refreshTokenHash = refreshTokenHasher.hash(tokens.refreshToken());
 		authenticationRepository.upsertRefreshTokenHash(account.userId(), refreshTokenHash);
 		ResponseCookie refreshCookie = refreshCookieFactory.create(tokens.refreshToken());

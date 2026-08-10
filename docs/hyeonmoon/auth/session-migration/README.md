@@ -80,8 +80,9 @@ JWT 또는 세션을 미리 승자로 정하지 않고 다음 순서로 검증�
 | 순서 | 문서 | 대응 이슈 | 핵심 결과 |
 |---:|---|---|---|
 | 1 | [`1-auth-boundary-refactoring.md`](1-auth-boundary-refactoring.md) | [#160](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/160) | 공통 인증 경계와 격리된 JWT 구현 |
-| 2 | [`2-in-memory-session.md`](2-in-memory-session.md) | 후속 이슈 2 | 단일 인스턴스 세션 인증 |
-| 3 | [`3-session-security-frontend-sse.md`](3-session-security-frontend-sse.md) | 후속 이슈 3 | 안전한 브라우저 세션과 개인화 SSE |
+| 2 | [`2-in-memory-session.md`](2-in-memory-session.md) | [#216](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/216) | 단일 인스턴스 세션 인증 |
+| 3a | [`3a-session-browser-auth.md`](3a-session-browser-auth.md) | [#235](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/235) | 브라우저 세션 인증과 CSRF |
+| 3b | [`3b-session-personalized-sse.md`](3b-session-personalized-sse.md) | [#236](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/236) | 세션 기반 개인화 SSE |
 | 4 | [`4-redis-session-multi-instance.md`](4-redis-session-multi-instance.md) | 후속 이슈 4 | Redis 세션과 다중 인스턴스 운영 |
 | 5 | [`5-benchmark-and-failure-test.md`](5-benchmark-and-failure-test.md) | 후속 이슈 5 | 비교 수치와 장애 실험 결과 |
 | 6 | [`6-final-selection-and-cleanup.md`](6-final-selection-and-cleanup.md) | 후속 이슈 6 | 최종 선택과 미선택 구현 제거 |

@@ -33,6 +33,19 @@ export type UploadedPhoto={
 
 export type CardRecognition=Partial<SellForm>;
 
+export type PsaCertification={
+  itemId:number;
+  gradeType:'psa';
+  psaGrade:string;
+  population:string;
+  issuedYear:string;
+  cardNumber:string;
+};
+
+export type PsaCertificationSample={
+  certificationNumber:string;
+};
+
 export type AuctionPayload={
   itemId:number;
   form:SellForm;

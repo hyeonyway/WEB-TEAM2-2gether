@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -24,7 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class AuctionDeadlineSchedulerTransactionTest {
     @Test
     void 일정_변경은_커밋_후에만_재예약하고_롤백하면_무시한다() {
-        AuctionService auctionService = mock(AuctionService.class);
+        AuctionDueClosingService auctionDueClosingService = mock(AuctionDueClosingService.class);
         AuctionRepository auctionRepository = mock(AuctionRepository.class);
         TaskScheduler taskScheduler = mock(TaskScheduler.class);
         Clock clock = Clock.systemUTC();
@@ -37,7 +37,7 @@ class AuctionDeadlineSchedulerTransactionTest {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean(TransactionalEventListenerFactory.class);
             context.registerBean(AuctionDeadlineScheduler.class, () -> new AuctionDeadlineScheduler(
-                    auctionService,
+                    auctionDueClosingService,
                     auctionRepository,
                     taskScheduler,
                     clock
@@ -47,7 +47,7 @@ class AuctionDeadlineSchedulerTransactionTest {
             TransactionTemplate transaction = new TransactionTemplate(new TestTransactionManager());
             AuctionCloseScheduleChangedEvent event = new AuctionCloseScheduleChangedEvent(
                     1,
-                    LocalDateTime.of(2026, 7, 29, 10, 0),
+                    Instant.parse("2026-07-29T10:00:00Z"),
                     "auction_created"
             );
 

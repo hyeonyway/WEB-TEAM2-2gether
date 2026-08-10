@@ -28,7 +28,7 @@ describe('ToastContainer', () => {
     expect(screen.getAllByText('로그인이 필요합니다')).toHaveLength(1);
   });
 
-  it('토스트를 헤더 아래 오른쪽에 표시한다', () => {
+  it('토스트를 헤더 아래 가로 중앙에 표시한다', () => {
     vi.useFakeTimers();
     showToast('로그인이 필요합니다');
     const {container} = render(<ToastContainer/>);
@@ -36,7 +36,8 @@ describe('ToastContainer', () => {
     const stack = container.querySelector('.toast-stack');
     expect(stack).not.toBeNull();
     expect(getComputedStyle(stack!).top).toBe('81px');
-    expect(getComputedStyle(stack!).right).toBe('24px');
+    expect(getComputedStyle(stack!).left).toBe('50%');
+    expect(getComputedStyle(stack!).transform).toBe('translateX(-50%)');
     expect(getComputedStyle(stack!).bottom).toBe('auto');
   });
 });

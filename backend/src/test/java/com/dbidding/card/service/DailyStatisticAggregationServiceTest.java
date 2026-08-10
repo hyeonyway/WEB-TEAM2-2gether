@@ -5,8 +5,8 @@ import static org.mockito.Mockito.mock;
 
 import com.dbidding.statistic.repository.StatisticAggregationRepository;
 import com.dbidding.statistic.service.DailyStatisticAggregationService;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
@@ -23,12 +23,12 @@ class DailyStatisticAggregationServiceTest {
         InOrder order = inOrder(repository);
         order.verify(repository).aggregateItems(
                 date,
-                LocalDateTime.of(2026, 8, 3, 15, 0),
-                LocalDateTime.of(2026, 8, 4, 15, 0));
+                Instant.parse("2026-08-03T15:00:00Z"),
+                Instant.parse("2026-08-04T15:00:00Z"));
         order.verify(repository).aggregateMarket(
                 date,
-                LocalDateTime.of(2026, 8, 3, 15, 0),
-                LocalDateTime.of(2026, 8, 4, 15, 0));
+                Instant.parse("2026-08-03T15:00:00Z"),
+                Instant.parse("2026-08-04T15:00:00Z"));
         order.verify(repository).refreshRollingSnapshots(
                 date.minusDays(29), date);
         order.verify(repository).refreshChangeRates(
