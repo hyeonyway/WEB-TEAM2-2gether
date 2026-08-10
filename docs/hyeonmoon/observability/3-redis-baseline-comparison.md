@@ -8,15 +8,15 @@
 **왜 organic 트래픽 수치를 기준선으로 안 쓰나:** 그 수치는 그 시점에
 우연히 섞여 있던 트래픽의 평균이라 재현이 안 된다. 같은 조건으로 다시 못
 돌리면 "Redis 덕분에 좋아졌다"인지 "그날 트래픽이 가벼웠다"인지 구분이 안
-된다. 그래서 기준선은 반드시 [`5-k6-scenario-design.md`](5-k6-scenario-design.md)의
+된다. 그래서 기준선은 반드시 [`1-k6-scenario-design.md`](1-k6-scenario-design.md)의
 **통제된 시나리오**를 돌려서 나온 결과로 잡는다.
 
 ## 선행 조건 (이슈 #334)
 
-1. `5-k6-scenario-design.md`의 시나리오 ①② 스크립트가 완성되어 있어야 한다.
+1. `1-k6-scenario-design.md`의 시나리오 ①② 스크립트가 완성되어 있어야 한다.
 2. k6 스크립트가 정책적 실패(400/409)를 실패로 잘못 세지 않아야 한다 —
    그 상태로 재면 기준선 자체가 왜곡된다.
-3. [`2-metrics-gap-and-instrumentation.md`](2-metrics-gap-and-instrumentation.md)의
+3. [`4-metrics-gap-and-instrumentation.md`](4-metrics-gap-and-instrumentation.md)의
    계측이 배포돼 있으면 더 좋다(선택) — SSE 연결 수립 시간 등도 같이
    기준선에 남길 수 있다.
 
@@ -36,7 +36,7 @@ DB write/lock 지연은 이미 세밀하게 계측돼 있다(`docs/eunki` 계획
 | `dbidding_bid_db_flush_duration_seconds` | 실제 DB flush(커밋) 시간 |
 | `dbidding_bid_step_duration_seconds{step="hold"\|"outbid"\|"save"}` | 입찰 처리 단계별 시간 |
 | `mysql_global_status_innodb_row_lock_time_avg`/`_max` | MySQL 서버 쪽 교차검증 |
-| [`1-slo-error-budget.md`](1-slo-error-budget.md)의 카테고리별 p95/p99 | 엔드포인트 레이턴시 전반(상태코드별 분리 포함) |
+| [`2-slo-error-budget.md`](2-slo-error-budget.md)의 카테고리별 p95/p99 | 엔드포인트 레이턴시 전반(상태코드별 분리 포함) |
 
 2026-08-10 organic 트래픽 기준 참고치(정식 기준선 아님, 방향성 참고용):
 `auction_lock_wait` p95 234ms, `wallet_lock_wait` p95 46ms,

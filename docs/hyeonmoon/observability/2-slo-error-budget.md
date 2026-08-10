@@ -12,7 +12,7 @@
 |---|---|---|---|
 | 명시적 실패 | 서버가 스스로 처리 실패를 인지하고 응답 | 5xx, 예외 | **포함** — 유일한 하드 실패 판정 기준 |
 | 정책적 실패 | 비즈니스 규칙에 따른 정상 거부 | 400(최소가 미달), 409(경합 충돌), 401 | **미포함** — 단, 별도 SLI로 계속 추적 |
-| 묵시적 실패 | 응답은 성공(2xx)이지만 실질적으로 전달 안 됨 | SSE 브로드캐스트가 `DiscardPolicy`로 조용히 드랍됨 | 대상 메트릭 자체가 없어서 지금은 추적 불가 — [`2-metrics-gap-and-instrumentation.md`](2-metrics-gap-and-instrumentation.md)에서 계측 추가 |
+| 묵시적 실패 | 응답은 성공(2xx)이지만 실질적으로 전달 안 됨 | SSE 브로드캐스트가 `DiscardPolicy`로 조용히 드랍됨 | 대상 메트릭 자체가 없어서 지금은 추적 불가 — [`4-metrics-gap-and-instrumentation.md`](4-metrics-gap-and-instrumentation.md)에서 계측 추가 |
 
 정책적 실패를 가용성에서 제외하는 이유: 두 사용자가 동시에 입찰하면 시스템이
 아무리 빨라도 한쪽은 거부된다 — 이건 서비스 품질 문제가 아니라 경매 구조
@@ -66,7 +66,7 @@ p50만 보면 400이 201보다 2배 넘게 빠르지만, **p99로 가면 격차�
 비교해야 한다 — 섞으면 성공 경로의 진짜 비용이 거부 응답에 의해 희석되어
 보인다. 이 분리는 `http_server_requests_seconds_bucket`의 기존 `status`
 라벨만 쓰면 되므로 신규 계측 없이 대시보드 쿼리 수준에서 바로 적용 가능하다
-([`3-grafana-dashboard-redesign.md`](3-grafana-dashboard-redesign.md)의
+([`5-grafana-dashboard-redesign.md`](5-grafana-dashboard-redesign.md)의
 Latency 섹션에 반영).
 
 | 카테고리 | 가용성 목표(5xx 기준) | p95 목표 | p99 목표 | 비고 |
@@ -76,14 +76,14 @@ Latency 섹션에 반영).
 | 입찰 쓰기 — 정책적 거부(400/409) | - | 400ms | 600ms | 락 대기까지만 겪는 경로. 이 목표를 크게 벗어나면 락 경합 심화 신호 |
 | bid-context(`GET .../bid-context`) | 99.5% | 200ms | 350ms | 실측 p95 321ms/p99 446ms |
 | 일반조회(목록/상세/통계) | 99.5% | 300ms | 600ms | 실측 p95 380ms/p99 **1.52s** — 꼬리가 김, 원인 조사 필요 |
-| auction-SSE 연결 수립 | 99% | 500ms | 1s | 계측 없음 — [`2-metrics-gap-and-instrumentation.md`](2-metrics-gap-and-instrumentation.md)에서 추가 후 확정 |
+| auction-SSE 연결 수립 | 99% | 500ms | 1s | 계측 없음 — [`4-metrics-gap-and-instrumentation.md`](4-metrics-gap-and-instrumentation.md)에서 추가 후 확정 |
 | notification-SSE 연결 수립 | 99% | 800ms | 1.5s | 티켓 발급 단계가 하나 더 있어 auction보다 여유를 둠. 계측 없음 — 같은 문서에서 추가 후 확정 |
 | SSE 이벤트 end-to-end 전달 | - | 300ms | 600ms | 지금 있는 `dbidding_auction_sse_send_duration_seconds`는 서버 `send()` 호출 자체만 재서(p99 3ms) 이 목적엔 못 씀 — 같은 문서에서 클라이언트 수신 시각까지 포함한 계측 추가 후 확정 |
 
 ## 참고
 
 - 실측치는 2026-08-10 기준, Redis 도입 전 organic 트래픽 24시간 집계다.
-  세션 단위로 통제된 정식 기준선은 [`4-redis-baseline-comparison.md`](4-redis-baseline-comparison.md)에서
+  세션 단위로 통제된 정식 기준선은 [`3-redis-baseline-comparison.md`](3-redis-baseline-comparison.md)에서
   별도로 잡는다.
 - 로그인 목표(p95 500ms)는 업계 관행(Google RAIL, 일반적인 로그인 API
   p95 300~500ms) 기준이며, 지금 인프라로는 달성 못 한다는 걸 알고 잡은

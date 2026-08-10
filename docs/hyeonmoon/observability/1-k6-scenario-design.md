@@ -44,7 +44,7 @@
 - **축 2 — QPS 계단식 램프:** 각 티어 안에서 동일하게 50→100→150→200→300→400 req/s,
   단계별 1~2분 유지(`ramping-arrival-rate`).
 - **트래픽 구성비:** bid-context 조회 : 입찰 POST : 일반조회 = 4:2:4.
-- **SLO 판정:** [`1-slo-error-budget.md`](1-slo-error-budget.md)의 카테고리별
+- **SLO 판정:** [`2-slo-error-budget.md`](2-slo-error-budget.md)의 카테고리별
   목표를 그대로 threshold로 사용(하나로 뭉뚱그린 200ms/500ms 쓰지 않는다).
   입찰 쓰기는 상태코드별(201/400/409/500)로 나눠서 본다(같은 문서 참고).
 - **실행 순서:** 250 → (텀) → 500 → (텀) → 1000. 텀은 이전 실행의 스왑/GC가
@@ -90,7 +90,7 @@
 - [ ] `pure-throughput.js`, `hot-auction-pattern.js` 작성 완료
 - [ ] 두 시나리오 모두 로컬/스테이징에서 최소 1회 정상 종료(크래시 없이
       `handleSummary` 출력까지 도달) 확인
-- [ ] 이후 [`4-redis-baseline-comparison.md`](4-redis-baseline-comparison.md)의
+- [ ] 이후 [`3-redis-baseline-comparison.md`](3-redis-baseline-comparison.md)의
       기준선 측정으로 연결
 
 > 이 문서는 Claude의 도움을 받아 작성하였습니다
