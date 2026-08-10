@@ -11,6 +11,9 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.card.service.CardService;
+import com.dbidding.order.OrderService;
 import com.dbidding.wallet.service.WalletService;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,6 +36,12 @@ class AuctionBidStreamPersistenceServiceTest {
     @Mock
     private WalletService walletService;
     @Mock
+    private OrderService orderService;
+    @Mock
+    private CardService cardService;
+    @Mock
+    private AuctionEventPublisher auctionEventPublisher;
+    @Mock
     private Auction auction;
 
     @Test
@@ -42,6 +51,9 @@ class AuctionBidStreamPersistenceServiceTest {
                 auctionRepository,
                 bidRepository,
                 walletService,
+                orderService,
+                cardService,
+                auctionEventPublisher,
                 Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
         given(inboxRepository.findByStreamIdIn(anyCollection())).willReturn(List.of());

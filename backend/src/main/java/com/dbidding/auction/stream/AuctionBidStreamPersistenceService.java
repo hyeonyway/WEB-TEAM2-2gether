@@ -4,10 +4,15 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
+import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.service.WalletService;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.card.service.CardService;
+import com.dbidding.order.OrderService;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Comparator;
@@ -26,6 +31,9 @@ public class AuctionBidStreamPersistenceService {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
+    private final OrderService orderService;
+    private final CardService cardService;
+    private final AuctionEventPublisher auctionEventPublisher;
     private final Clock clock;
 
     @Transactional
@@ -127,10 +135,25 @@ public class AuctionBidStreamPersistenceService {
         if (event.isBuyNow()) {
             bid.markWon();
             currentLeadingBids.remove(auction.getId());
+            completeBuyNow(auction, bid, event.occurredAt());
         } else {
             currentLeadingBids.put(auction.getId(), bid);
         }
         bids.add(bid);
+    }
+
+    /** 기존 즉시 낙찰 경로의 주문 생성과 종료 이벤트를 같은 DB 트랜잭션에 포함한다. */
+    private void completeBuyNow(Auction auction, Bid winningBid, java.time.Instant occurredAt) {
+        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
+        orderService.createFromAuctionClosed(
+                auction.getId(), winningBid.getBidderId(), auction.getSellerId(), card.name(), winningBid.getBidPrice()
+        );
+        auctionEventPublisher.publishClosed(new AuctionClosedEvent(
+                auction.getId(), card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
+                winningBid.getBidderId(), auction.getSellerId(), auction.getStartPrice(), auction.getCurrentPrice(),
+                winningBid.getBidPrice(), auction.getBidPriceUnit(), auction.getBidCount(), auction.getCloseTime(),
+                auction.getStatus(), occurredAt
+        ));
     }
 
     private void validateLeadingBidder(BidAcceptedStreamEvent event, Bid currentLeadingBid) {

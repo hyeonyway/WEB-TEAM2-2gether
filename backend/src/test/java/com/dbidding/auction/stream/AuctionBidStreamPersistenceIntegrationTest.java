@@ -114,6 +114,8 @@ class AuctionBidStreamPersistenceIntegrationTest {
         assertThat(holdStatus(SECOND_BIDDER_ID)).isEqualTo("RELEASED");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM auction_bid_event_inbox WHERE auction_id = ?", Integer.class, AUCTION_ID))
                 .isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM orders WHERE auction_id = ?", Integer.class, AUCTION_ID))
+                .isEqualTo(1);
     }
 
     private BidAcceptedStreamEvent normalBid() {
