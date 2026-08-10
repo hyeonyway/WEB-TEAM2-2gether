@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.global.security.RequestUserIdWriter;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 import com.dbidding.global.security.jwt.InMemoryTicketProvider;
 import com.dbidding.global.security.jwt.JwtAuthFilter;
 import com.dbidding.global.security.jwt.SseTicketAuthFilter;
@@ -76,16 +77,18 @@ public class JwtAuthenticationConfiguration {
 	@Bean
 	JwtAuthFilter jwtAuthFilter(
 		JwtTokenProvider jwtTokenProvider,
-		RequestUserIdWriter requestUserIdWriter
+		RequestUserIdWriter requestUserIdWriter,
+		FilterErrorResponseWriter errorResponseWriter
 	) {
-		return new JwtAuthFilter(jwtTokenProvider, requestUserIdWriter);
+		return new JwtAuthFilter(jwtTokenProvider, requestUserIdWriter, errorResponseWriter);
 	}
 
 	@Bean
 	SseTicketAuthFilter sseTicketAuthFilter(
 		TicketProvider ticketProvider,
-		RequestUserIdWriter requestUserIdWriter
+		RequestUserIdWriter requestUserIdWriter,
+		FilterErrorResponseWriter errorResponseWriter
 	) {
-		return new SseTicketAuthFilter(ticketProvider, requestUserIdWriter);
+		return new SseTicketAuthFilter(ticketProvider, requestUserIdWriter, errorResponseWriter);
 	}
 }

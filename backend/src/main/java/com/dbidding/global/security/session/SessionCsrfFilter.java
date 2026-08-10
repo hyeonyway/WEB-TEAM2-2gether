@@ -6,9 +6,11 @@ import java.util.Set;
 
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.account.authentication.session.SessionCsrfTokenService;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,8 +29,11 @@ public class SessionCsrfFilter extends OncePerRequestFilter {
 	private static final String FETCH_SITE_HEADER = "Sec-Fetch-Site";
 	private static final Set<String> UNSAFE_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
 	private static final Set<String> TOKEN_EXEMPT_PATHS = Set.of("/api/auth/login", "/api/auth/signup");
+	private static final String FORBIDDEN = "FORBIDDEN";
+	private static final String FORBIDDEN_MESSAGE = "요청이 허용되지 않았습니다.";
 
 	private final SessionCsrfTokenService tokenService;
+	private final FilterErrorResponseWriter errorResponseWriter;
 
 	@Override
 	protected void doFilterInternal(
@@ -41,7 +46,7 @@ public class SessionCsrfFilter extends OncePerRequestFilter {
 			return;
 		}
 		if (!isTrustedBrowserRequest(request)) {
-			response.sendError(HttpServletResponse.SC_FORBIDDEN);
+			errorResponseWriter.write(response, HttpStatus.FORBIDDEN, FORBIDDEN, FORBIDDEN_MESSAGE);
 			return;
 		}
 		if (!requiresCsrfToken(request)) {
@@ -51,7 +56,7 @@ public class SessionCsrfFilter extends OncePerRequestFilter {
 
 		HttpSession session = request.getSession(false);
 		if (session == null || !tokenService.matches(session, request.getHeader(CSRF_HEADER))) {
-			response.sendError(HttpServletResponse.SC_FORBIDDEN);
+			errorResponseWriter.write(response, HttpStatus.FORBIDDEN, FORBIDDEN, FORBIDDEN_MESSAGE);
 			return;
 		}
 		filterChain.doFilter(request, response);

@@ -15,6 +15,7 @@ import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.global.security.RequestUserIdWriter;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 import com.dbidding.global.security.jwt.JwtAuthFilter;
 import com.dbidding.global.security.jwt.SseTicketAuthFilter;
 import com.dbidding.global.security.jwt.SseTicketController;
@@ -22,6 +23,7 @@ import com.dbidding.global.security.jwt.TicketProvider;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
 import com.dbidding.global.security.session.SessionAuthFilter;
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 class JwtAuthenticationConfigurationTest {
 
@@ -30,6 +32,7 @@ class JwtAuthenticationConfigurationTest {
 		.withBean(AccountRepository.class, () -> mock(AccountRepository.class))
 		.withBean(AuthenticationRepository.class, () -> mock(AuthenticationRepository.class))
 		.withBean(RequestUserIdWriter.class, RequestUserIdWriter::new)
+		.withBean(FilterErrorResponseWriter.class, () -> new FilterErrorResponseWriter(new ObjectMapper()))
 		.withBean(Clock.class, Clock::systemUTC)
 		.withBean(SessionSseConnectionRegistry.class, SessionSseConnectionRegistry::new)
 		.withPropertyValues(
