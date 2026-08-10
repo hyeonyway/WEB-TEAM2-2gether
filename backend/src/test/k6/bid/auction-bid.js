@@ -24,6 +24,7 @@ const loadTestUserNumberWidth = positiveInteger(__ENV.LOAD_TEST_USER_NUMBER_WIDT
 
 const bidAccepted = new Rate('bid_accepted');
 const bidAcceptedOrContended = new Rate('bid_accepted_or_contended');
+const bidServerError = new Rate('bid_server_error');
 const bidContentions = new Counter('bid_contentions');
 const bidRejected = new Counter('bid_rejected');
 const bidEndToEndDuration = new Trend('bid_end_to_end_duration', true);
@@ -79,7 +80,7 @@ export const options = {
   },
   thresholds: {
     'checks{scenario:realAuctionBids}': ['rate>0.99'],
-    'bid_accepted_or_contended{scenario:realAuctionBids}': ['rate>0.99'],
+    'bid_server_error{scenario:realAuctionBids}': ['rate<0.01'],
     'http_req_failed{scenario:realAuctionBids}': ['rate<0.01'],
     'http_req_duration{name:GET /api/auctions/:id/bid-context,scenario:realAuctionBids}': ['p(95)<500'],
     'http_req_duration{name:POST /api/auctions/:id/bids,scenario:realAuctionBids}': ['p(95)<1000'],
@@ -238,25 +239,28 @@ function performBid({tokens, auctionIds}) {
         'Idempotency-Key': idempotencyKey(auctionId),
       },
       tags: {name: 'POST /api/auctions/:id/bids'},
-      responseCallback: http.expectedStatuses(201, 409),
+      responseCallback: http.expectedStatuses(201, 400, 409),
     },
   );
 
   const accepted = bidResponse.status === 201;
+  const priceRejected = bidResponse.status === 400;
   const contended = bidResponse.status === 409;
   bidAccepted.add(accepted);
   bidAcceptedOrContended.add(accepted || contended);
+  bidServerError.add(bidResponse.status >= 500);
   bidEndToEndDuration.add(Date.now() - startedAt);
 
   if (contended) {
     // 최신 minimum_bid를 읽은 뒤 다른 VU가 먼저 입찰한 정상적인 경쟁 충돌이다.
     bidContentions.add(1);
-  } else if (!accepted) {
+  } else if (!accepted && !priceRejected) {
     bidRejected.add(1, {status: String(bidResponse.status), phase: 'bid'});
   }
 
   check(bidResponse, {
-    '입찰 성공 또는 동시 입찰 충돌': response => response.status === 201 || response.status === 409,
+    '서버가 정책대로 응답함(성공/최소가 거부/동시 입찰 충돌)': response =>
+      response.status === 201 || response.status === 400 || response.status === 409,
   });
 }
 

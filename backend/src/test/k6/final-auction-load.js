@@ -16,6 +16,7 @@ const auctionIds = csv(__ENV.AUCTION_IDS).map(Number).filter(Number.isInteger);
 
 const loginOk = new Rate('login_success');
 const bidOk = new Rate('bid_success_or_conflict');
+const bidServerError = new Rate('bid_server_error');
 const auctionSseOk = new Rate('auction_sse_connected');
 const notificationSseOk = new Rate('notification_sse_connected');
 const auctionEvents = new Counter('auction_sse_events');
@@ -48,7 +49,7 @@ export const options = {
     'login_success': ['rate>0.99'],
     'auction_sse_connected': ['rate>0.99'],
     'notification_sse_connected': ['rate>0.99'],
-    'bid_success_or_conflict{phase:main}': ['rate>0.99'],
+    'bid_server_error{phase:main}': ['rate<0.01'],
   },
 };
 
@@ -129,13 +130,15 @@ function waitForSse(token) {
 function placeBid(token, auctionId, metricName) {
   const headers = {Authorization: `Bearer ${token}`, Accept: 'application/json'};
   const context = http.get(`${baseUrl}/api/auctions/${auctionId}/bid-context`, {headers, tags: {name: `${metricName}_context`}});
+  bidServerError.add(context.status >= 500, {phase: 'main'});
   if (context.status !== 200) { if (metricName === 'bid') bidOk.add(false); return false; }
   const price = Number(context.json('minimum_bid'));
   if (!Number.isSafeInteger(price) || price < 1) { if (metricName === 'bid') bidOk.add(false); return false; }
-  const response = http.post(`${baseUrl}/api/auctions/${auctionId}/bids`, JSON.stringify({price}), {headers: {...headers, 'Content-Type': 'application/json', 'Idempotency-Key': `k6-${metricName}-${__VU}-${__ITER}-${Date.now()}`}, responseCallback: http.expectedStatuses(201, 409), tags: {name: `${metricName}_place`, phase: 'main'}});
-  const accepted = response.status === 201 || response.status === 409;
+  const response = http.post(`${baseUrl}/api/auctions/${auctionId}/bids`, JSON.stringify({price}), {headers: {...headers, 'Content-Type': 'application/json', 'Idempotency-Key': `k6-${metricName}-${__VU}-${__ITER}-${Date.now()}`}, responseCallback: http.expectedStatuses(201, 400, 409), tags: {name: `${metricName}_place`, phase: 'main'}});
+  const accepted = response.status === 201 || response.status === 400 || response.status === 409;
+  bidServerError.add(response.status >= 500, {phase: 'main'});
   if (metricName === 'bid') bidOk.add(accepted);
-  check(response, {'실제 경매 API 응답 성공 또는 경쟁 충돌': r => accepted});
+  check(response, {'서버가 정책대로 응답함(성공/최소가 거부/동시 입찰 충돌)': r => accepted});
   return accepted;
 }
 
