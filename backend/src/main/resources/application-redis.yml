@@ -18,4 +18,6 @@ app:
       block: ${AUCTION_REDIS_BID_BLOCK:1s}
       claim-idle: ${AUCTION_REDIS_BID_CLAIM_IDLE:30s}
       max-retries: ${AUCTION_REDIS_BID_MAX_RETRIES:3}
+      # Consumer Group이 여러 인스턴스에 분산되어도 DB 영속 Consumer는 한 인스턴스만 실행한다.
+      consumer-lock-at-most-for: ${AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR:5m}
       poll-delay: ${AUCTION_REDIS_BID_POLL_DELAY:100ms}

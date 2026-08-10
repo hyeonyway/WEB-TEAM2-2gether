@@ -39,6 +39,7 @@ public class AuctionBidStreamConsumer {
     private final StringRedisTemplate redisTemplate;
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
+    private final AuctionBidStreamConsumerLeaderLock leaderLock;
     private final MeterRegistry meterRegistry;
     private final String consumerName = "auction-bid-" + UUID.randomUUID();
 
@@ -67,6 +68,9 @@ public class AuctionBidStreamConsumer {
 
     @Scheduled(fixedDelayString = "${app.auction.redis-bid.poll-delay:100ms}")
     public void consume() {
+        if (!leaderLock.tryAcquire()) {
+            return;
+        }
         try {
             consumeOnce();
         } catch (DataAccessException exception) {
@@ -75,6 +79,8 @@ public class AuctionBidStreamConsumer {
             }
             createGroup();
             log.info("event=auction.bid.stream.group.recreated streamKey={} group={}", STREAM_KEY, GROUP);
+        } finally {
+            leaderLock.releaseAfterRun();
         }
     }
 
