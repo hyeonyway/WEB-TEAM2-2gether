@@ -98,7 +98,7 @@ class AuctionBidStreamPersistenceServiceTest {
 
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {
         return new BidAcceptedStreamEvent(
-                streamId, BidStreamEventType.BID_ACCEPTED, 10, version, bidderId, 10_000L + version, previousBidderId,
+                streamId, BidStreamEventType.BID_ACCEPTED, 10, version, bidderId, 10_000L + version, 10_000L + version, previousBidderId,
                 "request-" + version, "a".repeat(64), 10_000L + version, version.intValue(),
                 Instant.parse("2027-08-11T12:00:00Z"), com.dbidding.auction.domain.AuctionStatus.OPEN,
                 Instant.parse("2026-08-10T12:00:00Z")

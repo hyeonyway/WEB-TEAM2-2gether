@@ -235,6 +235,7 @@ public class Auction {
 
     public void validateStreamBid(
             Integer bidderId,
+            long requestedPrice,
             long bidPrice,
             long currentPrice,
             int bidCount,
@@ -252,21 +253,21 @@ public class Auction {
         if (bidPrice != currentPrice) {
             throw new IllegalArgumentException("입찰가와 현재가는 일치해야 합니다.");
         }
-        if (!occurredAt.isBefore(this.closeTime)) {
+        if ((status != AuctionStatus.OPEN && status != AuctionStatus.ENDING) || !occurredAt.isBefore(this.closeTime)) {
             throw new IllegalArgumentException("이미 종료된 경매입니다.");
         }
+        if (bidPrice < minimumBid()) {
+            throw new IllegalArgumentException("최소 입찰가 이상으로 입찰해야 합니다.");
+        }
         if (buyNow) {
-            if (buyNowPrice == null || bidPrice != buyNowPrice || incomingStatus != AuctionStatus.ENDED) {
+            if (buyNowPrice == null || requestedPrice < buyNowPrice || bidPrice != buyNowPrice
+                    || incomingStatus != AuctionStatus.ENDED || !closeTime.equals(occurredAt)) {
                 throw new IllegalArgumentException("즉시 낙찰 이벤트의 최종 상태가 올바르지 않습니다.");
             }
             return;
         }
-        if ((status != AuctionStatus.OPEN && status != AuctionStatus.ENDING)
-                || (incomingStatus != AuctionStatus.OPEN && incomingStatus != AuctionStatus.ENDING)) {
+        if (requestedPrice != bidPrice || (incomingStatus != AuctionStatus.OPEN && incomingStatus != AuctionStatus.ENDING)) {
             throw new IllegalArgumentException("진행 중인 경매 입찰 이벤트만 처리할 수 있습니다.");
-        }
-        if (bidPrice < minimumBid()) {
-            throw new IllegalArgumentException("최소 입찰가 이상으로 입찰해야 합니다.");
         }
         if (closeTime.isBefore(this.closeTime)) {
             throw new IllegalArgumentException("일반 입찰은 경매 마감 시각을 앞당길 수 없습니다.");

@@ -118,6 +118,24 @@ class AuctionBidStreamPersistenceIntegrationTest {
                 .isEqualTo(1);
     }
 
+    @Test
+    void 현재_최고_입찰자의_즉시낙찰은_기존_hold를_release하지_않고_capture한다() {
+        persistenceService.persistAll(java.util.List.of(event(
+                "same-user-buy-now-0", BidStreamEventType.BUY_NOW, 1L, FIRST_BIDDER_ID, FIRST_BIDDER_ID,
+                50_000L, 2, AuctionStatus.ENDED
+        )));
+        entityManager.flush();
+
+        assertThat(bidStatus(FIRST_BIDDER_ID)).isEqualTo("WON");
+        assertThat(holdStatus(FIRST_BIDDER_ID)).isEqualTo("CAPTURED");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM wallet_holds wh
+                JOIN wallets w ON w.id = wh.wallet_id
+                WHERE w.user_id = ? AND wh.auction_id = ?
+                """, Integer.class, FIRST_BIDDER_ID, AUCTION_ID)).isEqualTo(1);
+        assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(50_000L, 0L, 50_000L));
+    }
+
     private BidAcceptedStreamEvent normalBid() {
         return event("1-0", BidStreamEventType.BID_ACCEPTED, 1L, SECOND_BIDDER_ID, FIRST_BIDDER_ID,
                 11_000L, 2, AuctionStatus.OPEN);
@@ -139,10 +157,15 @@ class AuctionBidStreamPersistenceIntegrationTest {
             AuctionStatus status
     ) {
         Instant now = Instant.now();
+        Instant closeTime = status == AuctionStatus.ENDED
+                ? now
+                : jdbcTemplate.queryForObject(
+                        "SELECT close_time FROM auctions WHERE id = ?", java.sql.Timestamp.class, AUCTION_ID
+                ).toInstant();
         return new BidAcceptedStreamEvent(
-                streamId, type, AUCTION_ID, version, bidderId, price, previousBidderId,
+                streamId, type, AUCTION_ID, version, bidderId, price, price, previousBidderId,
                 "stream-" + streamId, "a".repeat(64), price, bidCount,
-                status == AuctionStatus.ENDED ? now : now.plus(java.time.Duration.ofHours(2)), status, now
+                closeTime, status, now
         );
     }
 

@@ -2,6 +2,10 @@ package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -11,6 +15,7 @@ public record BidAcceptedStreamEvent(
         Integer auctionId,
         Long auctionVersion,
         Integer bidderId,
+        Long requestedPrice,
         Long bidPrice,
         Integer previousBidderId,
         String idempotencyKey,
@@ -38,6 +43,7 @@ public record BidAcceptedStreamEvent(
                     Integer.valueOf(required(values, "auctionId")),
                     Long.valueOf(required(values, "auctionVersion")),
                     Integer.valueOf(required(values, "bidderId")),
+                    Long.valueOf(required(values, "requestedPrice")),
                     Long.valueOf(required(values, "bidPrice")),
                     nullableInteger(values.get("previousBidderId")),
                     required(values, "idempotencyKey"),
@@ -70,7 +76,7 @@ public record BidAcceptedStreamEvent(
             throw new InvalidBidStreamEventException("Stream ID 형식이 올바르지 않습니다.");
         }
         if (auctionId == null || auctionId <= 0 || auctionVersion == null || auctionVersion <= 0
-                || bidderId == null || bidderId <= 0 || bidPrice == null || bidPrice <= 0
+                || bidderId == null || bidderId <= 0 || requestedPrice == null || requestedPrice <= 0 || bidPrice == null || bidPrice <= 0
                 || currentPrice == null || currentPrice <= 0 || bidCount == null || bidCount <= 0) {
             throw new InvalidBidStreamEventException("입찰 Stream 이벤트의 숫자 필드는 양수여야 합니다.");
         }
@@ -86,14 +92,23 @@ public record BidAcceptedStreamEvent(
         if (!REQUEST_HASH_PATTERN.matcher(idempotencyRequestHash).matches()) {
             throw new InvalidBidStreamEventException("idempotencyRequestHash는 64자리 소문자 SHA-256 해시여야 합니다.");
         }
-        if (!occurredAt.isBefore(closeTime)) {
-            throw new InvalidBidStreamEventException("입찰 발생 시각은 경매 마감 시각보다 이전이어야 합니다.");
+        if (!idempotencyRequestHash.equals(requestHash(requestedPrice))) {
+            throw new InvalidBidStreamEventException("idempotencyRequestHash가 원 요청가와 일치하지 않습니다.");
         }
         if (isBuyNow()) {
             if (auctionStatus != AuctionStatus.ENDED) {
                 throw new InvalidBidStreamEventException("즉시 낙찰 이벤트의 경매 상태는 ENDED여야 합니다.");
             }
+            if (!occurredAt.equals(closeTime)) {
+                throw new InvalidBidStreamEventException("즉시 낙찰 이벤트의 종료 시각은 승인 시각과 일치해야 합니다.");
+            }
             return;
+        }
+        if (!occurredAt.isBefore(closeTime)) {
+            throw new InvalidBidStreamEventException("입찰 발생 시각은 경매 마감 시각보다 이전이어야 합니다.");
+        }
+        if (!requestedPrice.equals(bidPrice)) {
+            throw new InvalidBidStreamEventException("일반 입찰의 원 요청가와 승인 입찰가는 일치해야 합니다.");
         }
         if (auctionStatus != AuctionStatus.OPEN && auctionStatus != AuctionStatus.ENDING) {
             throw new InvalidBidStreamEventException("일반 입찰 이벤트의 경매 상태는 OPEN 또는 ENDING이어야 합니다.");
@@ -110,5 +125,16 @@ public record BidAcceptedStreamEvent(
 
     private static Integer nullableInteger(String value) {
         return value == null || value.isBlank() || "null".equals(value) ? null : Integer.valueOf(value);
+    }
+
+    private static String requestHash(long requestedPrice) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(String.valueOf(requestedPrice).getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) 0);
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available.", exception);
+        }
     }
 }

@@ -32,6 +32,7 @@ class BidAcceptedStreamEventTest {
         Map<String, String> fields = fields();
         fields.put("eventType", "auction.buy-now.v1");
         fields.put("auctionStatus", "ENDED");
+        fields.put("closeTime", "2026-08-10T11:00:00Z");
 
         BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from("1720000000000-1", fields);
 
@@ -65,9 +66,10 @@ class BidAcceptedStreamEventTest {
                 Map.entry("auctionId", "10"),
                 Map.entry("auctionVersion", "3"),
                 Map.entry("bidderId", "2"),
+                Map.entry("requestedPrice", "12000"),
                 Map.entry("bidPrice", "12000"),
                 Map.entry("idempotencyKey", "request-key"),
-                Map.entry("idempotencyRequestHash", "a".repeat(64)),
+                Map.entry("idempotencyRequestHash", "f5ed760a79e8a5335e5ad28cc5db6ba5059f453d5209e426f54f5308e092735b"),
                 Map.entry("currentPrice", "12000"),
                 Map.entry("bidCount", "2"),
                 Map.entry("closeTime", "2026-08-10T12:00:00Z"),

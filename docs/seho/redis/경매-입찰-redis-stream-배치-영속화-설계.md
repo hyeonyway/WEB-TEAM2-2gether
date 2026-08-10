@@ -44,6 +44,7 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 | `auctionId` | integer | 경매 ID |
 | `auctionVersion` | long | 경매별 단조 증가 입찰 버전 |
 | `bidderId` | integer | 현재 입찰자 |
+| `requestedPrice` | long | HTTP `BidCreateRequest.price` 원 요청가 |
 | `bidPrice` | long | 승인된 입찰가 |
 | `previousBidderId` | integer/null | 이전 최고 입찰자 |
 | `idempotencyKey` | string | 요청 멱등성 키 |
@@ -55,8 +56,10 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 | `occurredAt` | instant | Lua 승인 시각 |
 
 `auctionVersion`은 경매 context에서 승인 때마다 증가한다. 같은 경매의 더 낮거나 같은
-버전은 DB 상태를 변경하지 않는다. 생산자는 `idempotencyKey`와 request hash를 생략하지
-않아야 하며, 동일 키로 다른 요청을 승인하면 안 된다.
+버전은 DB 상태를 변경하지 않는다. 생산자는 `idempotencyKey`, `requestedPrice`, request hash를
+생략하지 않아야 하며, request hash는 기존 HTTP 경로와 동일하게 `SHA-256("{requestedPrice}\\0")`로
+계산한다. 일반 입찰은 `requestedPrice == bidPrice`이고, 즉시 낙찰은 `requestedPrice >= buyNowPrice`,
+`bidPrice == buyNowPrice`다.
 
 `auction.buy-now.v1`은 `auctionStatus=ENDED`, 최종 `bidPrice/currentPrice`, 종료 시각을
 반드시 포함한다. Consumer는 기존 LEADING bid를 OUTBID로 바꾸고 현재 bid를 WON으로 저장하며
@@ -107,10 +110,11 @@ Consumer는 Lua 승인 이벤트라도 DB 반영 전에 기존 입찰 규칙을 
 - 입찰자는 판매자나 현재 최고 입찰자일 수 없고, 이벤트의 `previousBidderId`는 DB의 최고
   입찰자와 일치해야 한다.
 - Stream ID·모든 식별자·금액·입찰 수는 양수여야 한다. `currentPrice`는 `bidPrice`와 같고,
-  idempotency key는 64자 이하, request hash는 64자리 소문자 SHA-256 형식이어야 한다.
+  idempotency key는 64자 이하, request hash는 64자리 소문자 SHA-256 형식이면서 `requestedPrice`로
+  계산한 값과 일치해야 한다.
 - 일반 입찰은 진행 중 경매의 최소 호가 이상이어야 하며, 입찰 수는 DB 값보다 정확히 1 커야 한다.
   입찰 발생 시각은 기존 마감 시각보다 이전이고, 일반 입찰은 마감 시각을 앞당길 수 없다.
-- 즉시 낙찰은 `buyNowPrice`와 동일한 가격 및 `ENDED` 상태여야 한다.
+- 즉시 낙찰은 `buyNowPrice`와 동일한 승인 가격, `ENDED` 상태, 그리고 승인 시각과 같은 종료 시각이어야 한다.
 
 검증 또는 DB wallet hold/release/capture가 실패하면 같은 DB 트랜잭션의 inbox·bid·auction 변경도
 롤백되고 Redis ACK를 보내지 않는다.

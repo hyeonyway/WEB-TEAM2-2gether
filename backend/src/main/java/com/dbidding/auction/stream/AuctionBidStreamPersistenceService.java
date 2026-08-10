@@ -112,7 +112,7 @@ public class AuctionBidStreamPersistenceService {
         validateLeadingBidder(event, currentLeadingBids.get(auction.getId()));
         try {
             auction.validateStreamBid(
-                    event.bidderId(), event.bidPrice(), event.currentPrice(), event.bidCount(), event.closeTime(), event.occurredAt(),
+                    event.bidderId(), event.requestedPrice(), event.bidPrice(), event.currentPrice(), event.bidCount(), event.closeTime(), event.occurredAt(),
                     event.auctionStatus(), event.isBuyNow()
             );
         } catch (IllegalArgumentException exception) {
@@ -135,11 +135,13 @@ public class AuctionBidStreamPersistenceService {
         if (event.isBuyNow()) {
             bid.markWon();
             currentLeadingBids.remove(auction.getId());
-            completeBuyNow(auction, bid, event.occurredAt());
         } else {
             currentLeadingBids.put(auction.getId(), bid);
         }
         bids.add(bid);
+        if (event.isBuyNow()) {
+            completeBuyNow(auction, bid, event.occurredAt());
+        }
     }
 
     /** 기존 즉시 낙찰 경로의 주문 생성과 종료 이벤트를 같은 DB 트랜잭션에 포함한다. */
@@ -168,6 +170,14 @@ public class AuctionBidStreamPersistenceService {
 
     private void applyWalletTransition(BidAcceptedStreamEvent event, Bid currentLeadingBid, Integer auctionId) {
         Integer previousBidderId = currentLeadingBid == null ? null : currentLeadingBid.getBidderId();
+        if (java.util.Objects.equals(previousBidderId, event.bidderId())) {
+            // 기존 POST 경로도 같은 사용자의 즉시 낙찰에서는 기존 hold를 증액한 뒤 release하지 않는다.
+            walletService.hold(event.bidderId(), auctionId, event.bidPrice());
+            if (event.isBuyNow()) {
+                walletService.capture(event.bidderId(), auctionId, event.bidPrice());
+            }
+            return;
+        }
         if (previousBidderId != null && previousBidderId < event.bidderId()) {
             walletService.release(previousBidderId, auctionId);
             walletService.hold(event.bidderId(), auctionId, event.bidPrice());
