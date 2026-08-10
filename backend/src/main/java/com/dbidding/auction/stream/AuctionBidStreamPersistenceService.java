@@ -8,6 +8,7 @@ import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +22,11 @@ public class AuctionBidStreamPersistenceService {
     private final Clock clock;
 
     @Transactional
-    public void persist(BidAcceptedStreamEvent event) {
+    public void persistAll(List<BidAcceptedStreamEvent> events) {
+        events.forEach(this::persist);
+    }
+
+    private void persist(BidAcceptedStreamEvent event) {
         if (inboxRepository.findByStreamId(event.streamId()).isPresent()) {
             return;
         }
