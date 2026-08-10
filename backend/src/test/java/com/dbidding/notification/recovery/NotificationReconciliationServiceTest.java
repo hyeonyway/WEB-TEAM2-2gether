@@ -28,7 +28,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,32 +54,16 @@ class NotificationReconciliationServiceTest {
     private NotificationReconciliationService reconciliationService;
 
     @Test
-    void 경매_생성_알림이_없는_찜_유저에게만_복구_알림을_보낸다() {
+    void 경매_생성_알림_복구는_찜_유저_전원을_한번에_저장한다() {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
         given(auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
         given(wishlistService.findUserIdsByCardId(auction.getItemId())).willReturn(List.of(1, 2));
-        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(1, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID)).willReturn(true);
-        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(2, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID)).willReturn(false);
 
         reconciliationService.recoverAuctionOpenedNotifications(now.minus(Duration.ofMinutes(10)));
 
-        verify(notificationService, never()).save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-        verify(notificationService).save(2, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-    }
-
-    @Test
-    void 라이브_경로와_레이스가_나서_유니크_제약_위반이_나도_예외를_삼키고_계속한다() {
-        Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
-        given(auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
-        given(wishlistService.findUserIdsByCardId(auction.getItemId())).willReturn(List.of(1));
-        given(notificationRepository.existsByUserIdAndAuctionIdAndTypeAndBidId(1, 1, NotificationType.AUCTION_OPENED, Notification.NO_BID))
-                .willReturn(false);
-        given(notificationService.save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."))
-                .willThrow(new DataIntegrityViolationException("duplicate"));
-
-        reconciliationService.recoverAuctionOpenedNotifications(now.minus(Duration.ofMinutes(10)));
-
-        verify(notificationService).save(1, 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
+        verify(notificationService).saveAllIgnoringDuplicates(
+                List.of(1, 2), 1, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        );
     }
 
     @Test
