@@ -84,6 +84,8 @@ public class DbBidExecutor implements BidExecutor {
             Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
             if (!buyNow) {
                 validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
+            } else {
+                lockBuyNowParticipantWallets(userId, previousLeadingBid, auction.getSellerId());
             }
 
             Instant bidAt = now();
@@ -250,6 +252,18 @@ public class DbBidExecutor implements BidExecutor {
                 && previousLeadingBid.getBidderId() < currentBidderId;
     }
 
+    private void lockBuyNowParticipantWallets(
+            Integer bidderId,
+            Bid previousLeadingBid,
+            Integer sellerId
+    ) {
+        if (previousLeadingBid == null || previousLeadingBid.getBidderId().equals(bidderId)) {
+            walletService.lockWalletsInOrder(bidderId, sellerId);
+            return;
+        }
+        walletService.lockWalletsInOrder(bidderId, previousLeadingBid.getBidderId(), sellerId);
+    }
+
     private AuctionCloseData closeLockedAuction(Auction auction, Instant closedAt) {
         Optional<Bid> winningBid = highestBid(auction.getId());
         CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
@@ -268,7 +282,7 @@ public class DbBidExecutor implements BidExecutor {
         Bid winner = winningBid.get();
         winner.markWon();
         auction.closeWithWinningBid(winner, closedAt);
-        walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        walletService.captureAfterHold(winner.getBidderId(), auction.getId(), winner.getBidPrice());
         orderService.createFromAuctionClosed(
                 auction.getId(), winner.getBidderId(), auction.getSellerId(), card.name(), winner.getBidPrice()
         );

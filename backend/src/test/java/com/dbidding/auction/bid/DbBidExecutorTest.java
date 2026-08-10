@@ -165,7 +165,9 @@ class DbBidExecutorTest {
 
         assertThat(response.result().bid().amount()).isEqualTo(100_000L);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
-        verify(walletService).capture(2, 1, 100_000L);
+        verify(walletService).lockWalletsInOrder(2, 1);
+        verify(walletService).captureAfterHold(2, 1, 100_000L);
+        verify(walletService, never()).capture(2, 1, 100_000L);
         verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
         assertThat(response.eventData().closeData()).isNotNull();
         assertThat(response.eventData().closeData().cardName()).isEqualTo("카드");
@@ -189,8 +191,9 @@ class DbBidExecutorTest {
 
         dbBidExecutor.execute(new BidCommand(2, 1, 100_000L, "buy-now-key"));
 
+        verify(walletService).lockWalletsInOrder(2, 3, 1);
         verify(walletService).release(3, 1);
-        verify(walletService).capture(2, 1, 100_000L);
+        verify(walletService).captureAfterHold(2, 1, 100_000L);
         verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
     }
 
@@ -210,9 +213,10 @@ class DbBidExecutorTest {
         dbBidExecutor.execute(new BidCommand(2, 1, 100_000L, "buy-now-key"));
 
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
+        verify(walletService).lockWalletsInOrder(2, 1);
         verify(walletService).hold(2, 1, 100_000L);
         verify(walletService, never()).release(2, 1);
-        verify(walletService).capture(2, 1, 100_000L);
+        verify(walletService).captureAfterHold(2, 1, 100_000L);
         verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
     }
 
