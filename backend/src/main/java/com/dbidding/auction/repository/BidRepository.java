@@ -16,6 +16,8 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     Optional<Bid> findByAuctionIdAndStatus(Integer auctionId, BidStatus status);
 
+    List<Bid> findByAuctionIdInAndStatus(Collection<Integer> auctionIds, BidStatus status);
+
     @Query("select b.auction.id from Bid b where b.status = :status")
     List<Integer> findAuctionIdsByStatus(@Param("status") BidStatus status);
 

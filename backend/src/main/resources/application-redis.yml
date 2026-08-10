@@ -3,6 +3,13 @@ spring:
     redis:
       # XREADGROUP BLOCK(기본 1초)보다 길어야 빈 Stream 대기가 command timeout으로 실패하지 않는다.
       timeout: ${AUCTION_REDIS_COMMAND_TIMEOUT:2s}
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: ${AUCTION_REDIS_BID_JDBC_BATCH_SIZE:100}
+        order_inserts: true
+        order_updates: true
 
 app:
   auction:
