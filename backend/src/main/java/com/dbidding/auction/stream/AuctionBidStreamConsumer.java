@@ -49,10 +49,20 @@ public class AuctionBidStreamConsumer {
                     STREAM_KEY.getBytes(StandardCharsets.UTF_8), GROUP, ReadOffset.latest(), true
             ));
         } catch (DataAccessException exception) {
-            if (!exception.getMessage().contains("BUSYGROUP")) {
+            if (!isExistingGroup(exception)) {
                 throw exception;
             }
         }
+    }
+
+    private boolean isExistingGroup(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            String message = current.getMessage();
+            if (message != null && message.contains("BUSYGROUP")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Scheduled(fixedDelayString = "${app.auction.redis-bid.poll-delay:100ms}")
