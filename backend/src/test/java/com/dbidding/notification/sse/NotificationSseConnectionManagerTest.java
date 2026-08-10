@@ -38,6 +38,17 @@ class NotificationSseConnectionManagerTest {
     }
 
     @Test
+    void 알림_SSE_연결수립_완료시간을_기록한다() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        NotificationSseConnectionManager manager = new NotificationSseConnectionManager(
+                new SessionSseConnectionRegistry(), new NotificationSseMetrics(registry));
+
+        manager.register(1, mock(SseEmitter.class));
+
+        assertThat(registry.get("dbidding.sse.connect.duration").tag("stream", "notification").timer().count()).isEqualTo(1);
+    }
+
+    @Test
     void 연결한_emitter에_알림_생성_이벤트를_전송한다() throws Exception {
         NotificationSseConnectionManager manager = manager(new SessionSseConnectionRegistry());
         SseEmitter emitter = mock(SseEmitter.class);

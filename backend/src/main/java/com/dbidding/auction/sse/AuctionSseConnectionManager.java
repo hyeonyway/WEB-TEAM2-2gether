@@ -37,12 +37,15 @@ public class AuctionSseConnectionManager {
     }
 
     SseEmitter register(SseEmitter emitter) {
+        Timer.Sample connectSample = metrics.startConnect();
         emitters.add(emitter);
         emitter.onCompletion(() -> emitters.remove(emitter));
         emitter.onTimeout(() -> removeAndComplete(emitter));
         emitter.onError(error -> removeAndComplete(emitter));
-        send(emitter, SseEmitter.event().name("connected")
-                .reconnectTime(RECONNECT_TIME_MILLIS).data("connected"));
+        if (send(emitter, SseEmitter.event().name("connected")
+                .reconnectTime(RECONNECT_TIME_MILLIS).data("connected"))) {
+            metrics.finishConnect(connectSample);
+        }
         return emitter;
     }
 
@@ -71,16 +74,18 @@ public class AuctionSseConnectionManager {
                 .name(payload.type().name()).data(payload);
     }
 
-    private void send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
+    private boolean send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
         Timer.Sample sample = metrics.startSend();
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
             metrics.recordSendFailure();
             removeAndComplete(emitter);
+            return false;
         } finally {
             metrics.finishSend(sample);
         }
+        return true;
     }
 
     private void removeAndComplete(SseEmitter emitter) {

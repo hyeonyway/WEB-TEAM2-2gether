@@ -107,6 +107,16 @@ class AuctionSseContractTest {
     }
 
     @Test
+    void 경매_SSE_연결수립_완료시간을_기록한다() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        var manager = manager(registry);
+
+        manager.register(mock(SseEmitter.class));
+
+        assertThat(registry.get("dbidding.sse.connect.duration").tag("stream", "auction").timer().count()).isEqualTo(1);
+    }
+
+    @Test
     void heartbeat은_연결된_emitter에_주석_메시지를_전송한다() throws Exception {
         var manager = manager();
         SseEmitter emitter = mock(SseEmitter.class);
