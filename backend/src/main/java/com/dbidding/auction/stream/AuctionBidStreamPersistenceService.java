@@ -7,6 +7,7 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.wallet.service.WalletService;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Comparator;
@@ -24,6 +25,7 @@ public class AuctionBidStreamPersistenceService {
     private final AuctionBidEventInboxRepository inboxRepository;
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
+    private final WalletService walletService;
     private final Clock clock;
 
     @Transactional
@@ -96,6 +98,7 @@ public class AuctionBidStreamPersistenceService {
             return;
         }
         Bid currentLeadingBid = currentLeadingBids.get(auction.getId());
+        applyWalletTransition(event, currentLeadingBid, auction.getId());
         if (currentLeadingBid != null) {
             currentLeadingBid.markOutbid();
         }
@@ -110,5 +113,21 @@ public class AuctionBidStreamPersistenceService {
             currentLeadingBids.put(auction.getId(), bid);
         }
         bids.add(bid);
+    }
+
+    private void applyWalletTransition(BidAcceptedStreamEvent event, Bid currentLeadingBid, Integer auctionId) {
+        Integer previousBidderId = currentLeadingBid == null ? null : currentLeadingBid.getBidderId();
+        if (previousBidderId != null && previousBidderId < event.bidderId()) {
+            walletService.release(previousBidderId, auctionId);
+            walletService.hold(event.bidderId(), auctionId, event.bidPrice());
+        } else {
+            walletService.hold(event.bidderId(), auctionId, event.bidPrice());
+            if (previousBidderId != null) {
+                walletService.release(previousBidderId, auctionId);
+            }
+        }
+        if (event.isBuyNow()) {
+            walletService.capture(event.bidderId(), auctionId, event.bidPrice());
+        }
     }
 }
