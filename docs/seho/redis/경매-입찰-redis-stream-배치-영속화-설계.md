@@ -89,6 +89,21 @@ DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10
 커밋에 성공한 entry만 ACK한다. DB 커밋 전 프로세스가 종료되어도 PEL 재전달과 inbox
 UNIQUE 제약이 재처리를 안전하게 만든다.
 
+### DB 반영 전 정합성 검증
+
+Consumer는 Lua 승인 이벤트라도 DB 반영 전에 기존 입찰 규칙을 재검증한다.
+
+- 이벤트 버전은 `last_bid_event_version + 1`이어야 한다. 이미 반영한 이전 버전은 무시하고,
+  중간 버전이 누락된 이벤트는 처리하지 않는다.
+- 입찰자는 판매자나 현재 최고 입찰자일 수 없고, 이벤트의 `previousBidderId`는 DB의 최고
+  입찰자와 일치해야 한다.
+- 일반 입찰은 진행 중 경매의 최소 호가 이상이어야 하며, 입찰 수는 DB 값보다 정확히 1 커야 한다.
+  일반 입찰은 마감 시각을 앞당길 수 없다.
+- 즉시 낙찰은 `buyNowPrice`와 동일한 가격 및 `ENDED` 상태여야 한다.
+
+검증 또는 DB wallet hold/release/capture가 실패하면 같은 DB 트랜잭션의 inbox·bid·auction 변경도
+롤백되고 Redis ACK를 보내지 않는다. 이후 재시도 한도를 초과하면 DLQ로 보낸다.
+
 ## 재시도와 DLQ
 
 읽기·DB·락 오류는 retry counter를 증가시켜 최대 3회 재시도한다. 성공 ACK 후에는 retry
