@@ -39,10 +39,8 @@
 
 ### 포함
 - `BidExecutor` 인터페이스 + `BidCommand`
-- `DbBidExecutor`: 기존 `participateInternal` 로직 이관, `@Transactional` 경계를 이
-  구현체 안으로 한정
-- `AuctionClosingService` 추출: `closeLockedAuction`과 그 헬퍼를 `AuctionCommandService`와
-  `DbBidExecutor`(즉시구매 시 낙찰 처리를 위해)가 공유할 수 있도록 분리
+- `DbBidExecutor`: 기존 `participateInternal` 로직 이관(즉시구매 시 `closeLockedAuction`
+  호출부 포함), `@Transactional` 경계를 이 구현체 안으로 한정
 - `RedisBidExecutor`: RedisScript EVAL + placeholder Lua Script, 결과를
   `BidResponses.BidResult`로 매핑하는 골격
 - `AuctionCommandService.participate()`를 `BidExecutor` 호출로 위임하는 얇은
@@ -53,9 +51,9 @@
 - Lua Script의 실제 판단 로직(가격/자기입찰/최고입찰자/지갑 잔액 검증 등)
 - Redis 상 auction/wallet 상태 시딩 및 동기화 전략
 - Redis Pub/Sub 기반 SSE 전파 전환
-- 경매 마감 스케줄러(`closeAuction`/`closeDueAuction`) 자체의 Redis 전환 — 마감은 지금처럼
-  DB 락 기준으로 유지한다. `AuctionClosingService` 추출은 이 두 경로의 동작을 바꾸지 않고
-  그대로 위임만 한다.
+- 경매 마감 스케줄러(`closeAuction`/`closeDueAuction`)와 그 내부의 `closeLockedAuction`
+  — 마감은 지금처럼 DB 락 기준으로 유지하고, `AuctionCommandService`의 이 경로는 이번
+  작업에서 한 줄도 수정하지 않는다(아래 "구현 내용 2" 참고).
 
 ## 설계
 
@@ -71,10 +69,13 @@ com.dbidding.auction.bid
 ├── DbBidExecutor.java       @Service @Profile("!redis")
 ├── RedisBidExecutor.java    @Service @Profile("redis")
 └── RedisBidLuaConfiguration.java   @Profile("redis") RedisScript<String> 빈
-
-com.dbidding.auction.service
-└── AuctionClosingService.java   @Service (신규, closeLockedAuction 이관)
 ```
+
+`AuctionCommandService`(`com.dbidding.auction.service`)는 이번 작업에서 새 클래스를 얻지
+않고, 기존 필드도 하나도 잃지 않는다 — `closeLockedAuction`이 여기 그대로 남고
+(`bidRepository`/`walletService`/`orderService`/`cardService`를 계속 그대로 씀), 대신
+`DbBidExecutor`가 자기만의 사본을 갖는다(아래 "구현 내용 2" 참고). `AuctionCommandService`가
+얻는 유일한 변화는 `bidExecutor` 필드 추가뿐이다.
 
 ### 프로필 배타성
 
@@ -99,24 +100,26 @@ public interface BidExecutor {
 Redis 구현체가 Lua ARGV로 직렬화하기 쉬운 원시값 위주 형태가 필요하고, HTTP DTO
 (`BidCreateRequest`)에 `BidExecutor`가 의존하지 않게 하기 위함.
 
-### 2. `AuctionClosingService` 추출 (`AuctionCommandService.java:479-505`, `554-571`, `530-552`)
+### 2. 즉시구매(buyNow) 낙찰 처리는 공유하지 않고 `DbBidExecutor`에 복제
 
-`closeLockedAuction`, `closeResponse`, `closedWinningBid`, `publishAuctionClosed`을 그대로
-옮긴다. 이 메서드들은 `bidRepository`, `cardService`, `walletService`, `orderService`,
-`auctionEventPublisher`에 의존하는데, 이관 후 `AuctionCommandService`는 이 중
-`bidRepository`/`walletService`/`orderService`를 더 이상 쓰지 않게 된다(`cardService`는
-`create()`가 여전히 써서 유지, `auctionEventPublisher`는 `create()`의 `publishOpened`가
-써서 유지).
+`participateInternal`이 buyNow 입찰 시 호출하는 `closeLockedAuction`(`AuctionCommandService.java:479-505`)은
+`highestBid`(554-556), `closeResponse`(562-571), `publishAuctionClosed`(530-552)에
+의존한다. 처음엔 이걸 `AuctionCommandService`와 `DbBidExecutor`가 공유하는
+`AuctionClosingService`로 뽑으려 했으나, 그러려면 지금 잘 동작하고 이번 작업 범위 밖인
+마감 스케줄러 경로(`closeAuctionInternal`/`closeDueAuction`)의 호출부까지 같이 고쳐야
+해서 범위가 불필요하게 커진다 — 그래서 **공유 클래스를 만들지 않고, `closeLockedAuction`과
+`closeResponse`, `publishAuctionClosed`를 `DbBidExecutor`에 그대로 복제**하기로 한다.
 
-- `AuctionCommandService.closeAuctionInternal()`은 `closedWinningBid`/`closeResponse` 호출을
-  `auctionClosingService.closedWinningBid(...)`/`auctionClosingService.closeResponse(...)`로,
-  `closeLockedAuction(...)` 호출을 `auctionClosingService.closeLockedAuction(...)`로 바꾼다.
-- `closeAuction()`/`closeDueAuction()`의 메트릭 래핑(`Timer.Sample`, `CloseResult`)과
-  `findByIdForUpdate`(`LockOperation.CLOSE`)는 그대로 `AuctionCommandService`에 남는다 —
-  이번 작업은 마감 경로의 동작을 바꾸지 않는다.
-- `DbBidExecutor`는 즉시구매(buyNow) 입찰 시 `auctionClosingService.closeLockedAuction(auction, bidAt)`을
-  호출해 낙찰 처리를 위임한다(기존 `participateInternal` 216번째 줄의 직접 호출과 동일한
-  자리, 같은 트랜잭션 안에서 실행되는 것도 동일).
+- `AuctionCommandService`의 `closeAuctionInternal`/`closeDueAuction`/`closeLockedAuction`/
+  `closeResponse`/`publishAuctionClosed`/`closedWinningBid`는 **한 줄도 수정하지 않는다**.
+- `DbBidExecutor`는 자신만의 `closeLockedAuction`/`closeResponse`/`publishAuctionClosed`
+  사본을 가지며(`closedWinningBid`는 buyNow 경로에서 안 쓰여서 복제 불필요), buyNow 입찰 시
+  이 사본을 호출한다(기존 `participateInternal` 216번째 줄의 직접 호출과 같은 자리, 같은
+  트랜잭션 안에서 실행되는 것도 동일).
+- 트레이드오프: `closeLockedAuction` 로직이 두 클래스에 잠깐 중복된다(~26줄 + 헬퍼). 두
+  사본이 갈라지지 않게 향후 이 로직을 고칠 땐 양쪽 다 확인해야 한다. Lua/Redis 쪽 즉시낙찰·
+  정산 설계가 나오면(다음 단계 이슈) 그때 공유 여부를 다시 판단한다 — 지금 미리 추상화를
+  만들어도 Redis 쪽 정산 방식이 완전히 달라지면 버려질 가능성이 있다.
 
 ### 3. `DbBidExecutor` — `participateInternal` 이관 (`AuctionCommandService.java:160-243`과
 그 헬퍼들: `bidPrice`, `isBuyNowBid`, `validateNotSellerBid`, `validateNotCurrentLeadingBidder`,
@@ -128,7 +131,7 @@ Redis 구현체가 Lua ARGV로 직렬화하기 쉬운 원시값 위주 형태가
 로직/로그/메트릭 순서는 전부 동일하게 유지한다. 필요한 의존성:
 `auctionRepository`, `bidRepository`, `walletService`, `auctionEventPublisher`,
 `ApplicationEventPublisher`(close_time_extended 이벤트용), `clock`, `auctionMetrics`,
-`auctionClosingService`.
+`cardService`, `orderService`(둘 다 복제한 `closeLockedAuction`이 씀).
 
 `validateIdempotencyKey`/`sha256`/`appendDigestValue`는 `AuctionCommandService.create()`도
 그대로 쓰고 있어서(`createRequestHash`), 두 클래스에 중복 정의하는 대신
@@ -206,19 +209,19 @@ public BidResponses.BidResult participate(
 
 기존 코드를 수정하므로 관련 테스트를 모두 찾아서 반영한다.
 
-- `AuctionServiceBidTest.java`(291줄, 입찰 로직 전체를 다룸) → 이 파일을 삭제하고
-  `com.dbidding.auction.bid.DbBidExecutorTest`로 새로 옮겨서, `DbBidExecutor`를 직접
-  생성해 같은 케이스(자기입찰 거부, 최고입찰자 중복 거부, wallet hold/release 순서,
-  멱등 응답, 즉시구매 시 낙찰 위임)를 검증한다. `auctionClosingService`는 mock으로 대체하고
-  `closeLockedAuction` 호출 여부만 검증(실제 낙찰 로직은 아래 새 테스트가 담당).
-- `AuctionServiceCloseTest.java`(185줄) → `closeLockedAuction`의 실제 낙찰/유찰 로직
-  (`walletService.capture`, `orderService.createFromAuctionClosed`, `publishAuctionClosed`
-  검증)은 새 `AuctionClosingServiceTest`로 옮긴다. 남는 `AuctionServiceCloseTest`는
-  `closeAuction`/`closeDueAuction`의 오케스트레이션(메트릭, ENDED/FAILED 단락, lock 재시도
-  경로)만 검증하도록 축소하고, `auctionClosingService`는 mock으로 대체.
-- `AuctionRegistrationContractTest.java`(217줄, `create()` 대상) → 생성자 인자만 갱신
-  (`bidRepository`/`walletService`/`orderService` 제거, `bidExecutor`/`auctionClosingService`는
-  안 쓰이므로 mock 또는 null로 채움). 검증 로직 변경 없음.
+- `AuctionServiceBidTest.java`(291줄, 입찰 로직 전체를 다룸, 즉시구매가 낙찰되는 케이스
+  포함) → 이 파일을 삭제하고 `com.dbidding.auction.bid.DbBidExecutorTest`로 새로 옮겨서,
+  `DbBidExecutor`를 직접 생성해 같은 케이스(자기입찰 거부, 최고입찰자 중복 거부, wallet
+  hold/release 순서, 멱등 응답, 즉시구매 시 낙찰 처리 — `walletService.capture`/
+  `orderService.createFromAuctionClosed`/`publishAuctionClosed` 검증까지 포함)를 그대로
+  검증한다.
+- `AuctionServiceCloseTest.java`(185줄) → 검증 로직은 **변경 없음**. `AuctionCommandService`
+  생성자에 새로 추가되는 `bidExecutor` 인자만 채워주면 된다(안 쓰이므로 null/mock).
+  `closeAuction`/`closeDueAuction`/`closeLockedAuction`을 전혀 수정하지 않으므로 그대로
+  통과해야 한다(회귀 확인용으로 그대로 돌려본다).
+- `AuctionRegistrationContractTest.java`(217줄, `create()` 대상) → 마찬가지로 `bidExecutor`
+  인자만 추가(안 쓰이므로 null/mock). 기존 필드는 하나도 안 빠지므로 나머지 생성자 인자는
+  그대로. 검증 로직 변경 없음.
 - `AuctionBidWalletLockOrderConcurrencyTest.java`(298줄, Testcontainers, Spring 컨텍스트로
   `participate()` 호출) → DI로 빈을 받으므로 생성자 변경엔 영향 없음. 다만 기본 프로필(`!redis`)로
   뜨는지 확인하는 것으로 충분하고, 이 테스트가 검증하는 교차 wallet lock 순서(`shouldReleasePreviousHoldFirst`)
@@ -228,10 +231,13 @@ public BidResponses.BidResult participate(
 
 ## 결론
 
-`participateInternal`의 판단/락 로직은 그대로 `DbBidExecutor`로 옮기고, 즉시구매가 트리거하는
-낙찰 처리는 `AuctionClosingService`로 뽑아 `AuctionCommandService`(마감 스케줄러 경로)와
-공유한다. `RedisBidExecutor`는 이번 단계에서 실제 판단 없는 스텁이며, `redis`/`!redis`
-프로필로 정확히 하나의 구현체만 뜨게 해서 #323의 Stream consumer 스위치와 하나의 토글로
-묶는다. 다음 단계(Lua 판단 로직, Redis 상태 동기화, Pub/Sub SSE 전환)는 별도 이슈로 분리한다.
+`participateInternal`의 판단/락 로직(즉시구매가 트리거하는 낙찰 처리 포함)은 그대로
+`DbBidExecutor`로 옮긴다. `closeLockedAuction`은 공유 클래스로 뽑지 않고 `DbBidExecutor`에
+복제해서, 이번 작업 범위 밖인 마감 스케줄러 경로(`AuctionCommandService`)는 한 줄도 건드리지
+않는다 — `AuctionCommandService`는 `bidExecutor` 필드 하나만 추가된다. `RedisBidExecutor`는
+이번 단계에서 실제 판단 없는 스텁이며, `redis`/`!redis` 프로필로 정확히 하나의 구현체만
+뜨게 해서 #323의 Stream consumer 스위치와 하나의 토글로 묶는다. 다음 단계(Lua 판단 로직,
+Redis 상태 동기화, Pub/Sub SSE 전환, `closeLockedAuction` 중복 정리 여부)는 별도 이슈로
+분리한다.
 
 > 이 문서는 Claude의 도움을 받아 작성하였습니다.
