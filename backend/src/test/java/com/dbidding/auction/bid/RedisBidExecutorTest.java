@@ -50,16 +50,17 @@ class RedisBidExecutorTest {
 
         var response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
-        assertThat(response.bid().id()).isEqualTo(0L);
-        assertThat(response.bid().amount()).isEqualTo(43_000L);
-        assertThat(response.bid().status()).isEqualTo(BidStatus.LEADING);
-        assertThat(response.bid().createdAt()).isEqualTo(clock.instant());
-        assertThat(response.auction().id()).isEqualTo(1);
-        assertThat(response.auction().currentPrice()).isEqualTo(43_000L);
-        assertThat(response.auction().minimumBid()).isEqualTo(43_000L);
-        assertThat(response.auction().bidCount()).isZero();
-        assertThat(response.auction().endsAt()).isEqualTo(clock.instant());
-        assertThat(response.wallet().availableBalance()).isZero();
-        assertThat(response.wallet().frozenBalance()).isZero();
+        assertThat(response.result().bid().id()).isEqualTo(0L);
+        assertThat(response.result().bid().amount()).isEqualTo(43_000L);
+        assertThat(response.result().bid().status()).isEqualTo(BidStatus.LEADING);
+        assertThat(response.result().bid().createdAt()).isEqualTo(clock.instant());
+        assertThat(response.result().auction().id()).isEqualTo(1);
+        assertThat(response.result().auction().currentPrice()).isEqualTo(43_000L);
+        assertThat(response.result().auction().minimumBid()).isEqualTo(43_000L);
+        assertThat(response.result().auction().bidCount()).isZero();
+        assertThat(response.result().auction().endsAt()).isEqualTo(clock.instant());
+        assertThat(response.result().wallet().availableBalance()).isZero();
+        assertThat(response.result().wallet().frozenBalance()).isZero();
+        assertThat(response.eventData()).isNull();
     }
 }
