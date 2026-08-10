@@ -11,7 +11,7 @@ import org.springframework.mock.web.MockHttpSession;
 
 import com.dbidding.account.authentication.session.SessionCsrfTokenService;
 import com.dbidding.global.security.FilterErrorResponseWriter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 class SessionCsrfFilterTest {
 

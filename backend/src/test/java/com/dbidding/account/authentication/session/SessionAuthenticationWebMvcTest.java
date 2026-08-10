@@ -41,6 +41,7 @@ import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
 import com.dbidding.global.security.session.SessionCsrfController;
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 
 @WebMvcTest(
 	controllers = {AuthController.class, SessionCurrentUserTestController.class},
@@ -59,7 +60,8 @@ import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 	TimeConfig.class,
 	WebConfig.class,
 	RequestCurrentUserProvider.class,
-	RequestUserIdWriter.class
+	RequestUserIdWriter.class,
+	FilterErrorResponseWriter.class
 })
 class SessionAuthenticationWebMvcTest {
 
