@@ -12,6 +12,7 @@ class BidAcceptedStreamEventTest {
         BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from("1720000000000-0", fields());
 
         assertThat(event.auctionId()).isEqualTo(10);
+        assertThat(event.eventType()).isEqualTo(BidStreamEventType.BID_ACCEPTED);
         assertThat(event.auctionVersion()).isEqualTo(3L);
         assertThat(event.previousBidderId()).isNull();
         assertThat(event.bidPrice()).isEqualTo(12_000L);
@@ -24,6 +25,17 @@ class BidAcceptedStreamEventTest {
 
         assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", fields))
                 .isInstanceOf(InvalidBidStreamEventException.class);
+    }
+
+    @Test
+    void 즉시낙찰_이벤트를_파싱한다() {
+        Map<String, String> fields = fields();
+        fields.put("eventType", "auction.buy-now.v1");
+        fields.put("auctionStatus", "ENDED");
+
+        BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from("1720000000000-1", fields);
+
+        assertThat(event.isBuyNow()).isTrue();
     }
 
     private Map<String, String> fields() {
