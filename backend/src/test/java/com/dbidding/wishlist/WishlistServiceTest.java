@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class WishlistServiceTest {
@@ -44,8 +43,8 @@ class WishlistServiceTest {
         given(wishlistRepository.existsByUserIdAndCardId(1, 10)).willReturn(true);
 
         assertThatThrownBy(() -> wishlistService.add(1, 10))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("409");
+                .isInstanceOf(WishlistException.class)
+                .hasMessageContaining("이미 찜한 카드입니다.");
     }
 
     @Test

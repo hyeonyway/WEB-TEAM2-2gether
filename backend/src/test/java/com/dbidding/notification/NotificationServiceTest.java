@@ -19,7 +19,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -145,11 +144,11 @@ class NotificationServiceTest {
     @Test
     void size가_유효_범위를_벗어나면_400을_던진다() {
         assertThatThrownBy(() -> notificationService.findPage(1, null, 0, false))
-                .isInstanceOf(ResponseStatusException.class);
+                .isInstanceOf(NotificationException.class);
         assertThatThrownBy(() -> notificationService.findPage(1, null, -1, false))
-                .isInstanceOf(ResponseStatusException.class);
+                .isInstanceOf(NotificationException.class);
         assertThatThrownBy(() -> notificationService.findPage(1, null, 101, false))
-                .isInstanceOf(ResponseStatusException.class);
+                .isInstanceOf(NotificationException.class);
     }
 
     @Test
@@ -192,7 +191,7 @@ class NotificationServiceTest {
         given(notificationRepository.findById(1L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> notificationService.markAsRead(1, 1L))
-                .isInstanceOf(ResponseStatusException.class);
+                .isInstanceOf(NotificationException.class);
     }
 
     @Test
@@ -201,7 +200,7 @@ class NotificationServiceTest {
         given(notificationRepository.findById(1L)).willReturn(Optional.of(notification));
 
         assertThatThrownBy(() -> notificationService.markAsRead(1, 1L))
-                .isInstanceOf(ResponseStatusException.class);
+                .isInstanceOf(NotificationException.class);
         assertThat(notification.isRead()).isFalse();
     }
 
