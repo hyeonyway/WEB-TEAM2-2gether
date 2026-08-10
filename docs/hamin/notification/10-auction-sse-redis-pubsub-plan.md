@@ -76,6 +76,53 @@ AuctionCommandService
   → 모든 인스턴스의 구독자 → connectionManager.broadcast() (DB 조회 없음)
 ```
 
+```mermaid
+flowchart TB
+    subgraph A["서버 인스턴스 A — 이 요청을 처리 + 자기 자신도 구독"]
+        BE["BidExecutor
+(DB/Redis, 판단·wallet만)"]
+        ACS["AuctionCommandService
+(result로부터 이벤트 조립)"]
+        NEL["NotificationEventListener
+(저장 + 카드명 조회, 무변경)"]
+        SUBA1["AuctionStreamRedisSubscriber"]
+        SUBA2["NotificationPushRedisSubscriber"]
+        CMA1["AuctionSseConnectionManager"]
+        CMA2["NotificationSseConnectionManager"]
+        BE -->|BidExecutionResult| ACS
+        ACS -->|로컬 Spring 이벤트| NEL
+        SUBA1 --> CMA1
+        SUBA2 --> CMA2
+    end
+
+    subgraph R["Redis Pub/Sub"]
+        CH1["채널: auction:stream"]
+        CH2["채널: notification:push"]
+    end
+
+    ACS -->|직접 publish, DB 조회 없음| CH1
+    NEL -->|저장 후 publish| CH2
+
+    subgraph B["서버 인스턴스 B — 다른 유저가 연결"]
+        SUBB1["AuctionStreamRedisSubscriber"]
+        SUBB2["NotificationPushRedisSubscriber"]
+        CMB1["AuctionSseConnectionManager"]
+        CMB2["NotificationSseConnectionManager"]
+        SUBB1 --> CMB1
+        SUBB2 --> CMB2
+    end
+
+    CH1 --> SUBA1
+    CH1 --> SUBB1
+    CH2 --> SUBA2
+    CH2 --> SUBB2
+
+    CMA1 -. SSE .-> CLIENTA["클라이언트
+전역 경매 스트림"]
+    CMB2 -. SSE .-> CLIENTB["클라이언트
+알림, B에 연결됨"]
+```
+
 ### 1. `BidExecutor` 이벤트 무관화
 
 `auction.bid` 패키지에 새 내부 DTO(공개 API `BidResponses.BidResult`와는 분리):
