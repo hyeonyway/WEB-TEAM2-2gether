@@ -5,7 +5,7 @@ import java.time.Clock;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
-import lombok.RequiredArgsConstructor;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.scheduling.annotation.Async;
@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class AuctionSseConnectionManager {
     private static final long CONNECTION_TIMEOUT_MILLIS = 30 * 60 * 1000L;
@@ -24,6 +23,15 @@ public class AuctionSseConnectionManager {
     private final AuctionSseMetrics metrics;
     private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
     private final AtomicLong eventSequence = new AtomicLong();
+    private final Supplier<Number> connectionCountSupplier;
+
+    public AuctionSseConnectionManager(Clock clock, AuctionSseMetrics metrics) {
+        this.clock = clock;
+        this.metrics = metrics;
+        this.connectionCountSupplier = this::connectionCount;
+        metrics.registerConnectionGauge(connectionCountSupplier);
+    }
+
     public SseEmitter connect() {
         return register(new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
     }

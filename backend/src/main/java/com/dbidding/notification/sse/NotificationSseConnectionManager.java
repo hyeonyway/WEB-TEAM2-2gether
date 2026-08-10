@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Supplier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,9 +22,17 @@ public class NotificationSseConnectionManager {
     private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
     private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
     private final SessionSseConnectionRegistry sessionRegistry;
+    private final NotificationSseMetrics metrics;
+    private final Supplier<Number> connectionCountSupplier;
 
-    public NotificationSseConnectionManager(SessionSseConnectionRegistry sessionRegistry) {
+    public NotificationSseConnectionManager(
+            SessionSseConnectionRegistry sessionRegistry,
+            NotificationSseMetrics metrics
+    ) {
         this.sessionRegistry = sessionRegistry;
+        this.metrics = metrics;
+        this.connectionCountSupplier = this::totalConnectionCount;
+        metrics.registerConnectionGauge(connectionCountSupplier);
     }
 
     public SseEmitter connect(Integer userId) {

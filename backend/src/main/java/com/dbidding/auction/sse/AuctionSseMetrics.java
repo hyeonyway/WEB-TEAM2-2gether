@@ -1,8 +1,10 @@
 package com.dbidding.auction.sse;
 
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -32,5 +34,12 @@ public class AuctionSseMetrics {
 
     public void recordSendFailure() {
         sendFailures.increment();
+    }
+
+    public void registerConnectionGauge(Supplier<Number> connectionCount) {
+        Gauge.builder("dbidding.sse.connections", connectionCount, value -> value.get().doubleValue())
+                .tag("stream", "auction")
+                .description("SSE 스트림별 현재 연결 수")
+                .register(registry);
     }
 }
