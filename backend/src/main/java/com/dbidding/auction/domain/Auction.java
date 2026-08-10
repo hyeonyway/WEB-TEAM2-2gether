@@ -83,6 +83,9 @@ public class Auction {
     @Column(name = "bid_price_unit", nullable = false)
     private Long bidPriceUnit;
 
+    @Column(name = "last_bid_event_version", nullable = false)
+    private Long lastBidEventVersion;
+
     @Column(name = "is_hyped", nullable = false)
     private Boolean hyped;
 
@@ -129,6 +132,7 @@ public class Auction {
         this.closeTime = closeTime;
         this.bidCount = 0;
         this.bidPriceUnit = bidPriceUnit;
+        this.lastBidEventVersion = 0L;
         this.hyped = hyped == null ? Boolean.FALSE : hyped;
     }
 
@@ -204,5 +208,24 @@ public class Auction {
         currentPrice = bidPrice;
         bidCount++;
         return extendCloseTimeIfNeeded(bidAt, extensionWindow, extensionDuration);
+    }
+
+    public boolean applyStreamBid(
+            long auctionVersion,
+            long currentPrice,
+            int bidCount,
+            Instant closeTime,
+            AuctionStatus status
+    ) {
+        if (auctionVersion <= lastBidEventVersion) {
+            return false;
+        }
+        this.currentPrice = currentPrice;
+        this.bidCount = bidCount;
+        this.closeTime = closeTime;
+        this.estimatedCloseTime = closeTime;
+        this.status = status;
+        this.lastBidEventVersion = auctionVersion;
+        return true;
     }
 }

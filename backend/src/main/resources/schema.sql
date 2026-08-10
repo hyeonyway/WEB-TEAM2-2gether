@@ -205,6 +205,7 @@ CREATE TABLE auctions
     close_time           TIMESTAMP(6) NOT NULL,
     bid_count            INT          NOT NULL,
     bid_price_unit       BIGINT       NOT NULL,
+    last_bid_event_version BIGINT     NOT NULL DEFAULT 0,
     is_hyped             BOOLEAN      NOT NULL,
     idempotency_key      VARCHAR(64)
         CHARACTER SET ascii COLLATE ascii_bin NULL,
@@ -273,6 +274,25 @@ CREATE TABLE bids
     INDEX idx_bids_auction_id (auction_id),
     INDEX idx_bids_auction_price (auction_id, bid_price),
     INDEX idx_bids_status (status)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE auction_bid_event_inbox
+(
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    stream_id       VARCHAR(64)  NOT NULL,
+    auction_id      INT          NOT NULL,
+    auction_version BIGINT       NOT NULL,
+    processed_at    TIMESTAMP(6) NOT NULL,
+
+    CONSTRAINT pk_auction_bid_event_inbox PRIMARY KEY (id),
+    CONSTRAINT uk_auction_bid_event_inbox_stream_id UNIQUE (stream_id),
+    CONSTRAINT fk_auction_bid_event_inbox_auction
+        FOREIGN KEY (auction_id) REFERENCES auctions (id),
+
+    INDEX idx_auction_bid_event_inbox_auction_id (auction_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
