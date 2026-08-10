@@ -40,6 +40,7 @@ public class AuctionBidStreamConsumer {
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
+    private final AuctionBidStreamPausedAuctionRegistry pausedAuctionRegistry;
     private final MeterRegistry meterRegistry;
     private final String consumerName = "auction-bid-" + UUID.randomUUID();
 
@@ -121,7 +122,7 @@ public class AuctionBidStreamConsumer {
         }
         return redisTemplate.opsForStream().claim(
                 STREAM_KEY, GROUP, consumerName, properties.claimIdle(), ids.toArray(RecordId[]::new)
-        );
+        ).stream().filter(record -> !isPausedAuction(record)).toList();
     }
 
     private void process(List<MapRecord<String, Object, Object>> records) {
@@ -132,11 +133,43 @@ public class AuctionBidStreamConsumer {
             persistenceService.persistAll(events);
             acknowledge(records);
             records.forEach(record -> redisTemplate.opsForHash().delete(RETRY_KEY, record.getId().getValue()));
+            events.forEach(event -> pausedAuctionRegistry.resume(event.auctionId()));
             meterRegistry.counter("auction.bid.stream.persisted").increment(records.size());
-        } catch (InvalidBidStreamEventException exception) {
-            records.forEach(record -> moveToDlq(record, exception));
         } catch (RuntimeException exception) {
-            records.forEach(record -> retryOrDlq(record, exception));
+            // 배치 트랜잭션 실패가 정상 레코드까지 DLQ로 전파되지 않도록 개별 트랜잭션으로 분리한다.
+            records.forEach(this::processOne);
+        }
+    }
+
+    private void processOne(MapRecord<String, Object, Object> record) {
+        BidAcceptedStreamEvent event = null;
+        try {
+            event = BidAcceptedStreamEvent.from(
+                    record.getId().getValue(), stringValues(record.getValue())
+            );
+            persistenceService.persistAll(List.of(event));
+            acknowledge(List.of(record));
+            redisTemplate.opsForHash().delete(RETRY_KEY, record.getId().getValue());
+            pausedAuctionRegistry.resume(event.auctionId());
+            meterRegistry.counter("auction.bid.stream.persisted").increment();
+        } catch (BidStreamVersionGapException exception) {
+            pausedAuctionRegistry.pause(event, exception);
+            meterRegistry.counter("auction.bid.stream.auction.paused").increment();
+        } catch (InvalidBidStreamEventException exception) {
+            moveToDlq(record, exception);
+        } catch (RuntimeException exception) {
+            retryOrDlq(record, exception);
+        }
+    }
+
+    private boolean isPausedAuction(MapRecord<String, Object, Object> record) {
+        try {
+            BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from(
+                    record.getId().getValue(), stringValues(record.getValue())
+            );
+            return pausedAuctionRegistry.isPaused(event.auctionId());
+        } catch (InvalidBidStreamEventException ignored) {
+            return false;
         }
     }
 

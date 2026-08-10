@@ -84,7 +84,8 @@ DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10
 
 `auction.buy-now.v1`은 새 입찰자의 hold 직후 같은 트랜잭션에서 `capture`한다. 따라서
 이전 최고 입찰자 release, 낙찰자 hold/capture, bid WON, auction ENDED가 DB에서 함께
-커밋되며, 실패하면 Stream entry는 ACK되지 않아 재시도한다.
+커밋된다. 또한 기존 즉시 낙찰 경로와 동일하게 `orders`를 생성하고 `AuctionClosedEvent`를
+발행한다. 실패하면 Stream entry는 ACK되지 않아 재시도한다.
 
 커밋에 성공한 entry만 ACK한다. DB 커밋 전 프로세스가 종료되어도 PEL 재전달과 inbox
 UNIQUE 제약이 재처리를 안전하게 만든다.
@@ -97,18 +98,31 @@ Consumer는 Lua 승인 이벤트라도 DB 반영 전에 기존 입찰 규칙을 
   중간 버전이 누락된 이벤트는 처리하지 않는다.
 - 입찰자는 판매자나 현재 최고 입찰자일 수 없고, 이벤트의 `previousBidderId`는 DB의 최고
   입찰자와 일치해야 한다.
+- Stream ID·모든 식별자·금액·입찰 수는 양수여야 한다. `currentPrice`는 `bidPrice`와 같고,
+  idempotency key는 64자 이하, request hash는 64자리 소문자 SHA-256 형식이어야 한다.
 - 일반 입찰은 진행 중 경매의 최소 호가 이상이어야 하며, 입찰 수는 DB 값보다 정확히 1 커야 한다.
-  일반 입찰은 마감 시각을 앞당길 수 없다.
+  입찰 발생 시각은 기존 마감 시각보다 이전이고, 일반 입찰은 마감 시각을 앞당길 수 없다.
 - 즉시 낙찰은 `buyNowPrice`와 동일한 가격 및 `ENDED` 상태여야 한다.
 
 검증 또는 DB wallet hold/release/capture가 실패하면 같은 DB 트랜잭션의 inbox·bid·auction 변경도
-롤백되고 Redis ACK를 보내지 않는다. 이후 재시도 한도를 초과하면 DLQ로 보낸다.
+롤백되고 Redis ACK를 보내지 않는다.
 
 ## 재시도와 DLQ
 
 읽기·DB·락 오류는 retry counter를 증가시켜 최대 3회 재시도한다. 성공 ACK 후에는 retry
 counter를 제거한다. 계약 파싱 오류와 존재하지 않는 경매 같은 업무 오류, 또는 3회 초과
 실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다.
+
+단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:bid-events:paused-auctions:v1` hash에
+경매 ID, 누락 직전 기대 버전, 원본 Stream ID, 사유를 기록하고 해당 경매의 PEL 메시지를 보류한다.
+다른 경매는 계속 소비한다. 누락된 선행 이벤트를 재생해 정상 커밋하면 pause를 자동 해제하고
+보류했던 후속 이벤트를 다시 처리한다. 누락 이벤트가 영구 유실된 경우에는 운영자가 Redis
+경매 컨텍스트와 DB `last_bid_event_version`을 대조한 뒤, 선행 이벤트를 재발행하거나 별도
+정합성 복구 절차를 수행해야 한다. pause 상태의 이벤트를 임의로 ACK해서는 안 된다.
+
+Consumer Group은 분배 기능만 제공하므로, `auction:bid-events:consumer-leader-lock:v1` Redis
+lease 락을 획득한 인스턴스만 한 번의 poll(DB 반영과 ACK 포함)을 실행한다. 이는 다중 인스턴스의
+동시 DB 잠금과 데드락 가능성을 줄이기 위한 단일 실행 제어다.
 
 - `originalStreamId`, `payload`, `failureType`, `failureMessage`, `failedAt`, `retryCount`
 

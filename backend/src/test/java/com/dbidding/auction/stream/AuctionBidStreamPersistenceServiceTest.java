@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
@@ -74,6 +75,25 @@ class AuctionBidStreamPersistenceServiceTest {
         verify(bidRepository, times(1)).findByAuctionIdInAndStatus(anyCollection(), org.mockito.ArgumentMatchers.any());
         verify(inboxRepository, times(1)).saveAll(anyList());
         verify(bidRepository, times(1)).saveAll(anyList());
+    }
+
+    @Test
+    void 버전이_건너뛰면_재시도_대신_경매_pause_대상이_되는_예외를_발생시킨다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, bidRepository, walletService, orderService, cardService,
+                auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
+        );
+        given(inboxRepository.findByStreamIdIn(anyCollection())).willReturn(List.of());
+        given(auctionRepository.findByIdInForUpdate(anyCollection())).willReturn(List.of(auction));
+        given(auction.getId()).willReturn(10);
+        given(auction.getLastBidEventVersion()).willReturn(3L);
+        given(auction.isNextBidEventVersion(5L)).willReturn(false);
+        given(bidRepository.findByAuctionIdInAndStatus(anyCollection(), org.mockito.ArgumentMatchers.any()))
+                .willReturn(List.of());
+
+        assertThatThrownBy(() -> service.persistAll(List.of(event("5-0", 5L, 2, null))))
+                .isInstanceOf(BidStreamVersionGapException.class)
+                .hasMessageContaining("auctionId=10");
     }
 
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {
