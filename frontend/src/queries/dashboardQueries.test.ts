@@ -1,7 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import type {AuctionDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
-import {applyDashboardAuctionEvent} from './dashboardQueries';
+import {applyDashboardAuctionEvent,dashboardQueries} from './dashboardQueries';
 
 const auction=(id:number,currentPrice:number,endsAt:string,eventId:number):AuctionDto=>({
   id,
@@ -72,5 +72,12 @@ describe('applyDashboardAuctionEvent',()=>{
       bidCount:1,
       eventId:3,
     });
+  });
+});
+
+describe('dashboardQueries',()=>{
+  it('탭과 정렬 전환 시 서버에서 다시 조회하도록 캐시를 즉시 stale 상태로 둔다',()=>{
+    expect(dashboardQueries.participating('ENDING_SOON').staleTime).toBe(0);
+    expect(dashboardQueries.recentWins('LATEST').staleTime).toBe(0);
   });
 });

@@ -11,12 +11,14 @@ export const dashboardQueries={
   participating:(sort:ParticipatingAuctionSort)=>queryOptions({
     queryKey:[...dashboardQueryKey,'participating-auctions',sort],
     queryFn:()=>fetchParticipatingAuctions(sort),
-    staleTime:10_000,
+    // 탭/정렬을 다시 선택하면 캐시 대신 현재 참여 상태를 조회한다.
+    staleTime:0,
   }),
   recentWins:(sort:RecentWinSort)=>queryOptions({
     queryKey:[...dashboardQueryKey,'recent-wins',sort],
     queryFn:()=>fetchRecentWins(sort),
-    staleTime:10_000,
+    // 낙찰 목록도 탭 전환 시점의 최신 상태를 보여 준다.
+    staleTime:0,
   }),
 };
 
