@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.Message;
 
@@ -24,12 +25,33 @@ class NotificationPushRedisSubscriberTest {
         NotificationPushRedisSubscriber subscriber = new NotificationPushRedisSubscriber(connectionManager, objectMapper);
         NotificationResponse payload = new NotificationResponse(
                 1L, 10, NotificationType.OUTBID, "상회 입찰 발생", false, Instant.parse("2026-08-10T00:00:00Z"));
-        byte[] body = objectMapper.writeValueAsBytes(new NotificationPushMessage(7, payload));
+        byte[] body = objectMapper.writeValueAsBytes(List.of(new NotificationPushMessage(7, payload)));
         Message message = mock(Message.class);
         when(message.getBody()).thenReturn(body);
 
         subscriber.onMessage(message, null);
 
         verify(connectionManager).push(eq(7), eq(payload));
+    }
+
+    @Test
+    void 배치_메시지를_수신하면_원소마다_로컬_커넥션에_push한다() throws Exception {
+        NotificationSseConnectionManager connectionManager = mock(NotificationSseConnectionManager.class);
+        JsonMapper objectMapper = JsonMapper.builder().addModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
+        NotificationPushRedisSubscriber subscriber = new NotificationPushRedisSubscriber(connectionManager, objectMapper);
+        NotificationResponse payload1 = new NotificationResponse(
+                1L, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.", false, Instant.parse("2026-08-10T00:00:00Z"));
+        NotificationResponse payload2 = new NotificationResponse(
+                2L, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.", false, Instant.parse("2026-08-10T00:00:00Z"));
+        byte[] body = objectMapper.writeValueAsBytes(List.of(
+                new NotificationPushMessage(7, payload1), new NotificationPushMessage(8, payload2)));
+        Message message = mock(Message.class);
+        when(message.getBody()).thenReturn(body);
+
+        subscriber.onMessage(message, null);
+
+        verify(connectionManager).push(eq(7), eq(payload1));
+        verify(connectionManager).push(eq(8), eq(payload2));
     }
 }
