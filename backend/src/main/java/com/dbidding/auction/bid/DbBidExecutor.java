@@ -42,7 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 정리다.
  */
 @Service
-@Profile("!bid-redis-stream")
+@Profile("!redis")
 @RequiredArgsConstructor
 @Slf4j
 public class DbBidExecutor implements BidExecutor {

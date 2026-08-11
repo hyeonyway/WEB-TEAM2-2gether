@@ -2,9 +2,6 @@ spring:
   application:
     name: dbidding
 
-  profiles:
-    default: bid-db
-
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:dbidding}?useSSL=false&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
     driver-class-name: com.mysql.cj.jdbc.Driver

@@ -7,7 +7,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 
-@Profile("bid-redis-stream")
+@Profile("redis")
 @Configuration
 public class RedisBidLuaConfiguration {
 

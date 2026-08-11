@@ -1,5 +1,5 @@
--- KEYS: auction state, bidder balance, bidder hold, idempotency result, stream
--- ARGV: bidderId, price, idempotencyKey, eventId, nowEpochMillis
+-- KEYS: auction state, bidder balance, bidder hold, idempotency result, #323 timeline stream
+-- ARGV: bidderId, price, idempotencyKey, requestHash, nowEpochMillis, nowIsoInstant
 local existing = redis.call('GET', KEYS[4])
 if existing then
     local separator = string.find(existing, '|')
@@ -13,7 +13,8 @@ local status = redis.call('HGET', KEYS[1], 'status')
 local sellerId = redis.call('HGET', KEYS[1], 'sellerId')
 local currentPrice = tonumber(redis.call('HGET', KEYS[1], 'currentPrice'))
 local bidIncrement = tonumber(redis.call('HGET', KEYS[1], 'bidIncrement'))
-local closeTime = tonumber(redis.call('HGET', KEYS[1], 'closeTime'))
+local closeTime = redis.call('HGET', KEYS[1], 'closeTime')
+local closeTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'closeTimeEpochMillis'))
 local highestBidderId = redis.call('HGET', KEYS[1], 'highestBidderId')
 local highestHoldAmount = tonumber(redis.call('HGET', KEYS[1], 'highestHoldAmount') or '0')
 local price = tonumber(ARGV[2])
@@ -21,7 +22,7 @@ local price = tonumber(ARGV[2])
 if status ~= 'OPEN' then return 'REJECTED|NOT_OPEN' end
 if sellerId == ARGV[1] then return 'REJECTED|SELLER' end
 if highestBidderId == ARGV[1] then return 'REJECTED|LEADING_BIDDER' end
-if closeTime and tonumber(ARGV[6]) >= closeTime then return 'REJECTED|CLOSED' end
+if closeTimeEpochMillis and tonumber(ARGV[5]) >= closeTimeEpochMillis then return 'REJECTED|CLOSED' end
 if price < currentPrice + bidIncrement then return 'REJECTED|LOW_PRICE' end
 
 local available = tonumber(redis.call('HGET', KEYS[2], 'availableBalance') or '0')
@@ -43,17 +44,20 @@ if highestBidderId and highestBidderId ~= '' then
     redis.call('DEL', previousHoldKey)
 end
 
-local sequence = redis.call('HINCRBY', KEYS[1], 'sequence', 1)
+local auctionVersion = redis.call('HINCRBY', KEYS[1], 'sequence', 1)
 local bidCount = redis.call('HINCRBY', KEYS[1], 'bidCount', 1)
 redis.call('HSET', KEYS[1], 'currentPrice', price, 'highestBidderId', ARGV[1], 'highestHoldAmount', price)
 
-redis.call('XADD', KEYS[5], '*',
-    'type', 'BidAccepted', 'eventId', ARGV[5], 'auctionId', string.match(KEYS[1], 'auction:state:(.+)'),
-    'sequence', sequence, 'bidderId', ARGV[1], 'previousBidderId', previousBidderId,
-    'bidPrice', price, 'walletVersion', bidderWalletVersion, 'availableBalance', newAvailable,
-    'frozenBalance', newFrozen, 'occurredAt', ARGV[6])
+local streamId = redis.call('XADD', KEYS[5], '*',
+    'schemaVersion', '1', 'eventType', 'bid.accepted.v1',
+    'auctionId', string.match(KEYS[1], 'auction:state:(.+)'), 'auctionVersion', auctionVersion,
+    'bidderId', ARGV[1], 'requestedPrice', price, 'bidPrice', price,
+    'previousBidderId', previousBidderId == '' and 'null' or previousBidderId,
+    'idempotencyKey', ARGV[3], 'idempotencyRequestHash', ARGV[4],
+    'currentPrice', price, 'bidCount', bidCount, 'closeTime', closeTime,
+    'auctionStatus', status, 'occurredAt', ARGV[6])
 
-local result = 'ACCEPTED|' .. ARGV[5] .. '|' .. price .. '|' .. sequence .. '|' .. bidCount
+local result = 'ACCEPTED|' .. streamId .. '|' .. price .. '|' .. auctionVersion .. '|' .. bidCount
     .. '|' .. newAvailable .. '|' .. newFrozen .. '|' .. bidderWalletVersion .. '|' .. closeTime
 redis.call('SET', KEYS[4], ARGV[4] .. '|' .. result, 'EX', 86400)
 return result

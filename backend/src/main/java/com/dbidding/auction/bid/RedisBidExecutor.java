@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
  * HTTP 응답으로 변환한다. Redis 상태가 승인 기준이며, MySQL ID는 비동기 영속화 전에는 없다.
  */
 @Service
-@Profile("bid-redis-stream")
+@Profile("redis")
 @RequiredArgsConstructor
 @Slf4j
 public class RedisBidExecutor implements BidExecutor {
@@ -32,19 +32,18 @@ public class RedisBidExecutor implements BidExecutor {
     public BidExecutionResult execute(BidCommand command) {
         Instant now = clock.instant();
         String requestHash = IdempotencyKeys.sha256(command.price());
-        String eventId = IdempotencyKeys.sha256(command.auctionId(), command.bidderId(), command.idempotencyKey());
         List<String> keys = List.of(
                 "auction:state:" + command.auctionId(),
                 "wallet:balance:" + command.bidderId(),
                 "wallet:hold:" + command.auctionId() + ":" + command.bidderId(),
                 "auction:bid:idempotency:" + command.auctionId() + ":" + command.bidderId() + ":" + command.idempotencyKey(),
-                "auction:bid-events:" + command.auctionId()
+                "auction:timeline-events"
         );
         String raw = redisTemplate.execute(
                 bidAcceptScript,
                 keys,
-                String.valueOf(command.bidderId()), String.valueOf(command.price()), command.idempotencyKey(), requestHash, eventId,
-                String.valueOf(now.toEpochMilli())
+                String.valueOf(command.bidderId()), String.valueOf(command.price()), command.idempotencyKey(), requestHash,
+                String.valueOf(now.toEpochMilli()), now.toString()
         );
         String[] fields = raw.split("\\|", -1);
         if (!"ACCEPTED".equals(fields[0])) {
@@ -56,7 +55,7 @@ public class RedisBidExecutor implements BidExecutor {
         BidResponses.BidResult result = new BidResponses.BidResult(
                 new BidResponses.BidDetail(null, Long.valueOf(fields[2]), BidStatus.LEADING, now, fields[1]),
                 new BidResponses.AuctionSnapshot(command.auctionId(), Long.valueOf(fields[2]), null,
-                        Integer.valueOf(fields[4]), Instant.ofEpochMilli(Long.parseLong(fields[8]))),
+                        Integer.valueOf(fields[4]), Instant.parse(fields[8])),
                 new BidResponses.WalletSummary(Long.parseLong(fields[5]), Long.parseLong(fields[6]))
         );
         return new BidExecutionResult(result, null);

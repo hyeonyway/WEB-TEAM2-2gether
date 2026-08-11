@@ -11,6 +11,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -58,7 +60,8 @@ class RedisBidLuaIntegrationTest {
     void 승인하면_경매_신규지갑_기존지갑과_Stream을_함께_전이한다() {
         redisTemplate.opsForHash().putAll("auction:state:1", Map.of(
                 "status", "OPEN", "sellerId", "7", "currentPrice", "40000", "bidIncrement", "3000",
-                "closeTime", "1786323600000", "highestBidderId", "1", "highestHoldAmount", "40000",
+                "closeTime", "2026-08-10T01:00:00Z", "closeTimeEpochMillis", "1786323600000",
+                "highestBidderId", "1", "highestHoldAmount", "40000",
                 "sequence", "6", "bidCount", "2"
         ));
         redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
@@ -77,11 +80,21 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("100000");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "frozenBalance")).isEqualTo("0");
         assertThat(redisTemplate.opsForHash().get("wallet:hold:1:2", "amount")).isEqualTo("43000");
-        assertThat(redisTemplate.opsForStream().size("auction:bid-events:1")).isEqualTo(1L);
+        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
+        var event = redisTemplate.opsForStream()
+                .read(StreamOffset.create("auction:timeline-events", ReadOffset.from("0-0")))
+                .getFirst()
+                .getValue();
+        assertThat(event).containsEntry("schemaVersion", "1")
+                .containsEntry("eventType", "bid.accepted.v1")
+                .containsEntry("auctionId", "1")
+                .containsEntry("auctionVersion", "7")
+                .containsEntry("idempotencyKey", "request-1")
+                .containsEntry("auctionStatus", "OPEN");
 
         executor.execute(new BidCommand(2, 1, 43_000L, "request-1"));
 
-        assertThat(redisTemplate.opsForStream().size("auction:bid-events:1")).isEqualTo(1L);
+        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
         assertThatThrownBy(() -> executor.execute(new BidCommand(2, 1, 46_000L, "request-1")))
                 .hasMessage("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
     }

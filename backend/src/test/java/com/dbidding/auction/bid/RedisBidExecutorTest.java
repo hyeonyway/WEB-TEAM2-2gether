@@ -36,16 +36,16 @@ class RedisBidExecutorTest {
     void Lua가_승인한_입찰의_eventId와_실시간_상태를_응답한다() {
         List<String> keys = List.of(
                 "auction:state:1", "wallet:balance:2", "wallet:hold:1:2",
-                "auction:bid:idempotency:1:2:bid-key", "auction:bid-events:1"
+                "auction:bid:idempotency:1:2:bid-key", "auction:timeline-events"
         );
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
-                eq("2"), eq("43000"), eq("bid-key"), anyString(), anyString(), eq("1786320000000")))
-                .thenReturn("ACCEPTED|event-1|43000|7|3|57000|43000|1|1775437200000");
+                eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))
+                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|2026-08-10T01:00:00Z");
 
         var response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
         assertThat(response.result().bid().id()).isNull();
-        assertThat(response.result().bid().eventId()).isEqualTo("event-1");
+        assertThat(response.result().bid().eventId()).isEqualTo("1700000000000-0");
         assertThat(response.result().bid().amount()).isEqualTo(43_000L);
         assertThat(response.result().auction().currentPrice()).isEqualTo(43_000L);
         assertThat(response.result().auction().bidCount()).isEqualTo(3);
