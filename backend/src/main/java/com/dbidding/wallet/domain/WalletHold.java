@@ -1,6 +1,7 @@
 package com.dbidding.wallet.domain;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -47,6 +48,12 @@ public class WalletHold {
 
 	@Column(name = "released_at")
 	private Instant releasedAt;
+
+	@Column(name = "projection_version", nullable = false)
+	private long projectionVersion;
+
+	@Column(name = "event_id")
+	private UUID eventId;
 
 	private WalletHold(Integer walletId, Integer auctionId, long amount) {
 		if (walletId == null || auctionId == null) {
