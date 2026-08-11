@@ -41,7 +41,14 @@ public class AuctionBidEventInbox {
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
-    @Column(name = "processed_at", nullable = false)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "projection_status", nullable = false, length = 16)
+    private AuctionBidEventProjectionStatus projectionStatus;
+
+    @Column(name = "failure_message", columnDefinition = "TEXT")
+    private String failureMessage;
+
+    @Column(name = "processed_at")
     private Instant processedAt;
 
     public AuctionBidEventInbox(
@@ -52,7 +59,7 @@ public class AuctionBidEventInbox {
             Integer schemaVersion,
             String payload,
             Instant occurredAt,
-            Instant processedAt
+            Instant recordedAt
     ) {
         this.streamId = streamId;
         this.auctionId = auctionId;
@@ -61,6 +68,19 @@ public class AuctionBidEventInbox {
         this.schemaVersion = schemaVersion;
         this.payload = payload;
         this.occurredAt = occurredAt;
+        this.projectionStatus = AuctionBidEventProjectionStatus.PENDING;
+        this.processedAt = null;
+    }
+
+    public void markProcessed(Instant processedAt) {
+        this.projectionStatus = AuctionBidEventProjectionStatus.PROCESSED;
+        this.failureMessage = null;
         this.processedAt = processedAt;
+    }
+
+    public void markError(String failureMessage) {
+        this.projectionStatus = AuctionBidEventProjectionStatus.ERROR;
+        this.failureMessage = failureMessage;
+        this.processedAt = null;
     }
 }

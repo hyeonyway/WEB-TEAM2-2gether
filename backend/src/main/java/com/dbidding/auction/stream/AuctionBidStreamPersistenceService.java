@@ -2,6 +2,7 @@ package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
+import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
@@ -14,9 +15,12 @@ import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 @Service
 @RequiredArgsConstructor
@@ -30,14 +34,38 @@ public class AuctionBidStreamPersistenceService {
     private final AuctionEventPublisher auctionEventPublisher;
     private final Clock clock;
 
-    @Transactional
+    /** Stream 수신 자체는 projection 실패와 독립적으로 반드시 보존한다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
+        return inboxRepository.findByStreamId(event.streamId())
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null,
+                        event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuctionBidEventInbox recordMalformed(String streamId, Map<String, String> payload) {
+        return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionBidEventInbox(
+                streamId, null, null, "unknown", 1, payload.toString(), Instant.now(), clock.instant()
+        )));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasProjectionError() {
+        return inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
+    }
+
+    /** 기존 호출부 및 단위 테스트 호환용 동기 projection 경로. */
     public void persist(AuctionWalletTimelineEvent event) {
-        if (inboxRepository.findByStreamId(event.streamId()).isPresent()) {
-            return;
-        }
+        recordPending(event);
+        project(event);
+        markProcessed(event.streamId());
+    }
+
+    /** PENDING으로 기록된 이벤트를 실제 도메인 테이블에 반영한다. */
+    @Transactional
+    public void project(AuctionWalletTimelineEvent event) {
         if (event instanceof WalletChargedStreamEvent charged) {
             walletService.charge(charged.userId(), charged.amount(), charged.idempotencyKey());
-            inboxRepository.save(archive(event, null, null));
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);
@@ -50,13 +78,26 @@ public class AuctionBidStreamPersistenceService {
                 auction.getId(), BidStatus.LEADING
         ).orElse(null);
         Bid bid = apply(event, auction, currentLeadingBid);
-        inboxRepository.save(archive(event, event.auctionId(), event.auctionVersion()));
         if (bid != null) {
             bidRepository.save(bid);
             if (event.isBuyNow()) {
                 completeBuyNow(auction, bid, event.occurredAt());
             }
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markProcessed(String streamId) {
+        inboxRepository.findByStreamId(streamId).ifPresent(inbox -> inbox.markProcessed(clock.instant()));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean markError(String streamId, RuntimeException exception) {
+        AuctionBidEventInbox inbox = inboxRepository.findByStreamId(streamId)
+                .orElseThrow(() -> new IllegalStateException("수신 기록이 없는 Stream 이벤트입니다: " + streamId));
+        boolean firstError = !hasProjectionError();
+        inbox.markError(exception.getClass().getSimpleName() + ": " + exception.getMessage());
+        return firstError;
     }
 
     private Bid apply(
