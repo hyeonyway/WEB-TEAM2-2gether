@@ -13,6 +13,7 @@ Account는 계정, 비밀번호 검증, JWT 발급과 Refresh Token 생명주기
 3. [로그인과 Access/Refresh 발급](3-login-and-token.md)
 4. [Refresh Rotation과 로그아웃](4-refresh-and-logout.md)
 5. [CurrentUserProvider와 SSE 티켓 인증](5-current-user-and-sse-auth.md) — 다른 도메인이 지금 바로 `@CurrentUser`를 쓸 수 있게 공통 계약과 디버그 필터를 먼저 공유
+6. [비밀번호 해시 비용과 환경별 반복 횟수](6-password-hash-cost-tuning.md) — 운영 기본값과 데모·k6 환경의 PBKDF2 비용을 분리하고, 시드 해시와의 동기화 규칙을 정의
 
 ## API
 
