@@ -4,7 +4,7 @@
 
 **Goal:** [`2-slo-error-budget.md`](2-slo-error-budget.md)에서 정한 SLO 중 지금
 계측이 없어 측정 불가능한 항목(SSE 연결 수, SSE 연결 수립 시간, SSE 이벤트
-end-to-end 전달, SSE 브로드캐스트 묵시적 실패, Tomcat 커넥터별 스레드)을
+end-to-end 전달, SSE executor 포화와 CallerRuns 소요시간, Tomcat 커넥터별 스레드)을
 Micrometer 메트릭으로 노출한다.
 
 **Architecture:** 기존 `AuctionSseConnectionManager`/`NotificationSseConnectionManager`에
@@ -75,7 +75,7 @@ Gauge/Timer를 추가하고, SSE executor의 `RejectedExecutionHandler`를
       가져와 `auctionSseDeliveryLatency` Trend와 `Invalid` Counter를 추가**
 - [ ] **Step 2: 로컬에서 짧게 실행해 지표가 0이 아닌 값으로 채워지는지 확인**
 
-## Task 4: SSE executor 포화 카운터
+## Task 4: SSE executor 포화·CallerRuns 시간
 
 **Files:**
 - Modify: `backend/src/main/java/com/dbidding/sse/config/CountingCallerRunsPolicy.java`
@@ -85,14 +85,18 @@ Gauge/Timer를 추가하고, SSE executor의 `RejectedExecutionHandler`를
 **Interfaces:**
 - Auction·Notification SSE executor의 기존 `CallerRuns` 정책을 유지하되, 포화로
   `RejectedExecutionHandler`가 호출된 횟수를 `Counter`
-  (`dbidding.sse.broadcast.rejected`, Prometheus 노출명
-  `dbidding_sse_broadcast_rejected_total`)로 기록한다. 태그는 저카디널리티
+  (`dbidding.sse.broadcast.saturated`, Prometheus 노출명
+  `dbidding_sse_broadcast_saturated_total`)로 기록한다. 태그는 저카디널리티
   `executor=auction|notification`만 사용한다.
-- 따라서 이 메트릭은 **유실된 이벤트 수가 아니라 포화되어 호출 스레드에서
-  처리한 작업 수**다. 작업을 버리는 `DiscardPolicy`로 바꾸지 않는다.
+- `task.run()` 구간은 `Timer`
+  (`dbidding.sse.broadcast.saturated.caller-runs.duration`, Prometheus 노출명
+  `dbidding_sse_broadcast_saturated_caller_runs_duration_seconds`)로 기록한다.
+- 두 메트릭은 **유실된 이벤트 수가 아니라 포화되어 호출 스레드에서 처리한
+  작업의 횟수와 소요시간**이다. 작업을 버리는 `DiscardPolicy`로 바꾸지 않는다.
 
 - [ ] **Step 1: 실패하는 테스트 작성** — 풀+큐를 가득 채운 뒤 태스크를
-      추가로 제출하면 카운터가 증가하고, 호출 스레드에서 실행되는지 검증
+      추가로 제출하면 포화 카운터와 CallerRuns Timer가 증가하고, 호출
+      스레드에서 실행되는지 검증
 - [ ] **Step 2: 테스트 실패 확인**
 - [ ] **Step 3: `RejectedExecutionHandler` 구현체 작성 후 `ThreadPoolTaskExecutor`에 설정**
 - [ ] **Step 4: 테스트 통과 확인**

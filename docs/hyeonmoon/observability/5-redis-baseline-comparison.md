@@ -40,7 +40,8 @@
 | SSE 연결 수(auction/notification) | 동시 연결 수 | #331 신규 |
 | SSE 연결 수립 시간 | 연결→최초 이벤트까지 | #331 신규 |
 | SSE 이벤트 end-to-end 전달 지연 | 발행~클라 수신 | #331 신규(k6 계측 이식) |
-| `dbidding.sse.broadcast.rejected_total` | 브로드캐스트 묵시적 실패(드랍) | #331 신규 |
+| `dbidding.sse.broadcast.saturated_total` | SSE executor 포화로 CallerRuns가 실행된 횟수 | #331 신규 |
+| `dbidding.sse.broadcast.saturated.caller-runs.duration` | CallerRuns 브로드캐스트 소요시간 | #331 신규 |
 
 2026-08-10 organic 트래픽 기준 참고치(정식 기준선 아님, 방향성 참고용):
 `auction_lock_wait` p95 234ms, `wallet_lock_wait` p95 46ms,
@@ -76,3 +77,5 @@
 | (미실행) | |
 
 > 이 문서는 Claude의 도움을 받아 작성하였습니다
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다
