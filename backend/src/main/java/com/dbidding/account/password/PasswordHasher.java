@@ -15,12 +15,14 @@ public class PasswordHasher {
 
 	private static final int SALT_BYTES = 16;
 	private static final int KEY_BITS = 256;
-	// DEMO ONLY: 로그인 부하테스트를 위해 비용을 낮췄다.
-	// TODO: 실서비스 전환 전 600_000회로 복원하고 k6 시드 계정 해시도 함께 재계산한다.
-	private static final int ITERATIONS = 100;
 	private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
 
 	private final SecureRandom secureRandom = new SecureRandom();
+	private final int iterations;
+
+	public PasswordHasher(PasswordHashProperties properties) {
+		this.iterations = properties.iterations();
+	}
 
 	public PasswordHash hash(String rawPassword) {
 		byte[] salt = new byte[SALT_BYTES];
@@ -38,7 +40,7 @@ public class PasswordHasher {
 	}
 
 	private byte[] derive(String rawPassword, byte[] salt) {
-		PBEKeySpec keySpec = new PBEKeySpec(rawPassword.toCharArray(), salt, ITERATIONS, KEY_BITS);
+		PBEKeySpec keySpec = new PBEKeySpec(rawPassword.toCharArray(), salt, iterations, KEY_BITS);
 		try {
 			SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(ALGORITHM);
 			return secretKeyFactory.generateSecret(keySpec).getEncoded();
