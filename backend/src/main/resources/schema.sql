@@ -341,9 +341,10 @@ CREATE TABLE auto_bid_contracts
 
 CREATE TABLE wallets
 (
-    id      INT    NOT NULL AUTO_INCREMENT,
-    user_id INT    NOT NULL,
-    point   BIGINT NOT NULL,
+    id                 INT    NOT NULL AUTO_INCREMENT,
+    user_id            INT    NOT NULL,
+    point              BIGINT NOT NULL,
+    projection_version BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT pk_wallets PRIMARY KEY (id),
     CONSTRAINT uk_wallets_user_id UNIQUE (user_id),
@@ -356,13 +357,15 @@ CREATE TABLE wallets
 
 CREATE TABLE wallet_holds
 (
-    id         BIGINT       NOT NULL AUTO_INCREMENT,
-    wallet_id  INT          NOT NULL,
-    auction_id INT          NOT NULL,
-    amount     BIGINT       NOT NULL,
-    status     VARCHAR(20)  NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    released_at TIMESTAMP(6) NULL,
+    id                 BIGINT       NOT NULL AUTO_INCREMENT,
+    wallet_id          INT          NOT NULL,
+    auction_id         INT          NOT NULL,
+    amount             BIGINT       NOT NULL,
+    status             VARCHAR(20)  NOT NULL,
+    projection_version BIGINT       NOT NULL DEFAULT 0,
+    event_id           CHAR(36)     NULL,
+    created_at         TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    released_at        TIMESTAMP(6) NULL,
 
     CONSTRAINT pk_wallet_holds PRIMARY KEY (id),
     CONSTRAINT fk_wallet_holds_wallet
@@ -372,7 +375,8 @@ CREATE TABLE wallet_holds
 
     INDEX idx_wallet_holds_wallet_id (wallet_id),
     INDEX idx_wallet_holds_auction_id (auction_id),
-    INDEX idx_wallet_holds_wallet_status (wallet_id, status)
+    INDEX idx_wallet_holds_wallet_status (wallet_id, status),
+    CONSTRAINT uk_wallet_holds_event_id UNIQUE (event_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -389,10 +393,12 @@ CREATE TABLE point_records
     transaction_type VARCHAR(32)  NOT NULL,
     idempotency_key  VARCHAR(64)
         CHARACTER SET ascii COLLATE ascii_bin NULL,
+    event_id         CHAR(36) NULL,
 
     CONSTRAINT pk_point_records PRIMARY KEY (id),
     CONSTRAINT uk_point_records_wallet_idempotency
         UNIQUE (wallet_id, idempotency_key),
+    CONSTRAINT uk_point_records_event_id UNIQUE (event_id),
     CONSTRAINT fk_point_records_wallet
         FOREIGN KEY (wallet_id) REFERENCES wallets (id),
     CONSTRAINT fk_point_records_auction
