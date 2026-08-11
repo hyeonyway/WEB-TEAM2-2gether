@@ -7,6 +7,7 @@
 ## 구현 단계
 
 1. [SSE 아키텍처 개요](1-sse-architecture.md) — 기술 선택과 이유, 담당 배분, 미정 항목
+2. [SSE Payload 사전 직렬화](2-sse-payload-pre-serialization.md) — fan-out 전 JSON을 한 번만 만들고 emitter에는 동일한 JSON data를 전달하는 성능 개선
 
 `TicketProvider` 인터페이스/구현 계획은 A(김현문) 담당 문서로 옮겨졌다:
 [../auth/5-current-user-and-sse-auth.md](../auth/5-current-user-and-sse-auth.md).
