@@ -97,8 +97,10 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 
 ## DB 영속화와 멱등성
 
-`auction_bid_event_inbox`는 이름과 달리 지갑·입찰 타임라인 전체의 inbox이며 `stream_id` UNIQUE 제약을 가진다. consumer는 각 entry를
-처리할 때 inbox를 먼저 기록한다. 이미 존재하면 DB 변경 없이 성공으로 간주하고 ACK한다.
+`auction_bid_event_inbox`는 이름과 달리 지갑·입찰 타임라인 전체의 inbox이자 archive이며 `stream_id`
+UNIQUE 제약을 가진다. 각 행은 `event_type`, `schema_version`, 원본 필드 직렬화 값(`payload`),
+`occurred_at`, `processed_at`을 함께 보관한다. consumer는 각 entry를 처리할 때 archive를 같은 DB
+트랜잭션에 기록한다. 이미 존재하면 DB 변경 없이 성공으로 간주하고 ACK한다.
 
 `auctions.last_bid_event_version`은 경매별 마지막 반영 버전이다. Stream ID 중복 방지와는
 다른 역할을 한다. Consumer 재시도 또는 다중 consumer의 처리 타이밍 때문에 version 11이
@@ -127,6 +129,34 @@ DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10
 
 커밋에 성공한 entry만 ACK한다. DB 커밋 전 프로세스가 종료되어도 PEL 재전달과 inbox
 UNIQUE 제약이 재처리를 안전하게 만든다.
+
+ACK가 성공한 뒤에는 `XDEL`로 원본 Stream entry를 삭제한다. 따라서 Redis Stream은 **DB 반영 전
+안전 버퍼**이고, DB archive가 영구 감사·복구 근거가 된다. `XACK`와 `XDEL` 사이에 장애가 나면
+ACK된 entry가 Redis에 남을 수는 있지만 DB에는 중복 반영되지 않는다. 반대로 DB 커밋 전에는
+`XDEL`을 절대 실행하지 않는다.
+
+기존 로컬 DB에는 아래 DDL을 한 번 적용한다. 과거 inbox 행은 원본 payload가 없으므로 legacy
+표식으로 보관한다.
+
+```sql
+ALTER TABLE auction_bid_event_inbox
+  ADD COLUMN event_type VARCHAR(64) NULL,
+  ADD COLUMN schema_version INT NULL,
+  ADD COLUMN payload LONGTEXT NULL,
+  ADD COLUMN occurred_at TIMESTAMP(6) NULL;
+
+UPDATE auction_bid_event_inbox
+SET event_type = COALESCE(event_type, 'legacy.unknown.v1'),
+    schema_version = COALESCE(schema_version, 0),
+    payload = COALESCE(payload, 'legacy=true'),
+    occurred_at = COALESCE(occurred_at, processed_at);
+
+ALTER TABLE auction_bid_event_inbox
+  MODIFY COLUMN event_type VARCHAR(64) NOT NULL,
+  MODIFY COLUMN schema_version INT NOT NULL,
+  MODIFY COLUMN payload LONGTEXT NOT NULL,
+  MODIFY COLUMN occurred_at TIMESTAMP(6) NOT NULL;
+```
 
 ### DB 반영 전 정합성 검증
 
