@@ -29,6 +29,7 @@ public class AuctionBidStreamPersistenceService {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
+    private final com.dbidding.wallet.service.WalletProjectionService walletProjectionService;
     private final OrderService orderService;
     private final CardService cardService;
     private final AuctionEventPublisher auctionEventPublisher;
@@ -66,6 +67,11 @@ public class AuctionBidStreamPersistenceService {
     public void project(AuctionWalletTimelineEvent event) {
         if (event instanceof WalletChargedStreamEvent charged) {
             walletService.charge(charged.userId(), charged.amount(), charged.idempotencyKey());
+            return;
+        }
+        if (event instanceof WalletStateChangedStreamEvent walletChanged) {
+            walletProjectionService.project(walletChanged);
+            inboxRepository.save(archive(event, null, null));
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);

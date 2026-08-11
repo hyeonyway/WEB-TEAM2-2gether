@@ -65,10 +65,10 @@ class RedisBidLuaIntegrationTest {
                 "sequence", "6", "bidCount", "2"
         ));
         redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
-                "availableBalance", "60000", "frozenBalance", "40000", "version", "4"
+                "availableBalance", "60000", "frozenBalance", "40000", "walletVersion", "4"
         ));
         redisTemplate.opsForHash().putAll("wallet:balance:2", Map.of(
-                "availableBalance", "100000", "frozenBalance", "0", "version", "9"
+                "availableBalance", "100000", "frozenBalance", "0", "walletVersion", "9"
         ));
 
         executor.execute(new BidCommand(2, 1, 43_000L, "request-1"));

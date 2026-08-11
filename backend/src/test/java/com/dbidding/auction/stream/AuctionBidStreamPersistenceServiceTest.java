@@ -34,6 +34,8 @@ class AuctionBidStreamPersistenceServiceTest {
     @Mock
     private WalletService walletService;
     @Mock
+    private com.dbidding.wallet.service.WalletProjectionService walletProjectionService;
+    @Mock
     private OrderService orderService;
     @Mock
     private CardService cardService;
@@ -49,6 +51,7 @@ class AuctionBidStreamPersistenceServiceTest {
                 auctionRepository,
                 bidRepository,
                 walletService,
+                walletProjectionService,
                 orderService,
                 cardService,
                 auctionEventPublisher,
@@ -79,7 +82,7 @@ class AuctionBidStreamPersistenceServiceTest {
     @Test
     void 버전이_건너뛰면_재시도_대신_경매_pause_대상이_되는_예외를_발생시킨다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
-                inboxRepository, auctionRepository, bidRepository, walletService, orderService, cardService,
+                inboxRepository, auctionRepository, bidRepository, walletService, walletProjectionService, orderService, cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
         given(inboxRepository.findByStreamId("5-0")).willReturn(java.util.Optional.empty());
@@ -98,7 +101,7 @@ class AuctionBidStreamPersistenceServiceTest {
     @Test
     void 지갑_충전은_같은_타임라인_inbox에_기록하고_wallet에_반영한다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
-                inboxRepository, auctionRepository, bidRepository, walletService, orderService, cardService,
+                inboxRepository, auctionRepository, bidRepository, walletService, walletProjectionService, orderService, cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
         WalletChargedStreamEvent event = new WalletChargedStreamEvent(

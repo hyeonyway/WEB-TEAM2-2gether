@@ -6,6 +6,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 import com.dbidding.wallet.domain.Wallet;
@@ -13,6 +14,10 @@ import com.dbidding.wallet.domain.Wallet;
 public interface WalletRepository extends JpaRepository<Wallet, Integer> {
 
 	Optional<Wallet> findByUserId(Integer userId);
+
+	@Modifying
+	@Query(value = "UPDATE wallets SET point = :point, projection_version = :version WHERE user_id = :userId AND projection_version < :version", nativeQuery = true)
+	int updateProjectionIfNewer(@Param("userId") Integer userId, @Param("point") long point, @Param("version") long version);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT wallet FROM Wallet wallet WHERE wallet.userId = :userId")
