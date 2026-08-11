@@ -21,7 +21,9 @@ hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존
 - version pause hash: `auction:timeline-events:paused-auctions`
 - consumer lease lock: `auction:timeline-events:consumer-leader-lock`
 - 한 consumer는 `XREADGROUP GROUP auction-timeline-persistence <instance-id> COUNT 1 BLOCK 1000`
-  으로 읽는다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
+  으로 읽는다. 한 번의 poll은 최대 100건을 연속 처리하지만, **각 entry는 항상 별도 DB
+  트랜잭션과 별도 ACK**를 사용한다. backlog가 있을 때에는 entry 사이에 100ms를 기다리지 않고,
+  한도까지 처리한 뒤에만 poll delay를 적용한다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
 - PEL의 30초 이상 유휴 메시지는 pending 조회 뒤 `XCLAIM`으로 회수한다.
 - 여러 애플리케이션 인스턴스가 떠도 Redis lease 락을 획득한 인스턴스만 poll 전체를 실행한다.
   `poll → DB transaction → ACK`가 끝나면 소유자 token을 비교해 락을 해제한다. 기본 최대 lease는
@@ -95,14 +97,13 @@ DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10
 
 새 entry는 한 DB 트랜잭션에서 다음 순서로 처리한다.
 
-1. 기존 inbox를 일괄 조회해 이미 처리된 Stream ID를 제외한다.
-2. 대상 auction을 비관적 잠금으로 일괄 조회하고 현재 LEADING bid를 일괄 조회한다.
+1. 기존 inbox에서 동일 Stream ID를 조회해 이미 처리된 entry면 DB 변경 없이 끝낸다.
+2. 대상 auction을 비관적 잠금으로 조회하고 현재 LEADING bid를 조회한다.
 3. `auctionVersion`이 마지막 적용 버전보다 작거나 같으면 inbox만 유지하고 끝낸다.
 4. 새 입찰자 DB wallet에 `hold`하고, 이전 최고 입찰자의 DB wallet hold를 `release`한다.
    두 지갑을 함께 처리할 때는 사용자 ID 오름차순으로 호출해 기존 락 순서를 유지한다.
 5. 현재 LEADING bid를 OUTBID로 전환하고 새 `Bid`를 LEADING으로 저장한다.
-6. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신하고 inbox와 새 bid를
-   `saveAll`로 저장한다.
+6. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신하고 inbox와 새 bid를 저장한다.
 
 `auction.buy-now.v1`은 새 입찰자의 hold 직후 같은 트랜잭션에서 `capture`한다. 따라서
 이전 최고 입찰자 release, 낙찰자 hold/capture, bid WON, auction ENDED가 DB에서 함께
@@ -133,7 +134,10 @@ Consumer는 Lua 승인 이벤트라도 DB 반영 전에 기존 입찰 규칙을 
 ## 재시도와 DLQ
 
 읽기·DB·락 오류는 retry counter를 증가시켜 최대 3회 재시도한다. 성공 ACK 후에는 retry
-counter를 제거한다. 계약 파싱 오류와 존재하지 않는 경매 같은 업무 오류, 또는 3회 초과
+counter를 제거한다. 재시도 대상 entry가 PEL에 남아 있으면 같은 consumer는 즉시 다시 가져오고,
+다른 consumer가 남긴 PEL은 30초 유휴 뒤에만 가져온다. 가장 오래된 PEL이 존재하는 동안에는 뒤의
+새 entry를 읽지 않는다. 따라서 실패·재시도 중에도 전역 타임라인 순서를 건너뛰지 않는다.
+계약 파싱 오류와 존재하지 않는 경매 같은 업무 오류, 또는 3회 초과
 실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 각 Stream entry는 독립된 DB
 트랜잭션으로 처리하므로, 한 이벤트의 실패가 다른 이벤트의 재시도·DLQ 판단에 영향을 주지 않는다.
 
@@ -152,8 +156,24 @@ lease 락을 획득한 인스턴스만 한 번의 poll(DB 반영과 ACK 포함)�
 - `originalStreamId`, `payload`, `failureType`, `failureMessage`, `failedAt`, `retryCount`
 
 DLQ 발생 시 `auction.bid.stream.dlq` 카운터와 구조화 로그를 남기고 Slack 경고를 보낸다.
-Stream은 v1에서 자동 trim하지 않는다. Stream 길이, PEL 수, 재시도 수, DLQ 수를 메트릭으로
-관찰한 뒤 보존 정책을 별도 작업에서 정한다.
+
+## 처리량과 운영 기준
+
+이 경로의 우선순위는 처리량보다 정합성이다. 이벤트 하나는 하나의 DB 트랜잭션으로만 반영하고,
+그 트랜잭션이 커밋된 뒤에만 ACK한다. 여러 인스턴스가 떠도 lease lock을 가진 단일 consumer만
+상태를 바꾼다. 따라서 유입 TPS가 DB 영속 TPS보다 크면 Redis Stream은 유실 없이 backlog를
+보관하는 버퍼가 된다.
+
+- `AUCTION_REDIS_BID_MAX_RECORDS_PER_RUN` 기본값은 100이다. 이는 JDBC batch가 아니라 poll당
+  연속 단건 처리 상한이다. DB가 느려도 각 이벤트의 원자성·순서·ACK 조건은 바뀌지 않는다.
+- Stream 길이(`XLEN`), group lag, PEL 수(`XPENDING`), DLQ 길이, retry 수, consumer 처리 성공·실패
+  카운터, Redis `used_memory`를 대시보드와 Slack 알림 대상으로 둔다.
+- Stream은 v1에서 자동 trim하지 않는다. PEL 또는 미처리 entry를 trim하면 정합성 복구 근거를 잃기
+  때문이다. 보존·trim은 실제 최대 backlog와 Redis 메모리 데이터를 관찰한 뒤 별도 작업으로 정한다.
+- 운영 임계치는 Redis 최대 메모리와 평균 이벤트 크기로 산정한다. `warn` 임계치를 넘으면 lag와
+  메모리 경고를 보내고, `critical` 임계치를 넘으면 Lua 생산자가 Stream lag 기준으로 새 입찰·충전
+  요청을 제한하거나 `처리 대기 중` 응답을 반환하는 백프레셔를 적용한다. Consumer는 이를 위해
+  이벤트를 버리거나 순서를 건너뛰지 않는다.
 
 ## 전환 조건
 
