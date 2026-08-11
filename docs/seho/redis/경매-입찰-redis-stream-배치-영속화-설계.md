@@ -27,8 +27,9 @@ hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존
 - PEL의 30초 이상 유휴 메시지는 pending 조회 뒤 `XCLAIM`으로 회수한다.
 - 여러 애플리케이션 인스턴스가 떠도 Redis lease 락을 획득한 인스턴스만 poll 전체를 실행한다.
   `poll → DB transaction → ACK`가 끝나면 소유자 token을 비교해 락을 해제한다. 기본 최대 lease는
-  5분(`AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR`)이며, 운영 환경의 최장 단건 처리 시간보다
-  길게 설정해야 한다.
+  5분(`AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR`)이다. Consumer 실행 중에는 별도 virtual-thread
+  heartbeat가 owner token을 비교한 뒤 TTL을 1/3 주기마다 연장한다. 갱신 실패나 owner 상실을 감지하면
+  해당 인스턴스는 다음 entry를 처리하지 않는다.
 
 현재 전제는 단일 Redis 인스턴스다. Lua Script가 경매별 context key와 전역 Stream key를
 같은 호출에서 갱신하므로 Redis Cluster 전환 시 hash slot 토폴로지를 별도로 설계한다.
@@ -186,13 +187,12 @@ counter를 제거한다. 재시도 대상 entry가 PEL에 남아 있으면 같�
 실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 각 Stream entry는 독립된 DB
 트랜잭션으로 처리하므로, 한 이벤트의 실패가 다른 이벤트의 재시도·DLQ 판단에 영향을 주지 않는다.
 
-단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:timeline-events:paused-auctions` hash에
-경매 ID, 누락 직전 기대 버전, 원본 Stream ID, 사유를 기록하고 해당 PEL 메시지를 보류한다.
-이 Stream은 지갑 상태까지 포함한 단일 전역 타임라인이므로, pause 중에는 뒤의 충전·입찰도 소비하지 않는다.
-누락된 선행 이벤트를 재생해 정상 커밋하면 pause를 자동 해제하고
-보류했던 후속 이벤트를 다시 처리한다. 누락 이벤트가 영구 유실된 경우에는 운영자가 Redis
-경매 컨텍스트와 DB `last_bid_event_version`을 대조한 뒤, 선행 이벤트를 재발행하거나 별도
-정합성 복구 절차를 수행해야 한다. pause 상태의 이벤트를 임의로 ACK해서는 안 된다.
+버전 단절은 `auction:timeline-events:dlq`에 원본 payload·stream ID·사유를 기록한 뒤 ACK/XDEL한다.
+동시에 `auction:timeline-events:paused`에 문제 이벤트의 Stream ID·경매 ID·버전·사유를 기록하고
+**전역 Stream Consumer를 pause**한다. 지갑까지 포함한 단일 전역 타임라인에서 버전이 누락된 경매를
+건너뛰면 이후 이벤트의 의미도 신뢰할 수 없기 때문이다. 운영자는 DLQ 원본과 DB
+`last_bid_event_version`을 대조해 누락 이벤트를 재발행하거나 DB/Redis context를 복구한 뒤에만 pause key를
+삭제해 재개한다. 임의로 pause를 해제하거나 DLQ 이벤트를 버리면 같은 경매의 후속 상태가 영구 단절될 수 있다.
 
 Consumer Group은 분배 기능만 제공하므로, `auction:timeline-events:consumer-leader-lock` Redis
 lease 락을 획득한 인스턴스만 한 번의 poll(DB 반영과 ACK 포함)을 실행한다. 이는 다중 인스턴스의
