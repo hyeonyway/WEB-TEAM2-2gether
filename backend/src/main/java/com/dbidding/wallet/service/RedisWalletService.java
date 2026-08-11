@@ -61,6 +61,18 @@ public class RedisWalletService extends WalletService {
         return transition(userId, amount, idempotencyKey, "wallet.refunded.v1");
     }
 
+    @Override
+    public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
+        if (amount <= 0) throw new InvalidWalletAmountException("정산 금액은 0원보다 커야 합니다.");
+        return transition(sellerId, amount, "settlement:" + auctionId, "wallet.settled.v1");
+    }
+
+    @Override
+    public WalletTransactionResponse cancelRefund(Integer buyerId, Integer auctionId, long amount) {
+        if (amount <= 0) throw new InvalidWalletAmountException("환불 금액은 0원보다 커야 합니다.");
+        return transition(buyerId, amount, "cancel-refund:" + auctionId, "wallet.cancel-refunded.v1");
+    }
+
     private WalletTransactionResponse transition(Integer userId, long amount, String idempotencyKey, String eventType) {
         String requestHash = eventType + ":" + amount;
         String raw = redisTemplate.execute(walletTransitionScript, List.of(
