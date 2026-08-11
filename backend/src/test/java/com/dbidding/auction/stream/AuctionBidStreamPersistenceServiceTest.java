@@ -1,7 +1,5 @@
 package com.dbidding.auction.stream;
 
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -19,7 +17,6 @@ import com.dbidding.wallet.service.WalletService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -46,7 +43,7 @@ class AuctionBidStreamPersistenceServiceTest {
     private Auction auction;
 
     @Test
-    void 배치의_중복확인과_경매잠금과_최고입찰조회는_각각_한번만_수행한다() {
+    void 단건_이벤트의_중복확인과_경매잠금과_최고입찰조회를_수행한다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
                 inboxRepository,
                 auctionRepository,
@@ -57,24 +54,25 @@ class AuctionBidStreamPersistenceServiceTest {
                 auctionEventPublisher,
                 Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
-        given(inboxRepository.findByStreamIdIn(anyCollection())).willReturn(List.of());
-        given(auctionRepository.findByIdInForUpdate(anyCollection())).willReturn(List.of(auction));
+        given(inboxRepository.findByStreamId("1-0")).willReturn(java.util.Optional.empty());
+        given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.of(auction));
         given(auction.getId()).willReturn(10);
         given(auction.getLastBidEventVersion()).willReturn(0L);
         given(auction.isNextBidEventVersion(org.mockito.ArgumentMatchers.anyLong())).willReturn(true);
-        given(bidRepository.findByAuctionIdInAndStatus(anyCollection(), org.mockito.ArgumentMatchers.any()))
-                .willReturn(List.of());
+        given(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(
+                10, com.dbidding.auction.domain.BidStatus.LEADING
+        )).willReturn(java.util.Optional.empty());
         given(auction.applyStreamBid(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .willReturn(true);
 
-        service.persistAll(List.of(event("1-0", 1L, 2, null), event("2-0", 2L, 3, 2)));
+        service.persist(event("1-0", 1L, 2, null));
 
-        verify(inboxRepository, times(1)).findByStreamIdIn(anyCollection());
-        verify(auctionRepository, times(1)).findByIdInForUpdate(anyCollection());
-        verify(bidRepository, times(1)).findByAuctionIdInAndStatus(anyCollection(), org.mockito.ArgumentMatchers.any());
-        verify(inboxRepository, times(1)).saveAll(anyList());
-        verify(bidRepository, times(1)).saveAll(anyList());
+        verify(inboxRepository, times(1)).findByStreamId("1-0");
+        verify(auctionRepository, times(1)).findByIdForUpdate(10);
+        verify(bidRepository, times(1)).findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(10, com.dbidding.auction.domain.BidStatus.LEADING);
+        verify(inboxRepository, times(1)).save(org.mockito.ArgumentMatchers.any());
+        verify(bidRepository, times(1)).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -83,15 +81,15 @@ class AuctionBidStreamPersistenceServiceTest {
                 inboxRepository, auctionRepository, bidRepository, walletService, orderService, cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
-        given(inboxRepository.findByStreamIdIn(anyCollection())).willReturn(List.of());
-        given(auctionRepository.findByIdInForUpdate(anyCollection())).willReturn(List.of(auction));
+        given(inboxRepository.findByStreamId("5-0")).willReturn(java.util.Optional.empty());
+        given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.of(auction));
         given(auction.getId()).willReturn(10);
         given(auction.getLastBidEventVersion()).willReturn(3L);
         given(auction.isNextBidEventVersion(5L)).willReturn(false);
-        given(bidRepository.findByAuctionIdInAndStatus(anyCollection(), org.mockito.ArgumentMatchers.any()))
-                .willReturn(List.of());
+        given(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(10, com.dbidding.auction.domain.BidStatus.LEADING))
+                .willReturn(java.util.Optional.empty());
 
-        assertThatThrownBy(() -> service.persistAll(List.of(event("5-0", 5L, 2, null))))
+        assertThatThrownBy(() -> service.persist(event("5-0", 5L, 2, null)))
                 .isInstanceOf(BidStreamVersionGapException.class)
                 .hasMessageContaining("auctionId=10");
     }

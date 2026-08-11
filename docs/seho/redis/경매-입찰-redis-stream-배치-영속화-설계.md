@@ -1,4 +1,4 @@
-# Redis Stream 기반 경매 입찰 배치 영속화
+# Redis Stream 기반 경매 입찰 단건 영속화
 
 ## 목표
 
@@ -20,12 +20,12 @@ hold 상태까지 원자적으로 예약하고, Consumer는 그 결과를 기존
 - retry counter hash: `auction:bid-events:retry-count:v1`
 - version pause hash: `auction:bid-events:paused-auctions:v1`
 - consumer lease lock: `auction:bid-events:consumer-leader-lock:v1`
-- 한 consumer는 `XREADGROUP GROUP auction-bid-persistence <instance-id> COUNT 100 BLOCK 1000`
+- 한 consumer는 `XREADGROUP GROUP auction-bid-persistence <instance-id> COUNT 1 BLOCK 1000`
   으로 읽는다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
 - PEL의 30초 이상 유휴 메시지는 pending 조회 뒤 `XCLAIM`으로 회수한다.
 - 여러 애플리케이션 인스턴스가 떠도 Redis lease 락을 획득한 인스턴스만 poll 전체를 실행한다.
   `poll → DB transaction → ACK`가 끝나면 소유자 token을 비교해 락을 해제한다. 기본 최대 lease는
-  5분(`AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR`)이며, 운영 환경의 최장 배치 처리 시간보다
+  5분(`AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR`)이며, 운영 환경의 최장 단건 처리 시간보다
   길게 설정해야 한다.
 
 현재 전제는 단일 Redis 인스턴스다. Lua Script가 경매별 context key와 전역 Stream key를
@@ -123,8 +123,8 @@ Consumer는 Lua 승인 이벤트라도 DB 반영 전에 기존 입찰 규칙을 
 
 읽기·DB·락 오류는 retry counter를 증가시켜 최대 3회 재시도한다. 성공 ACK 후에는 retry
 counter를 제거한다. 계약 파싱 오류와 존재하지 않는 경매 같은 업무 오류, 또는 3회 초과
-실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 배치 트랜잭션이 실패하면 같은
-배치의 정상 이벤트까지 DLQ로 보내지 않도록 각 Stream entry를 개별 트랜잭션으로 다시 처리한다.
+실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 각 Stream entry는 독립된 DB
+트랜잭션으로 처리하므로, 한 이벤트의 실패가 다른 이벤트의 재시도·DLQ 판단에 영향을 주지 않는다.
 
 단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:bid-events:paused-auctions:v1` hash에
 경매 ID, 누락 직전 기대 버전, 원본 Stream ID, 사유를 기록하고 해당 경매의 PEL 메시지를 보류한다.

@@ -14,7 +14,6 @@ spring:
 app:
   auction:
     redis-bid:
-      batch-size: ${AUCTION_REDIS_BID_BATCH_SIZE:100}
       block: ${AUCTION_REDIS_BID_BLOCK:1s}
       claim-idle: ${AUCTION_REDIS_BID_CLAIM_IDLE:30s}
       max-retries: ${AUCTION_REDIS_BID_MAX_RETRIES:3}

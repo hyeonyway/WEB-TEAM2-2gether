@@ -85,7 +85,7 @@ class AuctionBidStreamPersistenceIntegrationTest {
 
     @Test
     void 상회입찰과_즉시낙찰_이벤트가_기존_DB_상태전이를_재현한다() {
-        persistenceService.persistAll(java.util.List.of(normalBid()));
+        persistenceService.persist(normalBid());
         entityManager.flush();
 
         assertThat(bidStatus(FIRST_BIDDER_ID)).isEqualTo("OUTBID");
@@ -99,7 +99,7 @@ class AuctionBidStreamPersistenceIntegrationTest {
         assertThat(holdStatus(FIRST_BIDDER_ID)).isEqualTo("RELEASED");
         assertThat(holdStatus(SECOND_BIDDER_ID)).isEqualTo("HELD");
 
-        persistenceService.persistAll(java.util.List.of(buyNow()));
+        persistenceService.persist(buyNow());
         entityManager.flush();
 
         assertThat(bidStatus(FIRST_BIDDER_ID)).isEqualTo("WON");
@@ -120,10 +120,10 @@ class AuctionBidStreamPersistenceIntegrationTest {
 
     @Test
     void 현재_최고_입찰자의_즉시낙찰은_기존_hold를_release하지_않고_capture한다() {
-        persistenceService.persistAll(java.util.List.of(event(
+        persistenceService.persist(event(
                 "same-user-buy-now-0", BidStreamEventType.BUY_NOW, 1L, FIRST_BIDDER_ID, FIRST_BIDDER_ID,
                 50_000L, 2, AuctionStatus.ENDED
-        )));
+        ));
         entityManager.flush();
 
         assertThat(bidStatus(FIRST_BIDDER_ID)).isEqualTo("WON");

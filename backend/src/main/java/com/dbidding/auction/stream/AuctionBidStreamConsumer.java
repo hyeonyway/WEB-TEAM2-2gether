@@ -5,7 +5,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,7 +17,6 @@ import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessage;
 import org.springframework.data.redis.connection.stream.ReadOffset;
-import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.core.RedisCallback;
@@ -86,18 +84,19 @@ public class AuctionBidStreamConsumer {
     }
 
     private void consumeOnce() {
-        List<MapRecord<String, Object, Object>> records = claimPending();
-        if (records.isEmpty()) {
-            records = redisTemplate.opsForStream().read(
+        MapRecord<String, Object, Object> record = claimPending();
+        if (record == null) {
+            List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().read(
                     Consumer.from(GROUP, consumerName),
-                    StreamReadOptions.empty().count(properties.batchSize()).block(properties.block()),
+                    StreamReadOptions.empty().count(1).block(properties.block()),
                     StreamOffset.create(STREAM_KEY, ReadOffset.lastConsumed())
             );
+            record = records == null || records.isEmpty() ? null : records.getFirst();
         }
-        if (records == null || records.isEmpty()) {
+        if (record == null) {
             return;
         }
-        process(records);
+        processOne(record);
     }
 
     private boolean isMissingGroup(Throwable throwable) {
@@ -110,35 +109,21 @@ public class AuctionBidStreamConsumer {
         return false;
     }
 
-    private List<MapRecord<String, Object, Object>> claimPending() {
-        List<RecordId> ids = new ArrayList<>();
-        for (PendingMessage pending : redisTemplate.opsForStream().pending(
-                STREAM_KEY, GROUP, Range.unbounded(), properties.batchSize(), properties.claimIdle()
-        )) {
-            ids.add(pending.getId());
+    private MapRecord<String, Object, Object> claimPending() {
+        java.util.Iterator<PendingMessage> pending = redisTemplate.opsForStream().pending(
+                STREAM_KEY, GROUP, Range.unbounded(), 1, properties.claimIdle()
+        ).iterator();
+        if (!pending.hasNext()) {
+            return null;
         }
-        if (ids.isEmpty()) {
-            return List.of();
+        List<MapRecord<String, Object, Object>> claimed = redisTemplate.opsForStream().claim(
+                STREAM_KEY, GROUP, consumerName, properties.claimIdle(), pending.next().getId()
+        );
+        if (claimed == null || claimed.isEmpty()) {
+            return null;
         }
-        return redisTemplate.opsForStream().claim(
-                STREAM_KEY, GROUP, consumerName, properties.claimIdle(), ids.toArray(RecordId[]::new)
-        ).stream().filter(record -> !isPausedAuction(record)).toList();
-    }
-
-    private void process(List<MapRecord<String, Object, Object>> records) {
-        try {
-            List<BidAcceptedStreamEvent> events = records.stream()
-                    .map(record -> BidAcceptedStreamEvent.from(record.getId().getValue(), stringValues(record.getValue())))
-                    .toList();
-            persistenceService.persistAll(events);
-            acknowledge(records);
-            records.forEach(record -> redisTemplate.opsForHash().delete(RETRY_KEY, record.getId().getValue()));
-            events.forEach(event -> pausedAuctionRegistry.resume(event.auctionId()));
-            meterRegistry.counter("auction.bid.stream.persisted").increment(records.size());
-        } catch (RuntimeException exception) {
-            // 배치 트랜잭션 실패가 정상 레코드까지 DLQ로 전파되지 않도록 개별 트랜잭션으로 분리한다.
-            records.forEach(this::processOne);
-        }
+        MapRecord<String, Object, Object> record = claimed.getFirst();
+        return isPausedAuction(record) ? null : record;
     }
 
     private void processOne(MapRecord<String, Object, Object> record) {
@@ -147,8 +132,8 @@ public class AuctionBidStreamConsumer {
             event = BidAcceptedStreamEvent.from(
                     record.getId().getValue(), stringValues(record.getValue())
             );
-            persistenceService.persistAll(List.of(event));
-            acknowledge(List.of(record));
+            persistenceService.persist(event);
+            acknowledge(record);
             redisTemplate.opsForHash().delete(RETRY_KEY, record.getId().getValue());
             pausedAuctionRegistry.resume(event.auctionId());
             meterRegistry.counter("auction.bid.stream.persisted").increment();
@@ -192,15 +177,15 @@ public class AuctionBidStreamConsumer {
                 "failedAt", Instant.now().toString(),
                 "retryCount", String.valueOf(redisTemplate.opsForHash().get(RETRY_KEY, record.getId().getValue()))
         ));
-        acknowledge(List.of(record));
+        acknowledge(record);
         redisTemplate.opsForHash().delete(RETRY_KEY, record.getId().getValue());
         meterRegistry.counter("auction.bid.stream.dlq").increment();
         log.error("event=auction.bid.stream.dlq streamId={}", record.getId().getValue(), exception);
     }
 
-    private void acknowledge(List<MapRecord<String, Object, Object>> records) {
+    private void acknowledge(MapRecord<String, Object, Object> record) {
         redisTemplate.opsForStream().acknowledge(
-                STREAM_KEY, GROUP, records.stream().map(MapRecord::getId).toArray(RecordId[]::new)
+                STREAM_KEY, GROUP, record.getId()
         );
     }
 
