@@ -83,7 +83,8 @@ class AuctionSseContractTest {
         var manager = new AuctionSseConnectionManager(
                 Clock.fixed(now, java.time.ZoneOffset.UTC),
                 new AuctionSseMetrics(new SimpleMeterRegistry()),
-                objectMapper);
+                objectMapper,
+                new SynchronousAuctionSseSendDispatcher());
         SseEmitter first = mock(SseEmitter.class);
         SseEmitter second = mock(SseEmitter.class);
         manager.register(first);
@@ -238,6 +239,7 @@ class AuctionSseContractTest {
                 Clock.fixed(now, java.time.ZoneOffset.UTC),
                 new AuctionSseMetrics(registry),
                 JsonMapper.builder().addModule(new JavaTimeModule())
-                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build());
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build(),
+                new SynchronousAuctionSseSendDispatcher());
     }
 }

@@ -26,13 +26,13 @@ class LocalNotificationPushPublisherAsyncWiringVerifyTest {
     @EnableAsync
     static class TestConfig {
         @Bean
-        NotificationSseConnectionManager connectionManager() {
-            return mock(NotificationSseConnectionManager.class);
+        NotificationPushDispatcher pushDispatcher() {
+            return mock(NotificationPushDispatcher.class);
         }
 
         @Bean
-        LocalNotificationPushPublisher publisher(NotificationSseConnectionManager connectionManager) {
-            return new LocalNotificationPushPublisher(connectionManager);
+        LocalNotificationPushPublisher publisher(NotificationPushDispatcher pushDispatcher) {
+            return new LocalNotificationPushPublisher(pushDispatcher);
         }
 
         @Bean(name = "notificationFanOutTaskExecutor")
@@ -49,7 +49,7 @@ class LocalNotificationPushPublisherAsyncWiringVerifyTest {
     @Test
     void 단건_default_메서드_호출도_fanOut_executor_스레드에서_실행된다() throws InterruptedException {
         try (AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(TestConfig.class)) {
-            NotificationSseConnectionManager connectionManager = ctx.getBean(NotificationSseConnectionManager.class);
+            NotificationPushDispatcher pushDispatcher = ctx.getBean(NotificationPushDispatcher.class);
             NotificationPushPublisher publisher = ctx.getBean(NotificationPushPublisher.class);
             AtomicReference<String> threadName = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
@@ -57,7 +57,7 @@ class LocalNotificationPushPublisherAsyncWiringVerifyTest {
                 threadName.set(Thread.currentThread().getName());
                 latch.countDown();
                 return null;
-            }).when(connectionManager).push(anyInt(), any());
+            }).when(pushDispatcher).dispatch(anyInt(), any());
 
             publisher.publish(1, new NotificationResponse(
                     1L, 10, NotificationType.OUTBID, "메시지", false, Instant.parse("2026-08-11T00:00:00Z")));
@@ -71,7 +71,7 @@ class LocalNotificationPushPublisherAsyncWiringVerifyTest {
     @Test
     void 배치_리스트_호출도_fanOut_executor_스레드에서_실행된다() throws InterruptedException {
         try (AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(TestConfig.class)) {
-            NotificationSseConnectionManager connectionManager = ctx.getBean(NotificationSseConnectionManager.class);
+            NotificationPushDispatcher pushDispatcher = ctx.getBean(NotificationPushDispatcher.class);
             NotificationPushPublisher publisher = ctx.getBean(NotificationPushPublisher.class);
             AtomicReference<String> threadName = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
@@ -79,7 +79,7 @@ class LocalNotificationPushPublisherAsyncWiringVerifyTest {
                 threadName.set(Thread.currentThread().getName());
                 latch.countDown();
                 return null;
-            }).when(connectionManager).push(anyInt(), any());
+            }).when(pushDispatcher).dispatch(anyInt(), any());
 
             NotificationResponse payload = new NotificationResponse(
                     1L, 10, NotificationType.AUCTION_OPENED, "메시지", false, Instant.parse("2026-08-11T00:00:00Z"));

@@ -15,6 +15,7 @@ class NotificationPushPublisherProfileTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(TestConfiguration.class)
             .withBean(NotificationSseConnectionManager.class, () -> mock(NotificationSseConnectionManager.class))
+            .withBean(NotificationPushDispatcher.class, () -> mock(NotificationPushDispatcher.class))
             .withBean(StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
             .withBean(ObjectMapper.class, ObjectMapper::new);
 

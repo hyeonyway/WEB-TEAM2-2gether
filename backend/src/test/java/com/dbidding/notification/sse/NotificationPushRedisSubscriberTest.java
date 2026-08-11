@@ -18,11 +18,11 @@ import org.springframework.data.redis.connection.Message;
 class NotificationPushRedisSubscriberTest {
 
     @Test
-    void 수신한_메시지를_역직렬화해서_그대로_로컬_커넥션에_push한다() throws Exception {
-        NotificationSseConnectionManager connectionManager = mock(NotificationSseConnectionManager.class);
+    void 수신한_메시지를_역직렬화해서_그대로_디스패처에_넘긴다() throws Exception {
+        NotificationPushDispatcher pushDispatcher = mock(NotificationPushDispatcher.class);
         JsonMapper objectMapper = JsonMapper.builder().addModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
-        NotificationPushRedisSubscriber subscriber = new NotificationPushRedisSubscriber(connectionManager, objectMapper);
+        NotificationPushRedisSubscriber subscriber = new NotificationPushRedisSubscriber(pushDispatcher, objectMapper);
         NotificationResponse payload = new NotificationResponse(
                 1L, 10, NotificationType.OUTBID, "상회 입찰 발생", false, Instant.parse("2026-08-10T00:00:00Z"));
         byte[] body = objectMapper.writeValueAsBytes(List.of(new NotificationPushMessage(7, payload)));
@@ -31,15 +31,15 @@ class NotificationPushRedisSubscriberTest {
 
         subscriber.onMessage(message, null);
 
-        verify(connectionManager).push(eq(7), eq(payload));
+        verify(pushDispatcher).dispatch(eq(7), eq(payload));
     }
 
     @Test
-    void 배치_메시지를_수신하면_원소마다_로컬_커넥션에_push한다() throws Exception {
-        NotificationSseConnectionManager connectionManager = mock(NotificationSseConnectionManager.class);
+    void 배치_메시지를_수신하면_원소마다_디스패처에_넘긴다() throws Exception {
+        NotificationPushDispatcher pushDispatcher = mock(NotificationPushDispatcher.class);
         JsonMapper objectMapper = JsonMapper.builder().addModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
-        NotificationPushRedisSubscriber subscriber = new NotificationPushRedisSubscriber(connectionManager, objectMapper);
+        NotificationPushRedisSubscriber subscriber = new NotificationPushRedisSubscriber(pushDispatcher, objectMapper);
         NotificationResponse payload1 = new NotificationResponse(
                 1L, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.", false, Instant.parse("2026-08-10T00:00:00Z"));
         NotificationResponse payload2 = new NotificationResponse(
@@ -51,7 +51,7 @@ class NotificationPushRedisSubscriberTest {
 
         subscriber.onMessage(message, null);
 
-        verify(connectionManager).push(eq(7), eq(payload1));
-        verify(connectionManager).push(eq(8), eq(payload2));
+        verify(pushDispatcher).dispatch(eq(7), eq(payload1));
+        verify(pushDispatcher).dispatch(eq(8), eq(payload2));
     }
 }

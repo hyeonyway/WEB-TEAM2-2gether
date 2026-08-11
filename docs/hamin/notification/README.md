@@ -18,5 +18,6 @@ Notification은 경매 생성/상회 입찰/낙찰 이벤트를 구독해 알림
 14. [Notification origin/subscriber TaskExecutor 분리](14-notification-executor-split-plan.md) — 이슈 #305
 15. [스케줄러 on/off 프로퍼티 키를 application.yml에 명시](15-scheduler-toggle-properties.md) — 이슈 #366, 구현 완료
 16. [알림 복구 배치의 N+1 쿼리 제거](16-recovery-batch-n-plus-one-fix.md) — 이슈 #370, 구현 완료
+17. [Notification/Auction SSE fan-out TaskExecutor를 가상 스레드로 전환](17-sse-fanout-virtual-thread-plan.md) — 이슈 #362, 설계 중
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.

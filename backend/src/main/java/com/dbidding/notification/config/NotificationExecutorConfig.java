@@ -7,6 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -58,7 +61,8 @@ public class NotificationExecutorConfig {
      * SSE send만 하는 작업이라 origin과 풀을 공유하지 않는다(#305).
      */
     @Bean(name = "notificationFanOutTaskExecutor")
-    public ThreadPoolTaskExecutor notificationFanOutTaskExecutor() {
+    @Profile("!sse-virtual-threads")
+    public TaskExecutor notificationFanOutTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(fanOutCorePoolSize);
         executor.setMaxPoolSize(fanOutMaxPoolSize);
@@ -68,6 +72,20 @@ public class NotificationExecutorConfig {
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(10);
         executor.initialize();
+        return executor;
+    }
+
+    /**
+     * {@code sse-virtual-threads} 프로필 전용 — 위와 동일한 워크로드를 가상 스레드로
+     * 처리한다(#362). 공유 자원(DB 등)이 없는 순수 네트워크 fan-out이라 풀 상한이
+     * 방화벽 역할을 하지 않고, 유저 1개당 독립 task로 세분화해도(디스패처 참고)
+     * 스레드 고갈 위험이 없다.
+     */
+    @Bean(name = "notificationFanOutTaskExecutor")
+    @Profile("sse-virtual-threads")
+    public TaskExecutor notificationFanOutVirtualTaskExecutor() {
+        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("notification-fanout-");
+        executor.setVirtualThreads(true);
         return executor;
     }
 }
