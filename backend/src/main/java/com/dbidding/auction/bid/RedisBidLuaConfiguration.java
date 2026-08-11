@@ -18,4 +18,20 @@ public class RedisBidLuaConfiguration {
         script.setResultType(String.class);
         return script;
     }
+
+    @Bean
+    public RedisScript<String> walletTransitionScript() {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/wallet-transition.lua"));
+        script.setResultType(String.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<Long> walletBootstrapScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/wallet-bootstrap.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
 }

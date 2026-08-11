@@ -53,7 +53,7 @@ if available < price then return 'REJECTED|INSUFFICIENT_BALANCE' end
 
 local newAvailable = available - price
 local newFrozen = tonumber(redis.call('HGET', KEYS[2], 'frozenBalance') or '0') + price
-local bidderWalletVersion = redis.call('HINCRBY', KEYS[2], 'version', 1)
+local bidderWalletVersion = redis.call('HINCRBY', KEYS[2], 'walletVersion', 1)
 redis.call('HSET', KEYS[2], 'availableBalance', newAvailable, 'frozenBalance', newFrozen)
 redis.call('HSET', KEYS[3], 'amount', price)
 
@@ -63,7 +63,7 @@ if highestBidderId and highestBidderId ~= '' then
     local previousHoldKey = 'wallet:hold:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. highestBidderId
     redis.call('HINCRBY', previousBalanceKey, 'availableBalance', highestHoldAmount)
     redis.call('HINCRBY', previousBalanceKey, 'frozenBalance', -highestHoldAmount)
-    redis.call('HINCRBY', previousBalanceKey, 'version', 1)
+    redis.call('HINCRBY', previousBalanceKey, 'walletVersion', 1)
     redis.call('DEL', previousHoldKey)
 end
 

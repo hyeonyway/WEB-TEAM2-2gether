@@ -1,6 +1,7 @@
 package com.dbidding.wallet.repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -16,4 +17,8 @@ public interface WalletHoldRepository extends JpaRepository<WalletHold, Long> {
 		Integer walletId,
 		Integer auctionId
 	);
+
+	Optional<WalletHold> findTopByWalletIdAndAuctionIdOrderByIdDesc(Integer walletId, Integer auctionId);
+
+	boolean existsByEventId(UUID eventId);
 }

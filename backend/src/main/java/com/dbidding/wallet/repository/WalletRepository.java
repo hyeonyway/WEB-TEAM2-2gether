@@ -6,13 +6,29 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import com.dbidding.wallet.domain.Wallet;
 
 public interface WalletRepository extends JpaRepository<Wallet, Integer> {
 
 	Optional<Wallet> findByUserId(Integer userId);
+
+	@Query(value = """
+		SELECT w.user_id AS userId, w.point AS point, w.projection_version AS projectionVersion,
+		       COALESCE(SUM(CASE WHEN wh.status = 'HELD' THEN wh.amount ELSE 0 END), 0) AS frozenBalance
+		FROM wallets w LEFT JOIN wallet_holds wh ON wh.wallet_id = w.id
+		GROUP BY w.id, w.user_id, w.point, w.projection_version
+		ORDER BY w.id
+		""", countQuery = "SELECT COUNT(*) FROM wallets", nativeQuery = true)
+	Page<WalletBootstrapRow> findBootstrapRows(Pageable pageable);
+
+	@Modifying
+	@Query(value = "UPDATE wallets SET point = :point, projection_version = :version WHERE user_id = :userId AND projection_version < :version", nativeQuery = true)
+	int updateProjectionIfNewer(@Param("userId") Integer userId, @Param("point") long point, @Param("version") long version);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT wallet FROM Wallet wallet WHERE wallet.userId = :userId")
