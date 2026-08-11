@@ -1,6 +1,6 @@
 package com.dbidding.wallet.service;
 
-import com.dbidding.wallet.domain.Wallet;
+import com.dbidding.wallet.repository.WalletBootstrapRow;
 import com.dbidding.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationRunner;
@@ -8,6 +8,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.domain.PageRequest;
 
 /** Redis가 비어 있을 때 MySQL projection에서 지갑 승인 상태를 다시 만든다. */
 @Configuration
@@ -16,21 +19,24 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 public class RedisWalletBootstrap {
     private final WalletRepository walletRepository;
     private final StringRedisTemplate redisTemplate;
+    @Qualifier("walletBootstrapScript")
+    private final RedisScript<Long> walletBootstrapScript;
 
     @Bean
     ApplicationRunner redisWalletStateBootstrap() {
-        return arguments -> walletRepository.findAll().forEach(this::seedIfAbsent);
+        return arguments -> {
+            int page = 0;
+            org.springframework.data.domain.Page<WalletBootstrapRow> rows;
+            do {
+                rows = walletRepository.findBootstrapRows(PageRequest.of(page++, 500));
+                rows.forEach(this::seedIfOlder);
+            } while (rows.hasNext());
+        };
     }
 
-    private void seedIfAbsent(Wallet wallet) {
-        String key = "wallet:balance:" + wallet.getUserId();
-        Object redisVersion = redisTemplate.opsForHash().get(key, "walletVersion");
-        if (redisVersion != null && Long.parseLong(redisVersion.toString()) >= wallet.getProjectionVersion()) return;
-        long frozen = walletRepository.sumHeldAmount(wallet.getId());
-        redisTemplate.opsForHash().putAll(key, java.util.Map.of(
-                "availableBalance", String.valueOf(wallet.getPoint() - frozen),
-                "frozenBalance", String.valueOf(frozen),
-                "walletVersion", String.valueOf(wallet.getProjectionVersion())
-        ));
+    private void seedIfOlder(WalletBootstrapRow wallet) {
+        long available = wallet.getPoint() - wallet.getFrozenBalance();
+        redisTemplate.execute(walletBootstrapScript, java.util.List.of("wallet:balance:" + wallet.getUserId()),
+                String.valueOf(available), String.valueOf(wallet.getFrozenBalance()), String.valueOf(wallet.getProjectionVersion()));
     }
 }

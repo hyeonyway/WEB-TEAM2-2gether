@@ -5,6 +5,7 @@ import com.dbidding.wallet.dto.WalletTransactionResponse;
 import com.dbidding.wallet.exception.IdempotencyConflictException;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
+import com.dbidding.wallet.exception.InvalidIdempotencyKeyException;
 import com.dbidding.wallet.metrics.WalletMetrics;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
@@ -62,12 +63,14 @@ public class RedisWalletService extends WalletService {
     @Override
     public WalletTransactionResponse charge(Integer userId, long amount, String idempotencyKey) {
         if (amount < 1_000L) throw new InvalidWalletAmountException("충전 금액은 1,000원 이상이어야 합니다.");
+        validateIdempotencyKey(idempotencyKey);
         return transition(userId, amount, idempotencyKey, "wallet.charged.v1");
     }
 
     @Override
     public WalletTransactionResponse refund(Integer userId, long amount, String idempotencyKey) {
         if (amount <= 0) throw new InvalidWalletAmountException("환불 금액은 0원보다 커야 합니다.");
+        validateIdempotencyKey(idempotencyKey);
         return transition(userId, amount, idempotencyKey, "wallet.refunded.v1");
     }
 
@@ -100,4 +103,8 @@ public class RedisWalletService extends WalletService {
     }
 
     private String balanceKey(Integer userId) { return "wallet:balance:" + userId; }
+
+    private void validateIdempotencyKey(String key) {
+        if (key == null || key.isBlank() || key.length() > 64) throw new InvalidIdempotencyKeyException();
+    }
 }

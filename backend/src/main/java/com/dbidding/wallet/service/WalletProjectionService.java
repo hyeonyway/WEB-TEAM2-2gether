@@ -31,10 +31,13 @@ public class WalletProjectionService {
             ));
         }
         if (event.holdStatus() != null && !walletHoldRepository.existsByEventId(event.eventId())) {
-            WalletHold hold = walletHoldRepository.findTopByWalletIdAndAuctionIdOrderByIdDesc(wallet.getId(), event.auctionId())
-                    .orElseGet(() -> WalletHold.projected(wallet.getId(), event.auctionId(), event.holdAmount(), event.holdStatus(), event.walletVersion(), event.eventId()));
-            hold.applyProjection(event.holdAmount(), event.holdStatus(), event.walletVersion(), event.eventId());
-            walletHoldRepository.save(hold);
+            walletHoldRepository.findTopByWalletIdAndAuctionIdOrderByIdDesc(wallet.getId(), event.auctionId())
+                    .ifPresentOrElse(hold -> {
+                        hold.applyProjection(event.holdAmount(), event.holdStatus(), event.walletVersion(), event.eventId());
+                        walletHoldRepository.save(hold);
+                    }, () -> walletHoldRepository.save(WalletHold.projected(
+                            wallet.getId(), event.auctionId(), event.holdAmount(), event.holdStatus(), event.walletVersion(), event.eventId()
+                    )));
         }
         walletRepository.updateProjectionIfNewer(event.userId(), event.availableBalance() + event.frozenBalance(), event.walletVersion());
     }
