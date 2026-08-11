@@ -87,6 +87,25 @@ cloud:
     s3:
       bucket: ${AUCTION_IMAGE_BUCKET:}
       presign-duration-seconds: ${AUCTION_IMAGE_PRESIGN_DURATION_SECONDS:300}
+
+auction:
+  deadline:
+    scheduler:
+      enabled: ${AUCTION_DEADLINE_SCHEDULER_ENABLED:true}
+  closing:
+    scheduler:
+      enabled: ${AUCTION_CLOSING_SCHEDULER_ENABLED:true}
+      fixed-delay-ms: ${AUCTION_CLOSING_SCHEDULER_FIXED_DELAY_MS:60000}
+
+notification:
+  recovery:
+    urgent:
+      enabled: ${NOTIFICATION_RECOVERY_URGENT_ENABLED:true}
+      fixed-delay-ms: ${NOTIFICATION_RECOVERY_URGENT_FIXED_DELAY_MS:90000}
+    result:
+      enabled: ${NOTIFICATION_RECOVERY_RESULT_ENABLED:true}
+      fixed-delay-ms: ${NOTIFICATION_RECOVERY_RESULT_FIXED_DELAY_MS:420000}
+
 app:
   auth:
     mode: ${AUTH_MODE:jwt}
