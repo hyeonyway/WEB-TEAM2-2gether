@@ -16,6 +16,7 @@ public class NotificationService {
 
     private static final int MIN_PAGE_SIZE = 1;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int FAN_OUT_CHUNK_SIZE = 10_000;
 
     private final NotificationRepository notificationRepository;
     private final JdbcTemplate jdbcTemplate;
@@ -36,11 +37,13 @@ public class NotificationService {
     }
 
     /**
-     * 여러 유저에게 같은 알림을 한 번의 INSERT로 저장한다(경매 생성 fan-out 등). 복구 배치나
-     * 다른 경로가 특정 유저에 대해 이미 저장해뒀을 수 있으므로 {@code INSERT IGNORE}로 유니크
-     * 제약(user_id, auction_id, type, bid_id) 위반 행은 조용히 건너뛰고, 이미 있던 행과 새로
-     * 저장된 행을 한 번의 조회로 함께 가져와 반환한다. bid와 무관한 알림 전용이라 bid_id는 항상
-     * {@link Notification#NO_BID}다.
+     * 여러 유저에게 같은 알림을 INSERT로 저장한다(경매 생성 fan-out 등). 복구 배치나 다른 경로가
+     * 특정 유저에 대해 이미 저장해뒀을 수 있으므로 {@code INSERT IGNORE}로 유니크 제약(user_id,
+     * auction_id, type, bid_id) 위반 행은 조용히 건너뛰고, 이미 있던 행과 새로 저장된 행을 한 번의
+     * 조회로 함께 가져와 반환한다. bid와 무관한 알림 전용이라 bid_id는 항상 {@link Notification#NO_BID}다.
+     * INSERT는 유저 1명당 플레이스홀더 5개를 쓰므로 MySQL 프리페어드 스테이트먼트 한도(65,535개)에
+     * 걸릴 수 있어 {@link #FAN_OUT_CHUNK_SIZE} 단위로 나눠 실행한다. 재조회 SELECT는 유저 1명당
+     * 플레이스홀더 1개라 훨씬 여유 있어 청크 없이 전체 유저를 한 번에 조회한다.
      */
     @Transactional
     public List<Notification> saveAllIgnoringDuplicates(
@@ -50,6 +53,19 @@ public class NotificationService {
             return List.of();
         }
 
+        for (int from = 0; from < userIds.size(); from += FAN_OUT_CHUNK_SIZE) {
+            List<Integer> chunk = userIds.subList(from, Math.min(from + FAN_OUT_CHUNK_SIZE, userIds.size()));
+            insertIgnoringDuplicates(chunk, auctionId, type, message);
+        }
+
+        return notificationRepository.findByAuctionIdAndTypeAndBidIdAndUserIdIn(
+                auctionId, type, Notification.NO_BID, userIds
+        );
+    }
+
+    private void insertIgnoringDuplicates(
+            List<Integer> userIds, Integer auctionId, NotificationType type, String message
+    ) {
         String placeholders = String.join(", ", Collections.nCopies(userIds.size(), "(?, ?, ?, ?, ?)"));
         String sql = "INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES " + placeholders;
         List<Object> args = new ArrayList<>(userIds.size() * 5);
@@ -61,10 +77,6 @@ public class NotificationService {
             args.add(message);
         }
         jdbcTemplate.update(sql, args.toArray());
-
-        return notificationRepository.findByAuctionIdAndTypeAndBidIdAndUserIdIn(
-                auctionId, type, Notification.NO_BID, userIds
-        );
     }
 
     public NotificationPage findPage(Integer userId, Long cursor, int size, boolean unreadOnly) {
