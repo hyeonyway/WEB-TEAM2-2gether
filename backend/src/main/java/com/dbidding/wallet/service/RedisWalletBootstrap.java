@@ -24,7 +24,8 @@ public class RedisWalletBootstrap {
 
     private void seedIfAbsent(Wallet wallet) {
         String key = "wallet:balance:" + wallet.getUserId();
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return;
+        Object redisVersion = redisTemplate.opsForHash().get(key, "walletVersion");
+        if (redisVersion != null && Long.parseLong(redisVersion.toString()) >= wallet.getProjectionVersion()) return;
         long frozen = walletRepository.sumHeldAmount(wallet.getId());
         redisTemplate.opsForHash().putAll(key, java.util.Map.of(
                 "availableBalance", String.valueOf(wallet.getPoint() - frozen),
