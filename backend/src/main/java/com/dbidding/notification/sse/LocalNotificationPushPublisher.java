@@ -1,6 +1,6 @@
 package com.dbidding.notification.sse;
 
-import com.dbidding.notification.dto.NotificationResponse;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,7 @@ public class LocalNotificationPushPublisher implements NotificationPushPublisher
     private final NotificationSseConnectionManager connectionManager;
 
     @Override
-    public void publish(Integer userId, NotificationResponse payload) {
-        connectionManager.push(userId, payload);
+    public void publish(List<NotificationPushMessage> messages) {
+        messages.forEach(message -> connectionManager.push(message.userId(), message.payload()));
     }
 }

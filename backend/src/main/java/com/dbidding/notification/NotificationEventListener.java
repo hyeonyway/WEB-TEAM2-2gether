@@ -5,6 +5,7 @@ import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.card.service.CardPriceService;
 import com.dbidding.notification.dto.NotificationResponse;
+import com.dbidding.notification.sse.NotificationPushMessage;
 import com.dbidding.notification.sse.NotificationPushPublisher;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
@@ -43,9 +44,12 @@ public class NotificationEventListener {
         if (userIds.isEmpty()) {
             return;
         }
-        notificationService.saveAllIgnoringDuplicates(userIds, event.auctionId(), NotificationType.AUCTION_OPENED, message)
-                .forEach(notification ->
-                        notificationPushPublisher.publish(notification.getUserId(), NotificationResponse.from(notification)));
+        List<NotificationPushMessage> pushMessages = notificationService
+                .saveAllIgnoringDuplicates(userIds, event.auctionId(), NotificationType.AUCTION_OPENED, message)
+                .stream()
+                .map(notification -> new NotificationPushMessage(notification.getUserId(), NotificationResponse.from(notification)))
+                .toList();
+        notificationPushPublisher.publish(pushMessages);
     }
 
     // fallbackExecution=true: #281 이후 이 이벤트가 트랜잭션 밖(AuctionCommandService, 이미

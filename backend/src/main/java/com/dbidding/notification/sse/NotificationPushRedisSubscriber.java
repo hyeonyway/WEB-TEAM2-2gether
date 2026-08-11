@@ -1,8 +1,10 @@
 package com.dbidding.notification.sse;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -29,9 +31,10 @@ public class NotificationPushRedisSubscriber implements MessageListener {
     @Override
     public void onMessage(Message message, byte[] pattern) {
         try {
-            NotificationPushMessage parsed = objectMapper.readValue(
-                    new String(message.getBody(), StandardCharsets.UTF_8), NotificationPushMessage.class);
-            connectionManager.push(parsed.userId(), parsed.payload());
+            List<NotificationPushMessage> parsed = objectMapper.readValue(
+                    new String(message.getBody(), StandardCharsets.UTF_8), new TypeReference<List<NotificationPushMessage>>() {
+                    });
+            parsed.forEach(entry -> connectionManager.push(entry.userId(), entry.payload()));
         } catch (JsonProcessingException exception) {
             log.warn("event=notification.sse.redis_subscriber.deserialize_failed", exception);
         }
