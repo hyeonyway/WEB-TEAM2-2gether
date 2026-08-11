@@ -25,14 +25,21 @@ public class AuctionSseConnectionManager {
     private final Clock clock;
     private final AuctionSseMetrics metrics;
     private final ObjectMapper objectMapper;
+    private final AuctionSseSendDispatcher sendDispatcher;
     private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
     private final AtomicLong eventSequence = new AtomicLong();
     private final Supplier<Number> connectionCountSupplier;
 
-    public AuctionSseConnectionManager(Clock clock, AuctionSseMetrics metrics, ObjectMapper objectMapper) {
+    public AuctionSseConnectionManager(
+            Clock clock,
+            AuctionSseMetrics metrics,
+            ObjectMapper objectMapper,
+            AuctionSseSendDispatcher sendDispatcher
+    ) {
         this.clock = clock;
         this.metrics = metrics;
         this.objectMapper = objectMapper;
+        this.sendDispatcher = sendDispatcher;
         this.connectionCountSupplier = this::connectionCount;
         metrics.registerConnectionGauge(connectionCountSupplier);
     }
@@ -59,7 +66,8 @@ public class AuctionSseConnectionManager {
         long eventId = eventSequence.incrementAndGet();
         AuctionStreamPayload publishedEvent = event.withPublishedAt(clock.instant());
         String serializedPayload = writeJson(publishedEvent);
-        emitters.forEach(emitter -> send(emitter, event(publishedEvent.type(), serializedPayload, eventId)));
+        emitters.forEach(emitter ->
+                sendDispatcher.dispatch(() -> send(emitter, event(publishedEvent.type(), serializedPayload, eventId))));
     }
 
     @Async("auctionSseTaskExecutor")
