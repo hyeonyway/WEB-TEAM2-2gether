@@ -32,6 +32,24 @@ public record WalletChargedStreamEvent(
         }
     }
 
+    @Override
+    public String archiveEventType() {
+        return "wallet.charged.v1";
+    }
+
+    @Override
+    public int schemaVersion() {
+        return 1;
+    }
+
+    @Override
+    public String archivePayload() {
+        return "schemaVersion=1&userId=" + userId
+                + "&amount=" + amount
+                + "&idempotencyKey=" + idempotencyKey
+                + "&occurredAt=" + occurredAt;
+    }
+
     private static String required(Map<String, String> values, String key) {
         String value = values.get(key);
         if (value == null || value.isBlank()) {

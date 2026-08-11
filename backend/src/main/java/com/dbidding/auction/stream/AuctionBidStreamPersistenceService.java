@@ -37,7 +37,7 @@ public class AuctionBidStreamPersistenceService {
         }
         if (event instanceof WalletChargedStreamEvent charged) {
             walletService.charge(charged.userId(), charged.amount(), charged.idempotencyKey());
-            inboxRepository.save(new AuctionBidEventInbox(charged.streamId(), null, null, clock.instant()));
+            inboxRepository.save(archive(event, null, null));
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);
@@ -50,9 +50,7 @@ public class AuctionBidStreamPersistenceService {
                 auction.getId(), BidStatus.LEADING
         ).orElse(null);
         Bid bid = apply(event, auction, currentLeadingBid);
-        inboxRepository.save(new AuctionBidEventInbox(
-                event.streamId(), event.auctionId(), event.auctionVersion(), clock.instant()
-        ));
+        inboxRepository.save(archive(event, event.auctionId(), event.auctionVersion()));
         if (bid != null) {
             bidRepository.save(bid);
             if (event.isBuyNow()) {
@@ -115,6 +113,13 @@ public class AuctionBidStreamPersistenceService {
                 winningBid.getBidPrice(), auction.getBidPriceUnit(), auction.getBidCount(), auction.getCloseTime(),
                 auction.getStatus(), occurredAt
         ));
+    }
+
+    private AuctionBidEventInbox archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion) {
+        return new AuctionBidEventInbox(
+                event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
+                event.archivePayload(), event.occurredAt(), clock.instant()
+        );
     }
 
     private void validateLeadingBidder(BidAcceptedStreamEvent event, Bid currentLeadingBid) {

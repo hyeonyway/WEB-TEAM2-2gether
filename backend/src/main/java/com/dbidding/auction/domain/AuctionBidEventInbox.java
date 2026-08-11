@@ -29,13 +29,38 @@ public class AuctionBidEventInbox {
     @Column(name = "auction_version")
     private Long auctionVersion;
 
+    @Column(name = "event_type", nullable = false, length = 64)
+    private String eventType;
+
+    @Column(name = "schema_version", nullable = false)
+    private Integer schemaVersion;
+
+    @Column(name = "payload", nullable = false, columnDefinition = "LONGTEXT")
+    private String payload;
+
+    @Column(name = "occurred_at", nullable = false)
+    private Instant occurredAt;
+
     @Column(name = "processed_at", nullable = false)
     private Instant processedAt;
 
-    public AuctionBidEventInbox(String streamId, Integer auctionId, Long auctionVersion, Instant processedAt) {
+    public AuctionBidEventInbox(
+            String streamId,
+            Integer auctionId,
+            Long auctionVersion,
+            String eventType,
+            Integer schemaVersion,
+            String payload,
+            Instant occurredAt,
+            Instant processedAt
+    ) {
         this.streamId = streamId;
         this.auctionId = auctionId;
         this.auctionVersion = auctionVersion;
+        this.eventType = eventType;
+        this.schemaVersion = schemaVersion;
+        this.payload = payload;
+        this.occurredAt = occurredAt;
         this.processedAt = processedAt;
     }
 }

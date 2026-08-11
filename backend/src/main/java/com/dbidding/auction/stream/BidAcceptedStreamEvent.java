@@ -71,6 +71,29 @@ public record BidAcceptedStreamEvent(
         return eventType == BidStreamEventType.BUY_NOW;
     }
 
+    @Override
+    public String archiveEventType() {
+        return eventType.value();
+    }
+
+    @Override
+    public int schemaVersion() {
+        return 1;
+    }
+
+    @Override
+    public String archivePayload() {
+        return "schemaVersion=1&auctionId=%d&auctionVersion=%d&bidderId=%d&requestedPrice=%d&bidPrice=%d&previousBidderId=%s"
+                .formatted(auctionId, auctionVersion, bidderId, requestedPrice, bidPrice, previousBidderId)
+                + "&idempotencyKey=" + idempotencyKey
+                + "&idempotencyRequestHash=" + idempotencyRequestHash
+                + "&currentPrice=" + currentPrice
+                + "&bidCount=" + bidCount
+                + "&closeTime=" + closeTime
+                + "&auctionStatus=" + auctionStatus
+                + "&occurredAt=" + occurredAt;
+    }
+
     private void validateContract() {
         if (streamId == null || !STREAM_ID_PATTERN.matcher(streamId).matches()) {
             throw new InvalidBidStreamEventException("Stream ID 형식이 올바르지 않습니다.");

@@ -10,6 +10,10 @@ public enum BidStreamEventType {
         this.value = value;
     }
 
+    public String value() {
+        return value;
+    }
+
     public static BidStreamEventType from(String value) {
         for (BidStreamEventType type : values()) {
             if (type.value.equals(value)) {

@@ -285,6 +285,10 @@ CREATE TABLE auction_bid_event_inbox
     stream_id       VARCHAR(64)  NOT NULL,
     auction_id      INT,
     auction_version BIGINT,
+    event_type      VARCHAR(64)  NOT NULL,
+    schema_version  INT          NOT NULL,
+    payload         LONGTEXT     NOT NULL,
+    occurred_at     TIMESTAMP(6) NOT NULL,
     processed_at    TIMESTAMP(6) NOT NULL,
 
     CONSTRAINT pk_auction_bid_event_inbox PRIMARY KEY (id),

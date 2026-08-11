@@ -207,9 +207,20 @@ public class AuctionBidStreamConsumer {
     }
 
     private void acknowledge(MapRecord<String, Object, Object> record) {
-        redisTemplate.opsForStream().acknowledge(
+        Long acknowledged = redisTemplate.opsForStream().acknowledge(
                 STREAM_KEY, GROUP, record.getId()
         );
+        if (acknowledged == null || acknowledged == 0) {
+            return;
+        }
+        try {
+            redisTemplate.opsForStream().delete(STREAM_KEY, record.getId());
+            meterRegistry.counter("auction.bid.stream.deleted").increment();
+        } catch (RuntimeException exception) {
+            // DB 반영과 ACK는 이미 끝났다. 삭제 실패를 재시도로 취급하면 같은 DB 이벤트를 DLQ로 오염시킨다.
+            meterRegistry.counter("auction.bid.stream.delete.failed").increment();
+            log.error("event=auction.bid.stream.delete.failed streamId={}", record.getId().getValue(), exception);
+        }
     }
 
     private Map<String, String> stringValues(Map<Object, Object> values) {
