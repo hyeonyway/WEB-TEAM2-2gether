@@ -25,7 +25,7 @@ public record BidAcceptedStreamEvent(
         Instant closeTime,
         AuctionStatus auctionStatus,
         Instant occurredAt
-) {
+) implements AuctionWalletTimelineEvent {
     private static final Pattern STREAM_ID_PATTERN = Pattern.compile("\\d+-\\d+");
     private static final Pattern REQUEST_HASH_PATTERN = Pattern.compile("[0-9a-f]{64}");
 

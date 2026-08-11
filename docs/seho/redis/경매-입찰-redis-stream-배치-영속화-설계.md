@@ -2,25 +2,25 @@
 
 ## 목표
 
-Redis Lua Script가 원자적으로 승인한 입찰을 Redis Stream에 기록하고, `redis` 프로필의
-비동기 consumer가 DB의 입찰 이력과 경매 스냅샷으로 영속화한다. Stream 전달은
+Redis Lua Script가 원자적으로 승인한 충전·입찰·지갑 hold/release/capture를 하나의 Redis Stream에
+기록하고, `redis` 프로필의 비동기 consumer가 DB의 지갑·입찰 이력·경매 스냅샷으로 영속화한다. Stream 전달은
 at-least-once이므로 DB inbox와 트랜잭션 후 ACK로 중복 반영을 막는다.
 
-이번 범위는 Stream 소비·재시도·DLQ와 기존 DB 입찰 반영이다. Lua 입찰 검증·HTTP 즉시
-응답·Redis Pub/Sub SSE 전파는 다른 담당 영역이다. Lua는 Redis 지갑 mirror의 가용 잔액과
-hold 상태까지 원자적으로 예약하고, Consumer는 그 결과를 기존 DB 지갑과 경매 테이블에
+이번 범위는 Stream 소비·재시도·DLQ와 기존 DB 지갑·입찰 반영이다. Lua 입찰 검증·HTTP 즉시
+응답·Redis Pub/Sub SSE 전파는 다른 담당 영역이다. Lua는 Redis 지갑 mirror의 충전·가용 잔액과
+hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존 DB 지갑과 경매 테이블에
 영속화한다.
 
 ## 프로필과 토폴로지
 
 - 기본 프로필에는 consumer 빈이 없다. `spring.profiles.active=redis`일 때만 실행한다.
-- Stream key: `auction:bid-events:v1`
-- consumer group: `auction-bid-persistence`
-- DLQ key: `auction:bid-events:dlq:v1`
-- retry counter hash: `auction:bid-events:retry-count:v1`
-- version pause hash: `auction:bid-events:paused-auctions:v1`
-- consumer lease lock: `auction:bid-events:consumer-leader-lock:v1`
-- 한 consumer는 `XREADGROUP GROUP auction-bid-persistence <instance-id> COUNT 1 BLOCK 1000`
+- Stream key: `auction:wallet-timeline-events:v1`
+- consumer group: `auction-wallet-timeline-persistence`
+- DLQ key: `auction:wallet-timeline-events:dlq:v1`
+- retry counter hash: `auction:wallet-timeline-events:retry-count:v1`
+- version pause hash: `auction:wallet-timeline-events:paused-auctions:v1`
+- consumer lease lock: `auction:wallet-timeline-events:consumer-leader-lock:v1`
+- 한 consumer는 `XREADGROUP GROUP auction-wallet-timeline-persistence <instance-id> COUNT 1 BLOCK 1000`
   으로 읽는다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
 - PEL의 30초 이상 유휴 메시지는 pending 조회 뒤 `XCLAIM`으로 회수한다.
 - 여러 애플리케이션 인스턴스가 떠도 Redis lease 락을 획득한 인스턴스만 poll 전체를 실행한다.
@@ -33,8 +33,8 @@ hold 상태까지 원자적으로 예약하고, Consumer는 그 결과를 기존
 
 ## 생산 이벤트 계약
 
-Lua Script는 일반 입찰 승인 뒤 `bid.accepted.v1`, 즉시 낙찰 승인 뒤
-`auction.buy-now.v1` 이벤트를 한 Stream entry에 `XADD`한다. 모든 이름은
+Lua Script는 충전 승인 뒤 `wallet.charged.v1`, 일반 입찰 승인 뒤 `bid.accepted.v1`, 즉시 낙찰 승인 뒤
+`auction.buy-now.v1` 이벤트를 **동일 Stream**에 `XADD`한다. 모든 이름은
 camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 
 | field | 형식 | 설명 |
@@ -55,6 +55,17 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 | `auctionStatus` | enum | 일반 입찰은 `OPEN`/`ENDING`, 즉시 낙찰은 `ENDED` |
 | `occurredAt` | instant | Lua 승인 시각 |
 
+`wallet.charged.v1`은 아래 계약을 사용한다.
+
+| field | 형식 | 설명 |
+| --- | --- | --- |
+| `eventType` | `wallet.charged.v1` | 지갑 충전 이벤트 |
+| `schemaVersion` | `1` | 계약 버전 |
+| `userId` | integer | 충전 대상 사용자 |
+| `amount` | long | 충전 금액(양수) |
+| `idempotencyKey` | string | 충전 요청 멱등성 키(64자 이하) |
+| `occurredAt` | instant | Redis 충전 승인 시각 |
+
 `auctionVersion`은 경매 context에서 승인 때마다 증가한다. 같은 경매의 더 낮거나 같은
 버전은 DB 상태를 변경하지 않는다. 생산자는 `idempotencyKey`, `requestedPrice`, request hash를
 생략하지 않아야 하며, request hash는 기존 HTTP 경로와 동일하게 `SHA-256("{requestedPrice}\\0")`로
@@ -69,7 +80,7 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 
 ## DB 영속화와 멱등성
 
-`auction_bid_event_inbox`는 `stream_id` UNIQUE 제약을 가진다. consumer는 각 entry를
+`auction_bid_event_inbox`는 이름과 달리 지갑·입찰 타임라인 전체의 inbox이며 `stream_id` UNIQUE 제약을 가진다. consumer는 각 entry를
 처리할 때 inbox를 먼저 기록한다. 이미 존재하면 DB 변경 없이 성공으로 간주하고 ACK한다.
 
 `auctions.last_bid_event_version`은 경매별 마지막 반영 버전이다. Stream ID 중복 방지와는
@@ -126,14 +137,15 @@ counter를 제거한다. 계약 파싱 오류와 존재하지 않는 경매 같�
 실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 각 Stream entry는 독립된 DB
 트랜잭션으로 처리하므로, 한 이벤트의 실패가 다른 이벤트의 재시도·DLQ 판단에 영향을 주지 않는다.
 
-단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:bid-events:paused-auctions:v1` hash에
-경매 ID, 누락 직전 기대 버전, 원본 Stream ID, 사유를 기록하고 해당 경매의 PEL 메시지를 보류한다.
-다른 경매는 계속 소비한다. 누락된 선행 이벤트를 재생해 정상 커밋하면 pause를 자동 해제하고
+단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:wallet-timeline-events:paused-auctions:v1` hash에
+경매 ID, 누락 직전 기대 버전, 원본 Stream ID, 사유를 기록하고 해당 PEL 메시지를 보류한다.
+이 Stream은 지갑 상태까지 포함한 단일 전역 타임라인이므로, pause 중에는 뒤의 충전·입찰도 소비하지 않는다.
+누락된 선행 이벤트를 재생해 정상 커밋하면 pause를 자동 해제하고
 보류했던 후속 이벤트를 다시 처리한다. 누락 이벤트가 영구 유실된 경우에는 운영자가 Redis
 경매 컨텍스트와 DB `last_bid_event_version`을 대조한 뒤, 선행 이벤트를 재발행하거나 별도
 정합성 복구 절차를 수행해야 한다. pause 상태의 이벤트를 임의로 ACK해서는 안 된다.
 
-Consumer Group은 분배 기능만 제공하므로, `auction:bid-events:consumer-leader-lock:v1` Redis
+Consumer Group은 분배 기능만 제공하므로, `auction:wallet-timeline-events:consumer-leader-lock:v1` Redis
 lease 락을 획득한 인스턴스만 한 번의 poll(DB 반영과 ACK 포함)을 실행한다. 이는 다중 인스턴스의
 동시 DB 잠금과 데드락 가능성을 줄이기 위한 단일 실행 제어다.
 

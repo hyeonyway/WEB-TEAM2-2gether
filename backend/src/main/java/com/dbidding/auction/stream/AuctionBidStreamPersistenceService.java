@@ -31,10 +31,19 @@ public class AuctionBidStreamPersistenceService {
     private final Clock clock;
 
     @Transactional
-    public void persist(BidAcceptedStreamEvent event) {
+    public void persist(AuctionWalletTimelineEvent event) {
         if (inboxRepository.findByStreamId(event.streamId()).isPresent()) {
             return;
         }
+        if (event instanceof WalletChargedStreamEvent charged) {
+            walletService.charge(charged.userId(), charged.amount(), charged.idempotencyKey());
+            inboxRepository.save(new AuctionBidEventInbox(charged.streamId(), null, null, clock.instant()));
+            return;
+        }
+        persistBid((BidAcceptedStreamEvent) event);
+    }
+
+    private void persistBid(BidAcceptedStreamEvent event) {
         Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
                 .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 경매의 입찰 이벤트입니다: " + event.auctionId()));
         Bid currentLeadingBid = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(

@@ -23,10 +23,10 @@ public class AuctionBidEventInbox {
     @Column(name = "stream_id", nullable = false, unique = true, length = 64)
     private String streamId;
 
-    @Column(name = "auction_id", nullable = false)
+    @Column(name = "auction_id")
     private Integer auctionId;
 
-    @Column(name = "auction_version", nullable = false)
+    @Column(name = "auction_version")
     private Long auctionVersion;
 
     @Column(name = "processed_at", nullable = false)

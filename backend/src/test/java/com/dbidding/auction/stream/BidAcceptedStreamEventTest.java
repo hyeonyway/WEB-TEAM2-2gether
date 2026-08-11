@@ -59,6 +59,20 @@ class BidAcceptedStreamEventTest {
                 .hasMessageContaining("SHA-256");
     }
 
+    @Test
+    void 지갑_충전_이벤트를_타임라인_계약으로_파싱한다() {
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-2", Map.of(
+                "eventType", "wallet.charged.v1",
+                "schemaVersion", "1",
+                "userId", "1",
+                "amount", "50000",
+                "idempotencyKey", "charge-1",
+                "occurredAt", "2026-08-10T11:00:00Z"
+        ));
+
+        assertThat(event).isInstanceOf(WalletChargedStreamEvent.class);
+    }
+
     private Map<String, String> fields() {
         return new java.util.HashMap<>(Map.ofEntries(
                 Map.entry("eventType", "bid.accepted.v1"),

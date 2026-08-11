@@ -283,8 +283,8 @@ CREATE TABLE auction_bid_event_inbox
 (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
     stream_id       VARCHAR(64)  NOT NULL,
-    auction_id      INT          NOT NULL,
-    auction_version BIGINT       NOT NULL,
+    auction_id      INT,
+    auction_version BIGINT,
     processed_at    TIMESTAMP(6) NOT NULL,
 
     CONSTRAINT pk_auction_bid_event_inbox PRIMARY KEY (id),

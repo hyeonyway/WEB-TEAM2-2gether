@@ -94,6 +94,24 @@ class AuctionBidStreamPersistenceServiceTest {
                 .hasMessageContaining("auctionId=10");
     }
 
+    @Test
+    void 지갑_충전은_같은_타임라인_inbox에_기록하고_wallet에_반영한다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, bidRepository, walletService, orderService, cardService,
+                auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
+        );
+        WalletChargedStreamEvent event = new WalletChargedStreamEvent(
+                "charge-1", 1, 50_000L, "charge-key", Instant.parse("2026-08-10T12:00:00Z")
+        );
+        given(inboxRepository.findByStreamId("charge-1")).willReturn(java.util.Optional.empty());
+
+        service.persist(event);
+
+        verify(walletService).charge(1, 50_000L, "charge-key");
+        verify(inboxRepository).save(org.mockito.ArgumentMatchers.any());
+        verify(auctionRepository, org.mockito.Mockito.never()).findByIdForUpdate(org.mockito.ArgumentMatchers.any());
+    }
+
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {
         return new BidAcceptedStreamEvent(
                 streamId, BidStreamEventType.BID_ACCEPTED, 10, version, bidderId, 10_000L + version, 10_000L + version, previousBidderId,

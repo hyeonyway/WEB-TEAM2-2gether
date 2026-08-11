@@ -29,10 +29,10 @@ import org.springframework.stereotype.Component;
 @Profile("redis")
 @RequiredArgsConstructor
 public class AuctionBidStreamConsumer {
-    static final String STREAM_KEY = "auction:bid-events:v1";
-    static final String GROUP = "auction-bid-persistence";
-    static final String DLQ_KEY = "auction:bid-events:dlq:v1";
-    static final String RETRY_KEY = "auction:bid-events:retry-count:v1";
+    static final String STREAM_KEY = "auction:wallet-timeline-events:v1";
+    static final String GROUP = "auction-wallet-timeline-persistence";
+    static final String DLQ_KEY = "auction:wallet-timeline-events:dlq:v1";
+    static final String RETRY_KEY = "auction:wallet-timeline-events:retry-count:v1";
 
     private final StringRedisTemplate redisTemplate;
     private final AuctionBidStreamPersistenceService persistenceService;
@@ -85,6 +85,10 @@ public class AuctionBidStreamConsumer {
 
     private void consumeOnce() {
         MapRecord<String, Object, Object> record = claimPending();
+        if (record != null && isPausedAuction(record)) {
+            // 하나의 전역 타임라인에서는 앞선 버전 단절을 건너뛰고 뒤 이벤트를 처리하면 안 된다.
+            return;
+        }
         if (record == null) {
             List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().read(
                     Consumer.from(GROUP, consumerName),
@@ -123,22 +127,24 @@ public class AuctionBidStreamConsumer {
             return null;
         }
         MapRecord<String, Object, Object> record = claimed.getFirst();
-        return isPausedAuction(record) ? null : record;
+        return record;
     }
 
     private void processOne(MapRecord<String, Object, Object> record) {
-        BidAcceptedStreamEvent event = null;
+        AuctionWalletTimelineEvent event = null;
         try {
-            event = BidAcceptedStreamEvent.from(
+            event = AuctionWalletTimelineEvent.from(
                     record.getId().getValue(), stringValues(record.getValue())
             );
             persistenceService.persist(event);
             acknowledge(record);
             redisTemplate.opsForHash().delete(RETRY_KEY, record.getId().getValue());
-            pausedAuctionRegistry.resume(event.auctionId());
+            if (event instanceof BidAcceptedStreamEvent bid) {
+                pausedAuctionRegistry.resume(bid.auctionId());
+            }
             meterRegistry.counter("auction.bid.stream.persisted").increment();
         } catch (BidStreamVersionGapException exception) {
-            pausedAuctionRegistry.pause(event, exception);
+            pausedAuctionRegistry.pause((BidAcceptedStreamEvent) event, exception);
             meterRegistry.counter("auction.bid.stream.auction.paused").increment();
         } catch (InvalidBidStreamEventException exception) {
             moveToDlq(record, exception);
@@ -149,10 +155,10 @@ public class AuctionBidStreamConsumer {
 
     private boolean isPausedAuction(MapRecord<String, Object, Object> record) {
         try {
-            BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from(
+            AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from(
                     record.getId().getValue(), stringValues(record.getValue())
             );
-            return pausedAuctionRegistry.isPaused(event.auctionId());
+            return event instanceof BidAcceptedStreamEvent bid && pausedAuctionRegistry.isPaused(bid.auctionId());
         } catch (InvalidBidStreamEventException ignored) {
             return false;
         }

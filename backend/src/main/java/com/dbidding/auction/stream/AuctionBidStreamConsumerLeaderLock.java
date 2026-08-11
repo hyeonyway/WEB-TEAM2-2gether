@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 @Profile("redis")
 @RequiredArgsConstructor
 public class AuctionBidStreamConsumerLeaderLock {
-    static final String KEY = "auction:bid-events:consumer-leader-lock:v1";
+    static final String KEY = "auction:wallet-timeline-events:consumer-leader-lock:v1";
     private static final DefaultRedisScript<Long> RELEASE_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
             Long.class
