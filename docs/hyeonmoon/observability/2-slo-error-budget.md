@@ -6,13 +6,18 @@
 않고 뭉뚱그려져 있었다. 이 문서는 엔드포인트 카테고리별 SLO와, 실패를
 분류하는 기준을 정한다.
 
-## 실패 분류 3종 (Four Golden Signals의 "Errors"를 세분화)
+## 실패·포화 신호 3종 (Four Golden Signals에 맞춘 분류)
 
 | 분류 | 정의 | 예시 | SLO 가용성에 포함? |
 |---|---|---|---|
 | 명시적 실패 | 서버가 스스로 처리 실패를 인지하고 응답 | 5xx, 예외 | **포함** — 유일한 하드 실패 판정 기준 |
 | 정책적 실패 | 비즈니스 규칙에 따른 정상 거부 | 400(최소가 미달), 409(경합 충돌), 401 | **미포함** — 단, 별도 SLI로 계속 추적 |
-| 묵시적 실패 | 응답은 성공(2xx)이지만 실질적으로 전달 안 됨 | SSE 브로드캐스트가 `DiscardPolicy`로 조용히 드랍됨 | 대상 메트릭 자체가 없어서 지금은 추적 불가 — [`4-metrics-gap-and-instrumentation.md`](4-metrics-gap-and-instrumentation.md)에서 계측 추가 |
+| 실행 포화 | SSE executor 큐가 차서 `RejectedExecutionHandler`가 호출됨 | `CallerRuns`로 요청 스레드가 브로드캐스트 작업을 대신 실행 | **미포함** — 이벤트는 드랍되지 않지만 요청 지연을 키우므로 Saturation SLI로 추적 |
+
+SSE executor는 `DiscardPolicy`가 아니라 `CallerRuns`를 사용한다. 따라서 큐 포화가
+발생해도 해당 태스크는 호출 스레드에서 끝까지 실행되어 구조적으로 조용한 드랍이
+발생하지 않는다. 포화 횟수와 CallerRuns 소요시간은 Errors가 아닌 Saturation에서
+확인한다. 개별 `SseEmitter.send()` 실패는 기존 전송 실패 메트릭으로 별도 관찰한다.
 
 정책적 실패를 가용성에서 제외하는 이유: 두 사용자가 동시에 입찰하면 시스템이
 아무리 빨라도 한쪽은 거부된다 — 이건 서비스 품질 문제가 아니라 경매 구조
@@ -91,3 +96,5 @@ Latency 섹션에 반영).
   과제다.
 
 > 이 문서는 Claude의 도움을 받아 작성하였습니다
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

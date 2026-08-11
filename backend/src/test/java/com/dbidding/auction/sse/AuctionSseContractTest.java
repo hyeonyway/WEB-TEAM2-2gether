@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
@@ -85,6 +86,34 @@ class AuctionSseContractTest {
         assertThat(manager.connectionCount()).isZero();
         verify(emitter).complete();
         assertThat(registry.get("dbidding.auction.sse.send.failures").counter().count()).isEqualTo(1);
+    }
+
+    @Test
+    void 연결_등록과_해제에_따라_경매_SSE_연결_Gauge가_변한다() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        var manager = manager(registry);
+        SseEmitter emitter = mock(SseEmitter.class);
+        final Runnable[] onCompletion = new Runnable[1];
+        doAnswer(invocation -> {
+            onCompletion[0] = invocation.getArgument(0);
+            return null;
+        }).when(emitter).onCompletion(any(Runnable.class));
+
+        manager.register(emitter);
+
+        assertThat(registry.get("dbidding.sse.connections").tag("stream", "auction").gauge().value()).isEqualTo(1);
+        onCompletion[0].run();
+        assertThat(registry.get("dbidding.sse.connections").tag("stream", "auction").gauge().value()).isZero();
+    }
+
+    @Test
+    void 경매_SSE_연결수립_완료시간을_기록한다() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        var manager = manager(registry);
+
+        manager.register(mock(SseEmitter.class));
+
+        assertThat(registry.get("dbidding.sse.connect.duration").tag("stream", "auction").timer().count()).isEqualTo(1);
     }
 
     @Test
