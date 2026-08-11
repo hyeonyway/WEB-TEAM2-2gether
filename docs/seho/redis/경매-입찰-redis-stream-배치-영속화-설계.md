@@ -1,5 +1,29 @@
 # Redis Stream 기반 경매 입찰 단건 영속화
 
+> **현재 구현 기준 (2026-08-11, #368):** 아래의 `재시도와 DLQ` 절은 이전 설계 기록이다. 현재 consumer는
+> DLQ·retry counter·전역 Redis pause를 사용하지 않는다. Stream entry를 먼저 MySQL
+> `auction_bid_event_inbox`에 기록하고, projection 성공 시 `PROCESSED`, 실패 시 `ERROR`로 상태를
+> 전이한다. `ERROR`에는 `failure_message`에 예외 타입과 메시지를 저장하고 최초 오류는 ERROR 로그로
+> Slack appender에 전달한다. 첫 오류 뒤 도착하는 entry도 삭제하거나 Redis에 대기시키지 않고 DB에
+> `PENDING`으로 기록한 후 ACK/XDEL한다. 따라서 오류·후속 대기 이벤트의 복구 기준은 DB inbox다.
+>
+> consumer 실행도 `@Scheduled(fixedDelay=100ms)` polling이 아니라 lifecycle-managed virtual-thread
+> worker의 `XREADGROUP ... BLOCK` 반복이다. Redis가 새 메시지 도착 시 blocking read를 깨우며, DB
+> 수신 기록 자체에 실패한 entry만 ACK하지 않아 PEL/XCLAIM으로 재시도한다.
+
+## 현재 DB inbox 상태 모델
+
+| 상태 | 저장 시점 | 의미 |
+| --- | --- | --- |
+| `PENDING` | Stream 수신 직후 | projection 전이거나, 선행 `ERROR` 때문에 보류된 이벤트 |
+| `PROCESSED` | projection DB 트랜잭션 커밋 후 | 지갑·입찰·경매 projection까지 반영 완료 |
+| `ERROR` | projection 또는 계약 파싱 실패 후 | 해당 entry의 실패 원인은 `failure_message`로 확인 |
+
+`auction_bid_event_inbox`는 `stream_id` UNIQUE, `event_type`, `schema_version`, `payload`, `occurred_at`,
+`projection_status`, `failure_message`, `processed_at`을 보관한다. 오류 이벤트도 수신해야 하므로
+`auction_id`에 외래 키를 두지 않는다. 운영 시에는 `ERROR` 행과 그 뒤의 `PENDING` 행을 DB에서 조회해
+원인을 수정한 뒤 projection을 복구한다.
+
 ## 목표
 
 Redis Lua Script가 원자적으로 승인한 충전·입찰·지갑 hold/release/capture를 하나의 Redis Stream에
