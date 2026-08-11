@@ -140,16 +140,19 @@ public class PerConnectionAuctionSseSendDispatcher implements AuctionSseSendDisp
 `heartbeat()`는 이번 세분화 대상이 아니다(이슈 할 일에도 없음) — executor 자체가
 프로필에 따라 가상 스레드로 바뀌는 이득만 그대로 받는다.
 
-## 열린 질문 (구현 착수 전 확인 필요)
+## 열린 질문
 
 1. **서킷브레이커용 상한**: 가상 스레드는 무제한이라, 버그/폭주 대비 상한을 별도로
    둘지(예: `Semaphore`) — 이슈 본문은 "권장"만 하고 구체적 값/구현이 없다. 이번 PR
-   범위에 넣을지, 넣는다면 상한 값을 뭘로 할지 정해야 한다.
+   범위에 넣을지, 넣는다면 상한 값을 뭘로 할지 정해야 한다. **핵심 구현(executor/
+   디스패처 분기) 완료 후 결정** — 실제 코드 모양을 보고 판단.
 2. **관찰성 대체**: `CountingCallerRunsPolicy`가 남기던 `event=...executor.saturated`
    로그가 `sse-virtual-threads` 프로필에서는 없어진다. 대체 지표(활성 가상 스레드 수,
-   세마포어 대기 등)를 이번 PR에서 넣을지 후속으로 미룰지.
-3. **k6 부하 테스트 범위**: 이슈 할 일에 "세분화 전/후 비교 실측"이 있는데, 이번 PR에
-   포함할지 별도 검증 단계로 뺄지. (추천: 코드+테스트까지 이번 PR, k6 비교는 후속)
+   세마포어 대기 등)를 이번 PR에서 넣을지 후속으로 미룰지. **핵심 구현 완료 후 결정**
+   (1번 결론과 맞물림 — 세마포어를 넣으면 그 대기 지표가 곧 대체 관찰성이 될 수 있음).
+
+k6 부하 테스트(세분화 전/후 실측)는 **이번 PR 범위에서 제외**한다. 코드 변경과
+테스트까지만 이번 PR에서 다루고, 실측은 후속 별도 작업으로 뺀다.
 
 ## 작업 항목
 
@@ -163,14 +166,13 @@ public class PerConnectionAuctionSseSendDispatcher implements AuctionSseSendDisp
 - [ ] `AuctionSseSendDispatcher` 인터페이스 + `Synchronous`/`PerConnection` 구현체 추가
 - [ ] `AuctionSseConnectionManager.broadcast()`의 `emitters.forEach`가 `sendDispatcher`
       경유하도록 변경
-- [ ] 위 열린 질문 1~3 결론 반영
+- [ ] 위 열린 질문 1~2 결론 반영(핵심 구현 완료 후)
 - [ ] 기존 테스트 갱신: `NotificationExecutorConfigTest`(fanout 포화 테스트는 기본
       프로필에서만 유효 — 프로필별 분기 또는 조건부 처리 필요),
       `AuctionSseExecutorConfigTest`, `LocalNotificationPushPublisherAsyncWiringVerifyTest`
 - [ ] 신규 프로필 전환 테스트: `sse-virtual-threads` on/off 시 각 인터페이스에 정확히
       하나의 구현체만 등록되는지 `ApplicationContextRunner` 기반 테스트
       (`NotificationPushPublisherProfileTest` 패턴 참고)
-- [ ] (열린 질문 3의 결론에 따라) k6 부하 테스트로 세분화 전/후 꼬리 지연·격리 개선 실측
 
 ## 범위 밖
 
@@ -179,5 +181,6 @@ public class PerConnectionAuctionSseSendDispatcher implements AuctionSseSendDisp
 - 기본(`!sse-virtual-threads`) 프로필의 풀 사이징(core/max/queue capacity) 재산정 —
   baseline 성격을 유지하기 위해 오늘 값 그대로 둔다.
 - `heartbeat()`(양쪽)의 추가 세분화 — 이슈 할 일에 없음.
+- k6 부하 테스트(세분화 전/후 실측) — 후속 별도 작업으로 뺀다.
 
 > 이 문서는 Claude의 도움을 받아 작성하였습니다.
