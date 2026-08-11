@@ -2,6 +2,9 @@ package com.dbidding.auction.bid;
 
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.dto.BidResponses;
+import com.dbidding.auction.IdempotencyKeys;
+import com.dbidding.auction.exception.AuctionException;
+import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -28,7 +31,8 @@ public class RedisBidExecutor implements BidExecutor {
     @Override
     public BidExecutionResult execute(BidCommand command) {
         Instant now = clock.instant();
-        String eventId = command.auctionId() + ":" + command.bidderId() + ":" + command.idempotencyKey();
+        String requestHash = IdempotencyKeys.sha256(command.price());
+        String eventId = IdempotencyKeys.sha256(command.auctionId(), command.bidderId(), command.idempotencyKey());
         List<String> keys = List.of(
                 "auction:state:" + command.auctionId(),
                 "wallet:balance:" + command.bidderId(),
@@ -39,12 +43,15 @@ public class RedisBidExecutor implements BidExecutor {
         String raw = redisTemplate.execute(
                 bidAcceptScript,
                 keys,
-                String.valueOf(command.bidderId()), String.valueOf(command.price()), command.idempotencyKey(), eventId,
+                String.valueOf(command.bidderId()), String.valueOf(command.price()), command.idempotencyKey(), requestHash, eventId,
                 String.valueOf(now.toEpochMilli())
         );
         String[] fields = raw.split("\\|", -1);
-        if (!"ACCEPTED".equals(fields[0]) || fields.length != 9) {
-            throw com.dbidding.auction.exception.AuctionException.invalidBidRequest("Redis 입찰 승인에 실패했습니다.");
+        if (!"ACCEPTED".equals(fields[0])) {
+            throw rejection(fields.length > 1 ? fields[1] : "UNKNOWN");
+        }
+        if (fields.length != 9) {
+            throw AuctionException.invalidBidRequest("Redis 입찰 승인 응답이 올바르지 않습니다.");
         }
         BidResponses.BidResult result = new BidResponses.BidResult(
                 new BidResponses.BidDetail(null, Long.valueOf(fields[2]), BidStatus.LEADING, now, fields[1]),
@@ -53,5 +60,15 @@ public class RedisBidExecutor implements BidExecutor {
                 new BidResponses.WalletSummary(Long.parseLong(fields[5]), Long.parseLong(fields[6]))
         );
         return new BidExecutionResult(result, null);
+    }
+
+    private RuntimeException rejection(String reason) {
+        return switch (reason) {
+            case "IDEMPOTENCY_CONFLICT" -> AuctionException.idempotencyConflict();
+            case "INSUFFICIENT_BALANCE" -> new InsufficientAvailableBalanceException();
+            case "SELLER" -> AuctionException.sellerBidForbidden();
+            case "LEADING_BIDDER" -> AuctionException.leadingBidderConflict();
+            default -> AuctionException.invalidBidRequest("Redis 입찰 조건을 만족하지 않습니다.");
+        };
     }
 }

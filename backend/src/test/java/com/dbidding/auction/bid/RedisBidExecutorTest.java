@@ -2,6 +2,7 @@ package com.dbidding.auction.bid;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -38,13 +39,13 @@ class RedisBidExecutorTest {
                 "auction:bid:idempotency:1:2:bid-key", "auction:bid-events:1"
         );
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
-                eq("2"), eq("43000"), eq("bid-key"), eq("1:2:bid-key"), eq("1786320000000")))
-                .thenReturn("ACCEPTED|1:2:bid-key|43000|7|3|57000|43000|1|1775437200000");
+                eq("2"), eq("43000"), eq("bid-key"), anyString(), anyString(), eq("1786320000000")))
+                .thenReturn("ACCEPTED|event-1|43000|7|3|57000|43000|1|1775437200000");
 
         var response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
         assertThat(response.result().bid().id()).isNull();
-        assertThat(response.result().bid().eventId()).isEqualTo("1:2:bid-key");
+        assertThat(response.result().bid().eventId()).isEqualTo("event-1");
         assertThat(response.result().bid().amount()).isEqualTo(43_000L);
         assertThat(response.result().auction().currentPrice()).isEqualTo(43_000L);
         assertThat(response.result().auction().bidCount()).isEqualTo(3);

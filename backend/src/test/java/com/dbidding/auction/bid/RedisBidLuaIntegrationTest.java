@@ -1,6 +1,7 @@
 package com.dbidding.auction.bid;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -77,5 +78,11 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "frozenBalance")).isEqualTo("0");
         assertThat(redisTemplate.opsForHash().get("wallet:hold:1:2", "amount")).isEqualTo("43000");
         assertThat(redisTemplate.opsForStream().size("auction:bid-events:1")).isEqualTo(1L);
+
+        executor.execute(new BidCommand(2, 1, 43_000L, "request-1"));
+
+        assertThat(redisTemplate.opsForStream().size("auction:bid-events:1")).isEqualTo(1L);
+        assertThatThrownBy(() -> executor.execute(new BidCommand(2, 1, 46_000L, "request-1")))
+                .hasMessage("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
     }
 }

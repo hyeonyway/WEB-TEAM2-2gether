@@ -2,7 +2,11 @@
 -- ARGV: bidderId, price, idempotencyKey, eventId, nowEpochMillis
 local existing = redis.call('GET', KEYS[4])
 if existing then
-    return existing
+    local separator = string.find(existing, '|')
+    if string.sub(existing, 1, separator - 1) ~= ARGV[4] then
+        return 'REJECTED|IDEMPOTENCY_CONFLICT'
+    end
+    return string.sub(existing, separator + 1)
 end
 
 local status = redis.call('HGET', KEYS[1], 'status')
@@ -17,7 +21,7 @@ local price = tonumber(ARGV[2])
 if status ~= 'OPEN' then return 'REJECTED|NOT_OPEN' end
 if sellerId == ARGV[1] then return 'REJECTED|SELLER' end
 if highestBidderId == ARGV[1] then return 'REJECTED|LEADING_BIDDER' end
-if closeTime and tonumber(ARGV[5]) >= closeTime then return 'REJECTED|CLOSED' end
+if closeTime and tonumber(ARGV[6]) >= closeTime then return 'REJECTED|CLOSED' end
 if price < currentPrice + bidIncrement then return 'REJECTED|LOW_PRICE' end
 
 local available = tonumber(redis.call('HGET', KEYS[2], 'availableBalance') or '0')
@@ -44,12 +48,12 @@ local bidCount = redis.call('HINCRBY', KEYS[1], 'bidCount', 1)
 redis.call('HSET', KEYS[1], 'currentPrice', price, 'highestBidderId', ARGV[1], 'highestHoldAmount', price)
 
 redis.call('XADD', KEYS[5], '*',
-    'type', 'BidAccepted', 'eventId', ARGV[4], 'auctionId', string.match(KEYS[1], 'auction:state:(.+)'),
+    'type', 'BidAccepted', 'eventId', ARGV[5], 'auctionId', string.match(KEYS[1], 'auction:state:(.+)'),
     'sequence', sequence, 'bidderId', ARGV[1], 'previousBidderId', previousBidderId,
     'bidPrice', price, 'walletVersion', bidderWalletVersion, 'availableBalance', newAvailable,
-    'frozenBalance', newFrozen, 'occurredAt', ARGV[5])
+    'frozenBalance', newFrozen, 'occurredAt', ARGV[6])
 
-local result = 'ACCEPTED|' .. ARGV[4] .. '|' .. price .. '|' .. sequence .. '|' .. bidCount
+local result = 'ACCEPTED|' .. ARGV[5] .. '|' .. price .. '|' .. sequence .. '|' .. bidCount
     .. '|' .. newAvailable .. '|' .. newFrozen .. '|' .. bidderWalletVersion .. '|' .. closeTime
-redis.call('SET', KEYS[4], result, 'EX', 86400)
+redis.call('SET', KEYS[4], ARGV[4] .. '|' .. result, 'EX', 86400)
 return result
