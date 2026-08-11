@@ -1,18 +1,17 @@
+// SSE 연결 없이 입찰/조회 HTTP 부하만 걸어서, SSE 팬아웃 비용을 뺀
+// "순수 입찰 처리 자체"의 한계를 격리해서 본다. pure-throughput.js와
+// QPS 계단·트래픽 구성비·경매 풀은 동일하게 맞춰서 SSE 유무만 변수로 통제한다.
 import http from 'k6/http';
-import sse from 'k6/x/sse';
-import {check, sleep} from 'k6';
+import {check} from 'k6';
 import {Counter, Rate} from 'k6/metrics';
 
 const baseUrl = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
-const sseVUs = sseTier(__ENV.SSE_VUS, 250);
+// HOT_AUCTION_ID를 지정하면 bidContextRead/bidWrite가 이 경매 하나에만 몰린다
+// (같은 행에 대한 순수 락 경합 한계 측정용). 안 주면 기존처럼 풀 전체에 분산.
+const hotAuctionId = positiveIntOrNull(__ENV.HOT_AUCTION_ID);
 const stageDuration = __ENV.STAGE_DURATION || '2m';
-// QPS_STAGES로 재현할 계단 구간만 골라 돌릴 수 있다(예: QPS_STAGES=200,300,400).
-// 지정 안 하면 기본 전체 계단(50~400)을 돈다.
 const qpsStages = qpsStageTargets(__ENV.QPS_STAGES).map(rate => ({target: rate, duration: stageDuration}));
-const sseRampUp = __ENV.SSE_RAMP_UP || '30s';
-const sseDuration = __ENV.SSE_DURATION || totalDuration();
-const mainStartTime = __ENV.MAIN_START_TIME || addDurations(sseRampUp, '5s');
-const userCount = positiveInt(__ENV.LOAD_TEST_USER_COUNT, sseVUs);
+const userCount = positiveInt(__ENV.LOAD_TEST_USER_COUNT, 500);
 const loginBatchSize = positiveInt(__ENV.LOGIN_BATCH_SIZE, 25);
 const preAllocatedVUs = positiveInt(__ENV.PRE_ALLOCATED_VUS, 200);
 const maxVUs = positiveInt(__ENV.MAX_VUS, 1000);
@@ -20,24 +19,12 @@ const resultFile = __ENV.K6_RESULT_FILE;
 
 const bidServerError = new Rate('bid_server_error');
 const bidPolicyRejected = new Counter('bid_policy_rejected');
-const sseAuctionConnectSuccess = new Rate('sse_auction_connect_success');
-const sseNotificationConnectSuccess = new Rate('sse_notification_connect_success');
 
 export const options = {
   setupTimeout: __ENV.SETUP_TIMEOUT || '15m',
   batchPerHost: loginBatchSize,
   summaryTrendStats: ['avg', 'min', 'med', 'p(95)', 'p(99)', 'max'],
   scenarios: {
-    auctionSse: {
-      executor: 'ramping-vus', exec: 'auctionSse', startVUs: 0,
-      stages: [{target: sseVUs, duration: sseRampUp}, {target: sseVUs, duration: sseDuration}],
-      gracefulRampDown: '5s',
-    },
-    notificationSse: {
-      executor: 'ramping-vus', exec: 'notificationSse', startVUs: 0,
-      stages: [{target: sseVUs, duration: sseRampUp}, {target: sseVUs, duration: sseDuration}],
-      gracefulRampDown: '5s',
-    },
     bidContextReads: arrivalScenario('bidContextRead', 0.4),
     bidWrites: arrivalScenario('bidWrite', 0.2),
     generalReads: arrivalScenario('generalRead', 0.4),
@@ -49,12 +36,8 @@ export const options = {
     'bid_server_error{scenario:bidWrites}': ['rate<0.01'],
     'http_req_duration{name:GET /api/auctions/:id/bid-context,scenario:bidContextReads}': ['p(95)<200', 'p(99)<350'],
     'http_req_duration{name:POST /api/auctions/:id/bids,status:201}': ['p(95)<800', 'p(99)<1000'],
-    'http_req_duration{name:POST /api/auctions/:id/bids,status:400}': ['p(95)<400', 'p(99)<600'],
-    'http_req_duration{name:POST /api/auctions/:id/bids,status:409}': ['p(95)<400', 'p(99)<600'],
     'http_req_duration{name:GET /api/auctions,scenario:generalReads}': ['p(95)<300', 'p(99)<600'],
     'http_req_duration{name:GET /api/auctions/:id,scenario:generalReads}': ['p(95)<300', 'p(99)<600'],
-    'sse_auction_connect_success': ['rate>0.99'],
-    'sse_notification_connect_success': ['rate>0.99'],
   },
 };
 
@@ -65,34 +48,8 @@ export function setup() {
   return {tokens, auctions};
 }
 
-export function auctionSse() {
-  sse.open(`${baseUrl}/api/auctions/stream`, {headers: {Accept: 'text/event-stream'}, tags: {name: 'GET /api/auctions/stream'}}, client => {
-    client.on('open', () => sseAuctionConnectSuccess.add(true));
-    client.on('error', () => sseAuctionConnectSuccess.add(false));
-  });
-}
-
-export function notificationSse(data) {
-  const token = data.tokens[(__VU - 1) % data.tokens.length];
-  const ticketResponse = http.post(`${baseUrl}/api/sse/tickets`, null, {
-    headers: {Authorization: `Bearer ${token}`},
-    responseCallback: http.expectedStatuses(200),
-    tags: {name: 'POST /api/sse/tickets'},
-  });
-  const ticket = ticketResponse.status === 200 ? ticketResponse.json('ticket') : null;
-  if (typeof ticket !== 'string') {
-    sseNotificationConnectSuccess.add(false);
-    return;
-  }
-  const userId = 910001 + ((__VU - 1) % data.tokens.length);
-  sse.open(`${baseUrl}/api/users/${userId}/notifications/stream?ticket=${encodeURIComponent(ticket)}`, {headers: {Accept: 'text/event-stream'}, tags: {name: 'GET /api/users/:userId/notifications/stream'}}, client => {
-    client.on('open', () => sseNotificationConnectSuccess.add(true));
-    client.on('error', () => sseNotificationConnectSuccess.add(false));
-  });
-}
-
 export function bidContextRead(data) {
-  const auction = randomAuction(data.auctions);
+  const auction = targetAuction(data.auctions);
   http.get(`${baseUrl}/api/auctions/${auction.id}/bid-context`, {
     headers: authorization(data.tokens),
     responseCallback: http.expectedStatuses(200),
@@ -101,14 +58,12 @@ export function bidContextRead(data) {
 }
 
 export function bidWrite(data) {
-  const auction = randomAuction(data.auctions);
+  const auction = targetAuction(data.auctions);
   const headers = authorization(data.tokens);
-  // setup() 때 잡아둔 minimumBid는 테스트 도중 다른 VU들이 계속 입찰하면서 바로 stale해진다.
-  // 매번 최신 minimum_bid를 다시 조회해야 정책적 거부(400)에 다 튕기지 않는다.
   const context = http.get(`${baseUrl}/api/auctions/${auction.id}/bid-context`, {
     headers,
     responseCallback: http.expectedStatuses(200),
-    tags: {name: 'GET /api/auctions/:id/bid-context', scenario: 'bidWrites'},
+    tags: {name: 'GET /api/auctions/:id/bid-context'},
   });
   if (context.status !== 200) { bidServerError.add(context.status >= 500); return; }
   const price = Number(context.json('minimum_bid'));
@@ -136,8 +91,8 @@ export function generalRead(data) {
 export function handleSummary(data) {
   const result = {
     generatedAt: new Date().toISOString(),
-    scenario: 'pure-throughput',
-    configuration: {sseVUs, totalSseConnections: sseVUs * 2, qpsStages: qpsStages.map(stage => stage.target), stageDuration},
+    scenario: 'bid-only-load (SSE 없음)',
+    configuration: {qpsStages: qpsStages.map(stage => stage.target), stageDuration, hotAuctionId},
     ...data,
   };
   return resultFile ? {[resultFile]: JSON.stringify(result, null, 2), stdout: summaryText(data)} : {stdout: summaryText(data)};
@@ -145,19 +100,19 @@ export function handleSummary(data) {
 
 function arrivalScenario(exec, share) {
   return {
-    executor: 'ramping-arrival-rate', exec, startTime: mainStartTime, startRate: Math.round(qpsStages[0].target * share), timeUnit: '1s',
+    executor: 'ramping-arrival-rate', exec, startRate: Math.round(qpsStages[0].target * share), timeUnit: '1s',
     stages: qpsStages.map(stage => ({target: Math.round(stage.target * share), duration: stage.duration})),
     preAllocatedVUs, maxVUs, gracefulStop: '10s',
   };
 }
 
 function loadOpenAuctions(token) {
-  const configured = csv(__ENV.AUCTION_IDS).map(Number).filter(Number.isInteger).map(id => ({id, minimumBid: positiveInt(__ENV.DEFAULT_BID_PRICE, 1000000)}));
+  const configured = csv(__ENV.AUCTION_IDS).map(Number).filter(Number.isInteger).map(id => ({id}));
   if (configured.length > 0) return configured;
   const response = http.get(`${baseUrl}/api/auctions?size=100`, {headers: {Authorization: `Bearer ${token}`}, tags: {name: 'GET /api/auctions (setup)'}});
   if (response.status !== 200) throw new Error(`경매 자동 조회 실패 (status=${response.status})`);
   const content = response.json('content');
-  return Array.isArray(content) ? content.filter(auction => auction.status === 'OPEN' || auction.status === 'ENDING').map(auction => ({id: auction.id, minimumBid: positiveInt(auction.current_price || auction.start_price, 1000000)})) : [];
+  return Array.isArray(content) ? content.filter(auction => auction.status === 'OPEN' || auction.status === 'ENDING').map(auction => ({id: auction.id})) : [];
 }
 
 function login(users) {
@@ -175,15 +130,13 @@ function login(users) {
 function loadTestUsers() { return Array.from({length: userCount}, (_, index) => ({email: `k6-user${String(index + 1).padStart(5, '0')}@dbidding.local`, password: __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!'})); }
 function authorization(tokens) { return {Authorization: `Bearer ${tokens[(__VU - 1) % tokens.length]}`}; }
 function randomAuction(auctions) { return auctions[Math.floor(Math.random() * auctions.length)]; }
-function idempotencyKey(auctionId) { return `k6-throughput-${auctionId}-${__VU}-${__ITER}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
+function targetAuction(auctions) { return hotAuctionId !== null ? {id: hotAuctionId} : randomAuction(auctions); }
+function positiveIntOrNull(value) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; }
+function idempotencyKey(auctionId) { return `k6-bidonly-${auctionId}-${__VU}-${__ITER}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
 function csv(value) { return (value || '').split(',').map(item => item.trim()).filter(Boolean); }
+function positiveInt(value, fallback) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
 function qpsStageTargets(value) {
   const parsed = csv(value).map(Number).filter(n => Number.isFinite(n) && n > 0);
   return parsed.length > 0 ? parsed : [50, 100, 150, 200, 300, 400];
 }
-function positiveInt(value, fallback) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
-function sseTier(value, fallback) { const tier = positiveInt(value, fallback); if (![250, 500, 1000].includes(tier)) throw new Error('SSE_VUS는 250, 500, 1000 중 하나여야 합니다.'); return tier; }
-function totalDuration() { return `${qpsStages.reduce((seconds, stage) => seconds + durationToSeconds(stage.duration), durationToSeconds(sseRampUp) + 10)}s`; }
-function addDurations(first, second) { return `${durationToSeconds(first) + durationToSeconds(second)}s`; }
-function durationToSeconds(value) { const match = String(value).match(/^(\d+)(ms|s|m|h)$/); if (!match) throw new Error(`duration 형식 오류: ${value}`); return Number(match[1]) * ({ms: 0.001, s: 1, m: 60, h: 3600}[match[2]]); }
-function summaryText(data) { const values = data.metrics.http_reqs?.values || {}; return `\n=== PURE THROUGHPUT SUMMARY ===\nHTTP 요청: ${values.count || 0} (${(values.rate || 0).toFixed(2)} req/s)\n`; }
+function summaryText(data) { const values = data.metrics.http_reqs?.values || {}; return `\n=== BID-ONLY (NO SSE) SUMMARY ===\nHTTP 요청: ${values.count || 0} (${(values.rate || 0).toFixed(2)} req/s)\n`; }

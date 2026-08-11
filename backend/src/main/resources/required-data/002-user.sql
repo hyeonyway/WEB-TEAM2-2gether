@@ -5,12 +5,19 @@ SET time_zone = '+00:00';
 USE `dbidding`;
 START TRANSACTION;
 
+-- id=1 원래 비밀번호는 기록이 안 남아있어 100회 기준으로 재계산할 수 없었다
+-- (docs/hyeonmoon/auth/6-password-hash-cost-tuning.md 참고). 데모/k6 환경
+-- (PASSWORD_HASH_ITERATIONS=100)에서 로그인 가능하도록 알려진 비밀번호로
+-- 재설정했다.
+-- Password: Dbidding123!
+-- The hash below is PBKDF2WithHmacSHA256 (100 iterations, 256 bits; demo only),
+-- matching PasswordHasher. Only valid when PASSWORD_HASH_ITERATIONS=100.
 INSERT INTO `users`
   (`id`, `email`, `nickname`, `created_at`, `role`, `status`,
    `encrypted_password`, `salt`)
 VALUES
   (1, 'dbidding@dbidding.com', '디비딩', NOW(6), 'USER', 'ACTIVE',
-   '6bda87b448c683cc4790891f008a344146db8cf78420b56b16263b307f7a46b8',
+   '180cd1dc8f210c0407949401ebd334b6a95b24dd5d4dcda1643487be90cf9d6f',
    '6462696464696e672d757365722d3031')
 ON DUPLICATE KEY UPDATE
   `email` = VALUES(`email`),

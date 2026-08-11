@@ -4,10 +4,19 @@ import {check, sleep} from 'k6';
 import {Counter, Rate} from 'k6/metrics';
 
 const baseUrl = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
-const sseUsers = exactlyOneThousand(__ENV.SSE_USERS);
+// 기본치는 6-capacity-baseline-findings.md에서 확인한 이 인스턴스(t4g.micro,
+// vCPU 2개)의 안전 운영선(SSE 500연결 + 전체 QPS 100~150 부근)을 기준으로
+// 잡았다. 원래 설계(1000명 고정, hotAuctionRate=30)는 SSE 연결 수 자체가
+// QPS와 무관하게 이 박스를 무너뜨리는 걸 확인하기 전 계산이라 그대로 못 쓴다.
+// 필요하면 SSE_USERS/HOT_AUCTION_RATE/COLD_AUCTION_RATE_PER_AUCTION로 올려서
+// 어디서 다시 깨지는지 찾는 용도로도 쓸 수 있다.
+const sseUsers = positiveInt(__ENV.SSE_USERS, 500);
 const hotAuctionCount = hotCount(__ENV.HOT_AUCTION_COUNT, 3);
-const hotAuctionRate = positiveInt(__ENV.HOT_AUCTION_RATE, 30);
-const coldAuctionRatePerAuction = positiveNumber(__ENV.COLD_AUCTION_RATE_PER_AUCTION, 0.15);
+// 시도율(hot+cold 합) 60/s 목표 — 매 시도가 GET+POST 쌍이라 실제 HTTP는 ~120 req/s.
+// pure-throughput에서 500conn+200QPS(읽기 위주)는 에러 없이 버틴 걸 감안해
+// 쓰기 위주인 이 시나리오는 그보다 낮게, 원래 안(60 req/s)의 2배로 잡았다.
+const hotAuctionRate = positiveInt(__ENV.HOT_AUCTION_RATE, 14);
+const coldAuctionRatePerAuction = positiveNumber(__ENV.COLD_AUCTION_RATE_PER_AUCTION, 0.09);
 // k6 constant-arrival-rate는 정수 요청률만 받으므로, 비핫 경매 합산 목표를 가장 가까운 정수로 맞춘다.
 const coldAuctionRate = Math.round((200 - hotAuctionCount) * coldAuctionRatePerAuction);
 const duration = __ENV.DURATION || '5m';
@@ -160,7 +169,6 @@ function login(users) {
   return tokens;
 }
 function loadTestUsers() { return Array.from({length: sseUsers}, (_, index) => ({email: `k6-user${String(index + 1).padStart(5, '0')}@dbidding.local`, password: __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!'})); }
-function exactlyOneThousand(value) { const users = positiveInt(value, 1000); if (users !== 1000) throw new Error('SSE_USERS는 실사용 패턴 기준인 1000명이어야 합니다.'); return users; }
 function hotCount(value, fallback) { const count = positiveInt(value, fallback); if (![2, 3].includes(count)) throw new Error('HOT_AUCTION_COUNT는 2 또는 3이어야 합니다.'); return count; }
 function positiveInt(value, fallback) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
 function positiveNumber(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
