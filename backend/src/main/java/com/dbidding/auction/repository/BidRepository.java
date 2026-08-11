@@ -39,7 +39,7 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
             Collection<BidStatus> statuses
     );
 
-    Optional<Bid> findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(Integer auctionId, Integer bidderId);
+    Optional<Bid> findFirstByAuctionIdAndBidderIdOrderByCreatedAtDescIdDesc(Integer auctionId, Integer bidderId);
 
     Optional<Bid> findFirstByBidderIdAndAuctionIdAndIdempotencyKey(
             Integer bidderId,
@@ -49,7 +49,7 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     Page<Bid> findByAuctionIdOrderByCreatedAtDescIdDesc(Integer auctionId, Pageable pageable);
 
-    List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDesc(Collection<Integer> auctionIds, Integer bidderId);
+    List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDescIdDesc(Collection<Integer> auctionIds, Integer bidderId);
 
     List<Bid> findByBidderIdOrderByCreatedAtDescIdDesc(Integer bidderId);
 }
