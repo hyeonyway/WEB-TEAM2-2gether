@@ -92,6 +92,7 @@ DTO를 두지 않는다. 외부 API와 DB FK에서는 기존 계약인 `userId`�
 | 13 | 완료 | [Auth 트랜잭션 범위 축소](account/2-auth-transaction-scope.md) | PBKDF2 구간의 DB 커넥션 점유 제거 |
 | 14 | 대기 | [SSE 아키텍처](realtime/1-sse-architecture.md) | 개인화·공개 스트림 연결 |
 | 15 | **다음 백엔드** | [배송지 CRUD](user/1-address-crud.md) | 로그인 사용자 배송지 관리 |
+| 16 | 대기 | [인증 성능 개선 방향](auth/6-password-hash-cost-tuning.md) | PBKDF2 비용 임시 완화(데모용) 및 복원 계획 |
 
 문서 번호는 도메인 안의 책임 순서를 나타낸다. 도메인 사이의 실제 구현은
 Auth 1 → Wallet 1·2 → Auth 2·3·4·5 → Wallet 3·4·5 → Account 통합 → Auth
