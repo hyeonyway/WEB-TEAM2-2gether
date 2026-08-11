@@ -89,6 +89,15 @@ public class PointRecord {
 		);
 	}
 
+	public static PointRecord projected(
+		Integer walletId, Integer auctionId, long amount, long balance,
+		PointTransactionType transactionType, String idempotencyKey, UUID eventId
+	) {
+		PointRecord record = new PointRecord(walletId, auctionId, amount, balance, transactionType, idempotencyKey);
+		record.eventId = eventId;
+		return record;
+	}
+
 	public static PointRecord auctionCapture(Integer walletId, Integer auctionId, long amount, long balance) {
 		if (auctionId == null) {
 			throw new IllegalArgumentException("Auction ID cannot be null");

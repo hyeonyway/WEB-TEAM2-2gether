@@ -72,6 +72,23 @@ public class WalletHold {
 		return new WalletHold(walletId, auctionId, amount);
 	}
 
+	public static WalletHold projected(Integer walletId, Integer auctionId, long amount, HoldStatus status, long version, UUID eventId) {
+		WalletHold hold = new WalletHold(walletId, auctionId, Math.max(1L, amount));
+		hold.amount = amount;
+		hold.status = status;
+		hold.projectionVersion = version;
+		hold.eventId = eventId;
+		return hold;
+	}
+
+	public void applyProjection(long amount, HoldStatus status, long version, UUID eventId) {
+		if (version <= projectionVersion) return;
+		this.amount = amount;
+		this.status = status;
+		this.projectionVersion = version;
+		this.eventId = eventId;
+	}
+
 	public boolean isHeld() {
 		return status == HoldStatus.HELD;
 	}
