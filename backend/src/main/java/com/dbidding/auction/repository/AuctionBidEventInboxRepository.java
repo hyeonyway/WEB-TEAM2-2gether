@@ -1,6 +1,7 @@
 package com.dbidding.auction.repository;
 
 import com.dbidding.auction.domain.AuctionBidEventInbox;
+import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -10,4 +11,6 @@ public interface AuctionBidEventInboxRepository extends JpaRepository<AuctionBid
     Optional<AuctionBidEventInbox> findByStreamId(String streamId);
 
     List<AuctionBidEventInbox> findByStreamIdIn(Collection<String> streamIds);
+
+    boolean existsByProjectionStatus(AuctionBidEventProjectionStatus projectionStatus);
 }

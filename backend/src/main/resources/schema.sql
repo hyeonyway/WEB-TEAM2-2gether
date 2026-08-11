@@ -302,14 +302,15 @@ CREATE TABLE auction_bid_event_inbox
     schema_version  INT          NOT NULL,
     payload         LONGTEXT     NOT NULL,
     occurred_at     TIMESTAMP(6) NOT NULL,
-    processed_at    TIMESTAMP(6) NOT NULL,
+    projection_status VARCHAR(16) NOT NULL,
+    failure_message TEXT,
+    processed_at    TIMESTAMP(6),
 
     CONSTRAINT pk_auction_bid_event_inbox PRIMARY KEY (id),
     CONSTRAINT uk_auction_bid_event_inbox_stream_id UNIQUE (stream_id),
-    CONSTRAINT fk_auction_bid_event_inbox_auction
-        FOREIGN KEY (auction_id) REFERENCES auctions (id),
 
-    INDEX idx_auction_bid_event_inbox_auction_id (auction_id)
+    INDEX idx_auction_bid_event_inbox_auction_id (auction_id),
+    INDEX idx_auction_bid_event_inbox_projection_status (projection_status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

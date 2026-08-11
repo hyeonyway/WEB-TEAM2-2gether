@@ -1,12 +1,35 @@
 # Redis Stream 기반 경매 입찰 단건 영속화
 
+> **현재 구현 기준 (2026-08-11, #368):** consumer는 DLQ·retry counter·전역 Redis pause를 사용하지 않는다. Stream entry를 먼저 MySQL
+> `auction_bid_event_inbox`에 기록하고, projection 성공 시 `PROCESSED`, 실패 시 `ERROR`로 상태를
+> 전이한다. `ERROR`에는 `failure_message`에 예외 타입과 메시지를 저장하고 최초 오류는 ERROR 로그로
+> Slack appender에 전달한다. 첫 오류 뒤 도착하는 entry도 삭제하거나 Redis에 대기시키지 않고 DB에
+> `PENDING`으로 기록한 후 ACK/XDEL한다. 따라서 오류·후속 대기 이벤트의 복구 기준은 DB inbox다.
+>
+> consumer 실행도 `@Scheduled(fixedDelay=100ms)` polling이 아니라 lifecycle-managed virtual-thread
+> worker의 `XREADGROUP ... BLOCK` 반복이다. Redis가 새 메시지 도착 시 blocking read를 깨우며, DB
+> 수신 기록 자체에 실패한 entry만 ACK하지 않아 PEL/XCLAIM으로 재시도한다.
+
+## 현재 DB inbox 상태 모델
+
+| 상태 | 저장 시점 | 의미 |
+| --- | --- | --- |
+| `PENDING` | Stream 수신 직후 | projection 전이거나, 선행 `ERROR` 때문에 보류된 이벤트 |
+| `PROCESSED` | projection DB 트랜잭션 커밋 후 | 지갑·입찰·경매 projection까지 반영 완료 |
+| `ERROR` | projection 또는 계약 파싱 실패 후 | 해당 entry의 실패 원인은 `failure_message`로 확인 |
+
+`auction_bid_event_inbox`는 `stream_id` UNIQUE, `event_type`, `schema_version`, `payload`, `occurred_at`,
+`projection_status`, `failure_message`, `processed_at`을 보관한다. 오류 이벤트도 수신해야 하므로
+`auction_id`에 외래 키를 두지 않는다. 운영 시에는 `ERROR` 행과 그 뒤의 `PENDING` 행을 DB에서 조회해
+원인을 수정한 뒤 projection을 복구한다.
+
 ## 목표
 
 Redis Lua Script가 원자적으로 승인한 충전·입찰·지갑 hold/release/capture를 하나의 Redis Stream에
 기록하고, `redis` 프로필의 비동기 consumer가 DB의 지갑·입찰 이력·경매 스냅샷으로 영속화한다. Stream 전달은
 at-least-once이므로 DB inbox와 트랜잭션 후 ACK로 중복 반영을 막는다.
 
-이번 범위는 Stream 소비·재시도·DLQ와 기존 DB 지갑·입찰 반영이다. Lua 입찰 검증·HTTP 즉시
+이번 범위는 Stream 소비·DB inbox 상태 관리와 기존 DB 지갑·입찰 반영이다. Lua 입찰 검증·HTTP 즉시
 응답·Redis Pub/Sub SSE 전파는 다른 담당 영역이다. Lua는 Redis 지갑 mirror의 충전·가용 잔액과
 hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존 DB 지갑과 경매 테이블에
 영속화한다.
@@ -16,17 +39,14 @@ hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존
 - 기본 프로필에는 consumer 빈이 없다. `spring.profiles.active=redis`일 때만 실행한다.
 - Stream key: `auction:timeline-events`
 - consumer group: `auction-timeline-persistence`
-- DLQ key: `auction:timeline-events:dlq`
-- retry counter hash: `auction:timeline-events:retry-count`
-- version pause hash: `auction:timeline-events:paused-auctions`
 - consumer lease lock: `auction:timeline-events:consumer-leader-lock`
 - 한 consumer는 `XREADGROUP GROUP auction-timeline-persistence <instance-id> COUNT 1 BLOCK 1000`
-  으로 읽는다. 한 번의 poll은 최대 100건을 연속 처리하지만, **각 entry는 항상 별도 DB
-  트랜잭션과 별도 ACK**를 사용한다. backlog가 있을 때에는 entry 사이에 100ms를 기다리지 않고,
-  한도까지 처리한 뒤에만 poll delay를 적용한다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
+  으로 읽는다. `@Scheduled(100ms)` polling 대신 lifecycle-managed virtual-thread worker가 blocking
+  read를 반복한다. 한 번의 read 뒤 최대 100건을 연속 처리하며, 각 entry는 수신 기록·projection·상태 전이와
+  ACK를 분리된 DB 트랜잭션으로 처리한다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
 - PEL의 30초 이상 유휴 메시지는 pending 조회 뒤 `XCLAIM`으로 회수한다.
 - 여러 애플리케이션 인스턴스가 떠도 Redis lease 락을 획득한 인스턴스만 poll 전체를 실행한다.
-  `poll → DB transaction → ACK`가 끝나면 소유자 token을 비교해 락을 해제한다. 기본 최대 lease는
+  worker 종료 시 소유자 token을 비교해 락을 해제한다. 기본 최대 lease는
   5분(`AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR`)이다. Consumer 실행 중에는 별도 virtual-thread
   heartbeat가 owner token을 비교한 뒤 TTL을 1/3 주기마다 연장한다. 갱신 실패나 owner 상실을 감지하면
   해당 인스턴스는 다음 entry를 처리하지 않는다.
@@ -98,10 +118,10 @@ camelCase 문자열이고 시각은 UTC ISO-8601 `Instant`다.
 
 ## DB 영속화와 멱등성
 
-`auction_bid_event_inbox`는 이름과 달리 지갑·입찰 타임라인 전체의 inbox이자 archive이며 `stream_id`
-UNIQUE 제약을 가진다. 각 행은 `event_type`, `schema_version`, 원본 필드 직렬화 값(`payload`),
-`occurred_at`, `processed_at`을 함께 보관한다. consumer는 각 entry를 처리할 때 archive를 같은 DB
-트랜잭션에 기록한다. 이미 존재하면 DB 변경 없이 성공으로 간주하고 ACK한다.
+`auction_bid_event_inbox`는 지갑·입찰 타임라인 전체의 inbox이자 archive이며 `stream_id` UNIQUE 제약을
+가진다. 각 행은 `event_type`, `schema_version`, 원본 필드 직렬화 값(`payload`), `occurred_at`,
+`projection_status`, `failure_message`, `processed_at`을 함께 보관한다. consumer는 먼저 `PENDING`으로
+수신 기록을 커밋하고, projection 성공 뒤에만 `PROCESSED`로 전이한다.
 
 `auctions.last_bid_event_version`은 경매별 마지막 반영 버전이다. Stream ID 중복 방지와는
 다른 역할을 한다. Consumer 재시도 또는 다중 consumer의 처리 타이밍 때문에 version 11이
@@ -113,23 +133,25 @@ DB에 먼저 반영된 뒤 version 10이 늦게 도착할 수 있다. 이때 `10
 | `auction_bid_event_inbox.stream_id` | 같은 Redis Stream 메시지의 중복 DB 반영 방지 |
 | `auctions.last_bid_event_version` | 같은 경매의 오래된 상태 이벤트가 최신 상태를 덮는 것 방지 |
 
-새 entry는 한 DB 트랜잭션에서 다음 순서로 처리한다.
+새 entry는 다음 순서로 처리한다.
 
-1. 기존 inbox에서 동일 Stream ID를 조회해 이미 처리된 entry면 DB 변경 없이 끝낸다.
-2. 대상 auction을 비관적 잠금으로 조회하고 현재 LEADING bid를 조회한다.
-3. `auctionVersion`이 마지막 적용 버전보다 작거나 같으면 inbox만 유지하고 끝낸다.
-4. 새 입찰자 DB wallet에 `hold`하고, 이전 최고 입찰자의 DB wallet hold를 `release`한다.
+1. inbox에 `PENDING` 행을 별도 트랜잭션으로 저장한다. 파싱 실패 이벤트도 원본 payload와 함께 저장한다.
+2. 기존 `ERROR`가 있으면 현재 entry는 `PENDING`으로만 보관하고 ACK/XDEL한다.
+3. 오류가 없을 때 대상 auction을 비관적 잠금으로 조회하고 현재 LEADING bid를 조회한다.
+4. `auctionVersion`이 마지막 적용 버전보다 작거나 같으면 `PROCESSED`로 끝낸다.
+5. 새 입찰자 DB wallet에 `hold`하고, 이전 최고 입찰자의 DB wallet hold를 `release`한다.
    두 지갑을 함께 처리할 때는 사용자 ID 오름차순으로 호출해 기존 락 순서를 유지한다.
-5. 현재 LEADING bid를 OUTBID로 전환하고 새 `Bid`를 LEADING으로 저장한다.
-6. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신하고 inbox와 새 bid를 저장한다.
+6. 현재 LEADING bid를 OUTBID로 전환하고 새 `Bid`를 LEADING으로 저장한다.
+7. 이벤트 스냅샷으로 현재가, 입찰 수, 마감 시각, 상태, 마지막 적용 버전을 갱신한다.
+8. projection 커밋 후 inbox를 `PROCESSED`로 전이한다.
 
 `auction.buy-now.v1`은 새 입찰자의 hold 직후 같은 트랜잭션에서 `capture`한다. 따라서
 이전 최고 입찰자 release, 낙찰자 hold/capture, bid WON, auction ENDED가 DB에서 함께
 커밋된다. 또한 기존 즉시 낙찰 경로와 동일하게 `orders`를 생성하고 `AuctionClosedEvent`를
-발행한다. 실패하면 Stream entry는 ACK되지 않아 재시도한다.
+발행한다. 실패하면 projection 트랜잭션은 롤백하고 inbox는 `ERROR`와 `failure_message`로 전이한다.
 
-커밋에 성공한 entry만 ACK한다. DB 커밋 전 프로세스가 종료되어도 PEL 재전달과 inbox
-UNIQUE 제약이 재처리를 안전하게 만든다.
+수신 기록을 DB에 남긴 entry는 projection 성공·실패와 관계없이 ACK한다. DB 수신 기록 자체가 실패한 경우만
+ACK하지 않아 PEL 재전달과 inbox UNIQUE 제약으로 재시도한다.
 
 ACK가 성공한 뒤에는 `XDEL`로 원본 Stream entry를 삭제한다. 따라서 Redis Stream은 **DB 반영 전
 안전 버퍼**이고, DB archive가 영구 감사·복구 근거가 된다. `XACK`와 `XDEL` 사이에 장애가 나면
@@ -174,33 +196,23 @@ Consumer는 Lua 승인 이벤트라도 DB 반영 전에 기존 입찰 규칙을 
   입찰 발생 시각은 기존 마감 시각보다 이전이고, 일반 입찰은 마감 시각을 앞당길 수 없다.
 - 즉시 낙찰은 `buyNowPrice`와 동일한 승인 가격, `ENDED` 상태, 그리고 승인 시각과 같은 종료 시각이어야 한다.
 
-검증 또는 DB wallet hold/release/capture가 실패하면 같은 DB 트랜잭션의 inbox·bid·auction 변경도
-롤백되고 Redis ACK를 보내지 않는다.
+검증 또는 DB wallet hold/release/capture가 실패하면 projection 트랜잭션의 bid·auction·wallet 변경은
+롤백된다. 수신 기록은 별도 트랜잭션이므로 inbox에 `ERROR` 및 `failure_message`를 저장한 뒤 Redis ACK/XDEL을
+수행한다.
 
-## 재시도와 DLQ
+## 오류 보존과 복구
 
-읽기·DB·락 오류는 retry counter를 증가시켜 최대 3회 재시도한다. 성공 ACK 후에는 retry
-counter를 제거한다. 재시도 대상 entry가 PEL에 남아 있으면 같은 consumer는 즉시 다시 가져오고,
-다른 consumer가 남긴 PEL은 30초 유휴 뒤에만 가져온다. 가장 오래된 PEL이 존재하는 동안에는 뒤의
-새 entry를 읽지 않는다. 따라서 실패·재시도 중에도 전역 타임라인 순서를 건너뛰지 않는다.
-계약 파싱 오류와 존재하지 않는 경매 같은 업무 오류, 또는 3회 초과
-실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 각 Stream entry는 독립된 DB
-트랜잭션으로 처리하므로, 한 이벤트의 실패가 다른 이벤트의 재시도·DLQ 판단에 영향을 주지 않는다.
+DLQ, retry counter, 전역 Redis pause key는 사용하지 않는다. 정합성·계약 파싱·DB projection 오류가 발생하면
+해당 entry를 inbox의 `ERROR`와 `failure_message`로 보존한 뒤 ACK/XDEL한다. 이후 Stream entry도 계속
+수신해 inbox에 `PENDING`으로 저장한다. 따라서 Redis Stream을 오류 backlog로 사용하지 않고, DB inbox를
+복구 대기열로 사용한다.
 
-버전 단절은 `auction:timeline-events:dlq`에 원본 payload·stream ID·사유를 기록한 뒤 ACK/XDEL한다.
-동시에 `auction:timeline-events:paused`에 문제 이벤트의 Stream ID·경매 ID·버전·사유를 기록하고
-**전역 Stream Consumer를 pause**한다. 지갑까지 포함한 단일 전역 타임라인에서 버전이 누락된 경매를
-건너뛰면 이후 이벤트의 의미도 신뢰할 수 없기 때문이다. 운영자는 DLQ 원본과 DB
-`last_bid_event_version`을 대조해 누락 이벤트를 재발행하거나 DB/Redis context를 복구한 뒤에만 pause key를
-삭제해 재개한다. 임의로 pause를 해제하거나 DLQ 이벤트를 버리면 같은 경매의 후속 상태가 영구 단절될 수 있다.
+운영자는 `ERROR` 행과 후속 `PENDING` 행을 조회해 원인을 수정한 뒤 projection을 재실행한다. 자동 재처리와
+DLQ 재발행은 현재 범위에 없다. 수신 기록 DB 트랜잭션 자체가 실패한 entry만 ACK되지 않고 PEL에 남으며,
+같은 consumer는 즉시·다른 consumer는 30초 유휴 뒤 `XCLAIM`으로 다시 가져온다.
 
-Consumer Group은 분배 기능만 제공하므로, `auction:timeline-events:consumer-leader-lock` Redis
-lease 락을 획득한 인스턴스만 한 번의 poll(DB 반영과 ACK 포함)을 실행한다. 이는 다중 인스턴스의
-동시 DB 잠금과 데드락 가능성을 줄이기 위한 단일 실행 제어다.
-
-- `originalStreamId`, `payload`, `failureType`, `failureMessage`, `failedAt`, `retryCount`
-
-DLQ 발생 시 `auction.bid.stream.dlq` 카운터와 구조화 로그를 남기고 Slack 경고를 보낸다.
+Consumer Group은 분배 기능만 제공하므로 `auction:timeline-events:consumer-leader-lock` lease를 획득한
+인스턴스만 worker를 실행한다. 이는 다중 인스턴스의 동시 DB 잠금과 데드락 가능성을 줄이는 단일 실행 제어다.
 
 ## 처리량과 운영 기준
 
@@ -211,7 +223,7 @@ DLQ 발생 시 `auction.bid.stream.dlq` 카운터와 구조화 로그를 남기�
 
 - `AUCTION_REDIS_BID_MAX_RECORDS_PER_RUN` 기본값은 100이다. 이는 JDBC batch가 아니라 poll당
   연속 단건 처리 상한이다. DB가 느려도 각 이벤트의 원자성·순서·ACK 조건은 바뀌지 않는다.
-- Stream 길이(`XLEN`), group lag, PEL 수(`XPENDING`), DLQ 길이, retry 수, consumer 처리 성공·실패
+- Stream 길이(`XLEN`), group lag, PEL 수(`XPENDING`), inbox의 `ERROR`/`PENDING` 수, consumer 처리 성공·실패
   카운터, Redis `used_memory`를 대시보드와 Slack 알림 대상으로 둔다.
 - Stream은 v1에서 자동 trim하지 않는다. PEL 또는 미처리 entry를 trim하면 정합성 복구 근거를 잃기
   때문이다. 보존·trim은 실제 최대 backlog와 Redis 메모리 데이터를 관찰한 뒤 별도 작업으로 정한다.

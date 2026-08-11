@@ -68,7 +68,8 @@ class AuctionBidStreamPersistenceServiceTest {
 
         service.persist(event("1-0", 1L, 2, null));
 
-        verify(inboxRepository, times(1)).findByStreamId("1-0");
+        // 수신 기록 생성 후 projection 완료 상태로 전이하면서 inbox를 다시 조회한다.
+        verify(inboxRepository, times(2)).findByStreamId("1-0");
         verify(auctionRepository, times(1)).findByIdForUpdate(10);
         verify(bidRepository, times(1)).findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(10, com.dbidding.auction.domain.BidStatus.LEADING);
         verify(inboxRepository, times(1)).save(org.mockito.ArgumentMatchers.any());
