@@ -44,6 +44,16 @@ class BidExecutorProfileTest {
     }
 
     @Test
+    void 다른_운영_프로필만_활성화돼도_기본_DbBidExecutor가_등록된다() {
+        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("local-sse"))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(DbBidExecutor.class);
+                    assertThat(context).doesNotHaveBean(RedisBidExecutor.class);
+                });
+    }
+
+    @Test
     void bid_redis_stream_프로필에서는_RedisBidExecutor만_등록된다() {
         contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("bid-redis-stream"))
                 .run(context -> {
