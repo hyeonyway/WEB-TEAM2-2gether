@@ -4,9 +4,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class BidAcceptedStreamEventTest {
+
+    @Test
+    void 지갑_상태_이벤트는_사후_잔액과_버전을_역직렬화한다() {
+        UUID eventId = UUID.randomUUID();
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-3", Map.ofEntries(
+                Map.entry("schemaVersion", "2"),
+                Map.entry("eventType", "wallet.refunded.v1"),
+                Map.entry("eventId", eventId.toString()),
+                Map.entry("userId", "20"),
+                Map.entry("walletVersion", "8"),
+                Map.entry("availableBalance", "70000"),
+                Map.entry("frozenBalance", "10000"),
+                Map.entry("transactionType", "REFUND"),
+                Map.entry("transactionAmount", "3000"),
+                Map.entry("idempotencyKey", "refund-1"),
+                Map.entry("occurredAt", "2026-08-11T00:00:00Z")
+        ));
+
+        assertThat(event).isInstanceOf(WalletStateChangedStreamEvent.class);
+        WalletStateChangedStreamEvent wallet = (WalletStateChangedStreamEvent) event;
+        assertThat(wallet.eventId()).isEqualTo(eventId);
+        assertThat(wallet.walletVersion()).isEqualTo(8L);
+        assertThat(wallet.availableBalance()).isEqualTo(70_000L);
+        assertThat(wallet.frozenBalance()).isEqualTo(10_000L);
+    }
     @Test
     void 승인된_입찰_stream_계약을_파싱한다() {
         BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from("1720000000000-0", fields());
