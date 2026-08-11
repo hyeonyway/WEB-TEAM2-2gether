@@ -1,6 +1,9 @@
 package com.dbidding.wishlist;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +39,18 @@ public class WishlistService {
         return wishlistRepository.findByCardId(cardId).stream()
                 .map(Wishlist::getUserId)
                 .toList();
+    }
+
+    /**
+     * 여러 카드의 찜 유저를 한 번의 조회로 가져와 cardId별로 그룹핑한다.
+     * (알림 복구 배치가 경매마다 {@link #findUserIdsByCardId}를 호출하는 N+1을 피하기 위함)
+     */
+    public Map<Integer, List<Integer>> groupUserIdsByCardIdIn(Collection<Integer> cardIds) {
+        return wishlistRepository.findByCardIdIn(cardIds).stream()
+                .collect(Collectors.groupingBy(
+                        Wishlist::getCardId,
+                        Collectors.mapping(Wishlist::getUserId, Collectors.toList())
+                ));
     }
 
     public int countWishlists(Integer cardId) {

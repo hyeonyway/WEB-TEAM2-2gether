@@ -1,5 +1,6 @@
 package com.dbidding.wishlist;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,8 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Integer> {
     List<Wishlist> findByUserId(Integer userId);
 
     List<Wishlist> findByCardId(Integer cardId);
+
+    List<Wishlist> findByCardIdIn(Collection<Integer> cardIds);
 
     long countByCardId(Integer cardId);
 
