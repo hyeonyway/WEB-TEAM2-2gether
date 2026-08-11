@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -40,6 +41,9 @@ public class PointRecord {
 
 	@Column(name = "idempotency_key", length = 64)
 	private String idempotencyKey;
+
+	@Column(name = "event_id")
+	private UUID eventId;
 
 	private PointRecord(
 		Integer walletId,
@@ -83,6 +87,15 @@ public class PointRecord {
 			PointTransactionType.REFUND,
 			idempotencyKey
 		);
+	}
+
+	public static PointRecord projected(
+		Integer walletId, Integer auctionId, long amount, long balance,
+		PointTransactionType transactionType, String idempotencyKey, UUID eventId
+	) {
+		PointRecord record = new PointRecord(walletId, auctionId, amount, balance, transactionType, idempotencyKey);
+		record.eventId = eventId;
+		return record;
 	}
 
 	public static PointRecord auctionCapture(Integer walletId, Integer auctionId, long amount, long balance) {

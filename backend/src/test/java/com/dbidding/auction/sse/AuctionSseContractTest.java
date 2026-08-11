@@ -9,9 +9,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.eq;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -24,6 +26,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -71,6 +74,37 @@ class AuctionSseContractTest {
         var json = mapper.readTree(mapper.writeValueAsBytes(bidPayload().withPublishedAt(publishedAt)));
 
         assertThat(json.get("published_at").asText()).isEqualTo("2026-07-30T12:00:00.050Z");
+    }
+
+    @Test
+    void 여러_경매_SSE_연결에는_payload를_한번만_직렬화해_전송한다() throws Exception {
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
+        when(objectMapper.writeValueAsString(any(AuctionStreamPayload.class))).thenReturn("{}");
+        var manager = new AuctionSseConnectionManager(
+                Clock.fixed(now, java.time.ZoneOffset.UTC),
+                new AuctionSseMetrics(new SimpleMeterRegistry()),
+                objectMapper,
+                new SynchronousAuctionSseSendDispatcher());
+        SseEmitter first = mock(SseEmitter.class);
+        SseEmitter second = mock(SseEmitter.class);
+        manager.register(first);
+        manager.register(second);
+
+        AuctionStreamPayload payload = bidPayload();
+        SseEmitter.SseEventBuilder event = mock(SseEmitter.SseEventBuilder.class);
+        when(event.id(any())).thenReturn(event);
+        when(event.name(any())).thenReturn(event);
+        when(event.data(any(), any(MediaType.class))).thenReturn(event);
+
+        try (MockedStatic<SseEmitter> sseEmitter = mockStatic(SseEmitter.class)) {
+            sseEmitter.when(SseEmitter::event).thenReturn(event);
+            manager.broadcast(payload);
+        }
+
+        verify(objectMapper).writeValueAsString(eq(payload.withPublishedAt(now)));
+        verify(event, times(2)).data("{}", MediaType.APPLICATION_JSON);
+        verify(first, times(2)).send(any(SseEmitter.SseEventBuilder.class));
+        verify(second, times(2)).send(any(SseEmitter.SseEventBuilder.class));
     }
 
     @Test
@@ -201,6 +235,11 @@ class AuctionSseContractTest {
     }
 
     private AuctionSseConnectionManager manager(SimpleMeterRegistry registry) {
-        return new AuctionSseConnectionManager(Clock.fixed(now, java.time.ZoneOffset.UTC), new AuctionSseMetrics(registry));
+        return new AuctionSseConnectionManager(
+                Clock.fixed(now, java.time.ZoneOffset.UTC),
+                new AuctionSseMetrics(registry),
+                JsonMapper.builder().addModule(new JavaTimeModule())
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build(),
+                new SynchronousAuctionSseSendDispatcher());
     }
 }

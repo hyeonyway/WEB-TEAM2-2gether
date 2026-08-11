@@ -16,6 +16,8 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     Optional<Bid> findByAuctionIdAndStatus(Integer auctionId, BidStatus status);
 
+    List<Bid> findByAuctionIdInAndStatus(Collection<Integer> auctionIds, BidStatus status);
+
     @Query("select b.auction.id from Bid b where b.status = :status")
     List<Integer> findAuctionIdsByStatus(@Param("status") BidStatus status);
 
@@ -37,7 +39,7 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
             Collection<BidStatus> statuses
     );
 
-    Optional<Bid> findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(Integer auctionId, Integer bidderId);
+    Optional<Bid> findFirstByAuctionIdAndBidderIdOrderByCreatedAtDescIdDesc(Integer auctionId, Integer bidderId);
 
     Optional<Bid> findFirstByBidderIdAndAuctionIdAndIdempotencyKey(
             Integer bidderId,
@@ -47,7 +49,7 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     Page<Bid> findByAuctionIdOrderByCreatedAtDescIdDesc(Integer auctionId, Pageable pageable);
 
-    List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDesc(Collection<Integer> auctionIds, Integer bidderId);
+    List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDescIdDesc(Collection<Integer> auctionIds, Integer bidderId);
 
     List<Bid> findByBidderIdOrderByCreatedAtDescIdDesc(Integer bidderId);
 }

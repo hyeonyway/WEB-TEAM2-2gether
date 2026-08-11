@@ -12,10 +12,26 @@ import org.springframework.data.redis.core.script.RedisScript;
 public class RedisBidLuaConfiguration {
 
     @Bean
-    public RedisScript<String> bidStubScript() {
+    public RedisScript<String> bidAcceptScript() {
         DefaultRedisScript<String> script = new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("lua/bid-stub.lua"));
+        script.setLocation(new ClassPathResource("lua/bid-accept.lua"));
         script.setResultType(String.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<String> walletTransitionScript() {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/wallet-transition.lua"));
+        script.setResultType(String.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<Long> walletBootstrapScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/wallet-bootstrap.lua"));
+        script.setResultType(Long.class);
         return script;
     }
 }

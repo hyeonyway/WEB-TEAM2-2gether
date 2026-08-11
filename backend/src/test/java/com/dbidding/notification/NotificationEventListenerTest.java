@@ -12,6 +12,7 @@ import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.service.CardPriceService;
 import com.dbidding.notification.dto.NotificationResponse;
+import com.dbidding.notification.sse.NotificationPushMessage;
 import com.dbidding.notification.sse.NotificationPushPublisher;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
@@ -64,9 +65,11 @@ class NotificationEventListenerTest {
         verify(notificationService).saveAllIgnoringDuplicates(
                 List.of(1, 2, 3), 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
-        verify(notificationPushPublisher).publish(1, NotificationResponse.from(notification1));
-        verify(notificationPushPublisher).publish(2, NotificationResponse.from(notification2));
-        verify(notificationPushPublisher).publish(3, NotificationResponse.from(notification3));
+        verify(notificationPushPublisher).publish(List.of(
+                new NotificationPushMessage(1, NotificationResponse.from(notification1)),
+                new NotificationPushMessage(2, NotificationResponse.from(notification2)),
+                new NotificationPushMessage(3, NotificationResponse.from(notification3))
+        ));
         verifyNoMoreInteractions(notificationService);
     }
 

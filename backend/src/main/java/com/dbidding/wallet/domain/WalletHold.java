@@ -1,6 +1,7 @@
 package com.dbidding.wallet.domain;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -48,6 +49,12 @@ public class WalletHold {
 	@Column(name = "released_at")
 	private Instant releasedAt;
 
+	@Column(name = "projection_version", nullable = false)
+	private long projectionVersion;
+
+	@Column(name = "event_id")
+	private UUID eventId;
+
 	private WalletHold(Integer walletId, Integer auctionId, long amount) {
 		if (walletId == null || auctionId == null) {
 			throw new IllegalArgumentException("Wallet ID and auction ID cannot be null");
@@ -63,6 +70,23 @@ public class WalletHold {
 
 	public static WalletHold held(Integer walletId, Integer auctionId, long amount) {
 		return new WalletHold(walletId, auctionId, amount);
+	}
+
+	public static WalletHold projected(Integer walletId, Integer auctionId, long amount, HoldStatus status, long version, UUID eventId) {
+		WalletHold hold = new WalletHold(walletId, auctionId, Math.max(1L, amount));
+		hold.amount = amount;
+		hold.status = status;
+		hold.projectionVersion = version;
+		hold.eventId = eventId;
+		return hold;
+	}
+
+	public void applyProjection(long amount, HoldStatus status, long version, UUID eventId) {
+		if (version <= projectionVersion) return;
+		this.amount = amount;
+		this.status = status;
+		this.projectionVersion = version;
+		this.eventId = eventId;
 	}
 
 	public boolean isHeld() {

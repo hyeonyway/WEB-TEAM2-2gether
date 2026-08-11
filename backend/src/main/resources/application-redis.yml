@@ -1,0 +1,24 @@
+spring:
+  data:
+    redis:
+      # XREADGROUP BLOCK(기본 1초)보다 길어야 빈 Stream 대기가 command timeout으로 실패하지 않는다.
+      timeout: ${AUCTION_REDIS_COMMAND_TIMEOUT:2s}
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: ${AUCTION_REDIS_BID_JDBC_BATCH_SIZE:100}
+        order_inserts: true
+        order_updates: true
+
+app:
+  auction:
+    redis-bid:
+      block: ${AUCTION_REDIS_BID_BLOCK:1s}
+      claim-idle: ${AUCTION_REDIS_BID_CLAIM_IDLE:30s}
+      # DLQ 재시도에는 더 이상 사용하지 않지만 기존 프로필 설정과의 호환성을 유지한다.
+      max-retries: ${AUCTION_REDIS_BID_MAX_RETRIES:3}
+      # Consumer Group이 여러 인스턴스에 분산되어도 DB 영속 Consumer는 한 인스턴스만 실행한다.
+      consumer-lock-at-most-for: ${AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR:5m}
+      # 한 번의 blocking read 후 연속 처리할 최대 이벤트 수. 각 이벤트는 별도 DB 트랜잭션과 ACK를 사용한다.
+      max-records-per-run: ${AUCTION_REDIS_BID_MAX_RECORDS_PER_RUN:100}

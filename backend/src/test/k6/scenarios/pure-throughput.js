@@ -6,7 +6,9 @@ import {Counter, Rate} from 'k6/metrics';
 const baseUrl = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 const sseVUs = sseTier(__ENV.SSE_VUS, 250);
 const stageDuration = __ENV.STAGE_DURATION || '2m';
-const qpsStages = [50, 100, 150, 200, 300, 400].map(rate => ({target: rate, duration: stageDuration}));
+// QPS_STAGES로 재현할 계단 구간만 골라 돌릴 수 있다(예: QPS_STAGES=200,300,400).
+// 지정 안 하면 기본 전체 계단(50~400)을 돈다.
+const qpsStages = qpsStageTargets(__ENV.QPS_STAGES).map(rate => ({target: rate, duration: stageDuration}));
 const sseRampUp = __ENV.SSE_RAMP_UP || '30s';
 const sseDuration = __ENV.SSE_DURATION || totalDuration();
 const mainStartTime = __ENV.MAIN_START_TIME || addDurations(sseRampUp, '5s');
@@ -100,8 +102,19 @@ export function bidContextRead(data) {
 
 export function bidWrite(data) {
   const auction = randomAuction(data.auctions);
-  const response = http.post(`${baseUrl}/api/auctions/${auction.id}/bids`, JSON.stringify({price: auction.minimumBid}), {
-    headers: {...authorization(data.tokens), 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey(auction.id)},
+  const headers = authorization(data.tokens);
+  // setup() 때 잡아둔 minimumBid는 테스트 도중 다른 VU들이 계속 입찰하면서 바로 stale해진다.
+  // 매번 최신 minimum_bid를 다시 조회해야 정책적 거부(400)에 다 튕기지 않는다.
+  const context = http.get(`${baseUrl}/api/auctions/${auction.id}/bid-context`, {
+    headers,
+    responseCallback: http.expectedStatuses(200),
+    tags: {name: 'GET /api/auctions/:id/bid-context', scenario: 'bidWrites'},
+  });
+  if (context.status !== 200) { bidServerError.add(context.status >= 500); return; }
+  const price = Number(context.json('minimum_bid'));
+  if (!Number.isSafeInteger(price) || price < 1) return;
+  const response = http.post(`${baseUrl}/api/auctions/${auction.id}/bids`, JSON.stringify({price}), {
+    headers: {...headers, 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey(auction.id)},
     responseCallback: http.expectedStatuses(201, 400, 409),
     tags: {name: 'POST /api/auctions/:id/bids'},
   });
@@ -132,7 +145,7 @@ export function handleSummary(data) {
 
 function arrivalScenario(exec, share) {
   return {
-    executor: 'ramping-arrival-rate', exec, startTime: mainStartTime, startRate: Math.round(50 * share), timeUnit: '1s',
+    executor: 'ramping-arrival-rate', exec, startTime: mainStartTime, startRate: Math.round(qpsStages[0].target * share), timeUnit: '1s',
     stages: qpsStages.map(stage => ({target: Math.round(stage.target * share), duration: stage.duration})),
     preAllocatedVUs, maxVUs, gracefulStop: '10s',
   };
@@ -164,6 +177,10 @@ function authorization(tokens) { return {Authorization: `Bearer ${tokens[(__VU -
 function randomAuction(auctions) { return auctions[Math.floor(Math.random() * auctions.length)]; }
 function idempotencyKey(auctionId) { return `k6-throughput-${auctionId}-${__VU}-${__ITER}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
 function csv(value) { return (value || '').split(',').map(item => item.trim()).filter(Boolean); }
+function qpsStageTargets(value) {
+  const parsed = csv(value).map(Number).filter(n => Number.isFinite(n) && n > 0);
+  return parsed.length > 0 ? parsed : [50, 100, 150, 200, 300, 400];
+}
 function positiveInt(value, fallback) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
 function sseTier(value, fallback) { const tier = positiveInt(value, fallback); if (![250, 500, 1000].includes(tier)) throw new Error('SSE_VUS는 250, 500, 1000 중 하나여야 합니다.'); return tier; }
 function totalDuration() { return `${qpsStages.reduce((seconds, stage) => seconds + durationToSeconds(stage.duration), durationToSeconds(sseRampUp) + 10)}s`; }

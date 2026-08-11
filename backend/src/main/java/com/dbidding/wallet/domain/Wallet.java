@@ -26,6 +26,9 @@ public class Wallet {
 	@Column(nullable = false)
 	private long point;
 
+	@Column(name = "projection_version", nullable = false)
+	private long projectionVersion;
+
 	private Wallet(Integer userId, long point) {
 		if (userId == null) {
 			throw new IllegalArgumentException("User ID cannot be null");

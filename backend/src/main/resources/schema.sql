@@ -5,6 +5,19 @@ CREATE DATABASE IF NOT EXISTS dbidding
 USE dbidding;
 
 
+CREATE TABLE shedlock
+(
+    name       VARCHAR(64)  NOT NULL,
+    lock_until TIMESTAMP(3) NOT NULL,
+    locked_at  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    locked_by  VARCHAR(255) NOT NULL,
+
+    CONSTRAINT pk_shedlock PRIMARY KEY (name)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
 CREATE TABLE users
 (
     id                 INT          NOT NULL AUTO_INCREMENT,
@@ -205,6 +218,7 @@ CREATE TABLE auctions
     close_time           TIMESTAMP(6) NOT NULL,
     bid_count            INT          NOT NULL,
     bid_price_unit       BIGINT       NOT NULL,
+    last_bid_event_version BIGINT     NOT NULL DEFAULT 0,
     is_hyped             BOOLEAN      NOT NULL,
     idempotency_key      VARCHAR(64)
         CHARACTER SET ascii COLLATE ascii_bin NULL,
@@ -278,6 +292,30 @@ CREATE TABLE bids
   COLLATE = utf8mb4_0900_ai_ci;
 
 
+CREATE TABLE auction_bid_event_inbox
+(
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    stream_id       VARCHAR(64)  NOT NULL,
+    auction_id      INT,
+    auction_version BIGINT,
+    event_type      VARCHAR(64)  NOT NULL,
+    schema_version  INT          NOT NULL,
+    payload         LONGTEXT     NOT NULL,
+    occurred_at     TIMESTAMP(6) NOT NULL,
+    projection_status VARCHAR(16) NOT NULL,
+    failure_message TEXT,
+    processed_at    TIMESTAMP(6),
+
+    CONSTRAINT pk_auction_bid_event_inbox PRIMARY KEY (id),
+    CONSTRAINT uk_auction_bid_event_inbox_stream_id UNIQUE (stream_id),
+
+    INDEX idx_auction_bid_event_inbox_auction_id (auction_id),
+    INDEX idx_auction_bid_event_inbox_projection_status (projection_status)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
+
 CREATE TABLE auto_bid_contracts
 (
     id          INT          NOT NULL AUTO_INCREMENT,
@@ -304,9 +342,10 @@ CREATE TABLE auto_bid_contracts
 
 CREATE TABLE wallets
 (
-    id      INT    NOT NULL AUTO_INCREMENT,
-    user_id INT    NOT NULL,
-    point   BIGINT NOT NULL,
+    id                 INT    NOT NULL AUTO_INCREMENT,
+    user_id            INT    NOT NULL,
+    point              BIGINT NOT NULL,
+    projection_version BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT pk_wallets PRIMARY KEY (id),
     CONSTRAINT uk_wallets_user_id UNIQUE (user_id),
@@ -319,13 +358,15 @@ CREATE TABLE wallets
 
 CREATE TABLE wallet_holds
 (
-    id         BIGINT       NOT NULL AUTO_INCREMENT,
-    wallet_id  INT          NOT NULL,
-    auction_id INT          NOT NULL,
-    amount     BIGINT       NOT NULL,
-    status     VARCHAR(20)  NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    released_at TIMESTAMP(6) NULL,
+    id                 BIGINT       NOT NULL AUTO_INCREMENT,
+    wallet_id          INT          NOT NULL,
+    auction_id         INT          NOT NULL,
+    amount             BIGINT       NOT NULL,
+    status             VARCHAR(20)  NOT NULL,
+    projection_version BIGINT       NOT NULL DEFAULT 0,
+    event_id           BINARY(16)   NULL,
+    created_at         TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    released_at        TIMESTAMP(6) NULL,
 
     CONSTRAINT pk_wallet_holds PRIMARY KEY (id),
     CONSTRAINT fk_wallet_holds_wallet
@@ -335,7 +376,8 @@ CREATE TABLE wallet_holds
 
     INDEX idx_wallet_holds_wallet_id (wallet_id),
     INDEX idx_wallet_holds_auction_id (auction_id),
-    INDEX idx_wallet_holds_wallet_status (wallet_id, status)
+    INDEX idx_wallet_holds_wallet_status (wallet_id, status),
+    CONSTRAINT uk_wallet_holds_event_id UNIQUE (event_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
@@ -352,10 +394,12 @@ CREATE TABLE point_records
     transaction_type VARCHAR(32)  NOT NULL,
     idempotency_key  VARCHAR(64)
         CHARACTER SET ascii COLLATE ascii_bin NULL,
+    event_id         BINARY(16) NULL,
 
     CONSTRAINT pk_point_records PRIMARY KEY (id),
     CONSTRAINT uk_point_records_wallet_idempotency
         UNIQUE (wallet_id, idempotency_key),
+    CONSTRAINT uk_point_records_event_id UNIQUE (event_id),
     CONSTRAINT fk_point_records_wallet
         FOREIGN KEY (wallet_id) REFERENCES wallets (id),
     CONSTRAINT fk_point_records_auction
@@ -411,7 +455,11 @@ CREATE TABLE notification
         UNIQUE (user_id, auction_id, type, bid_id),
 
     INDEX idx_notification_user_id (user_id),
-    INDEX idx_notification_user_id_is_read (user_id, is_read)
+    INDEX idx_notification_user_id_is_read (user_id, is_read),
+    -- bid_id는 OUTBID일 때만 0이 아니라(위 주석 참고) 실질적으로 유니크에 가까운 값이라,
+    -- 복구 배치가 bid_id IN (...)으로 존재 여부를 배치 조회할 때(NotificationReconciliationService)
+    -- 이 인덱스만으로 충분히 seek가 된다.
+    INDEX idx_notification_bid_id (bid_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
