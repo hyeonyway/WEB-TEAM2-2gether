@@ -107,6 +107,8 @@ notification:
       fixed-delay-ms: ${NOTIFICATION_RECOVERY_RESULT_FIXED_DELAY_MS:420000}
 
 app:
+  password-hash:
+    iterations: ${PASSWORD_HASH_ITERATIONS:600000}
   auth:
     mode: ${AUTH_MODE:jwt}
     session-enabled: ${SESSION_AUTH_ENABLED:false}
