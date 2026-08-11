@@ -19,4 +19,6 @@ app:
       max-retries: ${AUCTION_REDIS_BID_MAX_RETRIES:3}
       # Consumer Group이 여러 인스턴스에 분산되어도 DB 영속 Consumer는 한 인스턴스만 실행한다.
       consumer-lock-at-most-for: ${AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR:5m}
+      # 한 번의 poll에서 연속 처리할 최대 이벤트 수. 각 이벤트는 여전히 별도 DB 트랜잭션과 ACK를 사용한다.
+      max-records-per-run: ${AUCTION_REDIS_BID_MAX_RECORDS_PER_RUN:100}
       poll-delay: ${AUCTION_REDIS_BID_POLL_DELAY:100ms}

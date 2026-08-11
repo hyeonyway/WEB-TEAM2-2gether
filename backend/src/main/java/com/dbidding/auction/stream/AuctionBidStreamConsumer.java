@@ -71,7 +71,11 @@ public class AuctionBidStreamConsumer {
             return;
         }
         try {
-            consumeOnce();
+            for (int processed = 0; processed < properties.maxRecordsPerRun(); processed++) {
+                if (!consumeOnce()) {
+                    return;
+                }
+            }
         } catch (DataAccessException exception) {
             if (!isMissingGroup(exception)) {
                 throw exception;
@@ -83,11 +87,15 @@ public class AuctionBidStreamConsumer {
         }
     }
 
-    private void consumeOnce() {
-        MapRecord<String, Object, Object> record = claimPending();
+    private boolean consumeOnce() {
+        PendingClaim pendingClaim = claimPending();
+        if (pendingClaim.blocksNewEvents()) {
+            return false;
+        }
+        MapRecord<String, Object, Object> record = pendingClaim.record();
         if (record != null && isPausedAuction(record)) {
             // 하나의 전역 타임라인에서는 앞선 버전 단절을 건너뛰고 뒤 이벤트를 처리하면 안 된다.
-            return;
+            return false;
         }
         if (record == null) {
             List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().read(
@@ -98,9 +106,9 @@ public class AuctionBidStreamConsumer {
             record = records == null || records.isEmpty() ? null : records.getFirst();
         }
         if (record == null) {
-            return;
+            return false;
         }
-        processOne(record);
+        return processOne(record);
     }
 
     private boolean isMissingGroup(Throwable throwable) {
@@ -113,24 +121,29 @@ public class AuctionBidStreamConsumer {
         return false;
     }
 
-    private MapRecord<String, Object, Object> claimPending() {
+    private PendingClaim claimPending() {
         java.util.Iterator<PendingMessage> pending = redisTemplate.opsForStream().pending(
-                STREAM_KEY, GROUP, Range.unbounded(), 1, properties.claimIdle()
+                STREAM_KEY, GROUP, Range.unbounded(), 1
         ).iterator();
         if (!pending.hasNext()) {
-            return null;
+            return PendingClaim.none();
         }
+        PendingMessage message = pending.next();
+        boolean ownMessage = consumerName.equals(message.getConsumerName());
+        if (!ownMessage && message.getElapsedTimeSinceLastDelivery().compareTo(properties.claimIdle()) < 0) {
+            return PendingClaim.blocked();
+        }
+        java.time.Duration minimumIdle = ownMessage ? java.time.Duration.ZERO : properties.claimIdle();
         List<MapRecord<String, Object, Object>> claimed = redisTemplate.opsForStream().claim(
-                STREAM_KEY, GROUP, consumerName, properties.claimIdle(), pending.next().getId()
+                STREAM_KEY, GROUP, consumerName, minimumIdle, message.getId()
         );
         if (claimed == null || claimed.isEmpty()) {
-            return null;
+            return PendingClaim.blocked();
         }
-        MapRecord<String, Object, Object> record = claimed.getFirst();
-        return record;
+        return PendingClaim.claimed(claimed.getFirst());
     }
 
-    private void processOne(MapRecord<String, Object, Object> record) {
+    private boolean processOne(MapRecord<String, Object, Object> record) {
         AuctionWalletTimelineEvent event = null;
         try {
             event = AuctionWalletTimelineEvent.from(
@@ -143,13 +156,16 @@ public class AuctionBidStreamConsumer {
                 pausedAuctionRegistry.resume(bid.auctionId());
             }
             meterRegistry.counter("auction.bid.stream.persisted").increment();
+            return true;
         } catch (BidStreamVersionGapException exception) {
             pausedAuctionRegistry.pause((BidAcceptedStreamEvent) event, exception);
             meterRegistry.counter("auction.bid.stream.auction.paused").increment();
+            return false;
         } catch (InvalidBidStreamEventException exception) {
             moveToDlq(record, exception);
+            return true;
         } catch (RuntimeException exception) {
-            retryOrDlq(record, exception);
+            return retryOrDlq(record, exception);
         }
     }
 
@@ -164,14 +180,15 @@ public class AuctionBidStreamConsumer {
         }
     }
 
-    private void retryOrDlq(MapRecord<String, Object, Object> record, RuntimeException exception) {
+    private boolean retryOrDlq(MapRecord<String, Object, Object> record, RuntimeException exception) {
         Long attempts = redisTemplate.opsForHash().increment(RETRY_KEY, record.getId().getValue(), 1);
         if (attempts != null && attempts >= properties.maxRetries()) {
             moveToDlq(record, exception);
-            return;
+            return true;
         }
         meterRegistry.counter("auction.bid.stream.retry").increment();
         log.warn("event=auction.bid.stream.retry streamId={} retryCount={}", record.getId().getValue(), attempts, exception);
+        return false;
     }
 
     private void moveToDlq(MapRecord<String, Object, Object> record, RuntimeException exception) {
@@ -206,5 +223,19 @@ public class AuctionBidStreamConsumer {
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> entry.getKey() + "=" + entry.getValue())
                 .collect(java.util.stream.Collectors.joining("&"));
+    }
+
+    private record PendingClaim(MapRecord<String, Object, Object> record, boolean blocksNewEvents) {
+        static PendingClaim none() {
+            return new PendingClaim(null, false);
+        }
+
+        static PendingClaim blocked() {
+            return new PendingClaim(null, true);
+        }
+
+        static PendingClaim claimed(MapRecord<String, Object, Object> record) {
+            return new PendingClaim(record, false);
+        }
     }
 }
