@@ -100,11 +100,23 @@ public class VirtualThreadNotificationPushDispatcher implements NotificationPush
 ```
 
 `NotificationPushRedisSubscriber.onMessage`/`LocalNotificationPushPublisher.publish()`는
-`connectionManager.push(...)`를 직접 호출하던 걸 `pushDispatcher.dispatch(...)`로
-바꾸고, 기존에 붙어있던 `@Async("notificationFanOutTaskExecutor")`는 제거한다(async
-여부는 이제 디스패처가 프로필에 따라 결정). 기본 프로필에서는 이 두 진입점이
-호출 스레드(Redis 구독 스레드/origin async 컨텍스트)에서 동기로 유저 N명을 순차
-처리하는 오늘 동작 그대로다.
+`connectionManager.push(...)`를 직접 호출하던 걸 `pushDispatcher.dispatch(...)`로만
+바꾼다.
+
+> **구현 중 설계 변경**: 처음엔 이슈 체크리스트대로 이 두 진입점의 기존
+> `@Async("notificationFanOutTaskExecutor")`를 제거하려 했으나(async 여부를
+> 디스패처에만 맡기는 그림), 그러면 `local-sse` 프로필의 기본(`!sse-virtual-threads`)
+> 조합에서 `LocalNotificationPushPublisher.publish()` 전체가 다시 호출자(origin의
+> async 컨텍스트, `NotificationEventListener`) 스레드에서 동기 실행돼버려 #305가
+> 고친 origin/subscriber 풀 공유 문제가 재발한다. 그래서 **두 진입점의 배치 단위
+> `@Async`는 그대로 두고**, 디스패처만 그 안에서 분기하도록 바꿨다: 기본 프로필은
+> 이미 배치 task 안에 있으니 디스패처가 추가 hop 없이 동기 호출만 하고,
+> `sse-virtual-threads` 프로필은 디스패처가 유저 1명당 한 번 더(가상 스레드라
+> 비용 없는) hop을 추가해 세분화한다. 결과적으로 기본 프로필은 오늘 동작과
+> 완전히 동일하게 유지된다.
+
+`AuctionSseConnectionManager.broadcast()` 쪽도 같은 이유로 바깥 `@Async`를 유지한다
+(다음 절 참고).
 
 ### auction — `broadcast()` 내부 emitter 순회에 동일한 디스패처를 쓴다
 
@@ -140,39 +152,52 @@ public class PerConnectionAuctionSseSendDispatcher implements AuctionSseSendDisp
 `heartbeat()`는 이번 세분화 대상이 아니다(이슈 할 일에도 없음) — executor 자체가
 프로필에 따라 가상 스레드로 바뀌는 이득만 그대로 받는다.
 
-## 열린 질문
+## 열린 질문 (결론)
 
-1. **서킷브레이커용 상한**: 가상 스레드는 무제한이라, 버그/폭주 대비 상한을 별도로
-   둘지(예: `Semaphore`) — 이슈 본문은 "권장"만 하고 구체적 값/구현이 없다. 이번 PR
-   범위에 넣을지, 넣는다면 상한 값을 뭘로 할지 정해야 한다. **핵심 구현(executor/
-   디스패처 분기) 완료 후 결정** — 실제 코드 모양을 보고 판단.
-2. **관찰성 대체**: `CountingCallerRunsPolicy`가 남기던 `event=...executor.saturated`
-   로그가 `sse-virtual-threads` 프로필에서는 없어진다. 대체 지표(활성 가상 스레드 수,
-   세마포어 대기 등)를 이번 PR에서 넣을지 후속으로 미룰지. **핵심 구현 완료 후 결정**
-   (1번 결론과 맞물림 — 세마포어를 넣으면 그 대기 지표가 곧 대체 관찰성이 될 수 있음).
+1. **서킷브레이커용 상한**: 이번 PR에는 **넣지 않는다.** 상한이 실제로 의미 있는
+   시나리오는 "가상 스레드가 무한정 생성"이 아니라 이미 코드에 있는 배치/연결
+   수 자체가 큰 경우다 — notification 쪽은 알림 fan-out 청크가 최대 10,000건
+   (#207/#289), auction 쪽은 `/api/auctions/stream`이 인증 없는 전역 브로드캐스트라
+   연결 수 제한이 원래부터 없다. 다만 이 프로젝트 규모에서 당장 문제가 될
+   트래픽은 아니라고 판단해 이번엔 넣지 않는다. auction의 연결 수 제한은
+   가상 스레드와 무관하게 이미 있던 약점이라, 필요해지면 별도 이슈에서
+   "SSE 연결 수 제한" 자체로 다루는 게 맞다.
+2. **관찰성 대체**: 이번 PR에는 **넣지 않는다.** 1번(상한)을 넣지 않기로 했으므로
+   대체할 대기 지표 자체가 아직 없다. `sse-virtual-threads` 프로필에서
+   `event=...executor.saturated` 신호가 없어진다는 점만 알고 있으면 되고, 필요해지면
+   활성 가상 스레드 수 등을 후속으로 추가한다.
 
 k6 부하 테스트(세분화 전/후 실측)는 **이번 PR 범위에서 제외**한다. 코드 변경과
 테스트까지만 이번 PR에서 다루고, 실측은 후속 별도 작업으로 뺀다.
 
 ## 작업 항목
 
-- [ ] `NotificationExecutorConfig`의 `notificationFanOutTaskExecutor`를 프로필 분기
+- [x] `NotificationExecutorConfig`의 `notificationFanOutTaskExecutor`를 프로필 분기
       (기존 `ThreadPoolTaskExecutor` / 신규 `SimpleAsyncTaskExecutor` 가상 스레드)
-- [ ] `AuctionSseExecutorConfig`의 `auctionSseTaskExecutor` 동일하게 프로필 분기
-- [ ] `NotificationPushDispatcher` 인터페이스 + `Synchronous`/`VirtualThread` 구현체 추가
-- [ ] `NotificationPushRedisSubscriber.onMessage`/`LocalNotificationPushPublisher.publish()`가
-      `connectionManager.push()` 대신 `pushDispatcher.dispatch()` 경유하도록 변경,
-      기존 `@Async` 제거
-- [ ] `AuctionSseSendDispatcher` 인터페이스 + `Synchronous`/`PerConnection` 구현체 추가
-- [ ] `AuctionSseConnectionManager.broadcast()`의 `emitters.forEach`가 `sendDispatcher`
+- [x] `AuctionSseExecutorConfig`의 `auctionSseTaskExecutor` 동일하게 프로필 분기
+- [x] `NotificationPushDispatcher` 인터페이스 + `Synchronous`/`VirtualThread` 구현체 추가
+- [x] `NotificationPushRedisSubscriber.onMessage`/`LocalNotificationPushPublisher.publish()`가
+      `connectionManager.push()` 대신 `pushDispatcher.dispatch()` 경유하도록 변경
+      (배치 단위 `@Async`는 유지 — 위 "구현 중 설계 변경" 참고)
+- [x] `AuctionSseSendDispatcher` 인터페이스 + `Synchronous`/`PerConnection` 구현체 추가
+- [x] `AuctionSseConnectionManager.broadcast()`의 `emitters.forEach`가 `sendDispatcher`
       경유하도록 변경
-- [ ] 위 열린 질문 1~2 결론 반영(핵심 구현 완료 후)
-- [ ] 기존 테스트 갱신: `NotificationExecutorConfigTest`(fanout 포화 테스트는 기본
-      프로필에서만 유효 — 프로필별 분기 또는 조건부 처리 필요),
-      `AuctionSseExecutorConfigTest`, `LocalNotificationPushPublisherAsyncWiringVerifyTest`
-- [ ] 신규 프로필 전환 테스트: `sse-virtual-threads` on/off 시 각 인터페이스에 정확히
+- [x] 위 열린 질문 1~2 결론 반영(둘 다 이번 PR에서는 안 넣기로 결정)
+- [x] 기존 테스트 갱신: `NotificationExecutorConfigTest`, `AuctionSseExecutorConfigTest`
+      (fanout/auction executor 빈 메서드 리턴 타입이 `TaskExecutor`로 바뀌어 캐스팅
+      추가, 가상 스레드 빈에 대한 검증 케이스 추가), `LocalNotificationPushPublisherTest`,
+      `NotificationPushRedisSubscriberTest`, `LocalNotificationPushPublisherAsyncWiringVerifyTest`,
+      `AuctionSseContractTest`(생성자에 `AuctionSseSendDispatcher` 인자 추가)
+- [x] 신규 프로필 전환 테스트: `sse-virtual-threads` on/off 시 각 인터페이스에 정확히
       하나의 구현체만 등록되는지 `ApplicationContextRunner` 기반 테스트
-      (`NotificationPushPublisherProfileTest` 패턴 참고)
+      (`NotificationPushPublisherProfileTest` 패턴 참고) — executor 빈 타입 전환 테스트
+      2개, 디스패처 구현체 전환 테스트 2개 추가
+- [x] 전체 테스트 스위트 실행 — 기존 `NotificationPushPublisherProfileTest`가
+      `LocalNotificationPushPublisher`의 의존성 변경(`NotificationSseConnectionManager`
+      → `NotificationPushDispatcher`)으로 컨텍스트 시작에 실패하던 걸 추가로 발견,
+      목 빈 추가로 수정. 나머지 실패 20건은 로컬 DB 스키마 불일치
+      (`point_records.event_id` 컬럼 타입)로 `origin/dev`에도 이미 있는 사전
+      이슈이며 이 브랜치와 무관함을 확인.
 
 ## 범위 밖
 
