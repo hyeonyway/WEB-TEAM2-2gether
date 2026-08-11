@@ -6,13 +6,19 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.dbidding.notification.NotificationType;
 import com.dbidding.notification.dto.NotificationResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.time.Instant;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 
@@ -22,7 +28,7 @@ class NotificationSseConnectionManagerTest {
     void 연결_등록과_해제에_따라_알림_SSE_연결_Gauge가_변한다() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         NotificationSseConnectionManager manager = new NotificationSseConnectionManager(
-                new SessionSseConnectionRegistry(), new NotificationSseMetrics(registry));
+                new SessionSseConnectionRegistry(), new NotificationSseMetrics(registry), objectMapper());
         SseEmitter emitter = mock(SseEmitter.class);
         final Runnable[] onCompletion = new Runnable[1];
         org.mockito.Mockito.doAnswer(invocation -> {
@@ -41,7 +47,7 @@ class NotificationSseConnectionManagerTest {
     void 알림_SSE_연결수립_완료시간을_기록한다() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         NotificationSseConnectionManager manager = new NotificationSseConnectionManager(
-                new SessionSseConnectionRegistry(), new NotificationSseMetrics(registry));
+                new SessionSseConnectionRegistry(), new NotificationSseMetrics(registry), objectMapper());
 
         manager.register(1, mock(SseEmitter.class));
 
@@ -58,6 +64,35 @@ class NotificationSseConnectionManagerTest {
 
         verify(emitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
         assertThat(manager.connectionCount(1)).isEqualTo(1);
+    }
+
+    @Test
+    void 여러_알림_SSE_연결에는_payload를_한번만_직렬화해_전송한다() throws Exception {
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
+        when(objectMapper.writeValueAsString(any(NotificationResponse.class))).thenReturn("{}");
+        NotificationSseConnectionManager manager = new NotificationSseConnectionManager(
+                new SessionSseConnectionRegistry(),
+                new NotificationSseMetrics(new SimpleMeterRegistry()),
+                objectMapper);
+        SseEmitter first = mock(SseEmitter.class);
+        SseEmitter second = mock(SseEmitter.class);
+        manager.register(1, first);
+        manager.register(1, second);
+
+        NotificationResponse payload = notification();
+        SseEmitter.SseEventBuilder event = mock(SseEmitter.SseEventBuilder.class);
+        when(event.name(any())).thenReturn(event);
+        when(event.data(any(), any(MediaType.class))).thenReturn(event);
+
+        try (org.mockito.MockedStatic<SseEmitter> sseEmitter = org.mockito.Mockito.mockStatic(SseEmitter.class)) {
+            sseEmitter.when(SseEmitter::event).thenReturn(event);
+            manager.push(1, payload);
+        }
+
+        verify(objectMapper).writeValueAsString(payload);
+        verify(event, times(2)).data("{}", MediaType.APPLICATION_JSON);
+        verify(first, times(2)).send(any(SseEmitter.SseEventBuilder.class));
+        verify(second, times(2)).send(any(SseEmitter.SseEventBuilder.class));
     }
 
     @Test
@@ -129,6 +164,14 @@ class NotificationSseConnectionManagerTest {
     }
 
     private NotificationSseConnectionManager manager(SessionSseConnectionRegistry registry) {
-        return new NotificationSseConnectionManager(registry, new NotificationSseMetrics(new SimpleMeterRegistry()));
+        return new NotificationSseConnectionManager(
+                registry,
+                new NotificationSseMetrics(new SimpleMeterRegistry()),
+                objectMapper());
+    }
+
+    private ObjectMapper objectMapper() {
+        return JsonMapper.builder().addModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
     }
 }
