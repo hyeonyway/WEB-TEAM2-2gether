@@ -33,9 +33,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     /**
      * 상회입찰 복구 알림의 존재 여부를 여러 bid에 대해 한 번에 확인하기 위한 조회.
-     * bidId는 이미 특정 입찰(그 bidder/auction)을 유일하게 특정하므로 type+bidId만으로 충분하다.
+     * bidId가 sentinel(0)이 아닌 경우는 설계상 OUTBID뿐이라(Notification 클래스 주석 참고)
+     * type 조건 없이 bidId만으로 충분하다.
      */
-    List<Notification> findByTypeAndBidIdIn(NotificationType type, Collection<Long> bidIds);
+    List<Notification> findByBidIdIn(Collection<Long> bidIds);
 
     List<Notification> findByUserIdOrderByIdDesc(Integer userId, Pageable pageable);
 

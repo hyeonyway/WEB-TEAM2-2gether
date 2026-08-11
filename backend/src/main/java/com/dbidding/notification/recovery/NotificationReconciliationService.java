@@ -133,8 +133,8 @@ public class NotificationReconciliationService {
 
     /**
      * 상회입찰 알림 존재 체크를 후보 bid마다 따로 하지 않고, 후보 전체에 대해 한 번만
-     * 배치 조회한다(N+1 방지). bidId는 이미 특정 입찰(그 bidder/auction)을 유일하게
-     * 특정하므로 type+bidId만으로 존재 확인에 충분하다.
+     * 배치 조회한다(N+1 방지). bidId가 sentinel(0)이 아닌 경우는 설계상 OUTBID뿐이라
+     * type 조건 없이 bidId만으로 존재 확인에 충분하다.
      */
     public void recoverOutbidNotifications(Instant windowStart) {
         Set<Integer> candidateAuctionIds = new LinkedHashSet<>(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING));
@@ -156,9 +156,7 @@ public class NotificationReconciliationService {
         }
 
         List<Long> candidateBidIds = outbidCandidates.stream().map(Bid::getId).toList();
-        Set<Long> alreadyNotifiedBidIds = notificationRepository
-                .findByTypeAndBidIdIn(NotificationType.OUTBID, candidateBidIds)
-                .stream()
+        Set<Long> alreadyNotifiedBidIds = notificationRepository.findByBidIdIn(candidateBidIds).stream()
                 .map(Notification::getBidId)
                 .collect(Collectors.toSet());
 

@@ -455,7 +455,11 @@ CREATE TABLE notification
         UNIQUE (user_id, auction_id, type, bid_id),
 
     INDEX idx_notification_user_id (user_id),
-    INDEX idx_notification_user_id_is_read (user_id, is_read)
+    INDEX idx_notification_user_id_is_read (user_id, is_read),
+    -- bid_id는 OUTBID일 때만 0이 아니라(위 주석 참고) 실질적으로 유니크에 가까운 값이라,
+    -- 복구 배치가 bid_id IN (...)으로 존재 여부를 배치 조회할 때(NotificationReconciliationService)
+    -- 이 인덱스만으로 충분히 seek가 된다.
+    INDEX idx_notification_bid_id (bid_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

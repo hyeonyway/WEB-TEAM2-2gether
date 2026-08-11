@@ -144,7 +144,7 @@ class NotificationReconciliationServiceTest {
 
         reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
-        verify(notificationRepository, never()).findByTypeAndBidIdIn(any(), anyCollection());
+        verify(notificationRepository, never()).findByBidIdIn(anyCollection());
         verify(notificationService, never()).saveForBid(any(), any(), any(), any(), any());
     }
 
@@ -155,8 +155,7 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of(1));
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
-        given(notificationRepository.findByTypeAndBidIdIn(NotificationType.OUTBID, List.of(outbidBid.getId())))
-                .willReturn(List.of());
+        given(notificationRepository.findByBidIdIn(List.of(outbidBid.getId()))).willReturn(List.of());
 
         reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
@@ -171,7 +170,7 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of(1));
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
-        given(notificationRepository.findByTypeAndBidIdIn(NotificationType.OUTBID, List.of(outbidBid.getId())))
+        given(notificationRepository.findByBidIdIn(List.of(outbidBid.getId())))
                 .willReturn(List.of(existingOutbidNotification));
 
         reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
@@ -186,8 +185,7 @@ class NotificationReconciliationServiceTest {
         given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of());
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
-        given(notificationRepository.findByTypeAndBidIdIn(NotificationType.OUTBID, List.of(outbidBid.getId())))
-                .willReturn(List.of());
+        given(notificationRepository.findByBidIdIn(List.of(outbidBid.getId()))).willReturn(List.of());
 
         reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
 
