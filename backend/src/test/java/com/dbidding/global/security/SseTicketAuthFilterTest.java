@@ -26,6 +26,7 @@ import com.dbidding.global.exception.UnauthorizedException;
 import com.dbidding.global.security.jwt.InMemoryTicketProvider;
 import com.dbidding.global.security.jwt.SseTicketAuthFilter;
 import com.dbidding.global.security.jwt.TicketProvider;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class SseTicketAuthFilterTest {
@@ -34,10 +35,15 @@ class SseTicketAuthFilterTest {
 	private TicketProvider ticketProvider;
 
 	private SseTicketAuthFilter filter;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@BeforeEach
 	void setUp() {
-		filter = new SseTicketAuthFilter(ticketProvider, new RequestUserIdWriter());
+		filter = new SseTicketAuthFilter(
+			ticketProvider,
+			new RequestUserIdWriter(),
+			new FilterErrorResponseWriter(objectMapper)
+		);
 	}
 
 	@Test
@@ -76,7 +82,8 @@ class SseTicketAuthFilterTest {
 		);
 		SseTicketAuthFilter realFilter = new SseTicketAuthFilter(
 			realTicketProvider,
-			new RequestUserIdWriter()
+			new RequestUserIdWriter(),
+			new FilterErrorResponseWriter(objectMapper)
 		);
 		String ticket = realTicketProvider.issue(8);
 		MockHttpServletRequest request = get("/api/dashboard/stream");
@@ -88,6 +95,7 @@ class SseTicketAuthFilterTest {
 		realFilter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
+		assertError(response);
 		assertThat(request.getAttribute(RequestCurrentUserProvider.USER_ID_ATTRIBUTE))
 			.isEqualTo(7);
 		assertThat(chain.getRequest()).isNull();
@@ -118,6 +126,7 @@ class SseTicketAuthFilterTest {
 		filter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
+		assertError(response);
 		assertThat(chain.getRequest()).isNull();
 	}
 
@@ -153,5 +162,13 @@ class SseTicketAuthFilterTest {
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
 		request.setRequestURI(path);
 		return request;
+	}
+
+	private void assertError(MockHttpServletResponse response) throws Exception {
+		assertThat(response.getContentType()).startsWith("application/json");
+		assertThat(response.getCharacterEncoding()).isEqualTo("UTF-8");
+		var body = objectMapper.readTree(response.getContentAsString());
+		assertThat(body.path("code").asText()).isEqualTo("UNAUTHORIZED");
+		assertThat(body.path("message").asText()).isEqualTo("인증이 필요합니다.");
 	}
 }

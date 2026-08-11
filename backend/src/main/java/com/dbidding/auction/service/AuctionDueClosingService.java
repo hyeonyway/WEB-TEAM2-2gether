@@ -1,9 +1,8 @@
 package com.dbidding.auction.service;
 
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.dto.AuctionCloseResponse;
+import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Instant;
 import java.util.List;
@@ -15,7 +14,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Slf4j
@@ -38,7 +36,7 @@ public class AuctionDueClosingService {
 
     public List<AuctionCloseResponse> closeDueAuctions(Instant now, int limit) {
         if (limit < 1) {
-            throw new ResponseStatusException(BAD_REQUEST, "종료 처리 개수는 1 이상이어야 합니다.");
+			throw AuctionException.invalidRequest("종료 처리 개수는 1 이상이어야 합니다.");
         }
 
         List<Integer> auctionIds = auctionRepository.findDueAuctionIds(

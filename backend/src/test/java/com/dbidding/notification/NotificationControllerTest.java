@@ -87,6 +87,17 @@ class NotificationControllerTest {
     }
 
     @Test
+    void 유효하지_않은_페이지_크기는_공통_오류_응답으로_반환한다() throws Exception {
+        given(notificationService.findPage(1, null, 101, false))
+                .willThrow(NotificationException.invalidPageSize("size는 1에서 100 사이여야 합니다."));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/notifications").param("size", "101"))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("INVALID_NOTIFICATION_PAGE_SIZE"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("size는 1에서 100 사이여야 합니다."));
+    }
+
+    @Test
     void 안읽음_개수를_조회한다() throws Exception {
         given(notificationService.countUnread(1)).willReturn(3L);
 
@@ -101,6 +112,16 @@ class NotificationControllerTest {
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
 
         then(notificationService).should().markAsRead(1, 1L);
+    }
+
+    @Test
+    void 존재하지_않는_알림은_공통_오류_응답으로_반환한다() throws Exception {
+        org.mockito.Mockito.doThrow(NotificationException.notFound()).when(notificationService).markAsRead(1, 1L);
+
+        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/1/read"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("NOTIFICATION_NOT_FOUND"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("존재하지 않는 알림입니다."));
     }
 
     @Test

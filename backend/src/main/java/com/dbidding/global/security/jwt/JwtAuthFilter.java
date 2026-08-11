@@ -4,12 +4,14 @@ import java.io.IOException;
 
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.account.exception.InvalidTokenException;
 import com.dbidding.account.authentication.jwt.JwtTokenProvider;
 import com.dbidding.account.authentication.jwt.TokenClaims;
 import com.dbidding.global.exception.UnauthorizedException;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 import com.dbidding.global.security.RequestUserIdWriter;
 
 import jakarta.servlet.FilterChain;
@@ -24,9 +26,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
 	private static final String AUTHORIZATION_HEADER = "Authorization";
 	private static final String BEARER_PREFIX = "Bearer ";
+	private static final String INVALID_TOKEN = "INVALID_TOKEN";
+	private static final String INVALID_TOKEN_MESSAGE = "유효하지 않은 인증 토큰입니다.";
+	private static final String UNAUTHORIZED = "UNAUTHORIZED";
+	private static final String UNAUTHORIZED_MESSAGE = "인증 정보가 일치하지 않습니다.";
 
 	private final JwtTokenProvider jwtTokenProvider;
 	private final RequestUserIdWriter requestUserIdWriter;
+	private final FilterErrorResponseWriter errorResponseWriter;
 
 	@Override
 	protected void doFilterInternal(
@@ -42,7 +49,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
 		String accessToken = extractBearerToken(authorization);
 		if (accessToken == null) {
-			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+			errorResponseWriter.write(response, HttpStatus.UNAUTHORIZED, INVALID_TOKEN, INVALID_TOKEN_MESSAGE);
 			return;
 		}
 
@@ -51,7 +58,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 			requestUserIdWriter.write(request, claims.userId());
 			filterChain.doFilter(request, response);
 		} catch (InvalidTokenException | UnauthorizedException exception) {
-			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+			String code = exception instanceof InvalidTokenException ? INVALID_TOKEN : UNAUTHORIZED;
+			String message = exception instanceof InvalidTokenException ? INVALID_TOKEN_MESSAGE : UNAUTHORIZED_MESSAGE;
+			errorResponseWriter.write(response, HttpStatus.UNAUTHORIZED, code, message);
 		}
 	}
 

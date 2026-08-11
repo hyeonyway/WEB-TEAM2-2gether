@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.dbidding.upload.dto.ImageUploadRequests;
 import com.dbidding.upload.dto.ImageUploadResponses;
+import com.dbidding.upload.exception.UploadException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class UploadServiceTest {
@@ -60,7 +60,7 @@ class UploadServiceTest {
         );
 
         assertThatThrownBy(() -> uploadService.createPresignedUrls(request))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(UploadException.class)
                 .hasMessageContaining("허용되지 않는 이미지 형식");
     }
 }

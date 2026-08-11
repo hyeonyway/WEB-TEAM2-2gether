@@ -1,12 +1,10 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.bid;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
@@ -14,11 +12,7 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.AuctionStatus;
-import com.dbidding.auction.dto.BidCreateRequest;
-import com.dbidding.auction.event.BidPlacedEvent;
-import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
-import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.card.service.CardService;
@@ -39,12 +33,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
+import com.dbidding.auction.exception.AuctionException;
+import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 
 @ExtendWith(MockitoExtension.class)
-class AuctionServiceBidTest {
+class DbBidExecutorTest {
     @Mock
     private AuctionRepository auctionRepository;
     @Mock
@@ -55,32 +49,24 @@ class AuctionServiceBidTest {
     private CardService cardService;
     @Mock
     private OrderService orderService;
-    @Mock
-    private AuctionEventPublisher auctionEventPublisher;
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
 
     private final Clock clock = Clock.fixed(
             Instant.parse("2026-07-29T01:00:00Z"),
             ZoneId.of("Asia/Seoul")
     );
-    private AuctionCommandService auctionService;
+    private DbBidExecutor dbBidExecutor;
     private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        auctionService = new AuctionCommandService(
+        dbBidExecutor = new DbBidExecutor(
                 auctionRepository,
-                null,
                 bidRepository,
                 walletService,
-                null,
-                auctionEventPublisher,
                 cardService,
                 orderService,
                 clock,
-                eventPublisher,
                 new AuctionMetrics(meterRegistry)
         );
         lenient().when(cardService.getCardSnapshot(1)).thenReturn(new com.dbidding.card.dto.CardResponses.CardSnapshot(1, "카드", "세트", "10", "JP", null));
@@ -91,10 +77,10 @@ class AuctionServiceBidTest {
         Auction auction = auction(1);
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
 
-        assertThatThrownBy(() -> auctionService.participate(1, 1, new BidCreateRequest(43_000L), "bid-key"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
-                .isEqualTo(403);
+        assertThatThrownBy(() -> dbBidExecutor.execute(new BidCommand(1, 1, 43_000L, "bid-key")))
+				.isInstanceOf(AuctionException.class)
+				.extracting(exception -> ((AuctionException) exception).getCode())
+				.isEqualTo("AUCTION_SELLER_BID_FORBIDDEN");
 
         assertThat(auction.getCurrentPrice()).isEqualTo(42_000L);
         assertThat(auction.getBidCount()).isZero();
@@ -102,11 +88,24 @@ class AuctionServiceBidTest {
                 .findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(any(), any());
         verify(walletService, never()).hold(any(), any(), any(Long.class));
         verify(bidRepository, never()).save(any(Bid.class));
-        verifyNoInteractions(auctionEventPublisher);
         assertThat(meterRegistry.get("dbidding.auction.lock.wait")
                 .tag("operation", "bid")
                 .timer()
                 .count()).isEqualTo(1);
+    }
+
+    @Test
+    void 예치금이_부족하면_지갑_예외가_그대로_전파된다() {
+        Auction auction = auction(1);
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+        when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
+                .thenReturn(Optional.empty());
+        when(walletService.hold(2, 1, 43_000L)).thenThrow(new InsufficientAvailableBalanceException());
+
+        assertThatThrownBy(() -> dbBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key")))
+                .isInstanceOf(InsufficientAvailableBalanceException.class);
+
+        verify(bidRepository, never()).save(any(Bid.class));
     }
 
     @Test
@@ -123,15 +122,19 @@ class AuctionServiceBidTest {
             return bid;
         });
 
-        var response = auctionService.participate(2, 1, new BidCreateRequest(43_000L), "bid-key");
+        var response = dbBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
-        assertThat(response.bid().id()).isEqualTo(10L);
-        assertThat(response.bid().amount()).isEqualTo(43_000L);
-        assertThat(response.auction().currentPrice()).isEqualTo(43_000L);
+        assertThat(response.result().bid().id()).isEqualTo(10L);
+        assertThat(response.result().bid().amount()).isEqualTo(43_000L);
+        assertThat(response.result().auction().currentPrice()).isEqualTo(43_000L);
         assertThat(auction.getCurrentPrice()).isEqualTo(43_000L);
         assertThat(auction.getBidCount()).isEqualTo(1);
         verify(walletService).hold(2, 1, 43_000L);
-        verify(auctionEventPublisher).publishBidPlaced(any(BidPlacedEvent.class));
+        assertThat(response.eventData()).isNotNull();
+        assertThat(response.eventData().itemId()).isEqualTo(1);
+        assertThat(response.eventData().previousBidderId()).isNull();
+        assertThat(response.eventData().closeData()).isNull();
+        assertThat(response.eventData().closeTimeExtended()).isFalse();
         assertThat(meterRegistry.get("dbidding.bid.critical_section.duration").timer().count()).isEqualTo(1);
         assertThat(meterRegistry.get("dbidding.bid.step.duration").tag("step", "hold").timer().count())
                 .isEqualTo(1);
@@ -158,13 +161,18 @@ class AuctionServiceBidTest {
             return bid;
         });
 
-        var response = auctionService.participate(2, 1, new BidCreateRequest(requestedPrice), "buy-now-key");
+        var response = dbBidExecutor.execute(new BidCommand(2, 1, requestedPrice, "buy-now-key"));
 
-        assertThat(response.bid().amount()).isEqualTo(100_000L);
+        assertThat(response.result().bid().amount()).isEqualTo(100_000L);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
-        verify(walletService).capture(2, 1, 100_000L);
+        verify(walletService).lockWalletsInOrder(2, null, 1);
+        verify(walletService).captureAfterHold(2, 1, 100_000L);
+        verify(walletService, never()).capture(2, 1, 100_000L);
         verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
-        verify(auctionEventPublisher).publishClosed(any(AuctionClosedEvent.class));
+        assertThat(response.eventData().closeData()).isNotNull();
+        assertThat(response.eventData().closeData().cardName()).isEqualTo("카드");
+        assertThat(response.eventData().closeData().sellerId()).isEqualTo(1);
+        assertThat(response.eventData().closeTimeExtended()).isFalse();
     }
 
     @Test
@@ -181,10 +189,11 @@ class AuctionServiceBidTest {
             return bid;
         });
 
-        auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+        dbBidExecutor.execute(new BidCommand(2, 1, 100_000L, "buy-now-key"));
 
+        verify(walletService).lockWalletsInOrder(2, 3, 1);
         verify(walletService).release(3, 1);
-        verify(walletService).capture(2, 1, 100_000L);
+        verify(walletService).captureAfterHold(2, 1, 100_000L);
         verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
     }
 
@@ -201,12 +210,13 @@ class AuctionServiceBidTest {
             return bid;
         });
 
-        auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+        dbBidExecutor.execute(new BidCommand(2, 1, 100_000L, "buy-now-key"));
 
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
+        verify(walletService).lockWalletsInOrder(2, 2, 1);
         verify(walletService).hold(2, 1, 100_000L);
         verify(walletService, never()).release(2, 1);
-        verify(walletService).capture(2, 1, 100_000L);
+        verify(walletService).captureAfterHold(2, 1, 100_000L);
         verify(orderService).createFromAuctionClosed(1, 2, 1, "카드", 100_000L);
     }
 
@@ -222,7 +232,7 @@ class AuctionServiceBidTest {
         when(walletService.release(3, 1)).thenReturn(new WalletBalanceResponse(1_000_000L, 0L, 1_000_000L));
         when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        auctionService.participate(2, 1, new BidCreateRequest(91_000L), "bid-key");
+        dbBidExecutor.execute(new BidCommand(2, 1, 91_000L, "bid-key"));
 
         InOrder walletCalls = org.mockito.Mockito.inOrder(walletService);
         walletCalls.verify(walletService).hold(2, 1, 91_000L);
@@ -241,15 +251,16 @@ class AuctionServiceBidTest {
         when(bidRepository.findFirstByBidderIdAndAuctionIdAndIdempotencyKey(2, 1, "buy-now-key")).thenReturn(Optional.of(bid));
         when(walletService.getBalance(2)).thenReturn(new WalletBalanceResponse(1_000_000L, 0L, 900_000L));
 
-        var response = auctionService.participate(2, 1, new BidCreateRequest(100_000L), "buy-now-key");
+        var response = dbBidExecutor.execute(new BidCommand(2, 1, 100_000L, "buy-now-key"));
 
-        assertThat(response.bid().amount()).isEqualTo(100_000L);
+        assertThat(response.result().bid().amount()).isEqualTo(100_000L);
+        assertThat(response.eventData()).isNull();
         verify(bidRepository, never()).save(any(Bid.class));
         verify(walletService, never()).capture(any(), any(), any(Long.class));
     }
 
     @Test
-    void 마감_임박_입찰로_종료_시간이_연장되면_스케줄_변경_이벤트를_발행한다() {
+    void 마감_임박_입찰로_종료_시간이_연장되면_연장_플래그를_반환한다() {
         Auction auction = auction(1);
         Instant previousCloseTime = clock.instant().plus(Duration.ofMinutes(4));
         ReflectionTestUtils.setField(auction, "closeTime", previousCloseTime);
@@ -261,13 +272,10 @@ class AuctionServiceBidTest {
                 .thenReturn(new WalletBalanceResponse(1_000_000L, 43_000L, 957_000L));
         when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        auctionService.participate(2, 1, new BidCreateRequest(43_000L), "bid-key");
+        var response = dbBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
-        verify(eventPublisher).publishEvent(argThat((Object event) ->
-                event instanceof AuctionCloseScheduleChangedEvent changed
-                        && changed.auctionId().equals(1)
-                        && changed.closeTime().equals(previousCloseTime.plus(Duration.ofMinutes(5)))
-                        && changed.reason().equals("close_time_extended")));
+        assertThat(response.eventData().closeTimeExtended()).isTrue();
+        assertThat(response.result().auction().endsAt()).isEqualTo(previousCloseTime.plus(Duration.ofMinutes(5)));
     }
 
     private Auction auction(Integer sellerId) {

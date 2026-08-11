@@ -23,7 +23,7 @@ ON DUPLICATE KEY UPDATE
 -- k6 bid load-test accounts.
 -- Credentials: k6-user00001@dbidding.local .. k6-user50000@dbidding.local
 -- Password (all accounts): K6LoadTest123!
--- The hash below is PBKDF2WithHmacSHA256 (600,000 iterations, 256 bits),
+-- The hash below is PBKDF2WithHmacSHA256 (100 iterations, 256 bits; demo only),
 -- matching PasswordHasher. MySQL SHA2 is not compatible with application login.
 SET SESSION cte_max_recursion_depth = 50000;
 INSERT INTO `users`
@@ -41,7 +41,7 @@ SELECT
   TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '09:00:00'),
   'USER',
   'ACTIVE',
-  '5324e0b2d43b8bdc4c704295ead1b17512fd99d1bac4cc5739197742e42a3ad3',
+  '9bf31158e6621e360af2186721ceb7337300ae425e0bfd587042165af6ec6ce7',
   '6b362d6c6f61642d746573742d73616c'
 FROM `numbers`
 WHERE TRUE

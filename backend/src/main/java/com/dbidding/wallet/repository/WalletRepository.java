@@ -26,6 +26,10 @@ public interface WalletRepository extends JpaRepository<Wallet, Integer> {
 		""", nativeQuery = true)
 	long sumHeldAmount(@Param("walletId") Integer walletId);
 
+	/**
+	 * REPEATABLE READ의 읽기 뷰와 무관하게 최신 예치금을 읽어야 하는 쓰기 경로용 current read다.
+	 * 호출자는 반드시 해당 wallet 행을 먼저 잠가 같은 지갑의 hold 변경을 직렬화해야 한다.
+	 */
 	@Query(value = """
 		SELECT COALESCE(SUM(wallet_hold.amount), 0)
 		FROM wallet_holds wallet_hold

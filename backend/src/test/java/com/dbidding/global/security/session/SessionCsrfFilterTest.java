@@ -10,15 +10,18 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 
 import com.dbidding.account.authentication.session.SessionCsrfTokenService;
+import com.dbidding.global.security.FilterErrorResponseWriter;
+import tools.jackson.databind.ObjectMapper;
 
 class SessionCsrfFilterTest {
 
 	private final SessionCsrfTokenService tokenService = new SessionCsrfTokenService();
 	private SessionCsrfFilter filter;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@BeforeEach
 	void setUp() {
-		filter = new SessionCsrfFilter(tokenService);
+		filter = new SessionCsrfFilter(tokenService, new FilterErrorResponseWriter(objectMapper));
 	}
 
 	@Test
@@ -40,6 +43,7 @@ class SessionCsrfFilterTest {
 		filter.doFilter(request, response, new MockFilterChain());
 
 		assertThat(response.getStatus()).isEqualTo(403);
+		assertForbiddenError(response);
 	}
 
 	@Test
@@ -65,6 +69,7 @@ class SessionCsrfFilterTest {
 		filter.doFilter(request, response, new MockFilterChain());
 
 		assertThat(response.getStatus()).isEqualTo(403);
+		assertForbiddenError(response);
 	}
 
 	@Test
@@ -76,6 +81,7 @@ class SessionCsrfFilterTest {
 		filter.doFilter(request, response, new MockFilterChain());
 
 		assertThat(response.getStatus()).isEqualTo(403);
+		assertForbiddenError(response);
 	}
 
 	@Test
@@ -96,5 +102,13 @@ class SessionCsrfFilterTest {
 		request.setSession(session);
 		request.addHeader(SessionCsrfFilter.CSRF_HEADER, token);
 		return request;
+	}
+
+	private void assertForbiddenError(MockHttpServletResponse response) throws Exception {
+		assertThat(response.getContentType()).startsWith("application/json");
+		assertThat(response.getCharacterEncoding()).isEqualTo("UTF-8");
+		var body = objectMapper.readTree(response.getContentAsString());
+		assertThat(body.path("code").asText()).isEqualTo("FORBIDDEN");
+		assertThat(body.path("message").asText()).isEqualTo("요청이 허용되지 않았습니다.");
 	}
 }

@@ -8,6 +8,7 @@ Thumbs.db
 Desktop.ini
 
 # IDE and editor files
+.claude/
 .idea/
 *.iml
 *.ipr

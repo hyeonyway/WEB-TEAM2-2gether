@@ -1,6 +1,7 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {clearAccessToken,setAccessToken} from './accessTokenStore';
 import {createAuction,uploadSellImages} from './sellApi';
+import {HttpError} from './httpClient';
 import type {AuctionPayload,SellPhoto} from '../dto/sellDto';
 
 function jsonResponse(body:unknown,status=200){
@@ -54,6 +55,21 @@ describe('sellApi',()=>{
       {order:0,uploadToken:'local/photo-1'},
     ]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('S3 업로드 실패는 공통 HttpError로 변환한다',async()=>{
+    const file=new File(['image'],'front.jpg',{type:'image/jpeg'});
+    const photo:SellPhoto={id:'photo-1',file,url:'blob:front'};
+    vi.spyOn(globalThis,'fetch')
+      .mockResolvedValueOnce(jsonResponse({uploads:[{
+        upload_url:'https://storage.example/front',upload_token:'upload/front.jpg',expires_in_seconds:300,
+      }]}))
+      .mockResolvedValueOnce(new Response('<html>storage down</html>',{status:503}));
+
+    await expect(uploadSellImages([photo])).rejects.toMatchObject({
+      status:503,
+      message:'요청 처리 중 오류가 발생했습니다.',
+    } satisfies Partial<HttpError>);
   });
 
   it('기존 카드 ID와 업로드 토큰으로 JWT 경매 생성 요청을 보낸다',async()=>{

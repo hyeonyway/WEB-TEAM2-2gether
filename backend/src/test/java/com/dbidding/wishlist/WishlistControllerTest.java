@@ -61,6 +61,16 @@ class WishlistControllerTest {
     }
 
     @Test
+    void 중복_찜은_공통_오류_응답으로_반환한다() throws Exception {
+        given(wishlistService.add(1, 10)).willThrow(WishlistException.alreadyExists());
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/wishlists").contentType(MediaType.APPLICATION_JSON).content("{\"cardId\":10}"))
+                .andExpect(MockMvcResultMatchers.status().isConflict())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("WISHLIST_ALREADY_EXISTS"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("이미 찜한 카드입니다."));
+    }
+
+    @Test
     void cardId가_없으면_400을_반환한다() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/api/wishlists")
                         .contentType(MediaType.APPLICATION_JSON)

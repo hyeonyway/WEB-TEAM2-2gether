@@ -1,12 +1,12 @@
 package com.dbidding.order.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.FORBIDDEN)
-public class OrderAccessDeniedException extends RuntimeException {
+import com.dbidding.global.exception.ApiException;
+
+public class OrderAccessDeniedException extends ApiException {
 
     public OrderAccessDeniedException() {
-        super("본인의 주문만 처리할 수 있습니다.");
+        super(HttpStatus.FORBIDDEN, "ORDER_ACCESS_DENIED", "본인의 주문만 처리할 수 있습니다.");
     }
 }

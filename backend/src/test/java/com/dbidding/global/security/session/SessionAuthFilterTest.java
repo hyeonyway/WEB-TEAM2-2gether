@@ -11,14 +11,20 @@ import org.springframework.mock.web.MockHttpSession;
 
 import com.dbidding.account.authentication.session.SessionPrincipal;
 import com.dbidding.global.security.RequestUserIdWriter;
+import com.dbidding.global.security.FilterErrorResponseWriter;
+import tools.jackson.databind.ObjectMapper;
 
 class SessionAuthFilterTest {
 
 	private SessionAuthFilter filter;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@BeforeEach
 	void setUp() {
-		filter = new SessionAuthFilter(new RequestUserIdWriter());
+		filter = new SessionAuthFilter(
+			new RequestUserIdWriter(),
+			new FilterErrorResponseWriter(objectMapper)
+		);
 	}
 
 	@Test
@@ -66,6 +72,11 @@ class SessionAuthFilterTest {
 		filter.doFilter(request, response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(response.getContentType()).startsWith("application/json");
+		assertThat(response.getCharacterEncoding()).isEqualTo("UTF-8");
+		var body = objectMapper.readTree(response.getContentAsString());
+		assertThat(body.path("code").asText()).isEqualTo("UNAUTHORIZED");
+		assertThat(body.path("message").asText()).isEqualTo("인증 정보가 일치하지 않습니다.");
 		assertThat(request.getAttribute("userId")).isEqualTo(8);
 		assertThat(chain.getRequest()).isNull();
 	}

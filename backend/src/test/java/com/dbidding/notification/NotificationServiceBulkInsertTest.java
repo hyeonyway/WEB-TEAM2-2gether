@@ -2,6 +2,7 @@ package com.dbidding.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,48 @@ class NotificationServiceBulkInsertTest {
 
         assertThat(result).hasSize(3);
         assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(userIds);
+    }
+
+    @Test
+    void 유저_수가_청크_크기와_정확히_같으면_한_청크로_전부_저장한다() {
+        List<Integer> chunkSizedUserIds = insertUsersInBulk("chunk-exact", 10_000);
+
+        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+                chunkSizedUserIds, auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        );
+
+        assertThat(result).hasSize(10_000);
+        assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(chunkSizedUserIds);
+    }
+
+    @Test
+    void 유저_수가_청크_크기를_넘으면_여러_청크로_나눠도_전부_저장한다() {
+        List<Integer> overChunkUserIds = insertUsersInBulk("chunk-over", 10_001);
+
+        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+                overChunkUserIds, auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        );
+
+        assertThat(result).hasSize(10_001);
+        assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(overChunkUserIds);
+    }
+
+    private List<Integer> insertUsersInBulk(String suffix, int count) {
+        int startId = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(id), 0) FROM users", Integer.class) + 1;
+        List<Integer> userIds = new ArrayList<>(count);
+        List<Object[]> batchArgs = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            int id = startId + i;
+            userIds.add(id);
+            batchArgs.add(new Object[] {
+                    id, suffix + "-" + id + "@example.com", suffix + "-" + id, "USER", "ACTIVE", "a".repeat(64), "b".repeat(32)
+            });
+        }
+        jdbcTemplate.batchUpdate(
+                "INSERT INTO users (id, email, nickname, role, status, encrypted_password, salt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                batchArgs
+        );
+        return userIds;
     }
 
     private Integer insertUser(String suffix) {

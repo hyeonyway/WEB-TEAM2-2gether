@@ -1,7 +1,6 @@
 package com.dbidding.auction.adapter;
 
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
+import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.port.AuctionCardPort;
 import java.util.Collection;
 import java.util.Map;
@@ -10,7 +9,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
 
 @Component
 @Profile("auction-mock")
@@ -32,7 +30,7 @@ public class MockAuctionCardAdapter implements AuctionCardPort {
     public CardSnapshot getCardSnapshot(Integer itemId) {
         CardSnapshot card = cards.get(itemId);
         if (card == null) {
-            throw new ResponseStatusException(NOT_FOUND, "카드를 찾을 수 없습니다.");
+			throw AuctionException.cardNotFound();
         }
         return card;
     }

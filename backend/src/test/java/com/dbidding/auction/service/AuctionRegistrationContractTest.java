@@ -14,6 +14,7 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
@@ -34,7 +35,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.web.server.ResponseStatusException;
+import com.dbidding.auction.exception.AuctionException;
 
 @ExtendWith(MockitoExtension.class)
 class AuctionRegistrationContractTest {
@@ -53,6 +54,8 @@ class AuctionRegistrationContractTest {
     @Mock
     private AuctionEventPublisher auctionEventPublisher;
     @Mock
+    private AuctionStreamPublisher auctionStreamPublisher;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private AuctionCommandService auctionCommandService;
@@ -66,11 +69,13 @@ class AuctionRegistrationContractTest {
                         walletService,
                         imageUploadPort,
                         auctionEventPublisher,
+                        auctionStreamPublisher,
                         cardService,
                         null,
                         Clock.fixed(Instant.parse("2026-08-04T00:00:00Z"), ZoneOffset.UTC),
                         eventPublisher,
-                        new AuctionMetrics(new SimpleMeterRegistry())
+                        new AuctionMetrics(new SimpleMeterRegistry()),
+                        null
                 );
         when(auctionRepository.findBySellerIdAndCreateIdempotencyKey(any(), anyString()))
                 .thenReturn(Optional.empty());
@@ -91,6 +96,7 @@ class AuctionRegistrationContractTest {
         ArgumentCaptor<Auction> captor = ArgumentCaptor.forClass(Auction.class);
         verify(auctionRepository).save(captor.capture());
         assertThat(captor.getValue().getBuyNowPrice()).isNull();
+        verify(auctionStreamPublisher).publish(any());
     }
 
     @Test
@@ -141,7 +147,7 @@ class AuctionRegistrationContractTest {
         );
 
         assertThatThrownBy(() -> auctionCommandService.create(1, request, "buy-now-range-key"))
-                .isInstanceOf(ResponseStatusException.class)
+				.isInstanceOf(AuctionException.class)
                 .hasMessageContaining("호가 단위");
     }
 
@@ -163,7 +169,7 @@ class AuctionRegistrationContractTest {
         );
 
         assertThatThrownBy(() -> auctionCommandService.create(1, request, "psa-required-key"))
-                .isInstanceOf(ResponseStatusException.class)
+				.isInstanceOf(AuctionException.class)
                 .hasMessageContaining("PSA 인증번호");
     }
 
@@ -201,7 +207,7 @@ class AuctionRegistrationContractTest {
         );
 
         assertThatThrownBy(() -> auctionCommandService.create(1, request, "psa-grade-mismatch-key"))
-                .isInstanceOf(ResponseStatusException.class)
+				.isInstanceOf(AuctionException.class)
                 .hasMessageContaining("등급이 일치하지 않습니다");
     }
 

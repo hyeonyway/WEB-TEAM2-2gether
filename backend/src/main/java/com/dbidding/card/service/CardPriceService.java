@@ -1,8 +1,7 @@
 package com.dbidding.card.service;
 
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
 import com.dbidding.card.domain.*;
+import com.dbidding.card.exception.CardException;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.port.CardAuctionPort;
 import com.dbidding.card.repository.CardMetadataRepository;
@@ -20,7 +19,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional(readOnly = true)
@@ -60,7 +58,7 @@ public class CardPriceService {
 
     public CardResponses.CardDetail getCard(Integer cardId, int days) {
         CardMetadata card = cardRepository.findById(cardId)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "카드를 찾을 수 없습니다."));
+                .orElseThrow(CardException::notFound);
         CardSummary summary = statisticQueryService.getCardSummary(cardId).orElse(null);
         LocalDate today = LocalDate.now(SEOUL);
         int range = Math.max(1, days);

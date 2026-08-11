@@ -4,6 +4,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.global.security.CurrentUserProvider;
+import com.dbidding.order.exception.InvalidOrderStatusException;
+import com.dbidding.order.exception.OrderAccessDeniedException;
+import com.dbidding.order.exception.OrderNotFoundException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,6 +72,36 @@ class OrderControllerTest {
         mockMvc.perform(MockMvcRequestBuilders.get("/api/orders/{orderId}", ORDER_ID))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.status").value("PENDING_CONFIRM"));
+    }
+
+    @Test
+    void 존재하지_않는_주문은_공통_오류_응답으로_반환한다() throws Exception {
+        given(orderService.findOne(ORDER_ID, BUYER_ID)).willThrow(new OrderNotFoundException());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/orders/{orderId}", ORDER_ID))
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("ORDER_NOT_FOUND"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("주문을 찾을 수 없습니다."));
+    }
+
+    @Test
+    void 권한이_없는_주문_요청은_공통_오류_응답으로_반환한다() throws Exception {
+        given(orderService.confirm(ORDER_ID, BUYER_ID)).willThrow(new OrderAccessDeniedException());
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/orders/{orderId}/confirm", ORDER_ID))
+                .andExpect(MockMvcResultMatchers.status().isForbidden())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("ORDER_ACCESS_DENIED"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("본인의 주문만 처리할 수 있습니다."));
+    }
+
+    @Test
+    void 처리할_수_없는_주문_상태는_공통_오류_응답으로_반환한다() throws Exception {
+        given(orderService.cancel(ORDER_ID, BUYER_ID)).willThrow(new InvalidOrderStatusException());
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/orders/{orderId}/cancel", ORDER_ID))
+                .andExpect(MockMvcResultMatchers.status().isConflict())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("INVALID_ORDER_STATUS"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("이미 확정되었거나 취소된 주문입니다."));
     }
 
     @Test

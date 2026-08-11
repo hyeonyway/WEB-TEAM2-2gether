@@ -1,6 +1,7 @@
 package com.dbidding.wallet.service;
 
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Optional;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -170,6 +171,32 @@ public class WalletService {
 		);
 	}
 
+	/**
+	 * 즉시 낙찰처럼 {@link #hold(Integer, Integer, long)}가 같은 트랜잭션에서 이미 구매자
+	 * 지갑 행을 잠근 경우에만 사용한다. 같은 행에 대한 두 번째 {@code FOR UPDATE}를 피하면서
+	 * 예치금 확정을 수행한다.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WalletBalanceResponse captureAfterHold(Integer userId, Integer auctionId, long amount) {
+		return walletMetrics.observe(
+			Operation.CAPTURE,
+			() -> captureObserved(walletForAlreadyLockedTransaction(userId), auctionId, amount)
+		);
+	}
+
+	/**
+	 * 한 트랜잭션에서 여러 지갑을 건드릴 때 사용자 ID 오름차순으로 행 잠금을 먼저 획득한다.
+	 * 즉시 낙찰은 기존 최고 입찰자·구매자·판매자를 모두 이 순서로 선점해 교차 대기를 막는다.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void lockWalletsInOrder(Integer... userIds) {
+		Arrays.stream(userIds)
+			.filter(java.util.Objects::nonNull)
+			.distinct()
+			.sorted()
+			.forEach(this::lockWallet);
+	}
+
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
 		validatePositive(amount);
@@ -194,6 +221,10 @@ public class WalletService {
 
 	private WalletBalanceResponse captureObserved(Integer userId, Integer auctionId, long amount) {
 		Wallet wallet = lockWallet(userId, Operation.CAPTURE);
+		return captureObserved(wallet, auctionId, amount);
+	}
+
+	private WalletBalanceResponse captureObserved(Wallet wallet, Integer auctionId, long amount) {
 		long frozenBefore = walletRepository.sumHeldAmountForUpdate(wallet.getId());
 		WalletHold hold = latestHold(wallet.getId(), auctionId)
 			.orElseThrow(InvalidWalletHoldStateException::new);
@@ -233,6 +264,11 @@ public class WalletService {
 		} finally {
 			walletMetrics.finishLockWait(sample, operation);
 		}
+	}
+
+	private Wallet walletForAlreadyLockedTransaction(Integer userId) {
+		return walletRepository.findByUserId(userId)
+			.orElseThrow(WalletNotFoundException::new);
 	}
 
 	private Optional<WalletHold> latestHold(Integer walletId, Integer auctionId) {

@@ -1,5 +1,8 @@
 package com.dbidding.notification.config;
 
+import com.dbidding.sse.config.CountingCallerRunsPolicy;
+import io.micrometer.core.instrument.MeterRegistry;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,7 +13,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @Configuration
 @EnableAsync
 @Slf4j
+@RequiredArgsConstructor
 public class NotificationExecutorConfig {
+    private final MeterRegistry meterRegistry;
     @Value("${NOTIFICATION_CORE_POOL_SIZE:4}")
     private int corePoolSize;
 
@@ -27,15 +32,7 @@ public class NotificationExecutorConfig {
         executor.setMaxPoolSize(maxPoolSize);
         executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("notification-");
-        executor.setRejectedExecutionHandler((task, threadPool) -> {
-            if (threadPool.isShutdown()) {
-                log.warn("event=notification.executor.rejected reason=shutdown");
-                return;
-            }
-            log.warn("event=notification.executor.saturated action=caller_runs activeCount={} queueSize={}",
-                    threadPool.getActiveCount(), threadPool.getQueue().size());
-            task.run();
-        });
+        executor.setRejectedExecutionHandler(new CountingCallerRunsPolicy(meterRegistry, "notification"));
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(10);
         executor.initialize();

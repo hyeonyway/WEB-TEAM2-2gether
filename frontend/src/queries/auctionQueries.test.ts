@@ -1,7 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import type {BidContextResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
-import {applyBidContextEvent,auctionQueryKeys} from './auctionQueries';
+import {applyBidContextEvent,auctionQueries,auctionQueryKeys} from './auctionQueries';
 
 const bidEvent:AuctionStreamPayload={
   type:'BID_PLACED',auction_id:1,bidder_id:2,previous_bidder_id:7,start_price:1_000,current_price:30_000,bid_increment:2_000,bid_count:3,ends_at:'2026-08-04T11:00:00Z',status:'ENDING',event_id:2,occurred_at:'2026-08-03T06:00:00Z',
@@ -17,6 +17,10 @@ describe('auctionQueryKeys',()=>{
   it('공개 조회와 로그인 사용자 조회의 목록 캐시를 분리한다',()=>{
     expect(auctionQueryKeys.list(query,'public'))
       .not.toEqual(auctionQueryKeys.list(query,'self'));
+  });
+
+  it('카드 경매 정렬 전환은 캐시 유효 기간을 기다리지 않는다',()=>{
+    expect(auctionQueries.list(query,'public').staleTime).toBe(0);
   });
 
   it('공개 조회와 로그인 사용자 조회의 상세 캐시를 분리한다',()=>{

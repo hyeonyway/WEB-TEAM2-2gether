@@ -6,6 +6,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Supplier;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,9 +23,17 @@ public class NotificationSseConnectionManager {
     private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
     private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
     private final SessionSseConnectionRegistry sessionRegistry;
+    private final NotificationSseMetrics metrics;
+    private final Supplier<Number> connectionCountSupplier;
 
-    public NotificationSseConnectionManager(SessionSseConnectionRegistry sessionRegistry) {
+    public NotificationSseConnectionManager(
+            SessionSseConnectionRegistry sessionRegistry,
+            NotificationSseMetrics metrics
+    ) {
         this.sessionRegistry = sessionRegistry;
+        this.metrics = metrics;
+        this.connectionCountSupplier = this::totalConnectionCount;
+        metrics.registerConnectionGauge(connectionCountSupplier);
     }
 
     public SseEmitter connect(Integer userId) {
@@ -39,6 +49,7 @@ public class NotificationSseConnectionManager {
 	}
 
 	SseEmitter register(Integer userId, String sessionId, SseEmitter emitter) {
+        Timer.Sample connectSample = metrics.startConnect();
         Set<SseEmitter> emitters = emittersByUserId.computeIfAbsent(userId, id -> new CopyOnWriteArraySet<>());
         emitters.add(emitter);
         if (sessionId != null) {
@@ -52,10 +63,12 @@ public class NotificationSseConnectionManager {
 			return emitter;
 		}
 
-        send(userId, emitter, SseEmitter.event()
+        if (send(userId, emitter, SseEmitter.event()
                 .name("connected")
                 .reconnectTime(RECONNECT_TIME_MILLIS)
-                .data("connected"));
+                .data("connected"))) {
+            metrics.finishConnect(connectSample);
+        }
         return emitter;
     }
 
@@ -88,12 +101,14 @@ public class NotificationSseConnectionManager {
         return emittersByUserId.values().stream().mapToInt(Set::size).sum();
     }
 
-    private void send(Integer userId, SseEmitter emitter, SseEmitter.SseEventBuilder event) {
+    private boolean send(Integer userId, SseEmitter emitter, SseEmitter.SseEventBuilder event) {
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
             removeAndComplete(userId, emitter);
+            return false;
         }
+        return true;
     }
 
     private void removeAndComplete(Integer userId, SseEmitter emitter) {

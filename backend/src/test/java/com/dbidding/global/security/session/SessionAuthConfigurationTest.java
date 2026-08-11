@@ -12,12 +12,15 @@ import org.springframework.context.annotation.Import;
 import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.global.security.RequestUserIdWriter;
+import com.dbidding.global.security.FilterErrorResponseWriter;
+import tools.jackson.databind.ObjectMapper;
 
 class SessionAuthConfigurationTest {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(TestConfiguration.class)
 		.withBean(RequestUserIdWriter.class, RequestUserIdWriter::new)
+		.withBean(FilterErrorResponseWriter.class, () -> new FilterErrorResponseWriter(new ObjectMapper()))
 		.withBean(SessionSseConnectionRegistry.class, SessionSseConnectionRegistry::new)
 		.withBean(Clock.class, Clock::systemUTC);
 

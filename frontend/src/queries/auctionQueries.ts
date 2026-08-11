@@ -29,7 +29,8 @@ export const auctionQueries={
     queryFn:({pageParam})=>fetchAuctions(query,pageParam),
     initialPageParam:undefined as string|undefined,
     getNextPageParam:lastPage=>lastPage.has_next?lastPage.next_cursor??undefined:undefined,
-    staleTime:30_000,
+    // 정렬을 전환할 때 이전 정렬의 캐시가 아닌 서버 정렬 결과를 사용한다.
+    staleTime:0,
   }),
   detail:(auctionId:number,viewerScope:AuctionViewerScope)=>queryOptions({
     queryKey:auctionQueryKeys.detail(auctionId,viewerScope),

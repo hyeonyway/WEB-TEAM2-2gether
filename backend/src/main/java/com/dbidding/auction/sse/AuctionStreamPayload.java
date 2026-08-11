@@ -69,4 +69,16 @@ public record AuctionStreamPayload(
                 bidCount, endsAt, status, closedAt, occurredAt, publishedAt
         );
     }
+
+    /**
+     * {@code type}이 {@code @JsonIgnore}라 JSON 왕복(Redis pub/sub)에서 유실되므로, 수신 측이
+     * {@link AuctionStreamMessage}로 따로 전달받은 타입을 다시 채워넣을 때 쓴다.
+     */
+    public AuctionStreamPayload withType(AuctionStreamEventType type) {
+        return new AuctionStreamPayload(
+                type, auctionId, cardId, cardName, cardPsaGrade, cardLanguage, cardThumbnailUrl, sellerId,
+                bidderId, previousBidderId, winnerId, startPrice, currentPrice, finalPrice, bidIncrement,
+                bidCount, endsAt, status, closedAt, occurredAt, publishedAt
+        );
+    }
 }

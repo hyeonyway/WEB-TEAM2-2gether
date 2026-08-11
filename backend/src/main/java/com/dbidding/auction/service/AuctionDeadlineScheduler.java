@@ -54,7 +54,9 @@ public class AuctionDeadlineScheduler {
         scheduleNext("application_ready");
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    // fallbackExecution=true: #281 이후 입찰 경로에서 이 이벤트가 트랜잭션 밖(이미 커밋된 뒤)에서도
+    // 발행되므로, 없으면 활성 트랜잭션이 없을 때 조용히 드랍된다.
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void reschedule(AuctionCloseScheduleChangedEvent event) {
         log.debug(
                 "event=auction.close.deadline.reschedule_requested auctionId={} closeTime={} reason={}",

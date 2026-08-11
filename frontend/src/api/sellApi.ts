@@ -1,6 +1,6 @@
 import type {AuctionPayload,CardRecognition,PsaCertification,PsaCertificationSample,SellPhoto,UploadedPhoto} from '../dto/sellDto';
 import mockupData from '../mocks/mockup-data.json';
-import {request} from './httpClient';
+import {request,toHttpError} from './httpClient';
 import {authenticatedRequest} from './authenticatedRequest';
 import {isMockApiEnabled} from './mockApiConfig';
 
@@ -58,7 +58,7 @@ export async function uploadSellImages(photos:SellPhoto[]):Promise<UploadedPhoto
       headers:{'Content-Type':photo.file.type},
       body:photo.file,
     });
-    if(!response.ok)throw new Error(`${index+1}번 이미지 업로드에 실패했습니다.`);
+    if(!response.ok)throw await toHttpError(response);
   }));
   return presigned.uploads.map((upload,order)=>({
     order,

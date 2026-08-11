@@ -17,6 +17,7 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
@@ -36,7 +37,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
+import com.dbidding.auction.exception.AuctionException;
 
 @ExtendWith(MockitoExtension.class)
 class AuctionServiceCloseTest {
@@ -48,6 +49,8 @@ class AuctionServiceCloseTest {
     private WalletService walletService;
     @Mock
     private AuctionEventPublisher auctionEventPublisher;
+    @Mock
+    private AuctionStreamPublisher auctionStreamPublisher;
     @Mock
     private CardService cardService;
     @Mock
@@ -72,11 +75,13 @@ class AuctionServiceCloseTest {
                 walletService,
                 null,
                 auctionEventPublisher,
+                auctionStreamPublisher,
                 cardService,
                 orderService,
                 clock,
                 eventPublisher,
-                new AuctionMetrics(meterRegistry)
+                new AuctionMetrics(meterRegistry),
+                null
         );
         lenient().when(cardService.getCardSnapshot(1)).thenReturn(new CardSnapshot(
                 1, "리자몽", "기본 세트", "10", "JP", "/cards/charizard.png"
@@ -111,6 +116,7 @@ class AuctionServiceCloseTest {
                 && closed.winningPrice().equals(45_000L)
                 && closed.currentPrice().equals(45_000L)
                 && closed.status() == AuctionStatus.ENDED));
+        verify(auctionStreamPublisher).publish(any());
         assertThat(meterRegistry.get("dbidding.auction.lock.wait")
                 .tag("operation", "close")
                 .timer()
@@ -141,6 +147,7 @@ class AuctionServiceCloseTest {
                 && closed.winningPrice() == null
                 && closed.currentPrice().equals(42_000L)
                 && closed.status() == AuctionStatus.FAILED));
+        verify(auctionStreamPublisher).publish(any());
     }
 
     @Test
@@ -149,9 +156,9 @@ class AuctionServiceCloseTest {
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
 
         assertThatThrownBy(() -> auctionService.closeAuction(1))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(exception -> ((ResponseStatusException) exception).getStatusCode().value())
-                .isEqualTo(400);
+				.isInstanceOf(AuctionException.class)
+				.extracting(exception -> ((AuctionException) exception).getCode())
+				.isEqualTo("INVALID_AUCTION_REQUEST");
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
         verify(walletService, never()).capture(any(), any(), any(Long.class));
         verifyNoInteractions(auctionEventPublisher);

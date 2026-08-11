@@ -3,6 +3,7 @@ package com.dbidding.upload.controller;
 import static org.mockito.BDDMockito.given;
 
 import com.dbidding.upload.dto.ImageUploadResponses;
+import com.dbidding.upload.exception.UploadException;
 import com.dbidding.upload.service.UploadService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -74,5 +75,31 @@ class UploadControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"files\":[{\"fileName\":\"card1.jpg\",\"contentType\":\"\"}]}"))
                 .andExpect(MockMvcResultMatchers.status().isBadRequest());
+    }
+
+    @Test
+    void 허용되지_않은_파일_형식은_공통_오류_응답으로_반환한다() throws Exception {
+        given(uploadService.createPresignedUrls(org.mockito.ArgumentMatchers.any()))
+                .willThrow(UploadException.invalidContentType("application/octet-stream"));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/uploads/images/presigned-url")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"files\":[{\"fileName\":\"virus.exe\",\"contentType\":\"application/octet-stream\"}]}"))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("INVALID_UPLOAD_CONTENT_TYPE"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("허용되지 않는 이미지 형식입니다: application/octet-stream"));
+    }
+
+    @Test
+    void S3_장애는_내부_정보_없이_공통_503_응답으로_반환한다() throws Exception {
+        given(uploadService.createPresignedUrls(org.mockito.ArgumentMatchers.any()))
+                .willThrow(UploadException.externalServiceUnavailable(new RuntimeException("S3 secret")));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/uploads/images/presigned-url")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"files\":[{\"fileName\":\"card.jpg\",\"contentType\":\"image/jpeg\"}]}"))
+                .andExpect(MockMvcResultMatchers.status().isServiceUnavailable())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("UPLOAD_EXTERNAL_SERVICE_UNAVAILABLE"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("파일 업로드 서비스를 일시적으로 사용할 수 없습니다."));
     }
 }

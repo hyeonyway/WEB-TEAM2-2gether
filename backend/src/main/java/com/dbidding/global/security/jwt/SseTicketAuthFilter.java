@@ -5,10 +5,12 @@ import java.util.List;
 
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.global.exception.UnauthorizedException;
+import com.dbidding.global.security.FilterErrorResponseWriter;
 import com.dbidding.global.security.RequestUserIdWriter;
 
 import jakarta.servlet.FilterChain;
@@ -26,9 +28,12 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 		"/api/users/{userId}/auctions/stream",
 		"/api/users/{userId}/notifications/stream"
 	);
+	private static final String UNAUTHORIZED = "UNAUTHORIZED";
+	private static final String UNAUTHORIZED_MESSAGE = "인증이 필요합니다.";
 
 	private final TicketProvider ticketProvider;
 	private final RequestUserIdWriter requestUserIdWriter;
+	private final FilterErrorResponseWriter errorResponseWriter;
 	private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
 	@Override
@@ -49,7 +54,7 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 			requestUserIdWriter.write(request, userId);
 			filterChain.doFilter(request, response);
 		} catch (UnauthorizedException exception) {
-			response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+			errorResponseWriter.write(response, HttpStatus.UNAUTHORIZED, UNAUTHORIZED, UNAUTHORIZED_MESSAGE);
 		}
 	}
 }
