@@ -52,7 +52,7 @@ export default function AuctionPage(){
   });
   const{
     data,isPending,error,fetchNextPage,hasNextPage,isFetchingNextPage,isFetchNextPageError,
-  }=useInfiniteQuery(listOptions);
+  }=useInfiniteQuery({...listOptions,enabled:authStatus!=='initializing'});
   const auctions=useMemo(()=>{
     const unique=new Map<number,AuctionDto>();
     data?.pages.flatMap(page=>page.content).forEach(auction=>unique.set(auction.id,auction));

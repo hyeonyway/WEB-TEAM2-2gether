@@ -45,11 +45,11 @@ function LocationProbe(){
   return <output data-testid="location-search">{useLocation().search}</output>;
 }
 
-function renderPage(initialEntry='/auction'){
+function renderPage(initialEntry='/auction',authStatus:'initializing'|'authenticated'|'anonymous'='anonymous'){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   const result=render(<QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
-        <AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+        <AuthContext.Provider value={{status:authStatus,retryInitialization:vi.fn()}}>
           <AuctionPage/><LocationProbe/>
       </AuthContext.Provider>
     </MemoryRouter>
@@ -68,6 +68,13 @@ describe('AuctionPage',()=>{
     });
     vi.stubGlobal('IntersectionObserver',TestIntersectionObserver);
     vi.stubGlobal('matchMedia',vi.fn(()=>({matches:true})));
+  });
+
+  it('인증 초기화 중에는 사용자 범위가 확정될 때까지 목록을 조회하지 않는다',async()=>{
+    renderPage('/auction','initializing');
+
+    expect(screen.getByLabelText('경매 목록을 불러오는 중')).toBeInTheDocument();
+    expect(apiMocks.fetchAuctions).not.toHaveBeenCalled();
   });
 
   it('목록 하단이 보이면 다음 cursor를 조회해 경매를 누적한다',async()=>{
