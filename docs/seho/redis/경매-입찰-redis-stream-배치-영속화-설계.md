@@ -33,6 +33,33 @@ hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존
 현재 전제는 단일 Redis 인스턴스다. Lua Script가 경매별 context key와 전역 Stream key를
 같은 호출에서 갱신하므로 Redis Cluster 전환 시 hash slot 토폴로지를 별도로 설계한다.
 
+### Redis 영속성(AOF)
+
+`auction:timeline-events`는 DB 반영 전 승인 이벤트의 복구 대기열이므로 Redis는 AOF를 켠다.
+저장소의 [`infra/redis/redis.conf`](../../../infra/redis/redis.conf)는 `appendonly yes`,
+`appendfsync everysec`, `/data` 영속 디렉터리를 고정한다. `everysec`은 처리량과 내구성의
+균형 설정으로, OS/호스트 장애에서는 마지막 fsync 이후 최대 약 1초의 승인 이벤트가 유실될 수 있다.
+무손실을 요구하는 환경은 `appendfsync always`의 지연 비용을 별도로 부하 검증해야 한다.
+
+로컬 Redis는 설정 파일과 데이터 volume을 함께 마운트해 기동한다.
+
+```bash
+docker volume create dbidding-redis-data
+docker run -d --name redis -p 6379:6379 \
+  -v dbidding-redis-data:/data \
+  -v "$PWD/infra/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro" \
+  redis:7 redis-server /usr/local/etc/redis/redis.conf
+```
+
+이미 실행 중인 컨테이너에서 긴급히 활성화할 때는 아래 명령을 사용하되, 컨테이너 재생성 뒤에도
+유지하려면 반드시 위 설정 파일로 다시 기동한다.
+
+```bash
+docker exec redis redis-cli CONFIG SET appendonly yes
+docker exec redis redis-cli CONFIG SET appendfsync everysec
+docker exec redis redis-cli CONFIG GET appendonly appendfsync dir
+```
+
 ## 생산 이벤트 계약
 
 Lua Script는 충전 승인 뒤 `wallet.charged.v1`, 일반 입찰 승인 뒤 `bid.accepted.v1`, 즉시 낙찰 승인 뒤
