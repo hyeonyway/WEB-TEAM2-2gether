@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Redis Lua 승인 결과를 기존 지갑 API 계약으로 변환한다. */
 @Service
@@ -47,6 +48,15 @@ public class RedisWalletService extends WalletService {
         long availableBalance = Long.parseLong(available.toString());
         long frozenBalance = Long.parseLong(frozen.toString());
         return new WalletBalanceResponse(availableBalance + frozenBalance, frozenBalance, availableBalance);
+    }
+
+    @Override
+    @Transactional
+    public void provision(Integer userId) {
+        super.provision(userId);
+        redisTemplate.opsForHash().putAll(balanceKey(userId), java.util.Map.of(
+                "availableBalance", "0", "frozenBalance", "0", "walletVersion", "0"
+        ));
     }
 
     @Override

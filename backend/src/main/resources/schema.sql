@@ -364,7 +364,7 @@ CREATE TABLE wallet_holds
     amount             BIGINT       NOT NULL,
     status             VARCHAR(20)  NOT NULL,
     projection_version BIGINT       NOT NULL DEFAULT 0,
-    event_id           CHAR(36)     NULL,
+    event_id           BINARY(16)   NULL,
     created_at         TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     released_at        TIMESTAMP(6) NULL,
 
@@ -394,7 +394,7 @@ CREATE TABLE point_records
     transaction_type VARCHAR(32)  NOT NULL,
     idempotency_key  VARCHAR(64)
         CHARACTER SET ascii COLLATE ascii_bin NULL,
-    event_id         CHAR(36) NULL,
+    event_id         BINARY(16) NULL,
 
     CONSTRAINT pk_point_records PRIMARY KEY (id),
     CONSTRAINT uk_point_records_wallet_idempotency
