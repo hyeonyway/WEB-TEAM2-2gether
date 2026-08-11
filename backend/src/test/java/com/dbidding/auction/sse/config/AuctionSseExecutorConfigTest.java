@@ -37,7 +37,9 @@ class AuctionSseExecutorConfigTest {
         executor.execute(() -> executionThread.set(Thread.currentThread().getName()));
 
         assertThat(executionThread).hasValue(Thread.currentThread().getName());
-        assertThat(registry.get("dbidding.sse.broadcast.rejected").tag("executor", "auction").counter().count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.sse.broadcast.saturated").tag("executor", "auction").counter().count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.sse.broadcast.saturated.caller-runs.duration")
+                .tag("executor", "auction").timer().count()).isEqualTo(1);
         release.countDown();
         executor.shutdown();
     }
