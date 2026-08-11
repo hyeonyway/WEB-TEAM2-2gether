@@ -15,9 +15,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Redis 채널을 구독해 역직렬화한 뒤 그대로 로컬 커넥션에 push한다 — 이미 완성된 payload를
- * 전달만 하므로 DB 조회 없음. origin(저장+발행)용 {@code notificationTaskExecutor}를 그대로
- * 재사용한다 — 이번엔 origin/subscriber executor를 분리하지 않는다(#305에서 가상 스레드
- * 전환 시 같이 분리). {@code local-sse} 프로필에서는 Redis를 안 쓰므로 비활성화.
+ * 전달만 하므로 DB 조회 없음. subscriber(로컬 fan-out) 전용 {@code notificationFanOutTaskExecutor}를
+ * 쓴다 — origin(저장+발행)용 {@code notificationTaskExecutor}와는 분리(#305). {@code local-sse}
+ * 프로필에서는 Redis를 안 쓰므로 비활성화.
  */
 @Component
 @Profile("!local-sse")
@@ -27,7 +27,7 @@ public class NotificationPushRedisSubscriber implements MessageListener {
     private final NotificationSseConnectionManager connectionManager;
     private final ObjectMapper objectMapper;
 
-    @Async("notificationTaskExecutor")
+    @Async("notificationFanOutTaskExecutor")
     @Override
     public void onMessage(Message message, byte[] pattern) {
         try {
