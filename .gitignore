@@ -35,6 +35,9 @@ localhost-key.pem
 # Local DB snapshots (sync-local-db-schema.sh)
 backend/db-snapshots/
 
+# k6 부하테스트 결과 (계속 재생성됨, 로컬 보관용)
+backend/src/test/k6/results/
+
 # Logs and runtime artifacts
 logs/
 *.log
