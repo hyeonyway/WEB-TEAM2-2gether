@@ -7,14 +7,14 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 
-@Profile("redis")
+@Profile("bid-redis-stream")
 @Configuration
 public class RedisBidLuaConfiguration {
 
     @Bean
-    public RedisScript<String> bidStubScript() {
+    public RedisScript<String> bidAcceptScript() {
         DefaultRedisScript<String> script = new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("lua/bid-stub.lua"));
+        script.setLocation(new ClassPathResource("lua/bid-accept.lua"));
         script.setResultType(String.class);
         return script;
     }

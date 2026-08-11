@@ -53,8 +53,12 @@ public final class BidResponses {
             Long id,
             Long amount,
             BidStatus status,
-            @JsonProperty("created_at") Instant createdAt
+            @JsonProperty("created_at") Instant createdAt,
+            @JsonProperty("event_id") String eventId
     ) {
+        public BidDetail(Long id, Long amount, BidStatus status, Instant createdAt) {
+            this(id, amount, status, createdAt, null);
+        }
     }
 
     public record AuctionSnapshot(

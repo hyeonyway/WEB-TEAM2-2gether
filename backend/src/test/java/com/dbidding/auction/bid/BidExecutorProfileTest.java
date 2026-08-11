@@ -33,8 +33,9 @@ class BidExecutorProfileTest {
             .withBean(StringRedisTemplate.class, () -> mock(StringRedisTemplate.class));
 
     @Test
-    void 기본_프로필에서는_DbBidExecutor만_등록된다() {
-        contextRunner.run(context -> {
+    void bid_db_프로필에서는_DbBidExecutor만_등록된다() {
+        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("bid-db"))
+                .run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(BidExecutor.class);
             assertThat(context).hasSingleBean(DbBidExecutor.class);
@@ -43,8 +44,8 @@ class BidExecutorProfileTest {
     }
 
     @Test
-    void redis_프로필에서는_RedisBidExecutor만_등록된다() {
-        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("redis"))
+    void bid_redis_stream_프로필에서는_RedisBidExecutor만_등록된다() {
+        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("bid-redis-stream"))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(BidExecutor.class);
