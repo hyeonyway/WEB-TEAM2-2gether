@@ -3,6 +3,7 @@ package com.dbidding.wallet.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -56,6 +57,23 @@ class WalletServiceHoldTest {
 			new WalletMetrics(meterRegistry),
 			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
 		);
+	}
+
+	@Test
+	void 여러_지갑은_사용자_ID_오름차순으로_먼저_잠근다() {
+		Wallet first = Wallet.open(1);
+		Wallet second = Wallet.open(2);
+		Wallet third = Wallet.open(3);
+		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(first));
+		given(walletRepository.findByUserIdForUpdate(2)).willReturn(Optional.of(second));
+		given(walletRepository.findByUserIdForUpdate(3)).willReturn(Optional.of(third));
+
+		service.lockWalletsInOrder(3, 1, 2, 1);
+
+		var walletLocks = inOrder(walletRepository);
+		walletLocks.verify(walletRepository).findByUserIdForUpdate(1);
+		walletLocks.verify(walletRepository).findByUserIdForUpdate(2);
+		walletLocks.verify(walletRepository).findByUserIdForUpdate(3);
 	}
 
 	@Test

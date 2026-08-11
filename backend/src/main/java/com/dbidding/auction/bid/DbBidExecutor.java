@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -57,7 +58,7 @@ public class DbBidExecutor implements BidExecutor {
     private final AuctionMetrics auctionMetrics;
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public BidExecutionResult execute(BidCommand command) {
         IdempotencyKeys.validate(command.idempotencyKey());
         String requestHash = IdempotencyKeys.sha256(command.price());
@@ -84,6 +85,12 @@ public class DbBidExecutor implements BidExecutor {
             Bid previousLeadingBid = highestBid(auction.getId()).orElse(null);
             if (!buyNow) {
                 validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
+            } else {
+                walletService.lockWalletsInOrder(
+                        userId,
+                        previousLeadingBid == null ? null : previousLeadingBid.getBidderId(),
+                        auction.getSellerId()
+                );
             }
 
             Instant bidAt = now();
@@ -268,7 +275,7 @@ public class DbBidExecutor implements BidExecutor {
         Bid winner = winningBid.get();
         winner.markWon();
         auction.closeWithWinningBid(winner, closedAt);
-        walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        walletService.captureAfterHold(winner.getBidderId(), auction.getId(), winner.getBidPrice());
         orderService.createFromAuctionClosed(
                 auction.getId(), winner.getBidderId(), auction.getSellerId(), card.name(), winner.getBidPrice()
         );

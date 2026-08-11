@@ -73,6 +73,7 @@ class AuctionBidWalletLockOrderConcurrencyTest {
     @BeforeEach
     void setUp() {
         executor = Executors.newFixedThreadPool(2);
+        deleteFixtures();
         insertFixtures();
         walletService.resetCoordination();
         coordinatedWalletCalls = walletService.coordinatedWalletCalls();
@@ -105,9 +106,46 @@ class AuctionBidWalletLockOrderConcurrencyTest {
         assertThat(coordinatedWalletCalls.firstLockTargets()).containsExactly(1);
     }
 
+    @RepeatedTest(5)
+    void 교차_즉시낙찰은_구매자와_기존_입찰자와_판매자_지갑을_같은_순서로_잠가_데드락없이_완료한다() throws Exception {
+        jdbcTemplate.update("UPDATE wallets SET point = 200000 WHERE user_id IN (1, 2)");
+        walletService.disableCoordination();
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        Future<Long> first = executor.submit(participate(
+                2, 1, 100_000L, "buy-now-bidder-two-auction-one", ready, start
+        ));
+        Future<Long> second = executor.submit(participate(
+                1, 2, 100_000L, "buy-now-bidder-one-auction-two", ready, start
+        ));
+
+        assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+        start.countDown();
+
+        assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo(100_000L);
+        assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo(100_000L);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM wallet_holds
+                WHERE auction_id IN (1, 2) AND status = 'CAPTURED'
+                """, Long.class)).isEqualTo(2L);
+    }
+
     private Callable<Long> participate(
             Integer bidderId,
             Integer auctionId,
+            String idempotencyKey,
+            CountDownLatch ready,
+            CountDownLatch start
+    ) {
+        return participate(bidderId, auctionId, 12_000L, idempotencyKey, ready, start);
+    }
+
+    private Callable<Long> participate(
+            Integer bidderId,
+            Integer auctionId,
+            long price,
             String idempotencyKey,
             CountDownLatch ready,
             CountDownLatch start
@@ -118,7 +156,7 @@ class AuctionBidWalletLockOrderConcurrencyTest {
             return auctionCommandService.participate(
                     bidderId,
                     auctionId,
-                    new BidCreateRequest(12_000L),
+                    new BidCreateRequest(price),
                     idempotencyKey
             ).bid().amount();
         };
@@ -168,7 +206,8 @@ class AuctionBidWalletLockOrderConcurrencyTest {
                 INSERT INTO wallets (id, user_id, point)
                 VALUES
                     (1, 1, 100000),
-                    (2, 2, 100000)
+                    (2, 2, 100000),
+                    (3, 3, 0)
                 """);
         jdbcTemplate.update("""
                 INSERT INTO wallet_holds (id, wallet_id, auction_id, amount, status)
@@ -179,8 +218,10 @@ class AuctionBidWalletLockOrderConcurrencyTest {
     }
 
     private void deleteFixtures() {
+        jdbcTemplate.update("DELETE FROM orders WHERE auction_id IN (1, 2)");
+        jdbcTemplate.update("DELETE FROM point_records WHERE auction_id IN (1, 2)");
         jdbcTemplate.update("DELETE FROM wallet_holds WHERE auction_id IN (1, 2)");
-        jdbcTemplate.update("DELETE FROM wallets WHERE user_id IN (1, 2)");
+        jdbcTemplate.update("DELETE FROM wallets WHERE user_id IN (1, 2, 3)");
         jdbcTemplate.update("DELETE FROM bids WHERE auction_id IN (1, 2)");
         jdbcTemplate.update("DELETE FROM auctions WHERE id IN (1, 2)");
         jdbcTemplate.update("DELETE FROM card_metadata WHERE id IN (1, 2)");
@@ -203,11 +244,17 @@ class AuctionBidWalletLockOrderConcurrencyTest {
         private final ConcurrentHashMap<Long, AtomicInteger> callCounts = new ConcurrentHashMap<>();
         private final Set<Integer> firstTargets = ConcurrentHashMap.newKeySet();
         private volatile CountDownLatch firstCallsReady = new CountDownLatch(2);
+        private volatile boolean enabled = true;
 
         void reset() {
             callCounts.clear();
             firstTargets.clear();
             firstCallsReady = new CountDownLatch(2);
+            enabled = true;
+        }
+
+        void disable() {
+            enabled = false;
         }
 
         Set<Integer> firstLockTargets() {
@@ -215,6 +262,9 @@ class AuctionBidWalletLockOrderConcurrencyTest {
         }
 
         <T> T coordinate(Integer userId, Supplier<T> operation) {
+            if (!enabled) {
+                return operation.get();
+            }
             AtomicInteger calls = callCounts.computeIfAbsent(
                     Thread.currentThread().threadId(), ignored -> new AtomicInteger()
             );
@@ -264,6 +314,10 @@ class AuctionBidWalletLockOrderConcurrencyTest {
 
         void resetCoordination() {
             coordinatedWalletCalls.reset();
+        }
+
+        void disableCoordination() {
+            coordinatedWalletCalls.disable();
         }
 
         ConcurrentWalletCalls coordinatedWalletCalls() {

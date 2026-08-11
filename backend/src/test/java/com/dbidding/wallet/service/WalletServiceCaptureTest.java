@@ -85,6 +85,26 @@ class WalletServiceCaptureTest {
 	}
 
 	@Test
+	void 같은_트랜잭션에서_예치한_즉시낙찰은_지갑_행을_다시_잠그지_않는다() {
+		Wallet wallet = walletWithPoint(20_000L);
+		WalletHold hold = WalletHold.held(wallet.getId(), 20, 16_000L);
+		given(walletRepository.findByUserId(1)).willReturn(Optional.of(wallet));
+		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(16_000L);
+		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
+			wallet.getId(),
+			20
+		)).willReturn(Optional.of(hold));
+
+		WalletBalanceResponse result = service.captureAfterHold(1, 20, 16_000L);
+
+		assertThat(wallet.getPoint()).isEqualTo(4_000L);
+		assertThat(hold.getStatus()).isEqualTo(HoldStatus.CAPTURED);
+		assertThat(result.frozenBalance()).isZero();
+		then(walletRepository).should().findByUserId(1);
+		then(walletRepository).should(never()).findByUserIdForUpdate(1);
+	}
+
+	@Test
 	void 이미_CAPTURED인_같은_금액은_재차감하지_않는다() {
 		Wallet wallet = walletWithPoint(4_000L);
 		WalletHold captured = WalletHold.held(wallet.getId(), 20, 16_000L);
