@@ -14,5 +14,6 @@ Notification은 경매 생성/상회 입찰/낙찰 이벤트를 구독해 알림
 8. [NotificationEventListener 전용 Executor 지정 및 SSE push 릴레이 구조 분리](8-notification-sse-async-executor-and-push-relay.md) — 이슈 #239, Redis 전환은 #281로 분리
 9. [복구 배치의 경매 생성 알림 fan-out을 saveAllIgnoringDuplicates로 전환](9-recovery-batch-wishlist-fanout-optimization.md) — 이슈 #306
 12. [알림 fan-out batch insert를 청크로 나눠 프리페어드 스테이트먼트 한도 방지](12-notification-fanout-chunk-insert-plan.md) — 이슈 #207
+13. [위시리스트 fan-out SSE push를 배치 발행 1번으로 묶기](13-notification-batch-push-plan.md) — 이슈 #289
 
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
