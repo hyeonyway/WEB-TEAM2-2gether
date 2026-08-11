@@ -40,7 +40,7 @@ class RedisBidExecutorTest {
         );
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
                 eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))
-                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|2026-08-10T01:00:00Z");
+                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:00:00Z");
 
         var response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
@@ -48,6 +48,7 @@ class RedisBidExecutorTest {
         assertThat(response.result().bid().eventId()).isEqualTo("1700000000000-0");
         assertThat(response.result().bid().amount()).isEqualTo(43_000L);
         assertThat(response.result().auction().currentPrice()).isEqualTo(43_000L);
+        assertThat(response.result().auction().minimumBid()).isEqualTo(46_000L);
         assertThat(response.result().auction().bidCount()).isEqualTo(3);
         assertThat(response.result().wallet().availableBalance()).isEqualTo(57_000L);
         assertThat(response.result().wallet().frozenBalance()).isEqualTo(43_000L);
