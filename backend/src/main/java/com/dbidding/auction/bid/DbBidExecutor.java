@@ -86,7 +86,11 @@ public class DbBidExecutor implements BidExecutor {
             if (!buyNow) {
                 validateNotCurrentLeadingBidder(userId, previousLeadingBid, auction.getId());
             } else {
-                lockBuyNowParticipantWallets(userId, previousLeadingBid, auction.getSellerId());
+                walletService.lockWalletsInOrder(
+                        userId,
+                        previousLeadingBid == null ? null : previousLeadingBid.getBidderId(),
+                        auction.getSellerId()
+                );
             }
 
             Instant bidAt = now();
@@ -251,18 +255,6 @@ public class DbBidExecutor implements BidExecutor {
     private boolean shouldReleasePreviousHoldFirst(Bid previousLeadingBid, Integer currentBidderId) {
         return requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)
                 && previousLeadingBid.getBidderId() < currentBidderId;
-    }
-
-    private void lockBuyNowParticipantWallets(
-            Integer bidderId,
-            Bid previousLeadingBid,
-            Integer sellerId
-    ) {
-        if (previousLeadingBid == null || previousLeadingBid.getBidderId().equals(bidderId)) {
-            walletService.lockWalletsInOrder(bidderId, sellerId);
-            return;
-        }
-        walletService.lockWalletsInOrder(bidderId, previousLeadingBid.getBidderId(), sellerId);
     }
 
     private AuctionCloseData closeLockedAuction(Auction auction, Instant closedAt) {
