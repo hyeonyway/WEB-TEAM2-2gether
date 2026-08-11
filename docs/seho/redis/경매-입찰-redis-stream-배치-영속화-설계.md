@@ -14,13 +14,13 @@ hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존
 ## 프로필과 토폴로지
 
 - 기본 프로필에는 consumer 빈이 없다. `spring.profiles.active=redis`일 때만 실행한다.
-- Stream key: `auction:wallet-timeline-events:v1`
-- consumer group: `auction-wallet-timeline-persistence`
-- DLQ key: `auction:wallet-timeline-events:dlq:v1`
-- retry counter hash: `auction:wallet-timeline-events:retry-count:v1`
-- version pause hash: `auction:wallet-timeline-events:paused-auctions:v1`
-- consumer lease lock: `auction:wallet-timeline-events:consumer-leader-lock:v1`
-- 한 consumer는 `XREADGROUP GROUP auction-wallet-timeline-persistence <instance-id> COUNT 1 BLOCK 1000`
+- Stream key: `auction:timeline-events`
+- consumer group: `auction-timeline-persistence`
+- DLQ key: `auction:timeline-events:dlq`
+- retry counter hash: `auction:timeline-events:retry-count`
+- version pause hash: `auction:timeline-events:paused-auctions`
+- consumer lease lock: `auction:timeline-events:consumer-leader-lock`
+- 한 consumer는 `XREADGROUP GROUP auction-timeline-persistence <instance-id> COUNT 1 BLOCK 1000`
   으로 읽는다. 시작과 함께 group이 없으면 `MKSTREAM`으로 생성한다.
 - PEL의 30초 이상 유휴 메시지는 pending 조회 뒤 `XCLAIM`으로 회수한다.
 - 여러 애플리케이션 인스턴스가 떠도 Redis lease 락을 획득한 인스턴스만 poll 전체를 실행한다.
@@ -137,7 +137,7 @@ counter를 제거한다. 계약 파싱 오류와 존재하지 않는 경매 같�
 실패는 DLQ에 다음 field를 추가해 기록하고 원본을 ACK한다. 각 Stream entry는 독립된 DB
 트랜잭션으로 처리하므로, 한 이벤트의 실패가 다른 이벤트의 재시도·DLQ 판단에 영향을 주지 않는다.
 
-단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:wallet-timeline-events:paused-auctions:v1` hash에
+단, **버전 단절은 DLQ로 ACK하지 않는다.** `auction:timeline-events:paused-auctions` hash에
 경매 ID, 누락 직전 기대 버전, 원본 Stream ID, 사유를 기록하고 해당 PEL 메시지를 보류한다.
 이 Stream은 지갑 상태까지 포함한 단일 전역 타임라인이므로, pause 중에는 뒤의 충전·입찰도 소비하지 않는다.
 누락된 선행 이벤트를 재생해 정상 커밋하면 pause를 자동 해제하고
@@ -145,7 +145,7 @@ counter를 제거한다. 계약 파싱 오류와 존재하지 않는 경매 같�
 경매 컨텍스트와 DB `last_bid_event_version`을 대조한 뒤, 선행 이벤트를 재발행하거나 별도
 정합성 복구 절차를 수행해야 한다. pause 상태의 이벤트를 임의로 ACK해서는 안 된다.
 
-Consumer Group은 분배 기능만 제공하므로, `auction:wallet-timeline-events:consumer-leader-lock:v1` Redis
+Consumer Group은 분배 기능만 제공하므로, `auction:timeline-events:consumer-leader-lock` Redis
 lease 락을 획득한 인스턴스만 한 번의 poll(DB 반영과 ACK 포함)을 실행한다. 이는 다중 인스턴스의
 동시 DB 잠금과 데드락 가능성을 줄이기 위한 단일 실행 제어다.
 

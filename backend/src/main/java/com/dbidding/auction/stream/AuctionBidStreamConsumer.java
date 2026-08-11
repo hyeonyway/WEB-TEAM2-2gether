@@ -29,10 +29,10 @@ import org.springframework.stereotype.Component;
 @Profile("redis")
 @RequiredArgsConstructor
 public class AuctionBidStreamConsumer {
-    static final String STREAM_KEY = "auction:wallet-timeline-events:v1";
-    static final String GROUP = "auction-wallet-timeline-persistence";
-    static final String DLQ_KEY = "auction:wallet-timeline-events:dlq:v1";
-    static final String RETRY_KEY = "auction:wallet-timeline-events:retry-count:v1";
+    static final String STREAM_KEY = "auction:timeline-events";
+    static final String GROUP = "auction-timeline-persistence";
+    static final String DLQ_KEY = "auction:timeline-events:dlq";
+    static final String RETRY_KEY = "auction:timeline-events:retry-count";
 
     private final StringRedisTemplate redisTemplate;
     private final AuctionBidStreamPersistenceService persistenceService;
