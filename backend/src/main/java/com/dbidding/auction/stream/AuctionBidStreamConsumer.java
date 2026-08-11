@@ -38,7 +38,7 @@ public class AuctionBidStreamConsumer {
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
-    private final AuctionBidStreamPausedAuctionRegistry pausedAuctionRegistry;
+    private final AuctionTimelineStreamPauseRegistry streamPauseRegistry;
     private final MeterRegistry meterRegistry;
     private final String consumerName = "auction-bid-" + UUID.randomUUID();
 
@@ -71,8 +71,11 @@ public class AuctionBidStreamConsumer {
             return;
         }
         try {
+            if (streamPauseRegistry.isPaused()) {
+                return;
+            }
             for (int processed = 0; processed < properties.maxRecordsPerRun(); processed++) {
-                if (!consumeOnce()) {
+                if (!leaderLock.isLeader() || !consumeOnce()) {
                     return;
                 }
             }
@@ -93,10 +96,6 @@ public class AuctionBidStreamConsumer {
             return false;
         }
         MapRecord<String, Object, Object> record = pendingClaim.record();
-        if (record != null && isPausedAuction(record)) {
-            // 하나의 전역 타임라인에서는 앞선 버전 단절을 건너뛰고 뒤 이벤트를 처리하면 안 된다.
-            return false;
-        }
         if (record == null) {
             List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().read(
                     Consumer.from(GROUP, consumerName),
@@ -152,31 +151,19 @@ public class AuctionBidStreamConsumer {
             persistenceService.persist(event);
             acknowledge(record);
             redisTemplate.opsForHash().delete(RETRY_KEY, record.getId().getValue());
-            if (event instanceof BidAcceptedStreamEvent bid) {
-                pausedAuctionRegistry.resume(bid.auctionId());
-            }
             meterRegistry.counter("auction.bid.stream.persisted").increment();
             return true;
         } catch (BidStreamVersionGapException exception) {
-            pausedAuctionRegistry.pause((BidAcceptedStreamEvent) event, exception);
-            meterRegistry.counter("auction.bid.stream.auction.paused").increment();
+            BidAcceptedStreamEvent bid = (BidAcceptedStreamEvent) event;
+            streamPauseRegistry.pause(bid, exception);
+            moveToDlq(record, exception);
+            meterRegistry.counter("auction.bid.stream.paused").increment();
             return false;
         } catch (InvalidBidStreamEventException exception) {
             moveToDlq(record, exception);
             return true;
         } catch (RuntimeException exception) {
             return retryOrDlq(record, exception);
-        }
-    }
-
-    private boolean isPausedAuction(MapRecord<String, Object, Object> record) {
-        try {
-            AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from(
-                    record.getId().getValue(), stringValues(record.getValue())
-            );
-            return event instanceof BidAcceptedStreamEvent bid && pausedAuctionRegistry.isPaused(bid.auctionId());
-        } catch (InvalidBidStreamEventException ignored) {
-            return false;
         }
     }
 
