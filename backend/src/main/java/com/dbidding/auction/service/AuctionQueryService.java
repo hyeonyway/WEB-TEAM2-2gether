@@ -231,7 +231,7 @@ public class    AuctionQueryService {
             return Map.of();
         }
         Map<Integer, Bid> result = new HashMap<>();
-        bidRepository.findByAuctionIdInAndBidderIdOrderByCreatedAtDesc(auctionIds, userId)
+        bidRepository.findByAuctionIdInAndBidderIdOrderByCreatedAtDescIdDesc(auctionIds, userId)
                 .forEach(bid -> result.putIfAbsent(bid.getAuction().getId(), bid));
         return result;
     }
@@ -240,7 +240,7 @@ public class    AuctionQueryService {
         if (userId == null) {
             return Optional.empty();
         }
-        return bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(auctionId, userId);
+        return bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDescIdDesc(auctionId, userId);
     }
 
     private Optional<Bid> highestBid(Integer auctionId) {

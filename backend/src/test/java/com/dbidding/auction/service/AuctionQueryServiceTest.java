@@ -160,7 +160,7 @@ class AuctionQueryServiceTest {
         Bid winningBid = bid(1L, 3, auction, 45_000L, BidStatus.WON);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
         when(walletService.getBalance(3)).thenReturn(new com.dbidding.wallet.dto.WalletBalanceResponse(145_000L, 45_000L, 100_000L));
-        when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(1, 3))
+        when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDescIdDesc(1, 3))
                 .thenReturn(Optional.of(winningBid));
         when(bidRepository.findByAuctionIdOrderByCreatedAtDescIdDesc(1, PageRequest.of(0, 5)))
                 .thenReturn(new PageImpl<>(List.of(winningBid)));
@@ -182,7 +182,7 @@ class AuctionQueryServiceTest {
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
         when(cardService.getCardSnapshot(1)).thenReturn(card(1));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
-        when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDesc(1, 3))
+        when(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDescIdDesc(1, 3))
                 .thenReturn(Optional.empty());
 
         var response = auctionQueryService.getDetail(3, 1);

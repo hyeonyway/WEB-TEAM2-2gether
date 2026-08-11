@@ -86,6 +86,10 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
     @Query("select a from Auction a where a.id = :id")
     Optional<Auction> findByIdForUpdate(@Param("id") Integer id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Auction a where a.id in :ids")
+    List<Auction> findByIdInForUpdate(@Param("ids") Collection<Integer> ids);
+
     @Query("""
             select a.id from Auction a
             where a.status in :statuses
