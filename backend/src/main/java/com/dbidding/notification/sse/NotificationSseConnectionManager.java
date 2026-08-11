@@ -84,7 +84,7 @@ public class NotificationSseConnectionManager {
         ));
     }
 
-    @Async("notificationTaskExecutor")
+    @Async("notificationFanOutTaskExecutor")
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
         emittersByUserId.forEach((userId, emitters) -> emitters.forEach(emitter -> send(

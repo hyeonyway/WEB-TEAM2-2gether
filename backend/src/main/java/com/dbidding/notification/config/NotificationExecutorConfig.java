@@ -25,6 +25,19 @@ public class NotificationExecutorConfig {
     @Value("${NOTIFICATION_QUEUE_CAPACITY:2000}")
     private int queueCapacity;
 
+    @Value("${NOTIFICATION_FANOUT_CORE_POOL_SIZE:4}")
+    private int fanOutCorePoolSize;
+
+    @Value("${NOTIFICATION_FANOUT_MAX_POOL_SIZE:8}")
+    private int fanOutMaxPoolSize;
+
+    @Value("${NOTIFICATION_FANOUT_QUEUE_CAPACITY:2000}")
+    private int fanOutQueueCapacity;
+
+    /**
+     * origin(저장+발행, {@code NotificationEventListener}) 전용 — DB 커넥션(HikariCP)을 쓰는
+     * 작업이라 동시 실행 상한이 방화벽 역할을 한다.
+     */
     @Bean(name = "notificationTaskExecutor")
     public ThreadPoolTaskExecutor notificationTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -33,6 +46,25 @@ public class NotificationExecutorConfig {
         executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("notification-");
         executor.setRejectedExecutionHandler(new CountingCallerRunsPolicy(meterRegistry, "notification"));
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(10);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * subscriber(로컬 fan-out, {@code NotificationPushRedisSubscriber}/{@code LocalNotificationPushPublisher}/
+     * {@code NotificationSseConnectionManager.heartbeat()}) 전용 — DB 접근 없이 순수 네트워크
+     * SSE send만 하는 작업이라 origin과 풀을 공유하지 않는다(#305).
+     */
+    @Bean(name = "notificationFanOutTaskExecutor")
+    public ThreadPoolTaskExecutor notificationFanOutTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(fanOutCorePoolSize);
+        executor.setMaxPoolSize(fanOutMaxPoolSize);
+        executor.setQueueCapacity(fanOutQueueCapacity);
+        executor.setThreadNamePrefix("notification-fanout-");
+        executor.setRejectedExecutionHandler(new CountingCallerRunsPolicy(meterRegistry, "notification-fanout"));
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(10);
         executor.initialize();
