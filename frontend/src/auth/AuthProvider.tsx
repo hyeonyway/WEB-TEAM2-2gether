@@ -16,9 +16,8 @@ import {getSessionUserId, setSessionUserId, subscribeSessionUser} from './sessio
 import {clearCsrfToken, setCsrfToken} from './session/csrfTokenStore';
 import {request} from '../api/httpClient';
 import type {CurrentAccountResponseDto, SessionLoginResponseDto} from '../dto/authDto';
-import {decodeAccessTokenUserId} from '../api/jwtClaims';
-import {useAuctionWalletSync} from '../hooks/useAuctionWalletSync';
 import {useWalletCrossTabSync} from '../hooks/useWalletCrossTabSync';
+import {useWalletStream} from '../hooks/useWalletStream';
 
 export type AuthStatus = 'initializing' | 'authenticated' | 'anonymous';
 
@@ -79,8 +78,7 @@ export function AuthProvider({children}: AuthProviderProps) {
       ? 'authenticated'
       : 'anonymous';
 
-  const currentUserId = isSessionAuthMode() ? sessionUserId : accessToken ? decodeAccessTokenUserId(accessToken) : null;
-  useAuctionWalletSync(currentUserId, status === 'authenticated');
+  useWalletStream(status === 'authenticated');
   useWalletCrossTabSync(status === 'authenticated');
 
   useEffect(() => {
