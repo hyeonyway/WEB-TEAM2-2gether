@@ -32,7 +32,7 @@ class AuctionBidStreamConsumerTest {
 
         consumer.acknowledge(record);
 
-        verify(streamOperations).acknowledge("auction:timeline-events", "auction-timeline-persistence", recordId);
+        verify(streamOperations).acknowledge("event:timeline", "auction-timeline-persistence", recordId);
         verifyNoMoreInteractions(streamOperations);
     }
 }

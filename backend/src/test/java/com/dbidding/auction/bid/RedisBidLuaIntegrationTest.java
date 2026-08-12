@@ -94,7 +94,7 @@ class RedisBidLuaIntegrationTest {
 
         executor.execute(new BidCommand(2, 1, 43_000L, "request-1"));
 
-        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         assertThatThrownBy(() -> executor.execute(new BidCommand(2, 1, 46_000L, "request-1")))
                 .hasMessage("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
     }
