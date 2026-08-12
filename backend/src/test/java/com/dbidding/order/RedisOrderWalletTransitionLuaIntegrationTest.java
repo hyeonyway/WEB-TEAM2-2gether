@@ -94,6 +94,20 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isZero();
     }
 
+    @Test
+    void 판매자는_구매자취소_명령으로_주문과_지갑을_변경할_수_없다() {
+        givenPendingOrder();
+        redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
+                "availableBalance", "20000", "frozenBalance", "0", "walletVersion", "8"
+        ));
+
+        String result = execute("7", "CANCELLED", "order.buyer-cancelled.v1", "buyer-cancel:100", "hash-cancel");
+
+        assertThat(result).isEqualTo("REJECTED|ACCESS_DENIED");
+        assertThat(redisTemplate.opsForHash().get("order:state:10", "status")).isEqualTo("PENDING_CONFIRM");
+        assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("20000");
+    }
+
     private void givenPendingOrder() {
         redisTemplate.opsForHash().putAll("order:state:10", Map.of(
                 "orderId", "100", "auctionId", "10", "buyerId", "1", "sellerId", "7", "cardName", "리자몽",
