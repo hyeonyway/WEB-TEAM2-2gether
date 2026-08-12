@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /** MySQL projection의 활성 경매를 Redis state miss 때만 조건부 생성한다. */
 @Component
@@ -36,6 +37,7 @@ public class RedisAuctionStateSeeder {
     private final RedisStateSingleFlight singleFlight;
     @Qualifier("auctionStateSeedScript") private final RedisScript<Long> auctionStateSeedScript;
 
+    @Transactional(readOnly = true)
     public boolean seedIfAbsent(Integer auctionId) {
         String key = "auction:state:" + auctionId;
         if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
@@ -48,6 +50,7 @@ public class RedisAuctionStateSeeder {
         });
     }
 
+    @Transactional(readOnly = true)
     public void seedAllIfAbsent(List<Auction> auctions) {
         if (!projectionCatchUpVerifier.isCaughtUp()) return;
         List<Auction> active = auctions.stream().filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus())).toList();
