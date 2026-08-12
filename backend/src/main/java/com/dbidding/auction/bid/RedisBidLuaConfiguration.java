@@ -52,6 +52,14 @@ public class RedisBidLuaConfiguration {
     }
 
     @Bean
+    public RedisScript<Long> auctionActiveIndexGcScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-active-index-gc.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
+    @Bean
     public RedisScript<String> auctionCreateScript() {
         DefaultRedisScript<String> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/auction-create.lua"));

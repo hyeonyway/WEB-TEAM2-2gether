@@ -58,6 +58,7 @@ class RedisAuctionCreateLuaIntegrationTest {
                 .containsEntry("status", "OPEN")
                 .containsEntry("sellerId", "7")
                 .containsEntry("cardName", "리자몽")
+                .containsEntry("cardSetName", "base")
                 .containsEntry("currentPrice", "40000")
                 .containsEntry("bidCount", "0");
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
@@ -75,7 +76,7 @@ class RedisAuctionCreateLuaIntegrationTest {
     }
 
     private RedisAuctionCreateCommand command(String idempotencyKey) {
-        return new RedisAuctionCreateCommand(7, 10, "리자몽", "10", "JP", "/cards/charizard.png", "리자몽 경매", "설명", "메모", null, "NM", false,
+        return new RedisAuctionCreateCommand(7, 10, "리자몽", "base", "10", "JP", "/cards/charizard.png", "리자몽 경매", "설명", "메모", null, "NM", false,
                 40_000L, 80_000L, 3_000L, 1_000L, List.of("/auctions/1.png", "/auctions/2.png"),
                 Instant.parse("2026-08-12T12:00:00Z"), idempotencyKey, "a".repeat(64));
     }

@@ -176,7 +176,7 @@ public class    AuctionQueryService {
 
     private CardSnapshot redisCardSnapshot(RedisAuctionRealtimeStateReader.AuctionState state) {
         return new CardSnapshot(
-                state.itemId(), state.cardName(), "", state.cardPsaGrade(), state.cardLanguage(), state.cardThumbnailUrl()
+                state.itemId(), state.cardName(), state.cardSetName(), state.cardPsaGrade(), state.cardLanguage(), state.cardThumbnailUrl()
         );
     }
 

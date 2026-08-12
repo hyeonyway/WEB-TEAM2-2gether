@@ -8,7 +8,6 @@ import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
-import com.dbidding.card.service.CardService;
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
 import com.dbidding.global.concurrent.RedisStateSingleFlight;
@@ -31,7 +30,7 @@ public class RedisAuctionStateSeeder {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final AuctionImageRepository auctionImageRepository;
-    private final CardService cardService;
+    private final RedisCardStateReader cardStateReader;
     private final StringRedisTemplate redisTemplate;
     private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     private final RedisStateSingleFlight singleFlight;
@@ -56,7 +55,7 @@ public class RedisAuctionStateSeeder {
         List<Integer> auctionIds = active.stream().map(Auction::getId).toList();
         java.util.Map<Integer, Bid> leading = bidRepository.findByAuctionIdInAndStatus(auctionIds, BidStatus.LEADING).stream()
                 .collect(java.util.stream.Collectors.toMap(bid -> bid.getAuction().getId(), bid -> bid, (first, ignored) -> first));
-        java.util.Map<Integer, CardSnapshot> cards = cardService.getCardSnapshots(active.stream().map(Auction::getItemId).distinct().toList());
+        java.util.Map<Integer, CardSnapshot> cards = cardStateReader.getCardSnapshots(active.stream().map(Auction::getItemId).distinct().toList());
         java.util.Map<Integer, List<String>> imagePaths = auctionImageRepository.findByAuctionIdInOrderById(auctionIds).stream()
                 .collect(java.util.stream.Collectors.groupingBy(image -> image.getAuction().getId(), java.util.stream.Collectors.mapping(image -> image.getImagePath(), java.util.stream.Collectors.toList())));
         active.forEach(auction -> seed(auction, leading.get(auction.getId()), cards.get(auction.getItemId()), imagePaths.getOrDefault(auction.getId(), List.of())));
@@ -64,7 +63,7 @@ public class RedisAuctionStateSeeder {
 
     private boolean seed(Auction auction) {
         Bid leading = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING).orElse(null);
-        CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
+        CardSnapshot card = cardStateReader.getCardSnapshot(auction.getItemId());
         return seed(auction, leading, card, auctionImageRepository.findByAuctionIdOrderById(auction.getId()).stream().map(image -> image.getImagePath()).toList());
     }
 
@@ -72,7 +71,7 @@ public class RedisAuctionStateSeeder {
         String imagePaths = String.join("\n", imagePathList);
         List<String> args = new ArrayList<>(List.of(String.valueOf(auction.getCloseTime().toEpochMilli()), String.valueOf(auction.getId())));
         put(args, "status", auction.getStatus().name()); put(args, "sellerId", auction.getSellerId()); put(args, "itemId", auction.getItemId());
-        put(args, "cardName", card.name()); put(args, "cardPsaGrade", nullToEmpty(card.psaGrade())); put(args, "cardLanguage", nullToEmpty(card.language())); put(args, "cardThumbnailUrl", card.thumbnailUrl());
+        put(args, "cardName", card.name()); put(args, "cardSetName", card.setName()); put(args, "cardPsaGrade", nullToEmpty(card.psaGrade())); put(args, "cardLanguage", nullToEmpty(card.language())); put(args, "cardThumbnailUrl", card.thumbnailUrl());
         put(args, "auctionName", auction.getAuctionName()); put(args, "description", auction.getDescription()); put(args, "sellerMemo", nullToEmpty(auction.getSellerMemo()));
         put(args, "psaCertification", nullToEmpty(auction.getPsaCertification())); put(args, "selfGrade", nullToEmpty(auction.getSelfGrade())); put(args, "psaVerified", auction.getPsaVerified());
         put(args, "startPrice", auction.getStartPrice()); put(args, "currentPrice", auction.getCurrentPrice()); put(args, "buyNowPrice", auction.getBuyNowPrice() == null ? "" : auction.getBuyNowPrice());

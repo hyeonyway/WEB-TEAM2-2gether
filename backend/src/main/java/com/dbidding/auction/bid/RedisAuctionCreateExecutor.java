@@ -30,7 +30,7 @@ public class RedisAuctionCreateExecutor {
                         "auction:create:idempotency:" + command.sellerId() + ':' + command.idempotencyKey(),
                         TIMELINE_STREAM
                 ),
-                command.sellerId().toString(), command.itemId().toString(), required(command.cardName()),
+                command.sellerId().toString(), command.itemId().toString(), required(command.cardName()), required(command.cardSetName()),
                 nullable(command.cardPsaGrade()), nullable(command.cardLanguage()), nullable(command.cardThumbnailUrl()),
                 required(command.auctionName()), required(command.description()), nullable(command.sellerMemo()),
                 nullable(command.psaCertification()), nullable(command.selfGrade()), Boolean.toString(command.psaVerified()),

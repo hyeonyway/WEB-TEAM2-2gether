@@ -1,11 +1,11 @@
 -- KEYS: auction sequence, seller idempotency result, single timeline stream
--- ARGV: sellerId, itemId, cardName, cardPsaGrade, cardLanguage, cardThumbnailUrl, auctionName, description,
+-- ARGV: sellerId, itemId, cardName, cardSetName, cardPsaGrade, cardLanguage, cardThumbnailUrl, auctionName, description,
 --       sellerMemo, psaCertification, selfGrade, psaVerified, startPrice, buyNowPrice, deliveryFee, bidPriceUnit,
 --       imagePaths, closeTime, closeTimeEpochMillis, idempotencyKey, idempotencyRequestHash, occurredAt
 local existing = redis.call('GET', KEYS[2])
 if existing then
     local separator = string.find(existing, '|')
-    if string.sub(existing, 1, separator - 1) ~= ARGV[21] then
+    if string.sub(existing, 1, separator - 1) ~= ARGV[22] then
         return 'REJECTED|IDEMPOTENCY_CONFLICT'
     end
     return string.sub(existing, separator + 1)
@@ -18,29 +18,30 @@ redis.call('HSET', stateKey,
     'sellerId', ARGV[1],
     'itemId', ARGV[2],
     'cardName', ARGV[3],
-    'cardPsaGrade', ARGV[4],
-    'cardLanguage', ARGV[5],
-    'cardThumbnailUrl', ARGV[6],
-    'auctionName', ARGV[7],
-    'description', ARGV[8],
-    'sellerMemo', ARGV[9],
-    'psaCertification', ARGV[10],
-    'selfGrade', ARGV[11],
-    'psaVerified', ARGV[12],
-    'startPrice', ARGV[13],
-    'currentPrice', ARGV[13],
-    'buyNowPrice', ARGV[14],
-    'deliveryFee', ARGV[15],
-    'bidIncrement', ARGV[16],
-    'imagePaths', ARGV[17],
-    'openTime', ARGV[22],
-    'closeTime', ARGV[18],
-    'closeTimeEpochMillis', ARGV[19],
+    'cardSetName', ARGV[4],
+    'cardPsaGrade', ARGV[5],
+    'cardLanguage', ARGV[6],
+    'cardThumbnailUrl', ARGV[7],
+    'auctionName', ARGV[8],
+    'description', ARGV[9],
+    'sellerMemo', ARGV[10],
+    'psaCertification', ARGV[11],
+    'selfGrade', ARGV[12],
+    'psaVerified', ARGV[13],
+    'startPrice', ARGV[14],
+    'currentPrice', ARGV[14],
+    'buyNowPrice', ARGV[15],
+    'deliveryFee', ARGV[16],
+    'bidIncrement', ARGV[17],
+    'imagePaths', ARGV[18],
+    'openTime', ARGV[23],
+    'closeTime', ARGV[19],
+    'closeTimeEpochMillis', ARGV[20],
     'highestBidderId', '',
     'highestHoldAmount', '0',
     'sequence', '0',
     'bidCount', '0')
-redis.call('ZADD', 'auction:active:by-close-time', ARGV[19], auctionId)
+redis.call('ZADD', 'auction:active:by-close-time', ARGV[20], auctionId)
 
 local streamId = redis.call('XADD', KEYS[3], '*',
     'schemaVersion', '1',
@@ -49,22 +50,22 @@ local streamId = redis.call('XADD', KEYS[3], '*',
     'sellerId', ARGV[1],
     'itemId', ARGV[2],
     'cardName', ARGV[3],
-    'auctionName', ARGV[7],
-    'description', ARGV[8],
-    'sellerMemo', ARGV[9],
-    'psaCertification', ARGV[10],
-    'selfGrade', ARGV[11],
-    'psaVerified', ARGV[12],
-    'startPrice', ARGV[13],
-    'buyNowPrice', ARGV[14],
-    'deliveryFee', ARGV[15],
-    'bidPriceUnit', ARGV[16],
-    'imagePaths', ARGV[17],
-    'closeTime', ARGV[18],
-    'idempotencyKey', ARGV[20],
-    'idempotencyRequestHash', ARGV[21],
-    'occurredAt', ARGV[22])
+    'auctionName', ARGV[8],
+    'description', ARGV[9],
+    'sellerMemo', ARGV[10],
+    'psaCertification', ARGV[11],
+    'selfGrade', ARGV[12],
+    'psaVerified', ARGV[13],
+    'startPrice', ARGV[14],
+    'buyNowPrice', ARGV[15],
+    'deliveryFee', ARGV[16],
+    'bidPriceUnit', ARGV[17],
+    'imagePaths', ARGV[18],
+    'closeTime', ARGV[19],
+    'idempotencyKey', ARGV[21],
+    'idempotencyRequestHash', ARGV[22],
+    'occurredAt', ARGV[23])
 
-local result = 'ACCEPTED|' .. auctionId .. '|' .. streamId .. '|OPEN|' .. ARGV[22] .. '|' .. ARGV[18]
-redis.call('SET', KEYS[2], ARGV[21] .. '|' .. result, 'EX', 86400)
+local result = 'ACCEPTED|' .. auctionId .. '|' .. streamId .. '|OPEN|' .. ARGV[23] .. '|' .. ARGV[18]
+redis.call('SET', KEYS[2], ARGV[22] .. '|' .. result, 'EX', 86400)
 return result

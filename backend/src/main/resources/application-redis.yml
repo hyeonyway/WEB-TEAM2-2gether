@@ -25,6 +25,11 @@ app:
       max-records-per-run: ${AUCTION_REDIS_BID_MAX_RECORDS_PER_RUN:100}
 
 auction:
+  active-index:
+    cleanup:
+      fixed-delay-ms: ${AUCTION_ACTIVE_INDEX_CLEANUP_FIXED_DELAY_MS:3600000}
+      stale-after: ${AUCTION_ACTIVE_INDEX_CLEANUP_STALE_AFTER:PT24H}
+      batch-size: ${AUCTION_ACTIVE_INDEX_CLEANUP_BATCH_SIZE:100}
   state-seeding:
     warm-up:
       enabled: ${AUCTION_STATE_WARM_UP_ENABLED:true}

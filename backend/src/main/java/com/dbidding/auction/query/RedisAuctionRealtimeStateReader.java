@@ -49,7 +49,7 @@ public class RedisAuctionRealtimeStateReader {
         try {
             return new AuctionState(
                     auctionId, AuctionStatus.valueOf(required(fields, "status")), Integer.valueOf(required(fields, "sellerId")),
-                    Integer.valueOf(required(fields, "itemId")), required(fields, "cardName"), nullableString(fields.get("cardPsaGrade")),
+                    Integer.valueOf(required(fields, "itemId")), required(fields, "cardName"), required(fields, "cardSetName"), nullableString(fields.get("cardPsaGrade")),
                     nullableString(fields.get("cardLanguage")), nullableString(fields.get("cardThumbnailUrl")), required(fields, "auctionName"),
                     required(fields, "description"), nullableString(fields.get("sellerMemo")), nullableString(fields.get("psaCertification")),
                     nullableString(fields.get("selfGrade")), Boolean.parseBoolean(required(fields, "psaVerified")),
@@ -114,7 +114,7 @@ public class RedisAuctionRealtimeStateReader {
                                 Long myBidAmount, List<BidResponses.BidSummary> recentBids) { }
     public record Snapshot(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                            Instant closeTime, Long buyNowPrice, Integer highestBidderId) { }
-    public record AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName,
+    public record AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName, String cardSetName,
                                String cardPsaGrade, String cardLanguage, String cardThumbnailUrl, String auctionName, String description, String sellerMemo, String psaCertification,
                                String selfGrade, boolean psaVerified, long startPrice, long currentPrice,
                                long bidIncrement, int bidCount, Long buyNowPrice, long deliveryFee,
