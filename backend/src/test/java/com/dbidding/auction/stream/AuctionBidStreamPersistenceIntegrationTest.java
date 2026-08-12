@@ -142,6 +142,26 @@ class AuctionBidStreamPersistenceIntegrationTest {
         assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(50_000L, 0L, 50_000L));
     }
 
+    @Test
+    void Redis가_발급한_경매_ID로_생성_event를_MySQL에_projection한다() {
+        int redisAuctionId = 90_002;
+        Instant occurredAt = Instant.parse("2026-08-12T00:00:00Z");
+        persistenceService.persist(new AuctionCreatedStreamEvent(
+                "created-1", redisAuctionId, SELLER_ID, 90_001, "stream auction", "설명", "메모",
+                null, "NM", false, 10_000L, 20_000L, 3_000L, 1_000L,
+                java.util.List.of("/auctions/redis-1.png"), occurredAt.plusSeconds(3600),
+                "redis-create-1", "a".repeat(64), occurredAt
+        ));
+        entityManager.flush();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM auctions WHERE id = ?", Integer.class, redisAuctionId))
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT image_path FROM images WHERE auction_id = ?", String.class, redisAuctionId))
+                .isEqualTo("/auctions/redis-1.png");
+        assertThat(jdbcTemplate.queryForObject("SELECT auction_id FROM auction_bid_event_inbox WHERE stream_id = 'created-1'", Integer.class))
+                .isEqualTo(redisAuctionId);
+    }
+
     private BidAcceptedStreamEvent normalBid() {
         return event("1-0", BidStreamEventType.BID_ACCEPTED, 1L, SECOND_BIDDER_ID, FIRST_BIDDER_ID,
                 11_000L, 2, AuctionStatus.OPEN);

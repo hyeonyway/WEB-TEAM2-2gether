@@ -42,17 +42,40 @@ public class RedisAuctionRealtimeStateReader {
         }
     }
 
-    public Snapshot readSnapshot(Integer auctionId) {
+    /** MySQL projection 전에도 활성 경매를 응답하기 위한 Redis 원본 상태다. */
+    public AuctionState readAuctionState(Integer auctionId) {
         Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
         if (fields.isEmpty()) return null;
         try {
-            return new Snapshot(AuctionStatus.valueOf(required(fields, "status")), Long.parseLong(required(fields, "currentPrice")),
-                    Long.parseLong(required(fields, "bidIncrement")), Integer.parseInt(required(fields, "bidCount")),
-                    Instant.parse(required(fields, "closeTime")), nullableLong(fields.get("buyNowPrice")),
-                    nullableInteger(fields.get("highestBidderId")));
+            return new AuctionState(
+                    auctionId, AuctionStatus.valueOf(required(fields, "status")), Integer.valueOf(required(fields, "sellerId")),
+                    Integer.valueOf(required(fields, "itemId")), required(fields, "cardName"), nullableString(fields.get("cardPsaGrade")),
+                    nullableString(fields.get("cardLanguage")), nullableString(fields.get("cardThumbnailUrl")), required(fields, "auctionName"),
+                    required(fields, "description"), nullableString(fields.get("sellerMemo")), nullableString(fields.get("psaCertification")),
+                    nullableString(fields.get("selfGrade")), Boolean.parseBoolean(required(fields, "psaVerified")),
+                    Long.valueOf(required(fields, "startPrice")), Long.valueOf(required(fields, "currentPrice")),
+                    Long.valueOf(required(fields, "bidIncrement")), Integer.valueOf(required(fields, "bidCount")),
+                    nullableLong(fields.get("buyNowPrice")), Long.valueOf(required(fields, "deliveryFee")),
+                    Instant.parse(required(fields, "openTime")), Instant.parse(required(fields, "closeTime")),
+                    splitLines(required(fields, "imagePaths"))
+            );
         } catch (IllegalArgumentException exception) {
             return null;
         }
+    }
+
+    public List<Integer> activeAuctionIds() {
+        java.util.Set<String> ids = redisTemplate.opsForZSet().range("auction:active:by-close-time", 0, -1);
+        if (ids == null) return null;
+        return ids.stream().map(Integer::valueOf).toList();
+    }
+
+    public Snapshot readSnapshot(Integer auctionId) {
+        AuctionState state = readAuctionState(auctionId);
+        if (state == null) return null;
+        Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
+        return new Snapshot(state.status(), state.currentPrice(), state.bidIncrement(), state.bidCount(), state.closeTime(),
+                state.buyNowPrice(), nullableInteger(fields.get("highestBidderId")));
     }
 
     private List<BidResponses.BidSummary> recentBids(Integer auctionId, Integer highestBidderId) {
@@ -79,6 +102,8 @@ public class RedisAuctionRealtimeStateReader {
     private String value(Object value) { return value == null ? null : value.toString(); }
     private Long nullableLong(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Long.valueOf(text); }
     private Integer nullableInteger(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Integer.valueOf(text); }
+    private String nullableString(Object value) { String text = value(value); return text == null || text.isBlank() ? null : text; }
+    private List<String> splitLines(String value) { return List.of(value.split("\\n", -1)); }
     private String stateKey(Integer auctionId) { return "auction:state:" + auctionId; }
     private String recentBidKey(Integer auctionId) { return "auction:recent-bids:" + auctionId; }
     private String bidderKey(Integer auctionId, Integer userId) { return "auction:bidder:" + auctionId + ":" + userId; }
@@ -89,4 +114,9 @@ public class RedisAuctionRealtimeStateReader {
                                 Long myBidAmount, List<BidResponses.BidSummary> recentBids) { }
     public record Snapshot(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                            Instant closeTime, Long buyNowPrice, Integer highestBidderId) { }
+    public record AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName,
+                               String cardPsaGrade, String cardLanguage, String cardThumbnailUrl, String auctionName, String description, String sellerMemo, String psaCertification,
+                               String selfGrade, boolean psaVerified, long startPrice, long currentPrice,
+                               long bidIncrement, int bidCount, Long buyNowPrice, long deliveryFee,
+                               Instant openTime, Instant closeTime, List<String> imagePaths) { }
 }

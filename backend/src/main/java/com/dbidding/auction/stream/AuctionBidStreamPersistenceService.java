@@ -23,6 +23,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,12 +46,14 @@ public class AuctionBidStreamPersistenceService {
     private final CardService cardService;
     private final AuctionEventPublisher auctionEventPublisher;
     private final Clock clock;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /** Stream 수신 자체는 projection 실패와 독립적으로 반드시 보존한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
         return inboxRepository.findByStreamId(event.streamId())
-                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : null,
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : null,
                         event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
     }
 
@@ -91,15 +95,11 @@ public class AuctionBidStreamPersistenceService {
         if (event instanceof AuctionCreatedStreamEvent created) {
             cardService.getCardSnapshot(created.itemId());
             if (!accountRepository.existsById(created.sellerId())) throw new InvalidBidStreamEventException("존재하지 않는 판매자입니다: " + created.sellerId());
+            if (auctionRepository.existsById(created.auctionId())) return;
             if (auctionRepository.findBySellerIdAndCreateIdempotencyKey(created.sellerId(), created.idempotencyKey()).isPresent()) return;
-            Auction auction = Auction.builder()
-                    .sellerId(created.sellerId()).itemId(created.itemId()).auctionName(created.auctionName())
-                    .description(created.description()).sellerMemo(created.sellerMemo()).psaCertification(created.psaCertification()).selfGrade(created.selfGrade()).psaVerified(created.psaVerified()).startPrice(created.startPrice()).buyNowPrice(created.buyNowPrice())
-                    .deliveryFee(created.deliveryFee()).openTime(created.occurredAt()).estimatedCloseTime(created.closeTime())
-                    .closeTime(created.closeTime()).bidPriceUnit(created.bidPriceUnit()).hyped(false).build();
-            auction.recordCreateIdempotency(created.idempotencyKey(), created.idempotencyRequestHash());
-            Auction saved = auctionRepository.save(auction);
-            auctionImageRepository.saveAll(created.imagePaths().stream().map(path -> new AuctionImage(saved, path)).toList());
+            insertCreatedAuction(created);
+            Auction projectedAuction = entityManager.getReference(Auction.class, created.auctionId());
+            auctionImageRepository.saveAll(created.imagePaths().stream().map(path -> new AuctionImage(projectedAuction, path)).toList());
             return;
         }
         if (event instanceof AuctionCloseRequestedStreamEvent close) {
@@ -107,6 +107,32 @@ public class AuctionBidStreamPersistenceService {
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);
+    }
+
+    private void insertCreatedAuction(AuctionCreatedStreamEvent event) {
+        entityManager.createNativeQuery("""
+                INSERT INTO auctions (
+                    id, user_id, item_id, auction_name, description, seller_memo, psa_certification, self_grade,
+                    psa_verified, start_price, current_price, buy_now_price, delivery_fee, status, open_time,
+                    estimated_close_time, close_time, bid_count, bid_price_unit, last_bid_event_version, is_hyped,
+                    idempotency_key, idempotency_request_hash
+                ) VALUES (
+                    :id, :sellerId, :itemId, :auctionName, :description, :sellerMemo, :psaCertification, :selfGrade,
+                    :psaVerified, :startPrice, :currentPrice, :buyNowPrice, :deliveryFee, 'OPEN', :openTime,
+                    :closeTime, :closeTime, 0, :bidPriceUnit, 0, FALSE, :idempotencyKey, :idempotencyRequestHash
+                )
+                """)
+                .setParameter("id", event.auctionId()).setParameter("sellerId", event.sellerId())
+                .setParameter("itemId", event.itemId()).setParameter("auctionName", event.auctionName())
+                .setParameter("description", event.description()).setParameter("sellerMemo", event.sellerMemo())
+                .setParameter("psaCertification", event.psaCertification()).setParameter("selfGrade", event.selfGrade())
+                .setParameter("psaVerified", event.psaVerified()).setParameter("startPrice", event.startPrice())
+                .setParameter("currentPrice", event.startPrice()).setParameter("buyNowPrice", event.buyNowPrice())
+                .setParameter("deliveryFee", event.deliveryFee()).setParameter("openTime", event.occurredAt())
+                .setParameter("closeTime", event.closeTime()).setParameter("bidPriceUnit", event.bidPriceUnit())
+                .setParameter("idempotencyKey", event.idempotencyKey())
+                .setParameter("idempotencyRequestHash", event.idempotencyRequestHash())
+                .executeUpdate();
     }
 
     private void closeAuction(AuctionCloseRequestedStreamEvent event) {

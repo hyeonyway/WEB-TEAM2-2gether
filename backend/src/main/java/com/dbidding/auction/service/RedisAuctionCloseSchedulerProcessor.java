@@ -1,12 +1,9 @@
 package com.dbidding.auction.service;
 
-import com.dbidding.auction.domain.AuctionStatus;
-import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
@@ -21,15 +18,15 @@ import org.springframework.stereotype.Component;
 class RedisAuctionCloseSchedulerProcessor implements AuctionCloseSchedulerProcessor {
     private static final String STREAM_KEY = "event:timeline";
 
-    private final AuctionRepository auctionRepository;
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<Long> auctionCloseRequestScript;
 
     @Override
     public List<Integer> processDueAuctions(Instant now, int limit) {
-        List<Integer> auctionIds = auctionRepository.findDueAuctionIds(
-                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), now, PageRequest.of(0, limit)
-        );
+        java.util.Set<String> dueAuctionIds = redisTemplate.opsForZSet()
+                .rangeByScore("auction:active:by-close-time", 0, now.toEpochMilli(), 0, limit);
+        if (dueAuctionIds == null || dueAuctionIds.isEmpty()) return List.of();
+        List<Integer> auctionIds = dueAuctionIds.stream().map(Integer::valueOf).toList();
         return auctionIds.stream()
                 .filter(auctionId -> Long.valueOf(1L).equals(redisTemplate.execute(
                         auctionCloseRequestScript,
