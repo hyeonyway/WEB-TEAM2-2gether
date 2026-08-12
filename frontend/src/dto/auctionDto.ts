@@ -115,7 +115,7 @@ export type AuctionDetailResponseDto=AuctionResponseDto&{
 };
 
 export type BidSummaryResponseDto={
-  id:number;
+  id:number|null;
   amount:number;
   bidder_alias:string;
   is_highest:boolean;
@@ -161,10 +161,11 @@ export type CursorPageResponseDto<T>={
 
 export type BidCreateResponseDto={
   bid:{
-    id:number;
+    id:number|null;
     amount:number;
     status:'LEADING'|'OUTBID'|'WON'|'CANCELLED';
     created_at:string;
+    event_id?:string|null;
   };
   auction:{
     id:number;
@@ -177,6 +178,11 @@ export type BidCreateResponseDto={
     available_balance:number;
     frozen_balance:number;
   };
+  pendingOrder?:{
+    auction_id:number;
+    status:'PENDING';
+    stream_id:string;
+  }|null;
 };
 
 export type CardDto={
