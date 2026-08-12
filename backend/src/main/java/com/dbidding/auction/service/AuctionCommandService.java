@@ -165,7 +165,7 @@ public class AuctionCommandService {
             Instant endsAt
     ) {
         RedisAuctionCreateResult created = redisAuctionCreateExecutor.execute(new RedisAuctionCreateCommand(
-                userId, request.itemId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
+                userId, request.itemId(), card.name(), card.setName(), card.psaGrade(), card.language(), card.thumbnailUrl(),
                 request.auctionName(), request.description(), request.sellerMemo(),
                 request.psaCertification(), request.selfGrade(), psaVerified, request.startPrice(), request.buyNowPrice(),
                 request.shippingFee(), request.bidIncrement(), images.stream()

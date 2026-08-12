@@ -28,6 +28,7 @@ class RedisAuctionRealtimeStateReaderTest {
         when(redisTemplate.opsForStream()).thenReturn(streamOperations);
         when(hashOperations.entries("auction:state:10")).thenReturn(Map.ofEntries(
                 Map.entry("status", "ENDING"), Map.entry("sellerId", "1"), Map.entry("itemId", "10"), Map.entry("cardName", "리자몽"),
+                Map.entry("cardSetName", "base"),
                 Map.entry("cardPsaGrade", "10"), Map.entry("cardLanguage", "JP"), Map.entry("cardThumbnailUrl", "/cards/charizard.png"),
                 Map.entry("auctionName", "경매"), Map.entry("description", "설명"), Map.entry("psaVerified", "false"), Map.entry("startPrice", "40000"),
                 Map.entry("currentPrice", "43000"), Map.entry("bidIncrement", "3000"), Map.entry("bidCount", "7"), Map.entry("deliveryFee", "3000"),
@@ -50,5 +51,6 @@ class RedisAuctionRealtimeStateReaderTest {
         assertThat(state.recentBids()).extracting(item -> item.amount()).containsExactly(43_000L);
         assertThat(state.recentBids()).extracting(item -> item.id()).containsExactly(Long.MAX_VALUE - 7);
         assertThat(state.recentBids()).extracting(item -> item.isHighest()).containsExactly(true);
+        assertThat(new RedisAuctionRealtimeStateReader(redisTemplate).readAuctionState(10).cardSetName()).isEqualTo("base");
     }
 }

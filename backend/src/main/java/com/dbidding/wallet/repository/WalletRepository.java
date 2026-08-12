@@ -1,6 +1,8 @@
 package com.dbidding.wallet.repository;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,6 +27,15 @@ public interface WalletRepository extends JpaRepository<Wallet, Integer> {
 		ORDER BY w.id
 		""", countQuery = "SELECT COUNT(*) FROM wallets", nativeQuery = true)
 	Page<WalletBootstrapRow> findBootstrapRows(Pageable pageable);
+
+	@Query(value = """
+		SELECT w.user_id AS userId, w.point AS point, w.projection_version AS projectionVersion,
+		       COALESCE(SUM(CASE WHEN wh.status = 'HELD' THEN wh.amount ELSE 0 END), 0) AS frozenBalance
+		FROM wallets w LEFT JOIN wallet_holds wh ON wh.wallet_id = w.id
+		WHERE w.user_id IN (:userIds)
+		GROUP BY w.id, w.user_id, w.point, w.projection_version
+		""", nativeQuery = true)
+	List<WalletBootstrapRow> findBootstrapRowsForUsers(@Param("userIds") Collection<Integer> userIds);
 
 	@Modifying
 	@Query(value = "UPDATE wallets SET point = :point, projection_version = :version WHERE user_id = :userId AND projection_version < :version", nativeQuery = true)

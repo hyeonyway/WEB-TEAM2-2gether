@@ -37,7 +37,8 @@ class RedisWalletServiceProjectionTest {
         RedisWalletService service = new RedisWalletService(
                 wallets, records, holds, new WalletMetrics(new SimpleMeterRegistry()),
                 Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC), events,
-                org.mockito.Mockito.mock(StringRedisTemplate.class), org.mockito.Mockito.mock(RedisScript.class));
+                org.mockito.Mockito.mock(StringRedisTemplate.class), org.mockito.Mockito.mock(RedisScript.class),
+                org.mockito.Mockito.mock(RedisWalletStateSeeder.class));
 
         service.hold(1, 100, 10_000L);
 

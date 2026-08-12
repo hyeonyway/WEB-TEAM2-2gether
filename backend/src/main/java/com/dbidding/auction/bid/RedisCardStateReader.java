@@ -5,6 +5,8 @@ import com.dbidding.card.exception.CardException;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.repository.CardMetadataRepository;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -40,6 +42,29 @@ public class RedisCardStateReader {
         CardSnapshot snapshot = snapshot(card);
         putIfAbsent(key, snapshot);
         return snapshot;
+    }
+
+    /** Redis cache hit을 먼저 사용하고, miss 카드만 단일 MySQL 조회로 채운다. */
+    public Map<Integer, CardSnapshot> getCardSnapshots(Collection<Integer> cardIds) {
+        Map<Integer, CardSnapshot> snapshots = new HashMap<>();
+        java.util.List<Integer> missingIds = new java.util.ArrayList<>();
+        for (Integer cardId : cardIds) {
+            Map<Object, Object> state = redisTemplate.opsForHash().entries(key(cardId));
+            if (state.isEmpty()) missingIds.add(cardId);
+            else snapshots.put(cardId, fromCache(cardId, state));
+        }
+        if (missingIds.isEmpty()) return snapshots;
+
+        Map<Integer, CardMetadata> metadataById = new HashMap<>();
+        cardMetadataRepository.findAllById(missingIds).forEach(card -> metadataById.put(card.getId(), card));
+        for (Integer cardId : missingIds) {
+            CardMetadata card = metadataById.get(cardId);
+            if (card == null) throw CardException.notFound();
+            CardSnapshot snapshot = snapshot(card);
+            putIfAbsent(key(cardId), snapshot);
+            snapshots.put(cardId, snapshot);
+        }
+        return snapshots;
     }
 
     private CardSnapshot fromCache(Integer cardId, Map<Object, Object> state) {

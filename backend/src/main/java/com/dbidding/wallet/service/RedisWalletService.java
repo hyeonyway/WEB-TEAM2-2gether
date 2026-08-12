@@ -27,22 +27,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class RedisWalletService extends WalletService {
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<String> walletTransitionScript;
+    private final RedisWalletStateSeeder stateSeeder;
     private final Clock clock;
 
     public RedisWalletService(
             WalletRepository walletRepository, PointRecordRepository pointRecordRepository,
             WalletHoldRepository walletHoldRepository, WalletMetrics walletMetrics, Clock clock,
             ApplicationEventPublisher eventPublisher,
-            StringRedisTemplate redisTemplate, RedisScript<String> walletTransitionScript
+            StringRedisTemplate redisTemplate, RedisScript<String> walletTransitionScript, RedisWalletStateSeeder stateSeeder
     ) {
         super(walletRepository, pointRecordRepository, walletHoldRepository, walletMetrics, clock, eventPublisher);
         this.redisTemplate = redisTemplate;
         this.walletTransitionScript = walletTransitionScript;
+        this.stateSeeder = stateSeeder;
         this.clock = clock;
     }
 
     @Override
     public WalletBalanceResponse getBalance(Integer userId) {
+        stateSeeder.seedIfAbsent(userId);
         Object available = redisTemplate.opsForHash().get(balanceKey(userId), "availableBalance");
         Object frozen = redisTemplate.opsForHash().get(balanceKey(userId), "frozenBalance");
         Object version = redisTemplate.opsForHash().get(balanceKey(userId), "walletVersion");
@@ -91,6 +94,7 @@ public class RedisWalletService extends WalletService {
     }
 
     private WalletTransactionResponse transition(Integer userId, long amount, String idempotencyKey, String eventType) {
+        stateSeeder.seedIfAbsent(userId);
         String requestHash = eventType + ":" + amount;
         String raw = redisTemplate.execute(walletTransitionScript, List.of(
                 balanceKey(userId), "wallet:idempotency:" + userId + ":" + idempotencyKey, "event:timeline"
