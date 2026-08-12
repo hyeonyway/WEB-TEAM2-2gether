@@ -33,6 +33,21 @@ class BidAcceptedStreamEventTest {
         assertThat(wallet.availableBalance()).isEqualTo(70_000L);
         assertThat(wallet.frozenBalance()).isEqualTo(10_000L);
     }
+
+    @Test
+    void 경매_생성_stream_계약을_파싱한다() {
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-4", Map.ofEntries(
+                Map.entry("eventType", "auction.created.v1"), Map.entry("schemaVersion", "1"),
+                Map.entry("sellerId", "1"), Map.entry("itemId", "10"), Map.entry("auctionName", "name"),
+                Map.entry("description", "description"), Map.entry("startPrice", "10000"),
+                Map.entry("buyNowPrice", "20000"), Map.entry("deliveryFee", "3000"),
+                Map.entry("bidPriceUnit", "1000"), Map.entry("closeTime", "2026-08-10T12:00:00Z"),
+                Map.entry("idempotencyKey", "auction-create-1"), Map.entry("idempotencyRequestHash", "a".repeat(64)),
+                Map.entry("occurredAt", "2026-08-10T11:00:00Z")
+        ));
+        assertThat(event).isInstanceOf(AuctionCreatedStreamEvent.class);
+        assertThat(((AuctionCreatedStreamEvent) event).itemId()).isEqualTo(10);
+    }
     @Test
     void 승인된_입찰_stream_계약을_파싱한다() {
         BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from("1720000000000-0", fields());
