@@ -4,6 +4,8 @@ import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.auction.sse.AuctionStreamRedisSubscriber;
 import com.dbidding.notification.sse.NotificationPushPublisher;
 import com.dbidding.notification.sse.NotificationPushRedisSubscriber;
+import com.dbidding.wallet.sse.WalletSsePublisher;
+import com.dbidding.wallet.sse.WalletSseRedisSubscriber;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -24,12 +26,14 @@ public class RedisPubSubConfig {
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             AuctionStreamRedisSubscriber auctionStreamSubscriber,
-            NotificationPushRedisSubscriber notificationPushSubscriber
+            NotificationPushRedisSubscriber notificationPushSubscriber,
+            WalletSseRedisSubscriber walletSseRedisSubscriber
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(auctionStreamSubscriber, new ChannelTopic(AuctionStreamPublisher.CHANNEL));
         container.addMessageListener(notificationPushSubscriber, new ChannelTopic(NotificationPushPublisher.CHANNEL));
+        container.addMessageListener(walletSseRedisSubscriber, new ChannelTopic(WalletSsePublisher.CHANNEL));
         return container;
     }
 }

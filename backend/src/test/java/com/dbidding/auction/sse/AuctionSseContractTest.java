@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
+import java.util.Set;
 import java.util.Optional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -87,8 +88,8 @@ class AuctionSseContractTest {
                 new SynchronousAuctionSseSendDispatcher());
         SseEmitter first = mock(SseEmitter.class);
         SseEmitter second = mock(SseEmitter.class);
-        manager.register(first);
-        manager.register(second);
+        manager.register(Set.of(10), first);
+        manager.register(Set.of(10), second);
 
         AuctionStreamPayload payload = bidPayload();
         SseEmitter.SseEventBuilder event = mock(SseEmitter.SseEventBuilder.class);
@@ -108,11 +109,25 @@ class AuctionSseContractTest {
     }
 
     @Test
+    void 이벤트는_해당_경매를_구독한_emitter에만_전송한다() throws Exception {
+        var manager = manager();
+        SseEmitter auctionTenEmitter = mock(SseEmitter.class);
+        SseEmitter auctionElevenEmitter = mock(SseEmitter.class);
+        manager.register(Set.of(10), auctionTenEmitter);
+        manager.register(Set.of(11), auctionElevenEmitter);
+
+        manager.broadcast(payloadFor(10));
+
+        verify(auctionTenEmitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
+        verify(auctionElevenEmitter, times(1)).send(any(SseEmitter.SseEventBuilder.class));
+    }
+
+    @Test
     void 전달_실패한_연결은_제거한다() throws Exception {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         var manager = manager(registry);
         SseEmitter emitter = mock(SseEmitter.class);
-        manager.register(emitter);
+        manager.register(Set.of(10), emitter);
         doThrow(new IOException("disconnected")).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
 
         manager.broadcast(bidPayload());
@@ -133,7 +148,7 @@ class AuctionSseContractTest {
             return null;
         }).when(emitter).onCompletion(any(Runnable.class));
 
-        manager.register(emitter);
+        manager.register(Set.of(10), emitter);
 
         assertThat(registry.get("dbidding.sse.connections").tag("stream", "auction").gauge().value()).isEqualTo(1);
         onCompletion[0].run();
@@ -145,7 +160,7 @@ class AuctionSseContractTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         var manager = manager(registry);
 
-        manager.register(mock(SseEmitter.class));
+        manager.register(Set.of(10), mock(SseEmitter.class));
 
         assertThat(registry.get("dbidding.sse.connect.duration").tag("stream", "auction").timer().count()).isEqualTo(1);
     }
@@ -154,7 +169,7 @@ class AuctionSseContractTest {
     void heartbeat은_연결된_emitter에_주석_메시지를_전송한다() throws Exception {
         var manager = manager();
         SseEmitter emitter = mock(SseEmitter.class);
-        manager.register(emitter);
+        manager.register(Set.of(10), emitter);
         SseEmitter.SseEventBuilder heartbeat = mock(SseEmitter.SseEventBuilder.class);
         when(heartbeat.comment("heartbeat")).thenReturn(heartbeat);
 
@@ -173,8 +188,8 @@ class AuctionSseContractTest {
         var manager = manager();
         SseEmitter first = mock(SseEmitter.class);
         SseEmitter second = mock(SseEmitter.class);
-        manager.register(first);
-        manager.register(second);
+        manager.register(Set.of(10), first);
+        manager.register(Set.of(11), second);
 
         manager.disconnectAll();
 

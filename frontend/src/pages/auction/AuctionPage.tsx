@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {useInfiniteQuery,useQueryClient,type InfiniteData} from '@tanstack/react-query';
 import {Search} from 'lucide-react';
 import {useSearchParams} from 'react-router-dom';
@@ -35,7 +35,23 @@ export default function AuctionPage(){
   useEffect(()=>{
     setQuery(requestedKeyword);
   },[requestedKeyword]);
+  const{
+    data,isPending,error,fetchNextPage,hasNextPage,isFetchingNextPage,isFetchNextPageError,
+  }=useInfiniteQuery({...listOptions,enabled:authStatus!=='initializing'});
+  const auctions=useMemo(()=>{
+    const unique=new Map<number,AuctionDto>();
+    data?.pages.flatMap(page=>page.content).forEach(auction=>unique.set(auction.id,auction));
+    return sortAuctions([...unique.values()],sort);
+  },[data,sort]);
+  const[subscriptionAuctionIds,setSubscriptionAuctionIds]=useState<readonly number[]>([]);
+  const onSubscriptionAuctionIdsChange=useCallback((auctionIds:readonly number[])=>{
+    setSubscriptionAuctionIds(current=>current.join(',')===auctionIds.join(',')?current:auctionIds);
+  },[]);
+  // 스크롤 중엔 IntersectionObserver가 가시영역을 빠르게 갈아치우므로, 값이 바뀔 때마다
+  // 바로 SSE를 재연결하면 재연결이 연속으로 터진다. 디바운스로 스크롤이 멈춘 뒤에만 반영한다.
+  const debouncedSubscriptionAuctionIds=useDebouncedValue(subscriptionAuctionIds,400);
   useAuctionStream({
+    auctionIds:debouncedSubscriptionAuctionIds,
     onAuctionUpdated:event=>{
       queryClient.setQueryData<AuctionListCache>(listOptions.queryKey,current=>{
         if(!current)return current;
@@ -50,14 +66,6 @@ export default function AuctionPage(){
       void queryClient.invalidateQueries({queryKey:auctionQueryKeys.lists()});
     },
   });
-  const{
-    data,isPending,error,fetchNextPage,hasNextPage,isFetchingNextPage,isFetchNextPageError,
-  }=useInfiniteQuery({...listOptions,enabled:authStatus!=='initializing'});
-  const auctions=useMemo(()=>{
-    const unique=new Map<number,AuctionDto>();
-    data?.pages.flatMap(page=>page.content).forEach(auction=>unique.set(auction.id,auction));
-    return sortAuctions([...unique.values()],sort);
-  },[data,sort]);
   const loadMoreRef=useRef<HTMLDivElement>(null);
 
   useEffect(()=>{
@@ -82,7 +90,7 @@ export default function AuctionPage(){
     </div>
     {isPending?<AuctionCatalogSkeleton/>:error&&!data?<p className="form-error">경매 정보를 불러오지 못했습니다.</p>:<>
       <p className="catalog-count">{auctions.length.toLocaleString()}개 표시 중</p>
-      <AuctionCatalog auctions={auctions}/>
+      <AuctionCatalog auctions={auctions} onSubscriptionAuctionIdsChange={onSubscriptionAuctionIdsChange}/>
       {isFetchingNextPage&&<AuctionCatalogSkeleton count={3} label="다음 경매 목록을 불러오는 중"/>}
       {isFetchNextPageError&&<button className="auction-list-retry" type="button" onClick={()=>void queryClient.resetQueries({queryKey:listOptions.queryKey,exact:true})}>목록 새로고침</button>}
       <div className="auction-scroll-sentinel" ref={loadMoreRef} aria-hidden="true"/>

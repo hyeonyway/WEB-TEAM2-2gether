@@ -100,8 +100,8 @@ class AuctionBidStreamPersistenceIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT payload FROM auction_bid_event_inbox WHERE stream_id = '1-0'", String.class
         )).contains("auctionVersion=1");
-        assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 0L, 100_000L));
-        assertThat(balance(SECOND_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 11_000L, 89_000L));
+        assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 0L, 100_000L, 1L));
+        assertThat(balance(SECOND_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 11_000L, 89_000L, 1L));
         assertThat(holdStatus(FIRST_BIDDER_ID)).isEqualTo("RELEASED");
         assertThat(holdStatus(SECOND_BIDDER_ID)).isEqualTo("HELD");
 
@@ -114,8 +114,8 @@ class AuctionBidStreamPersistenceIntegrationTest {
         assertThat(auctionLong("current_price")).isEqualTo(50_000L);
         assertThat(auctionLong("bid_count")).isEqualTo(3L);
         assertThat(auctionLong("last_bid_event_version")).isEqualTo(2L);
-        assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(50_000L, 0L, 50_000L));
-        assertThat(balance(SECOND_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 0L, 100_000L));
+        assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(50_000L, 0L, 50_000L, 3L));
+        assertThat(balance(SECOND_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 0L, 100_000L, 2L));
         assertThat(holdStatus(FIRST_BIDDER_ID)).isEqualTo("CAPTURED");
         assertThat(holdStatus(SECOND_BIDDER_ID)).isEqualTo("RELEASED");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM auction_bid_event_inbox WHERE auction_id = ?", Integer.class, AUCTION_ID))
@@ -139,7 +139,7 @@ class AuctionBidStreamPersistenceIntegrationTest {
                 JOIN wallets w ON w.id = wh.wallet_id
                 WHERE w.user_id = ? AND wh.auction_id = ?
                 """, Integer.class, FIRST_BIDDER_ID, AUCTION_ID)).isEqualTo(1);
-        assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(50_000L, 0L, 50_000L));
+        assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(50_000L, 0L, 50_000L, 2L));
     }
 
     @Test

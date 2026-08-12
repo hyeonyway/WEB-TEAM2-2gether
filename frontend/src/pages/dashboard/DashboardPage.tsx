@@ -1,6 +1,6 @@
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Search} from 'lucide-react';
-import {useState} from 'react';
+import {useCallback,useState} from 'react';
 import {Link,useSearchParams} from 'react-router-dom';
 import {Header} from '../../components';
 import type {ParticipatingAuctionSort,RecentWinSort} from '../../api/dashboardApi';
@@ -11,6 +11,7 @@ import {HttpError} from '../../api/httpClient';
 import AuctionCatalog from '../auction/components/AuctionCatalog';
 import AuctionCatalogSkeleton from '../auction/components/AuctionCatalogSkeleton';
 import OrdersPanel from './components/OrdersPanel';
+import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import './DashboardPage.css';
 
 const sections=[
@@ -33,19 +34,6 @@ export default function DashboardPage(){
   const[participatingSort,setParticipatingSort]=useState<ParticipatingAuctionSort>('ENDING_SOON');
   const[recentWinSort,setRecentWinSort]=useState<RecentWinSort>('LATEST');
   const queryClient=useQueryClient();
-  useAuctionStream({
-    enabled:active==='participating',
-    onAuctionUpdated:event=>{
-      const queryKey=[...dashboardQueryKey,'participating-auctions',participatingSort];
-      queryClient.setQueryData<AuctionDto[]>(
-        queryKey,
-        current=>applyDashboardAuctionEvent(current,event,participatingSort),
-      );
-    },
-    onReconnected:()=>{
-      void queryClient.invalidateQueries({queryKey:dashboardQueryKey});
-    },
-  });
   const dashboard=useQuery({
     ...(active==='participating'
       ? dashboardQueries.participating(participatingSort)
@@ -60,6 +48,25 @@ export default function DashboardPage(){
   const visible=auctions.filter(auction=>
     auction.card.name.toLowerCase().includes(normalizedQuery),
   );
+  const[subscriptionAuctionIds,setSubscriptionAuctionIds]=useState<readonly number[]>([]);
+  const onSubscriptionAuctionIdsChange=useCallback((auctionIds:readonly number[])=>{
+    setSubscriptionAuctionIds(current=>current.join(',')===auctionIds.join(',')?current:auctionIds);
+  },[]);
+  const debouncedSubscriptionAuctionIds=useDebouncedValue(subscriptionAuctionIds,400);
+  useAuctionStream({
+    auctionIds:active==='participating'?debouncedSubscriptionAuctionIds:[],
+    enabled:active==='participating',
+    onAuctionUpdated:event=>{
+      const queryKey=[...dashboardQueryKey,'participating-auctions',participatingSort];
+      queryClient.setQueryData<AuctionDto[]>(
+        queryKey,
+        current=>applyDashboardAuctionEvent(current,event,participatingSort),
+      );
+    },
+    onReconnected:()=>{
+      void queryClient.invalidateQueries({queryKey:dashboardQueryKey});
+    },
+  });
 
   return <div className="cards-mypage standalone-dashboard enhanced-cards"><Header/><main>
     <div className="cards-dash-title">
@@ -95,7 +102,8 @@ export default function DashboardPage(){
                     <b>{authenticationRequired?'로그인이 필요합니다.':'대시보드를 불러오지 못했습니다.'}</b>
                     {!authenticationRequired&&<button type="button" onClick={()=>dashboard.refetch()}>다시 시도</button>}
                   </div>
-                : <AuctionCatalog auctions={visible}/>}
+                : <AuctionCatalog auctions={visible} onSubscriptionAuctionIdsChange={active==='participating'
+                  ?onSubscriptionAuctionIdsChange:undefined}/>}
           </section>
         </>}
   </main></div>;

@@ -43,12 +43,14 @@ const AUCTION_STREAM_EVENT_TYPES=['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED
 type AuctionStreamEventType=typeof AUCTION_STREAM_EVENT_TYPES[number];
 
 type UseAuctionStreamOptions={
+  auctionIds:readonly number[];
   enabled?:boolean;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
   onReconnected?:()=>void;
 };
 
 type AuctionStreamSubscriber={
+  auctionIds:ReadonlySet<number>;
   onAuctionUpdated:(payload:AuctionStreamPayload)=>void;
   onReconnected?:()=>void;
 };
@@ -57,10 +59,11 @@ const subscribers=new Set<AuctionStreamSubscriber>();
 let sharedEventSource:EventSource|null=null;
 let sharedListeners:ReadonlyArray<readonly[string,EventListener]>=[];
 let hasOpenedSharedEventSource=false;
+let sharedSubscriptionSignature='';
 
-function auctionStreamUrl(){
+function auctionStreamUrl(auctionIds:readonly number[]){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
-  return `${apiBaseUrl}/api/auctions/stream`;
+  return `${apiBaseUrl}/api/auctions/stream?${new URLSearchParams({auctionIds:auctionIds.join(',')}).toString()}`;
 }
 
 function parsePayload(type:AuctionStreamEventType,event:MessageEvent<string>):AuctionStreamPayload|null{
@@ -113,11 +116,33 @@ function parsePayload(type:AuctionStreamEventType,event:MessageEvent<string>):Au
   }
 }
 
-function connectSharedEventSource(){
-  if(sharedEventSource)return;
+function selectedAuctionIds(){
+  return [...new Set([...subscribers].flatMap(subscriber=>[...subscriber.auctionIds]))].sort((left,right)=>left-right);
+}
 
-  const eventSource=new EventSource(auctionStreamUrl());
+function closeSharedEventSource(){
+  if(!sharedEventSource)return;
+  sharedListeners.forEach(([type,listener])=>sharedEventSource?.removeEventListener(type,listener));
+  sharedEventSource.close();
+  sharedEventSource=null;
+  sharedListeners=[];
+  sharedSubscriptionSignature='';
+}
+
+function syncSharedEventSource(){
+  const auctionIds=selectedAuctionIds();
+  const signature=auctionIds.join(',');
+  if(!signature){
+    closeSharedEventSource();
+    hasOpenedSharedEventSource=false;
+    return;
+  }
+  if(sharedEventSource&&sharedSubscriptionSignature===signature)return;
+  closeSharedEventSource();
+
+  const eventSource=new EventSource(auctionStreamUrl(auctionIds));
   sharedEventSource=eventSource;
+  sharedSubscriptionSignature=signature;
   eventSource.onopen=()=>{
     if(hasOpenedSharedEventSource)subscribers.forEach(subscriber=>subscriber.onReconnected?.());
     hasOpenedSharedEventSource=true;
@@ -125,7 +150,9 @@ function connectSharedEventSource(){
   sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
     const listener:EventListener=event=>{
       const payload=parsePayload(type,event as MessageEvent<string>);
-      if(payload)subscribers.forEach(subscriber=>subscriber.onAuctionUpdated(payload));
+      if(payload)subscribers.forEach(subscriber=>{
+        if(subscriber.auctionIds.has(payload.auction_id))subscriber.onAuctionUpdated(payload);
+      });
     };
     eventSource.addEventListener(type,listener);
     return [type,listener] as const;
@@ -134,21 +161,16 @@ function connectSharedEventSource(){
 
 function subscribeToAuctionStream(subscriber:AuctionStreamSubscriber){
   subscribers.add(subscriber);
-  connectSharedEventSource();
+  syncSharedEventSource();
 
   return ()=>{
     subscribers.delete(subscriber);
-    if(subscribers.size>0||!sharedEventSource)return;
-
-    sharedListeners.forEach(([type,listener])=>sharedEventSource?.removeEventListener(type,listener));
-    sharedEventSource.close();
-    sharedEventSource=null;
-    sharedListeners=[];
-    hasOpenedSharedEventSource=false;
+    syncSharedEventSource();
   };
 }
 
 export function useAuctionStream({
+  auctionIds,
   enabled=true,
   onAuctionUpdated,
   onReconnected,
@@ -158,11 +180,15 @@ export function useAuctionStream({
   onAuctionUpdatedRef.current=onAuctionUpdated;
   onReconnectedRef.current=onReconnected;
 
+  const auctionIdSignature=[...new Set(auctionIds.filter(auctionId=>Number.isInteger(auctionId)&&auctionId>0))]
+    .sort((left,right)=>left-right).join(',');
+
   useEffect(()=>{
-    if(!enabled||isMockApiEnabled())return;
+    if(!enabled||isMockApiEnabled()||!auctionIdSignature)return;
     return subscribeToAuctionStream({
+      auctionIds:new Set(auctionIdSignature.split(',').map(Number)),
       onAuctionUpdated:payload=>onAuctionUpdatedRef.current(payload),
       onReconnected:()=>onReconnectedRef.current?.(),
     });
-  },[enabled]);
+  },[auctionIdSignature,enabled]);
 }

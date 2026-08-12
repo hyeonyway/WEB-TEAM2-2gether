@@ -1,10 +1,9 @@
 package com.dbidding.global.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
-
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.MissingServletRequestParameterException;
 
 class GlobalExceptionHandlerTest {
 
@@ -22,15 +21,14 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@Test
-	void 필수_요청_파라미터_누락을_INVALID_REQUEST로_변환한다() {
+	void 일반_API의_필수_파라미터_누락도_구조화된_400_응답으로_변환한다() {
 		var response = handler.handleMissingRequestParameter(
-			new MissingServletRequestParameterException("expected", "int")
+			new MissingServletRequestParameterException("page", "int")
 		);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 		assertThat(response.getBody()).isEqualTo(new ApiErrorResponse(
-			"INVALID_REQUEST",
-			"요청 정보를 확인해 주세요."
+			"INVALID_REQUEST", "요청 정보를 확인해 주세요."
 		));
 	}
 

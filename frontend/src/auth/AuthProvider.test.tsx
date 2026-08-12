@@ -9,6 +9,8 @@ import {useAuth} from './useAuth';
 import {clearCsrfToken, getCsrfToken, setCsrfToken} from './session/csrfTokenStore';
 import {getSessionUserId, setSessionUserId} from './session/sessionAuthStore';
 
+vi.mock('../hooks/useWalletStream', () => ({useWalletStream: vi.fn()}));
+
 class BroadcastChannelMock extends EventTarget {
   static instances: BroadcastChannelMock[] = [];
   postMessage = vi.fn();
