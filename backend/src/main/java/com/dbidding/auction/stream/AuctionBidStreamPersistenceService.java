@@ -54,7 +54,7 @@ public class AuctionBidStreamPersistenceService {
     public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
         return inboxRepository.findByStreamId(event.streamId())
                 .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : event instanceof OrderStateChangedStreamEvent order ? order.auctionId() : null,
-                        event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
+                event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : event instanceof OrderStateChangedStreamEvent order ? order.orderVersion() : null)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

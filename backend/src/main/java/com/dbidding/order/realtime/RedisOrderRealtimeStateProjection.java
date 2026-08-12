@@ -47,7 +47,7 @@ public class RedisOrderRealtimeStateProjection {
         redisTemplate.opsForHash().putAll("order:state:" + auctionId, java.util.Map.of(
                 "orderId", String.valueOf(orderId), "projectionStatus", "PROJECTED"
         ));
-        redisTemplate.opsForSet().add("order:state:by-order-id:" + orderId, String.valueOf(auctionId));
+        redisTemplate.opsForValue().set("order:state:by-order-id:" + orderId, String.valueOf(auctionId));
     }
 
     private void markProjectedStatus(Integer auctionId, Integer orderId, String status) {

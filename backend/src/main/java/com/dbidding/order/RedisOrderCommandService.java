@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.dbidding.wallet.service.RedisWalletStateSeeder;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,17 +25,20 @@ public class RedisOrderCommandService {
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<String> orderWalletTransitionScript;
     private final RedisOrderStateSeeder stateSeeder;
+    private final RedisWalletStateSeeder walletStateSeeder;
     private final Clock clock;
 
     public RedisOrderCommandService(
             StringRedisTemplate redisTemplate,
             @Qualifier("orderWalletTransitionScript") RedisScript<String> orderWalletTransitionScript,
             RedisOrderStateSeeder stateSeeder,
+            RedisWalletStateSeeder walletStateSeeder,
             Clock clock
     ) {
         this.redisTemplate = redisTemplate;
         this.orderWalletTransitionScript = orderWalletTransitionScript;
         this.stateSeeder = stateSeeder;
+        this.walletStateSeeder = walletStateSeeder;
         this.clock = clock;
     }
 
@@ -58,6 +62,7 @@ public class RedisOrderCommandService {
         if (targetStatus == OrderStatus.COMPLETED && !buyerId.equals(actorId)) throw new OrderAccessDeniedException();
         if (targetStatus == OrderStatus.CANCELLED && !buyerId.equals(actorId) && !sellerId.equals(actorId)) throw new OrderAccessDeniedException();
         Integer walletUserId = targetStatus == OrderStatus.COMPLETED ? sellerId : buyerId;
+        walletStateSeeder.seedIfAbsent(walletUserId);
         String idempotencyKey = command + ':' + orderId;
         String requestHash = eventType + ':' + actorId;
         Instant now = clock.instant();
