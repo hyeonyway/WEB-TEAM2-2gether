@@ -60,12 +60,29 @@ class WalletTransactionConcurrencyTest {
 	@Autowired
 	private TransactionTemplate transactionTemplate;
 
+	@Autowired
+	private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+	/**
+	 * WalletService.hold/release/capture()는 실제로는 항상 READ_COMMITTED
+	 * 트랜잭션(DbBidExecutor, AuctionCommandService.closeDueAuction) 위에서
+	 * MANDATORY로 합류한다(#393). 기본 격리수준(REPEATABLE READ)으로 감싸면
+	 * 지갑 행 락을 획득해도 트랜잭션 시작 시점 스냅샷을 볼 수 있어 실제
+	 * 운영 경로와 다른 동작을 재현하게 되므로, 동시성 테스트도 같은
+	 * READ_COMMITTED로 감싼다.
+	 */
+	private TransactionTemplate readCommittedTransactionTemplate;
+
 	private ExecutorService executor;
 	private Integer walletId;
 
 	@BeforeEach
 	void setUp() {
 		executor = Executors.newFixedThreadPool(2);
+		readCommittedTransactionTemplate = new TransactionTemplate(transactionManager);
+		readCommittedTransactionTemplate.setIsolationLevel(
+			org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED
+		);
 		jdbcTemplate.update("DELETE FROM point_records");
 		jdbcTemplate.update("DELETE FROM wallet_holds");
 		jdbcTemplate.update("DELETE FROM wallets");
@@ -257,7 +274,7 @@ class WalletTransactionConcurrencyTest {
 		CountDownLatch snapshotReady,
 		CountDownLatch start
 	) {
-		return () -> transactionTemplate.execute(status -> {
+		return () -> readCommittedTransactionTemplate.execute(status -> {
 			jdbcTemplate.queryForObject("SELECT COUNT(*) FROM bids", Long.class);
 			snapshotReady.countDown();
 			await(start);

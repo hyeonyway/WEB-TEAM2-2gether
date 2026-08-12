@@ -51,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -282,7 +283,14 @@ public class AuctionCommandService {
         return closeLockedAuction(auction, now);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /**
+     * READ_COMMITTED로 고정한다 — DbBidExecutor와 동일한 격리수준을 맞춰야
+     * WalletService.hold/release/capture()가 지갑 행 락만으로 최신 홀드
+     * 합계를 안전하게 읽을 수 있다(#393). 기본값(REPEATABLE READ)에서는
+     * 지갑 행 락을 획득해도 트랜잭션 시작 시점 스냅샷을 볼 수 있어, 동시에
+     * 커밋된 다른 홀드 변경을 놓칠 수 있다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public Optional<AuctionCloseResponse> closeDueAuction(Integer auctionId, Instant now) {
         Timer.Sample sample = auctionMetrics.start();
         try {

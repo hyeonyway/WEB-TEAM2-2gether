@@ -121,7 +121,7 @@ public class WalletService {
 
 	private WalletBalanceResponse holdObserved(Integer userId, Integer auctionId, long totalAmount) {
 		Wallet wallet = lockWallet(userId, Operation.HOLD);
-		long frozenBefore = walletRepository.sumHeldAmountForUpdate(wallet.getId());
+		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
 		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
 		long currentAmount = latest.filter(WalletHold::isHeld)
 			.map(WalletHold::getAmount)
@@ -155,7 +155,7 @@ public class WalletService {
 
 	private WalletBalanceResponse releaseObserved(Integer userId, Integer auctionId) {
 		Wallet wallet = lockWallet(userId, Operation.RELEASE);
-		long frozenBefore = walletRepository.sumHeldAmountForUpdate(wallet.getId());
+		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
 		Optional<WalletHold> latest = latestHold(wallet.getId(), auctionId);
 		long releasedAmount = latest.filter(WalletHold::isHeld)
 			.map(WalletHold::getAmount)
@@ -227,7 +227,7 @@ public class WalletService {
 	}
 
 	private WalletBalanceResponse captureObserved(Wallet wallet, Integer auctionId, long amount) {
-		long frozenBefore = walletRepository.sumHeldAmountForUpdate(wallet.getId());
+		long frozenBefore = walletRepository.sumHeldAmount(wallet.getId());
 		WalletHold hold = latestHold(wallet.getId(), auctionId)
 			.orElseThrow(InvalidWalletHoldStateException::new);
 		if (hold.getStatus() == HoldStatus.CAPTURED) {
