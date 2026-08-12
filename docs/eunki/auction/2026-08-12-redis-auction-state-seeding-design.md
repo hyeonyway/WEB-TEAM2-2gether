@@ -42,14 +42,18 @@ Redis Lua 실행으로 처리한다.
 4. `auction.created.v1`을 `event:timeline`에 XADD한다.
 5. event stream ID와 auctionId를 포함한 응답을 멱등 key에 저장한다.
 
-state에는 `status`, `sellerId`, `itemId`, `cardName`, `auctionName`, `currentPrice`, `bidIncrement`,
+state에는 `status`, `sellerId`, `itemId`, `cardName`, `auctionName`, `description`, `sellerMemo`,
+`psaCertification`, `selfGrade`, `psaVerified`, `startPrice`, `currentPrice`, `bidIncrement`,
 `buyNowPrice?`, `closeTime`, `closeTimeEpochMillis`, `highestBidderId`, `highestHoldAmount`, `sequence`,
-`bidCount`를 기록한다. 신규 경매의 최고 입찰자는 없으므로 빈 문자열/0/0으로 초기화한다.
+`bidCount`, `imagePaths`, `openTime`을 기록한다. 신규 경매의 최고 입찰자는 없으므로 빈 문자열/0/0으로
+초기화한다. Lua는 `auction:active:by-close-time` ZSET에도 마감 시각 score로 경매 ID를 기록한다.
+입찰의 마감 연장, 즉시 낙찰, 마감 요청은 같은 index를 갱신·제거한다.
 
 ## Consumer MySQL projection
 
 단일 `event:timeline` consumer는 `auction.created.v1`을 inbox에 기록한 뒤 MySQL에 같은 `auctionId`로
-`auctions`와 `images`를 생성한다. `streamId` inbox unique와 판매자+멱등 key는 replay 중복 반영을 막는다.
+`auctions`와 `images`를 생성한다. `auctions.id`는 IDENTITY이므로 projection은 명시 ID native insert를
+사용한다. `streamId` inbox unique와 판매자+멱등 key는 replay 중복 반영을 막는다.
 
 MySQL projection이 실패해도 Redis 승인 상태는 되돌리지 않는다. inbox에 `ERROR`를 기록하고, Stream은
 AOF/replay 원본으로 보존한다. 오류를 해결한 뒤 Stream replay 또는 inbox projection 재실행으로 MySQL을
@@ -66,6 +70,10 @@ Redis history에 다시 동기화한다.
 ## 범위와 후속 작업
 
 이번 이슈는 Redis-first **경매 생성**과 MySQL create projection까지 다룬다.
+
+`redis` 프로필의 활성 목록·상세·입찰 컨텍스트는 `auction:state:*`와 활성 ZSET을 기준으로 읽는다.
+따라서 create projection 전에도 신규 경매를 즉시 조회·입찰할 수 있다. MySQL을 읽는 기존 scheduler와
+Redis state 전수 bootstrap은 Redis-first 경로에서 사용하지 않는다.
 
 - 제외: 경매 수정·판매자 취소·마감 종결·주문 확정/취소의 Redis command 전환
 - 제외: Redis AOF/Stream history에서 현재 경매 state를 전체 rebuild하는 운영 도구
