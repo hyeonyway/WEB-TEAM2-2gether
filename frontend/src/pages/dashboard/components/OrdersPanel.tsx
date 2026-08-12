@@ -85,20 +85,20 @@ export default function OrdersPanel(){
           : !list.length
             ? <div className="filter-empty"><b>조건에 맞는 주문이 없습니다.</b></div>
             : <ul className="order-list">
-                {list.map(order=><li className="order-row" key={order.id}>
+                {list.map(order=><li className="order-row" key={order.id??`${order.auctionId}-${'streamId' in order?order.streamId:'failed'}`}>
                   <div className="order-row-head">
                     <Link to={`/auction/${order.auctionId}`}>{order.cardName}</Link>
-                    <span className={`order-status-badge ${order.status.toLowerCase()}`}>{statusLabel(order.status)}</span>
+                    <span className={`order-status-badge ${order.status.toLowerCase()}`}>{order.status==='PENDING_CONFIRM'&&'projectionStatus' in order&&order.projectionStatus==='PENDING'?'주문 생성 중':statusLabel(order.status)}</span>
                   </div>
                   <div className="order-row-meta">
                     <span>{order.status==='FAILED'?'시작가':'거래금액'} <b>{order.price.toLocaleString()}원</b></span>
                     <span>{new Date(order.createdAt).toLocaleString()}</span>
                   </div>
-                  {role==='buyer'&&order.status==='PENDING_CONFIRM'&&<div className="order-actions">
+                  {role==='buyer'&&order.status==='PENDING_CONFIRM'&&order.id!==null&&<div className="order-actions">
                     <button type="button" className="order-confirm-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>confirmMutation.mutate(order.id)}>구매확정</button>
                     <button type="button" className="order-cancel-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>cancelMutation.mutate(order.id)}>구매취소</button>
                   </div>}
-                  {role==='seller'&&order.status==='PENDING_CONFIRM'&&<div className="order-actions single">
+                  {role==='seller'&&order.status==='PENDING_CONFIRM'&&order.id!==null&&<div className="order-actions single">
                     <button type="button" className="order-cancel-button" disabled={sellerCancelMutation.isPending} onClick={()=>sellerCancelMutation.mutate(order.id)}>판매취소</button>
                   </div>}
                 </li>)}
