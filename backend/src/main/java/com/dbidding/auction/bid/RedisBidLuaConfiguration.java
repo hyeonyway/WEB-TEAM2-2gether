@@ -34,4 +34,12 @@ public class RedisBidLuaConfiguration {
         script.setResultType(Long.class);
         return script;
     }
+
+    @Bean
+    public RedisScript<Long> auctionCloseRequestScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-close-request.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
 }

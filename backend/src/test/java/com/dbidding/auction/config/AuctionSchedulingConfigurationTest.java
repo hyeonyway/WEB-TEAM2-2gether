@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.service.AuctionClosingScheduler;
+import com.dbidding.auction.service.AuctionCloseSchedulerProcessor;
 import com.dbidding.auction.service.AuctionDeadlineScheduler;
 import com.dbidding.auction.service.AuctionDueClosingService;
 import com.dbidding.auction.service.AuctionCommandService;
@@ -21,7 +22,7 @@ class AuctionSchedulingConfigurationTest {
                     AuctionDeadlineScheduler.class,
                     AuctionClosingScheduler.class
             )
-            .withBean(AuctionDueClosingService.class, () -> mock(AuctionDueClosingService.class))
+            .withBean(AuctionCloseSchedulerProcessor.class, () -> mock(AuctionCloseSchedulerProcessor.class))
             .withBean(AuctionCommandService.class, () -> mock(AuctionCommandService.class))
             .withBean(AuctionRepository.class, () -> mock(AuctionRepository.class))
             .withBean(Clock.class, Clock::systemUTC);
