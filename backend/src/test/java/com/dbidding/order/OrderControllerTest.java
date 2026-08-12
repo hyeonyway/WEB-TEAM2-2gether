@@ -7,6 +7,9 @@ import com.dbidding.global.security.CurrentUserProvider;
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
+import com.dbidding.order.realtime.RedisOrderRealtimeStateReader;
+import com.dbidding.order.dto.OrderResponse;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +38,8 @@ class OrderControllerTest {
 
     @MockitoBean
     private CurrentUserProvider currentUserProvider;
+    @MockitoBean
+    private RedisOrderRealtimeStateReader realtimeStateReader;
 
     @BeforeEach
     void setUp() {
@@ -47,7 +52,7 @@ class OrderControllerTest {
 
     @Test
     void 내_구매_목록을_조회한다() throws Exception {
-        given(orderService.findAllForBuyer(BUYER_ID)).willReturn(List.of(order()));
+        given(realtimeStateReader.findForBuyer(BUYER_ID)).willReturn(List.of(OrderResponse.from(order())));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/orders/purchases"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -58,11 +63,27 @@ class OrderControllerTest {
 
     @Test
     void 내_판매_목록을_조회한다() throws Exception {
-        given(orderService.findAllForSeller(BUYER_ID)).willReturn(List.of(order()));
+        given(realtimeStateReader.findForSeller(BUYER_ID)).willReturn(List.of(OrderResponse.from(order())));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/orders/sales"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void Redis_주문_상태를_생성일_내림차순으로_조회한다() throws Exception {
+        given(realtimeStateReader.findForBuyer(BUYER_ID)).willReturn(List.of(
+                new OrderResponse(null, 11, "뮤", 70_000L, OrderStatus.PENDING_CONFIRM,
+                        Instant.parse("2026-08-11T01:00:00Z"), "2-0"),
+                new OrderResponse(null, AUCTION_ID, CARD_NAME, PRICE, OrderStatus.PENDING_CONFIRM,
+                        Instant.parse("2026-08-10T01:00:00Z"), "1-0")
+        ));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/orders/purchases"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.length()").value(2))
+                .andExpect(MockMvcResultMatchers.jsonPath("$[0].auction_id").value(11))
+                .andExpect(MockMvcResultMatchers.jsonPath("$[1].auction_id").value(AUCTION_ID));
     }
 
     @Test

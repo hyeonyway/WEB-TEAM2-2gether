@@ -2,6 +2,7 @@ package com.dbidding.order;
 
 import com.dbidding.global.security.CurrentUser;
 import com.dbidding.order.dto.OrderResponse;
+import com.dbidding.order.realtime.RedisOrderRealtimeStateReader;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,19 +17,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderService orderService;
+    private final java.util.Optional<RedisOrderRealtimeStateReader> realtimeStateReader;
 
     @GetMapping("/purchases")
     public List<OrderResponse> findPurchases(@CurrentUser Integer userId) {
-        return orderService.findAllForBuyer(userId).stream()
-                .map(OrderResponse::from)
-                .toList();
+        return realtimeStateReader.map(reader -> reader.findForBuyer(userId))
+                .orElseGet(() -> orderService.findAllForBuyer(userId).stream().map(OrderResponse::from).toList());
     }
 
     @GetMapping("/sales")
     public List<OrderResponse> findSales(@CurrentUser Integer userId) {
-        return orderService.findAllForSeller(userId).stream()
-                .map(OrderResponse::from)
-                .toList();
+        return realtimeStateReader.map(reader -> reader.findForSeller(userId))
+                .orElseGet(() -> orderService.findAllForSeller(userId).stream().map(OrderResponse::from).toList());
     }
 
     @GetMapping("/{orderId}")

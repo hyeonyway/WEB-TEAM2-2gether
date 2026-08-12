@@ -17,9 +17,12 @@ import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
+import com.dbidding.order.OrderRepository;
+import com.dbidding.order.realtime.RedisOrderRealtimeStateProjection;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +39,8 @@ public class AuctionBidStreamPersistenceService {
     private final AccountRepository accountRepository;
     private final com.dbidding.wallet.service.WalletProjectionService walletProjectionService;
     private final OrderService orderService;
+    private final OrderRepository orderRepository;
+    private final Optional<RedisOrderRealtimeStateProjection> orderRealtimeStateProjection;
     private final CardService cardService;
     private final AuctionEventPublisher auctionEventPublisher;
     private final Clock clock;
@@ -144,6 +149,9 @@ public class AuctionBidStreamPersistenceService {
                 .orElseThrow(() -> new IllegalStateException("수신 기록이 없는 Stream 이벤트입니다: " + streamId));
         boolean firstError = !hasProjectionError();
         inbox.markError(exception.getClass().getSimpleName() + ": " + exception.getMessage());
+        if (inbox.getAuctionId() != null && "auction.buy-now.v1".equals(inbox.getEventType())) {
+            orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectionError(inbox.getAuctionId()));
+        }
         return firstError;
     }
 
@@ -195,6 +203,8 @@ public class AuctionBidStreamPersistenceService {
         orderService.createFromAuctionClosed(
                 auction.getId(), winningBid.getBidderId(), auction.getSellerId(), card.name(), winningBid.getBidPrice()
         );
+        orderRealtimeStateProjection.ifPresent(projection -> orderRepository.findByAuctionId(auction.getId())
+                .ifPresent(order -> projection.markProjectedAfterCommit(auction.getId(), order.getId())));
         auctionEventPublisher.publishClosed(new AuctionClosedEvent(
                 auction.getId(), card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
                 winningBid.getBidderId(), auction.getSellerId(), auction.getStartPrice(), auction.getCurrentPrice(),

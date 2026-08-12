@@ -45,9 +45,19 @@ public final class BidResponses {
     public record BidResult(
             BidDetail bid,
             AuctionSnapshot auction,
-            WalletSummary wallet
+            WalletSummary wallet,
+            PendingOrder pendingOrder
     ) {
+        public BidResult(BidDetail bid, AuctionSnapshot auction, WalletSummary wallet) {
+            this(bid, auction, wallet, null);
+        }
     }
+
+    public record PendingOrder(
+            @JsonProperty("auction_id") Integer auctionId,
+            String status,
+            @JsonProperty("stream_id") String streamId
+    ) { }
 
     public record BidDetail(
             Long id,
