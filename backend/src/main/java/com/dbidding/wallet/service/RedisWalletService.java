@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Redis Lua 승인 결과를 기존 지갑 API 계약으로 변환한다. */
@@ -31,9 +32,10 @@ public class RedisWalletService extends WalletService {
     public RedisWalletService(
             WalletRepository walletRepository, PointRecordRepository pointRecordRepository,
             WalletHoldRepository walletHoldRepository, WalletMetrics walletMetrics, Clock clock,
+            ApplicationEventPublisher eventPublisher,
             StringRedisTemplate redisTemplate, RedisScript<String> walletTransitionScript
     ) {
-        super(walletRepository, pointRecordRepository, walletHoldRepository, walletMetrics, clock);
+        super(walletRepository, pointRecordRepository, walletHoldRepository, walletMetrics, clock, eventPublisher);
         this.redisTemplate = redisTemplate;
         this.walletTransitionScript = walletTransitionScript;
         this.clock = clock;
@@ -43,12 +45,14 @@ public class RedisWalletService extends WalletService {
     public WalletBalanceResponse getBalance(Integer userId) {
         Object available = redisTemplate.opsForHash().get(balanceKey(userId), "availableBalance");
         Object frozen = redisTemplate.opsForHash().get(balanceKey(userId), "frozenBalance");
-        if (available == null || frozen == null) {
+        Object version = redisTemplate.opsForHash().get(balanceKey(userId), "walletVersion");
+        if (available == null || frozen == null || version == null) {
             return super.getBalance(userId);
         }
         long availableBalance = Long.parseLong(available.toString());
         long frozenBalance = Long.parseLong(frozen.toString());
-        return new WalletBalanceResponse(availableBalance + frozenBalance, frozenBalance, availableBalance);
+        return new WalletBalanceResponse(availableBalance + frozenBalance, frozenBalance, availableBalance,
+                Long.parseLong(version.toString()));
     }
 
     @Override
@@ -89,7 +93,7 @@ public class RedisWalletService extends WalletService {
     private WalletTransactionResponse transition(Integer userId, long amount, String idempotencyKey, String eventType) {
         String requestHash = eventType + ":" + amount;
         String raw = redisTemplate.execute(walletTransitionScript, List.of(
-                balanceKey(userId), "wallet:idempotency:" + userId + ":" + idempotencyKey, "auction:timeline-events"
+                balanceKey(userId), "wallet:idempotency:" + userId + ":" + idempotencyKey, "event:timeline"
         ), UUID.randomUUID().toString(), eventType, userId.toString(), String.valueOf(amount), idempotencyKey, requestHash,
                 Instant.now(clock).toString());
         String[] fields = raw.split("\\|", -1);
@@ -103,6 +107,16 @@ public class RedisWalletService extends WalletService {
     }
 
     private String balanceKey(Integer userId) { return "wallet:balance:" + userId; }
+
+    /**
+     * Redis 입찰 Stream을 MySQL에 projection할 때도 부모의 hold/release/capture를 재사용한다.
+     * 이 시점에 DB 버전을 다시 증가시키면 Redis walletVersion과 두 개의 독립 카운터가 되므로,
+     * browser SSE는 Redis Stream projection이 원본 버전으로 발행하는 경로만 사용한다.
+     */
+    @Override
+    protected void publishBalanceChanged(com.dbidding.wallet.domain.Wallet wallet, WalletBalanceResponse balance) {
+        // Redis가 승인·버전 부여의 단일 원본이다.
+    }
 
     private void validateIdempotencyKey(String key) {
         if (key == null || key.isBlank() || key.length() > 64) throw new InvalidIdempotencyKeyException();

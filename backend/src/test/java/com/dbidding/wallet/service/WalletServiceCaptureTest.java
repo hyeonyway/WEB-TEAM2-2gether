@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointTransactionType;
@@ -43,6 +44,9 @@ class WalletServiceCaptureTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private WalletService service;
 
 	@BeforeEach
@@ -52,7 +56,8 @@ class WalletServiceCaptureTest {
 			pointRecordRepository,
 			walletHoldRepository,
 			new WalletMetrics(new SimpleMeterRegistry()),
-			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC),
+			eventPublisher
 		);
 	}
 
@@ -61,7 +66,7 @@ class WalletServiceCaptureTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 16_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(16_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(16_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -82,6 +87,7 @@ class WalletServiceCaptureTest {
 					&& record.getBalance() == 4_000L
 			)
 		);
+		then(eventPublisher).should().publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
 	}
 
 	@Test
@@ -89,7 +95,7 @@ class WalletServiceCaptureTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 16_000L);
 		given(walletRepository.findByUserId(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(16_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(16_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -110,7 +116,7 @@ class WalletServiceCaptureTest {
 		WalletHold captured = WalletHold.held(wallet.getId(), 20, 16_000L);
 		captured.capture(Instant.parse("2026-07-29T00:00:00Z"));
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(0L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(0L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -132,7 +138,7 @@ class WalletServiceCaptureTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 16_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(16_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(16_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -153,7 +159,7 @@ class WalletServiceCaptureTest {
 		WalletHold released = WalletHold.held(wallet.getId(), 20, 16_000L);
 		released.release(Instant.parse("2026-07-29T00:00:00Z"));
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(0L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(0L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -173,7 +179,7 @@ class WalletServiceCaptureTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 16_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(21_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(21_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20

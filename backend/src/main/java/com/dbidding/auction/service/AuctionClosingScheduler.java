@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 public class AuctionClosingScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
 
-    private final AuctionDueClosingService auctionDueClosingService;
+    private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor;
     private final Clock clock;
 
     @Scheduled(
@@ -30,15 +30,15 @@ public class AuctionClosingScheduler {
         Instant now = clock.instant();
         log.debug("event=auction.close.backup_scheduler.started now={} batchSize={}", now, CLOSE_BATCH_SIZE);
         try {
-            var closedAuctions = auctionDueClosingService.closeDueAuctions(now, CLOSE_BATCH_SIZE);
-            if (closedAuctions.isEmpty()) {
+            var auctionIds = auctionCloseSchedulerProcessor.processDueAuctions(now, CLOSE_BATCH_SIZE);
+            if (auctionIds.isEmpty()) {
                 log.debug("event=auction.close.backup_scheduler.empty now={}", now);
                 return;
             }
             log.info(
                     "event=auction.close.backup_scheduler.completed closedCount={} auctionIds={}",
-                    closedAuctions.size(),
-                    closedAuctions.stream().map(response -> response.auctionId()).toList()
+                    auctionIds.size(),
+                    auctionIds
             );
         } catch (RuntimeException exception) {
             log.error("event=auction.close.backup_scheduler.failed now={} batchSize={}", now, CLOSE_BATCH_SIZE, exception);

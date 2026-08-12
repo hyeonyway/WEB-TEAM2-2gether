@@ -2,6 +2,7 @@ export type WalletBalanceDto = {
   totalBalance: number;
   frozenBalance: number;
   availableBalance: number;
+  walletVersion?: number;
 };
 
 export type WalletTransactionType = 'CHARGE' | 'REFUND';

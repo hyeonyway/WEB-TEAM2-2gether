@@ -21,7 +21,8 @@ function isWalletBalanceDto(value: unknown): value is WalletBalanceDto {
   const balance = value as Partial<WalletBalanceDto>;
   return isSafeBalance(balance.totalBalance)
     && isSafeBalance(balance.frozenBalance)
-    && isSafeBalance(balance.availableBalance);
+    && isSafeBalance(balance.availableBalance)
+    && (balance.walletVersion===undefined||isSafeInteger(balance.walletVersion));
 }
 
 function isWalletTransactionDto(

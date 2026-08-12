@@ -65,11 +65,21 @@ export function setup() {
   return {tokens, auctions};
 }
 
-export function auctionSse() {
-  sse.open(`${baseUrl}/api/auctions/stream`, {headers: {Accept: 'text/event-stream'}, tags: {name: 'GET /api/auctions/stream'}}, client => {
+export function auctionSse(data) {
+  // /api/auctions/stream이 선택 구독으로 바뀌어(feature/390) auctionIds가 필수다
+  // (최대 15개, 콤마 구분). 목록 페이지에서 보이는 경매 몇 개를 구독하는 상황을
+  // 흉내내 매 VU가 무작위 최대 15개를 고른다.
+  const auctionIds = subscribedAuctionIds(data.auctions);
+  const url = `${baseUrl}/api/auctions/stream?auctionIds=${auctionIds.join(',')}`;
+  sse.open(url, {headers: {Accept: 'text/event-stream'}, tags: {name: 'GET /api/auctions/stream'}}, client => {
     client.on('open', () => sseAuctionConnectSuccess.add(true));
     client.on('error', () => sseAuctionConnectSuccess.add(false));
   });
+}
+
+function subscribedAuctionIds(auctions) {
+  const shuffled = auctions.map(auction => auction.id).sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(15, shuffled.length));
 }
 
 export function notificationSse(data) {

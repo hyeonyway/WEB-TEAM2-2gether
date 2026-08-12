@@ -80,9 +80,9 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("100000");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "frozenBalance")).isEqualTo("0");
         assertThat(redisTemplate.opsForHash().get("wallet:hold:1:2", "amount")).isEqualTo("43000");
-        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         var event = redisTemplate.opsForStream()
-                .read(StreamOffset.create("auction:timeline-events", ReadOffset.from("0-0")))
+                .read(StreamOffset.create("event:timeline", ReadOffset.from("0-0")))
                 .getFirst()
                 .getValue();
         assertThat(event).containsEntry("schemaVersion", "1")
@@ -94,8 +94,60 @@ class RedisBidLuaIntegrationTest {
 
         executor.execute(new BidCommand(2, 1, 43_000L, "request-1"));
 
-        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         assertThatThrownBy(() -> executor.execute(new BidCommand(2, 1, 46_000L, "request-1")))
                 .hasMessage("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
+    }
+    @Test
+    void 최근_입찰_Stream은_최대_50개만_보관한다() {
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.of(
+                "status", "OPEN", "sellerId", "999", "currentPrice", "0", "bidIncrement", "1",
+                "closeTime", "2026-08-10T01:00:00Z", "closeTimeEpochMillis", "1786323600000",
+                "highestBidderId", "", "highestHoldAmount", "0", "sequence", "0", "bidCount", "0"
+        ));
+        for (int bidderId = 1; bidderId <= 55; bidderId++) {
+            redisTemplate.opsForHash().putAll("wallet:balance:" + bidderId, Map.of(
+                    "availableBalance", "1000000", "frozenBalance", "0", "walletVersion", "0"
+            ));
+            executor.execute(new BidCommand(bidderId, 1, (long) bidderId, "bounded-" + bidderId));
+        }
+
+        assertThat(redisTemplate.opsForStream().size("auction:recent-bids:1")).isEqualTo(50L);
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(55L);
+    }
+
+    @Test
+    void 즉시낙찰은_같은_timeline_event와_주문_상태를_원자적으로_생성한다() {
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.ofEntries(
+                Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("cardName", "리자몽"),
+                Map.entry("currentPrice", "40000"), Map.entry("bidIncrement", "3000"), Map.entry("buyNowPrice", "50000"),
+                Map.entry("closeTime", "2026-08-10T01:00:00Z"), Map.entry("closeTimeEpochMillis", "1786323600000"),
+                Map.entry("highestBidderId", "1"), Map.entry("highestHoldAmount", "40000"),
+                Map.entry("sequence", "6"), Map.entry("bidCount", "2")
+        ));
+        redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
+                "availableBalance", "60000", "frozenBalance", "40000", "walletVersion", "4"
+        ));
+
+        var response = executor.execute(new BidCommand(1, 1, 99_999L, "buy-now-1"));
+
+        assertThat(response.result().bid().status()).isEqualTo(com.dbidding.auction.domain.BidStatus.WON);
+        assertThat(response.result().pendingOrder()).isNotNull();
+        assertThat(response.result().pendingOrder().status()).isEqualTo("PENDING");
+        assertThat(redisTemplate.opsForHash().entries("auction:state:1"))
+                .containsEntry("status", "ENDED").containsEntry("currentPrice", "50000");
+        assertThat(redisTemplate.opsForHash().entries("wallet:balance:1"))
+                .containsEntry("availableBalance", "50000").containsEntry("frozenBalance", "0");
+        assertThat(redisTemplate.opsForHash().entries("order:state:1"))
+                .containsEntry("buyerId", "1").containsEntry("sellerId", "7")
+                .containsEntry("cardName", "리자몽").containsEntry("status", "PENDING_CONFIRM")
+                .containsEntry("projectionStatus", "PENDING");
+        assertThat(redisTemplate.opsForSet().members("order:state:buyer:1")).containsExactly("1");
+        assertThat(redisTemplate.opsForSet().members("order:state:seller:7")).containsExactly("1");
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
+
+        executor.execute(new BidCommand(1, 1, 99_999L, "buy-now-1"));
+
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
     }
 }

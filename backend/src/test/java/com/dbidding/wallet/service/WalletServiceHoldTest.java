@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.Wallet;
@@ -44,6 +45,9 @@ class WalletServiceHoldTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private WalletService service;
 	private SimpleMeterRegistry meterRegistry;
 
@@ -55,7 +59,8 @@ class WalletServiceHoldTest {
 			pointRecordRepository,
 			walletHoldRepository,
 			new WalletMetrics(meterRegistry),
-			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC),
+			eventPublisher
 		);
 	}
 
@@ -80,7 +85,7 @@ class WalletServiceHoldTest {
 	void 신규_hold는_다른_경매_동결액을_포함해_가용잔액을_계산한다() {
 		Wallet wallet = walletWithPoint(20_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(3_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(3_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -100,6 +105,7 @@ class WalletServiceHoldTest {
 		);
 		assertThat(operationTimerCount("hold", "success")).isEqualTo(1);
 		assertThat(lockTimerCount("hold")).isEqualTo(1);
+		then(eventPublisher).should().publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
 	}
 
 	@Test
@@ -107,7 +113,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(11_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(11_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -126,7 +132,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(19_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(19_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -144,7 +150,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(11_000L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(11_000L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -162,7 +168,7 @@ class WalletServiceHoldTest {
 		WalletHold released = WalletHold.held(wallet.getId(), 20, 11_000L);
 		released.release(Instant.parse("2026-07-29T00:00:00Z"));
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(0L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(0L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -186,7 +192,7 @@ class WalletServiceHoldTest {
 		Wallet wallet = walletWithPoint(20_000L);
 		WalletHold hold = WalletHold.held(wallet.getId(), 20, 11_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
-		given(walletRepository.sumHeldAmountForUpdate(wallet.getId())).willReturn(11_000L, 0L);
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(11_000L, 0L);
 		given(walletHoldRepository.findFirstByWalletIdAndAuctionIdOrderByIdDesc(
 			wallet.getId(),
 			20
@@ -199,6 +205,7 @@ class WalletServiceHoldTest {
 		assertThat(first.frozenBalance()).isZero();
 		assertThat(second.frozenBalance()).isZero();
 		then(walletHoldRepository).should(never()).delete(org.mockito.ArgumentMatchers.any());
+		then(eventPublisher).should(org.mockito.Mockito.times(2)).publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
 	}
 
 	@Test

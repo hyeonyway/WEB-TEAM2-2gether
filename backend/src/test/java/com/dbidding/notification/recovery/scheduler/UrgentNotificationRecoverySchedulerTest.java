@@ -1,6 +1,8 @@
 package com.dbidding.notification.recovery.scheduler;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.notification.recovery.NotificationReconciliationService;
@@ -20,12 +22,11 @@ class UrgentNotificationRecoverySchedulerTest {
             new UrgentNotificationRecoveryScheduler(notificationReconciliationService, clock);
 
     @Test
-    void 스케줄러는_10분_window로_경매_생성_복구와_상회입찰_복구를_수행한다() {
+    void 스케줄러는_10분_window로_ENDING_경매의_상회입찰_복구만_수행한다() {
         scheduler.recover();
 
         verify(notificationReconciliationService)
-                .recoverAuctionOpenedNotifications(Instant.parse("2026-07-29T00:50:00Z"));
-        verify(notificationReconciliationService)
-                .recoverOutbidNotifications(Instant.parse("2026-07-29T00:50:00Z"));
+                .recoverEndingOutbidNotifications(Instant.parse("2026-07-29T00:50:00Z"));
+        verify(notificationReconciliationService, never()).recoverAuctionOpenedNotifications(any());
     }
 }

@@ -3,6 +3,8 @@ package com.dbidding.auction.sse;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -26,7 +28,8 @@ public class AuctionSseConnectionManager {
     private final AuctionSseMetrics metrics;
     private final ObjectMapper objectMapper;
     private final AuctionSseSendDispatcher sendDispatcher;
-    private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
+    private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByAuctionId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<SseEmitter, Set<Integer>> auctionIdsByEmitter = new ConcurrentHashMap<>();
     private final AtomicLong eventSequence = new AtomicLong();
     private final Supplier<Number> connectionCountSupplier;
 
@@ -44,14 +47,17 @@ public class AuctionSseConnectionManager {
         metrics.registerConnectionGauge(connectionCountSupplier);
     }
 
-    public SseEmitter connect() {
-        return register(new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
+    public SseEmitter connect(Set<Integer> auctionIds) {
+        return register(auctionIds, new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
     }
 
-    SseEmitter register(SseEmitter emitter) {
+    SseEmitter register(Set<Integer> auctionIds, SseEmitter emitter) {
+        Set<Integer> subscribedAuctionIds = Set.copyOf(auctionIds);
         Timer.Sample connectSample = metrics.startConnect();
-        emitters.add(emitter);
-        emitter.onCompletion(() -> emitters.remove(emitter));
+        auctionIdsByEmitter.put(emitter, subscribedAuctionIds);
+        subscribedAuctionIds.forEach(auctionId ->
+                emittersByAuctionId.computeIfAbsent(auctionId, ignored -> new CopyOnWriteArraySet<>()).add(emitter));
+        emitter.onCompletion(() -> remove(emitter));
         emitter.onTimeout(() -> removeAndComplete(emitter));
         emitter.onError(error -> removeAndComplete(emitter));
         if (send(emitter, SseEmitter.event().name("connected")
@@ -63,6 +69,10 @@ public class AuctionSseConnectionManager {
 
     @Async("auctionSseTaskExecutor")
     public void broadcast(AuctionStreamPayload event) {
+        Set<SseEmitter> emitters = emittersByAuctionId.get(event.auctionId());
+        if (emitters == null || emitters.isEmpty()) {
+            return;
+        }
         long eventId = eventSequence.incrementAndGet();
         AuctionStreamPayload publishedEvent = event.withPublishedAt(clock.instant());
         String serializedPayload = writeJson(publishedEvent);
@@ -73,14 +83,14 @@ public class AuctionSseConnectionManager {
     @Async("auctionSseTaskExecutor")
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
-        emitters.forEach(emitter -> send(emitter,
+        auctionIdsByEmitter.keySet().forEach(emitter -> send(emitter,
                 SseEmitter.event().comment("heartbeat")));
     }
 
-    public int connectionCount() { return emitters.size(); }
+    public int connectionCount() { return auctionIdsByEmitter.size(); }
 
     public void disconnectAll() {
-        emitters.forEach(this::removeAndComplete);
+        auctionIdsByEmitter.keySet().forEach(this::removeAndComplete);
     }
 
     private SseEmitter.SseEventBuilder event(
@@ -116,7 +126,18 @@ public class AuctionSseConnectionManager {
     }
 
     private void removeAndComplete(SseEmitter emitter) {
-        emitters.remove(emitter);
+        remove(emitter);
         try { emitter.complete(); } catch (IllegalStateException ignored) { }
+    }
+
+    private void remove(SseEmitter emitter) {
+        Set<Integer> auctionIds = auctionIdsByEmitter.remove(emitter);
+        if (auctionIds == null) {
+            return;
+        }
+        auctionIds.forEach(auctionId -> emittersByAuctionId.computeIfPresent(auctionId, (id, emitters) -> {
+            emitters.remove(emitter);
+            return emitters.isEmpty() ? null : emitters;
+        }));
     }
 }

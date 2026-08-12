@@ -1,6 +1,7 @@
 package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.domain.Bid;
@@ -9,14 +10,21 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.service.WalletService;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
+import com.dbidding.order.OrderRepository;
+import com.dbidding.order.realtime.RedisOrderRealtimeStateProjection;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,27 +35,42 @@ import org.springframework.transaction.annotation.Propagation;
 public class AuctionBidStreamPersistenceService {
     private final AuctionBidEventInboxRepository inboxRepository;
     private final AuctionRepository auctionRepository;
+    private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
+    private final AccountRepository accountRepository;
     private final com.dbidding.wallet.service.WalletProjectionService walletProjectionService;
     private final OrderService orderService;
+    private final OrderRepository orderRepository;
+    private final Optional<RedisOrderRealtimeStateProjection> orderRealtimeStateProjection;
     private final CardService cardService;
     private final AuctionEventPublisher auctionEventPublisher;
     private final Clock clock;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /** Stream 수신 자체는 projection 실패와 독립적으로 반드시 보존한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
         return inboxRepository.findByStreamId(event.streamId())
-                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null,
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : null,
                         event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordMalformed(String streamId, Map<String, String> payload) {
         return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionBidEventInbox(
-                streamId, null, null, "unknown", 1, payload.toString(), Instant.now(), clock.instant()
+                streamId, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
+                payload.toString(), Instant.now(), clock.instant()
         )));
+    }
+
+    private int malformedSchemaVersion(Map<String, String> payload) {
+        try {
+            return Integer.parseInt(payload.getOrDefault("schemaVersion", "0"));
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -65,16 +88,65 @@ public class AuctionBidStreamPersistenceService {
     /** PENDING으로 기록된 이벤트를 실제 도메인 테이블에 반영한다. */
     @Transactional
     public void project(AuctionWalletTimelineEvent event) {
-        if (event instanceof WalletChargedStreamEvent charged) {
-            walletService.charge(charged.userId(), charged.amount(), charged.idempotencyKey());
-            return;
-        }
         if (event instanceof WalletStateChangedStreamEvent walletChanged) {
             walletProjectionService.project(walletChanged);
-            inboxRepository.save(archive(event, null, null));
+            return;
+        }
+        if (event instanceof AuctionCreatedStreamEvent created) {
+            cardService.getCardSnapshot(created.itemId());
+            if (!accountRepository.existsById(created.sellerId())) throw new InvalidBidStreamEventException("존재하지 않는 판매자입니다: " + created.sellerId());
+            if (auctionRepository.existsById(created.auctionId())) return;
+            if (auctionRepository.findBySellerIdAndCreateIdempotencyKey(created.sellerId(), created.idempotencyKey()).isPresent()) return;
+            insertCreatedAuction(created);
+            Auction projectedAuction = entityManager.getReference(Auction.class, created.auctionId());
+            auctionImageRepository.saveAll(created.imagePaths().stream().map(path -> new AuctionImage(projectedAuction, path)).toList());
+            return;
+        }
+        if (event instanceof AuctionCloseRequestedStreamEvent close) {
+            closeAuction(close);
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);
+    }
+
+    private void insertCreatedAuction(AuctionCreatedStreamEvent event) {
+        entityManager.createNativeQuery("""
+                INSERT INTO auctions (
+                    id, user_id, item_id, auction_name, description, seller_memo, psa_certification, self_grade,
+                    psa_verified, start_price, current_price, buy_now_price, delivery_fee, status, open_time,
+                    estimated_close_time, close_time, bid_count, bid_price_unit, last_bid_event_version, is_hyped,
+                    idempotency_key, idempotency_request_hash
+                ) VALUES (
+                    :id, :sellerId, :itemId, :auctionName, :description, :sellerMemo, :psaCertification, :selfGrade,
+                    :psaVerified, :startPrice, :currentPrice, :buyNowPrice, :deliveryFee, 'OPEN', :openTime,
+                    :closeTime, :closeTime, 0, :bidPriceUnit, 0, FALSE, :idempotencyKey, :idempotencyRequestHash
+                )
+                """)
+                .setParameter("id", event.auctionId()).setParameter("sellerId", event.sellerId())
+                .setParameter("itemId", event.itemId()).setParameter("auctionName", event.auctionName())
+                .setParameter("description", event.description()).setParameter("sellerMemo", event.sellerMemo())
+                .setParameter("psaCertification", event.psaCertification()).setParameter("selfGrade", event.selfGrade())
+                .setParameter("psaVerified", event.psaVerified()).setParameter("startPrice", event.startPrice())
+                .setParameter("currentPrice", event.startPrice()).setParameter("buyNowPrice", event.buyNowPrice())
+                .setParameter("deliveryFee", event.deliveryFee()).setParameter("openTime", event.occurredAt())
+                .setParameter("closeTime", event.closeTime()).setParameter("bidPriceUnit", event.bidPriceUnit())
+                .setParameter("idempotencyKey", event.idempotencyKey())
+                .setParameter("idempotencyRequestHash", event.idempotencyRequestHash())
+                .executeUpdate();
+    }
+
+    private void closeAuction(AuctionCloseRequestedStreamEvent event) {
+        Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
+                .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 종료 대상 경매입니다: " + event.auctionId()));
+        if ((auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.OPEN && auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.ENDING)
+                || auction.getCloseTime().isAfter(event.occurredAt())) throw new InvalidBidStreamEventException("아직 종료할 수 없는 경매입니다: " + event.auctionId());
+        java.util.Optional<Bid> winning = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING);
+        if (winning.isEmpty()) { auction.closeWithoutTrade(event.occurredAt()); return; }
+        Bid winner = winning.get();
+        winner.markWon();
+        auction.closeWithWinningBid(winner, event.occurredAt());
+        walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        completeBuyNow(auction, winner, event.occurredAt());
     }
 
     private void persistBid(BidAcceptedStreamEvent event) {
@@ -103,6 +175,9 @@ public class AuctionBidStreamPersistenceService {
                 .orElseThrow(() -> new IllegalStateException("수신 기록이 없는 Stream 이벤트입니다: " + streamId));
         boolean firstError = !hasProjectionError();
         inbox.markError(exception.getClass().getSimpleName() + ": " + exception.getMessage());
+        if (inbox.getAuctionId() != null && "auction.buy-now.v1".equals(inbox.getEventType())) {
+            orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectionError(inbox.getAuctionId()));
+        }
         return firstError;
     }
 
@@ -154,6 +229,8 @@ public class AuctionBidStreamPersistenceService {
         orderService.createFromAuctionClosed(
                 auction.getId(), winningBid.getBidderId(), auction.getSellerId(), card.name(), winningBid.getBidPrice()
         );
+        orderRealtimeStateProjection.ifPresent(projection -> orderRepository.findByAuctionId(auction.getId())
+                .ifPresent(order -> projection.markProjectedAfterCommit(auction.getId(), order.getId())));
         auctionEventPublisher.publishClosed(new AuctionClosedEvent(
                 auction.getId(), card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
                 winningBid.getBidderId(), auction.getSellerId(), auction.getStartPrice(), auction.getCurrentPrice(),

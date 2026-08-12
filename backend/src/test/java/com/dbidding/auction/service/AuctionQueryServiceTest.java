@@ -2,9 +2,11 @@ package com.dbidding.auction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
@@ -23,6 +25,7 @@ import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -92,6 +95,27 @@ class AuctionQueryServiceTest {
         assertThat(response.hasNext()).isTrue();
         assertThat(cursorCodec.decode(response.nextCursor(), AuctionSort.BID_COUNT))
                 .isEqualTo(new AuctionCursor(AuctionSort.BID_COUNT, 5L, null, 2));
+    }
+
+    @Test
+    void Redis_활성_경매_snapshot으로_목록의_변경_필드를_overlay한다() {
+        Auction auction = auction(1, AuctionStatus.OPEN, 40_000L, 2);
+        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+                .thenReturn(List.of(auction));
+        when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
+        when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeAuctionIds()).thenReturn(null);
+        when(reader.readSnapshot(1)).thenReturn(new RedisAuctionRealtimeStateReader.Snapshot(
+                AuctionStatus.ENDING, 43_000L, 3_000L, 7, Instant.parse("2026-08-08T01:00:00Z"), 100_000L, 2
+        ));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.LATEST, null, null, 20));
+
+        assertThat(response.content().getFirst())
+                .extracting(item -> item.currentPrice(), item -> item.bidCount(), item -> item.status(), item -> item.endsAt())
+                .containsExactly(43_000L, 7, AuctionStatus.ENDING, Instant.parse("2026-08-08T01:00:00Z"));
     }
 
     @Test

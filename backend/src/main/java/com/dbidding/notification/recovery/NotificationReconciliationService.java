@@ -7,6 +7,7 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.notification.Notification;
+import com.dbidding.notification.NotificationInsertRow;
 import com.dbidding.notification.NotificationRepository;
 import com.dbidding.notification.NotificationService;
 import com.dbidding.notification.NotificationType;
@@ -47,10 +48,13 @@ public class NotificationReconciliationService {
 
     /**
      * 경매당 찜 유저가 많을 수 있어(인기 카드) 유저별 존재 체크 대신
-     * {@link NotificationService#saveAllIgnoringDuplicates}로 한 번에 저장한다 —
+     * {@link NotificationService#insertAllIgnoringDuplicates}로 한 번에 저장한다 —
      * INSERT IGNORE가 이미 있는 유저를 알아서 건너뛰므로 이 메서드에서는
      * 유니크 제약 위반 예외가 나지 않는다. 찜 유저 조회 자체도 경매마다 따로 하지 않고
-     * 대상 경매들의 itemId를 모아 한 번에 조회한다(N+1 방지).
+     * 대상 경매들의 itemId를 모아 한 번에 조회한다(N+1 방지). 이번 윈도우에 경매가 여러
+     * 개 열렸어도 경매마다 따로 INSERT하지 않고 전부 한 번에(청크 단위로) INSERT한다
+     * (이슈 #373) — 복구 배치는 라이브 이벤트 경로처럼 SSE push용 재조회가 필요 없어서
+     * 가능한 최적화다.
      */
     public void recoverAuctionOpenedNotifications(Instant windowStart) {
         List<Auction> recentlyOpened = auctionRepository
@@ -62,14 +66,14 @@ public class NotificationReconciliationService {
         List<Integer> itemIds = recentlyOpened.stream().map(Auction::getItemId).toList();
         Map<Integer, List<Integer>> wishlistUserIdsByCardId = wishlistService.groupUserIdsByCardIdIn(itemIds);
 
+        List<NotificationInsertRow> rows = new ArrayList<>();
         for (Auction auction : recentlyOpened) {
-            notificationService.saveAllIgnoringDuplicates(
-                    wishlistUserIdsByCardId.getOrDefault(auction.getItemId(), List.of()),
-                    auction.getId(),
-                    NotificationType.AUCTION_OPENED,
-                    auction.getAuctionName() + " 카드의 경매가 등록되었습니다."
-            );
+            String message = auction.getAuctionName() + " 카드의 경매가 등록되었습니다.";
+            for (Integer userId : wishlistUserIdsByCardId.getOrDefault(auction.getItemId(), List.of())) {
+                rows.add(new NotificationInsertRow(userId, auction.getId(), message));
+            }
         }
+        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
     }
 
     /**
@@ -132,15 +136,41 @@ public class NotificationReconciliationService {
     }
 
     /**
+     * ENDING 경매의 상회입찰 복구(이슈 #373, 긴급/짧은 주기). ENDING은 앤티스나이핑
+     * 자동 연장을 트리거한 입찰이 있어야만 도달하는 상태라({@link Auction#placeBid}가
+     * 부르는 연장 로직), 그 트리거 입찰이 항상 LEADING으로 남아있음이 구조적으로 보장된다
+     * — 그래서 {@code bids} 조인 없이 {@code auctions.status}만으로 후보를 뽑는다.
+     */
+    public void recoverEndingOutbidNotifications(Instant windowStart) {
+        Set<Integer> candidateAuctionIds = new LinkedHashSet<>(
+                auctionRepository.findIdsByStatus(AuctionStatus.ENDING));
+        recoverOutbidNotificationsForCandidates(candidateAuctionIds, windowStart);
+    }
+
+    /**
+     * OPEN 경매의 상회입찰 복구(이슈 #373, 비긴급/긴 주기). OPEN은 입찰이 하나도 없어도
+     * 도달하는 기본 상태라(신규 등록 경매 등) {@code auctions.status}만으로 후보를 뽑으면
+     * 입찰이 없는 경매까지 섞여 후보 집합이 불필요하게 커진다. {@code bids.status=LEADING}과
+     * 조인해 "실제 입찰이 있는 경매"로 좁힌다.
+     */
+    public void recoverOpenOutbidNotifications(Instant windowStart) {
+        Set<Integer> candidateAuctionIds = new LinkedHashSet<>(
+                bidRepository.findAuctionIdsByStatusAndAuctionStatus(BidStatus.LEADING, AuctionStatus.OPEN));
+        recoverOutbidNotificationsForCandidates(candidateAuctionIds, windowStart);
+    }
+
+    /**
      * 상회입찰 알림 존재 체크를 후보 bid마다 따로 하지 않고, 후보 전체에 대해 한 번만
      * 배치 조회한다(N+1 방지). bidId가 sentinel(0)이 아닌 경우는 설계상 OUTBID뿐이라
      * type 조건 없이 bidId만으로 존재 확인에 충분하다.
+     * 상회입찰 직후~다음 스캔 사이에 경매가 종료되면 낙찰 bid가 LEADING→WON으로 바뀌면서
+     * 위 두 메서드의 조회에서 빠져버린다. 그 경매의 outbid된 유저들이 영영 복구 대상에서
+     * 누락되는 걸 막기 위해, 최근 종료된 경매도 후보에 포함한다(낙찰자는 status=WON이라
+     * 아래에서 스킵됨) — ENDING/OPEN 어느 쪽 호출이든 항상 수행한다. 종료 직전 경매가
+     * ENDING을 거치지 않고 OPEN에서 바로 닫히는 경우도 있어서, 한쪽 상태에만 이 캐치를
+     * 묶으면 다른 쪽에서 종료 경계 유실 버그가 재발하기 때문이다.
      */
-    public void recoverOutbidNotifications(Instant windowStart) {
-        Set<Integer> candidateAuctionIds = new LinkedHashSet<>(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING));
-        // 상회입찰 직후~다음 스캔 사이에 경매가 종료되면 낙찰 bid가 LEADING→WON으로 바뀌면서
-        // 위 조회에서 빠져버린다. 그 경매의 outbid된 유저들이 영영 복구 대상에서 누락되는 걸
-        // 막기 위해, 최근 종료된 경매도 후보에 포함한다(낙찰자는 status=WON이라 아래에서 스킵됨).
+    private void recoverOutbidNotificationsForCandidates(Set<Integer> candidateAuctionIds, Instant windowStart) {
         for (Auction recentlyClosed : auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(CLOSED_STATUSES, windowStart)) {
             candidateAuctionIds.add(recentlyClosed.getId());
         }
