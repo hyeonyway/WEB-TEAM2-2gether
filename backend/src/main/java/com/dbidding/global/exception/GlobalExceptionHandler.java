@@ -11,9 +11,12 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j
 @RestControllerAdvice
@@ -52,6 +55,22 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(BindException.class)
 	public ResponseEntity<ApiErrorResponse> handleBindException(BindException exception) {
 		return invalidRequest(firstMessage(exception.getAllErrors()));
+	}
+
+	/** SSE 전용 advice가 아닌 일반 API의 메서드 파라미터 검증 오류를 JSON 400으로 변환한다. */
+	@ExceptionHandler(HandlerMethodValidationException.class)
+	public ResponseEntity<ApiErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException exception) {
+		return invalidRequest(firstMessage(exception.getAllErrors()));
+	}
+
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	public ResponseEntity<ApiErrorResponse> handleMissingRequestParameter(MissingServletRequestParameterException exception) {
+		return invalidRequest(INVALID_REQUEST_MESSAGE);
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ApiErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException exception) {
+		return invalidRequest(INVALID_REQUEST_MESSAGE);
 	}
 
 	@ExceptionHandler(MissingRequestHeaderException.class)
