@@ -33,10 +33,10 @@ class RedisWalletTransitionLuaIntegrationTest {
 
     @Test void 충전은_잔액과_Stream과_버전을_함께_전이한다() {
         template.opsForHash().putAll("wallet:balance:1", Map.of("availableBalance", "10000", "frozenBalance", "2000", "walletVersion", "4"));
-        String result = template.execute(script, List.of("wallet:balance:1", "wallet:idempotency:1:charge-1", "auction:timeline-events"), UUID.randomUUID().toString(), "wallet.charged.v1", "1", "3000", "charge-1", "hash", "2026-08-11T00:00:00Z");
+        String result = template.execute(script, List.of("wallet:balance:1", "wallet:idempotency:1:charge-1", "event:timeline"), UUID.randomUUID().toString(), "wallet.charged.v1", "1", "3000", "charge-1", "hash", "2026-08-11T00:00:00Z");
         assertThat(result).startsWith("ACCEPTED|");
         assertThat(template.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("13000");
         assertThat(template.opsForHash().get("wallet:balance:1", "walletVersion")).isEqualTo("5");
-        assertThat(template.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
+        assertThat(template.opsForStream().size("event:timeline")).isEqualTo(1L);
     }
 }

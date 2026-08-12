@@ -37,9 +37,9 @@ hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존
 ## 프로필과 토폴로지
 
 - 기본 프로필에는 consumer 빈이 없다. `spring.profiles.active=redis`일 때만 실행한다.
-- Stream key: `auction:timeline-events`
+- Stream key: `event:timeline`
 - consumer group: `auction-timeline-persistence`
-- consumer lease lock: `auction:timeline-events:consumer-leader-lock`
+- consumer lease lock: `event:timeline:consumer-leader-lock`
 - 한 consumer는 `XREADGROUP GROUP auction-timeline-persistence <instance-id> COUNT 1 BLOCK 1000`
   으로 읽는다. `@Scheduled(100ms)` polling 대신 lifecycle-managed virtual-thread worker가 blocking
   read를 반복한다. 한 번의 read 뒤 최대 100건을 연속 처리하며, 각 entry는 수신 기록·projection·상태 전이와
@@ -56,7 +56,7 @@ hold 상태까지 원자적으로 갱신하고, Consumer는 그 결과를 기존
 
 ### Redis 영속성(AOF)
 
-`auction:timeline-events`는 DB 반영 전 승인 이벤트의 복구 대기열이므로 Redis는 AOF를 켠다.
+`event:timeline`는 DB 반영 전 승인 이벤트의 복구 대기열이므로 Redis는 AOF를 켠다.
 `appendfsync everysec`은 처리량과 내구성의 균형 설정으로, OS/호스트 장애에서는 마지막 fsync 이후
 최대 약 1초의 승인 이벤트가 유실될 수 있다. 무손실을 요구하는 환경은 `appendfsync always`의
 지연 비용을 별도로 부하 검증해야 한다.
@@ -211,7 +211,7 @@ DLQ, retry counter, 전역 Redis pause key는 사용하지 않는다. 정합성�
 DLQ 재발행은 현재 범위에 없다. 수신 기록 DB 트랜잭션 자체가 실패한 entry만 ACK되지 않고 PEL에 남으며,
 같은 consumer는 즉시·다른 consumer는 30초 유휴 뒤 `XCLAIM`으로 다시 가져온다.
 
-Consumer Group은 분배 기능만 제공하므로 `auction:timeline-events:consumer-leader-lock` lease를 획득한
+Consumer Group은 분배 기능만 제공하므로 `event:timeline:consumer-leader-lock` lease를 획득한
 인스턴스만 worker를 실행한다. 이는 다중 인스턴스의 동시 DB 잠금과 데드락 가능성을 줄이는 단일 실행 제어다.
 
 ## 처리량과 운영 기준

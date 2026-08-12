@@ -1,6 +1,6 @@
 # Redis Stream 이벤트 계약
 
-`auction:timeline-events`는 producer의 도메인 상태 전이 결과를 전달하고, consumer는 이벤트를 먼저
+`event:timeline`는 producer의 도메인 상태 전이 결과를 전달하고, consumer는 이벤트를 먼저
 `auction_bid_event_inbox`에 기록한 뒤 DB 정합성을 검증하여 projection한다. producer/API와 consumer의
 DB projection 책임은 분리한다.
 

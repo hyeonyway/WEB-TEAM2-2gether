@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 @Profile("redis")
 @RequiredArgsConstructor
 class RedisAuctionCloseSchedulerProcessor implements AuctionCloseSchedulerProcessor {
-    private static final String STREAM_KEY = "auction:timeline-events";
+    private static final String STREAM_KEY = "event:timeline";
 
     private final AuctionRepository auctionRepository;
     private final StringRedisTemplate redisTemplate;

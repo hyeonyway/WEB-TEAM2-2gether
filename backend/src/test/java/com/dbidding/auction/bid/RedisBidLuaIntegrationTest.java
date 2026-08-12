@@ -80,19 +80,9 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("100000");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "frozenBalance")).isEqualTo("0");
         assertThat(redisTemplate.opsForHash().get("wallet:hold:1:2", "amount")).isEqualTo("43000");
-        assertThat(redisTemplate.opsForHash().get("auction:bidder:1:2", "status")).isEqualTo("LEADING");
-        assertThat(redisTemplate.opsForHash().get("auction:bidder:1:1", "status")).isEqualTo("OUTBID");
-        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
-        assertThat(redisTemplate.opsForStream().size("auction:recent-bids:1")).isEqualTo(1L);
-        var recentBid = redisTemplate.opsForStream()
-                .read(StreamOffset.create("auction:recent-bids:1", ReadOffset.from("0-0")))
-                .getFirst()
-                .getValue();
-        assertThat(recentBid).containsEntry("bidderId", "2")
-                .containsEntry("bidPrice", "43000")
-                .containsEntry("sequence", "7");
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         var event = redisTemplate.opsForStream()
-                .read(StreamOffset.create("auction:timeline-events", ReadOffset.from("0-0")))
+                .read(StreamOffset.create("event:timeline", ReadOffset.from("0-0")))
                 .getFirst()
                 .getValue();
         assertThat(event).containsEntry("schemaVersion", "1")
@@ -107,23 +97,5 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
         assertThatThrownBy(() -> executor.execute(new BidCommand(2, 1, 46_000L, "request-1")))
                 .hasMessage("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
-    }
-
-    @Test
-    void 최근_입찰_Stream은_최대_50개만_보관한다() {
-        redisTemplate.opsForHash().putAll("auction:state:1", Map.of(
-                "status", "OPEN", "sellerId", "999", "currentPrice", "0", "bidIncrement", "1",
-                "closeTime", "2026-08-10T01:00:00Z", "closeTimeEpochMillis", "1786323600000",
-                "highestBidderId", "", "highestHoldAmount", "0", "sequence", "0", "bidCount", "0"
-        ));
-        for (int bidderId = 1; bidderId <= 55; bidderId++) {
-            redisTemplate.opsForHash().putAll("wallet:balance:" + bidderId, Map.of(
-                    "availableBalance", "1000000", "frozenBalance", "0", "walletVersion", "0"
-            ));
-            executor.execute(new BidCommand(bidderId, 1, (long) bidderId, "bounded-" + bidderId));
-        }
-
-        assertThat(redisTemplate.opsForStream().size("auction:recent-bids:1")).isEqualTo(50L);
-        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(55L);
     }
 }

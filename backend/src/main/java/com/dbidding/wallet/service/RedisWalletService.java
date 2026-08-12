@@ -89,7 +89,7 @@ public class RedisWalletService extends WalletService {
     private WalletTransactionResponse transition(Integer userId, long amount, String idempotencyKey, String eventType) {
         String requestHash = eventType + ":" + amount;
         String raw = redisTemplate.execute(walletTransitionScript, List.of(
-                balanceKey(userId), "wallet:idempotency:" + userId + ":" + idempotencyKey, "auction:timeline-events"
+                balanceKey(userId), "wallet:idempotency:" + userId + ":" + idempotencyKey, "event:timeline"
         ), UUID.randomUUID().toString(), eventType, userId.toString(), String.valueOf(amount), idempotencyKey, requestHash,
                 Instant.now(clock).toString());
         String[] fields = raw.split("\\|", -1);

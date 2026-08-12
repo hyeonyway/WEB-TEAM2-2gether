@@ -38,7 +38,7 @@ class RedisAuctionCloseSchedulerProcessorTest {
 
         assertThat(processor.processDueAuctions(now, 100)).containsExactly(11);
         verify(redisTemplate).execute(eq(auctionCloseRequestScript),
-                eq(List.of("auction:state:11", "auction:timeline-events")),
+                eq(List.of("auction:state:11", "event:timeline")),
                 eq("11"), eq(now.toString()), eq("1786496400000"));
     }
 }
