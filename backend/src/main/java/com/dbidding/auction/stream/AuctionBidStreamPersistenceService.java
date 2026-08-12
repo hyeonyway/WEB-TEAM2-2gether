@@ -78,6 +78,18 @@ public class AuctionBidStreamPersistenceService {
             walletProjectionService.project(walletChanged);
             return;
         }
+        if (event instanceof AuctionCreatedStreamEvent created) {
+            cardService.getCardSnapshot(created.itemId());
+            if (auctionRepository.findBySellerIdAndCreateIdempotencyKey(created.sellerId(), created.idempotencyKey()).isPresent()) return;
+            Auction auction = Auction.builder()
+                    .sellerId(created.sellerId()).itemId(created.itemId()).auctionName(created.auctionName())
+                    .description(created.description()).startPrice(created.startPrice()).buyNowPrice(created.buyNowPrice())
+                    .deliveryFee(created.deliveryFee()).openTime(created.occurredAt()).estimatedCloseTime(created.closeTime())
+                    .closeTime(created.closeTime()).bidPriceUnit(created.bidPriceUnit()).hyped(false).build();
+            auction.recordCreateIdempotency(created.idempotencyKey(), created.idempotencyRequestHash());
+            auctionRepository.save(auction);
+            return;
+        }
         persistBid((BidAcceptedStreamEvent) event);
     }
 
