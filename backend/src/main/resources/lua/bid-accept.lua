@@ -65,6 +65,8 @@ if highestBidderId and highestBidderId ~= '' then
     redis.call('HINCRBY', previousBalanceKey, 'frozenBalance', -highestHoldAmount)
     redis.call('HINCRBY', previousBalanceKey, 'walletVersion', 1)
     redis.call('DEL', previousHoldKey)
+    redis.call('HSET', 'auction:bidder:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. highestBidderId,
+        'status', 'OUTBID', 'amount', highestHoldAmount)
 end
 
 local auctionVersion = redis.call('HINCRBY', KEYS[1], 'sequence', 1)
@@ -83,6 +85,11 @@ elseif tonumber(ARGV[5]) >= closeTimeEpochMillis - 300000 then
 end
 redis.call('HSET', KEYS[1], 'currentPrice', price, 'highestBidderId', ARGV[1], 'highestHoldAmount', price,
     'closeTime', nextCloseTime, 'closeTimeEpochMillis', nextCloseTimeEpochMillis, 'status', nextStatus)
+
+redis.call('XADD', 'auction:recent-bids:' .. string.match(KEYS[1], 'auction:state:(.+)'), 'MAXLEN', 50, '*',
+    'bidderId', ARGV[1], 'bidPrice', price, 'sequence', auctionVersion, 'occurredAt', ARGV[6])
+redis.call('HSET', 'auction:bidder:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. ARGV[1],
+    'status', buyNow and 'WON' or 'LEADING', 'amount', price)
 
 local streamId = redis.call('XADD', KEYS[5], '*',
     'schemaVersion', '1', 'eventType', buyNow and 'auction.buy-now.v1' or 'bid.accepted.v1',

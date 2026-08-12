@@ -6,8 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +26,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Redis가 XREADGROUP BLOCK 요청을 깨우는 동안만 대기하는 Stream worker다. projection 실패도
- * inbox에 ERROR/PENDING으로 보존한 뒤 ACK하므로 Stream을 전역 pause하거나 DLQ로 운영하지 않는다.
+ * 단일 Redis Stream을 순서대로 MySQL projection으로 전달하는 전역 단일 consumer다.
+ *
+ * <p>leader lock은 여러 애플리케이션 인스턴스가 떠도 활성 worker를 하나로 제한한다. 이 consumer는
+ * 한 번에 한 이벤트만 처리하고, 처리 완료 후에는 ACK만 한다. Stream 레코드는 Redis AOF 기반의
+ * 재구성 원본이므로 여기서 삭제하지 않는다.</p>
  */
 @Slf4j
 @Component
@@ -36,13 +39,16 @@ import org.springframework.stereotype.Component;
 public class AuctionBidStreamConsumer implements SmartLifecycle {
     static final String STREAM_KEY = "auction:timeline-events";
     static final String GROUP = "auction-timeline-persistence";
+    static final String CONSUMER_NAME = "auction-timeline-single";
 
     private final StringRedisTemplate redisTemplate;
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
-    private final ExecutorService worker = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
-    private final String consumerName = "auction-bid-" + UUID.randomUUID();
+    private final ExecutorService worker = Executors.newSingleThreadExecutor(
+            Thread.ofVirtual().name("auction-timeline-single-", 0).factory()
+    );
+    private final String consumerName = CONSUMER_NAME;
     private volatile boolean running;
 
     @PostConstruct
@@ -138,9 +144,8 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
         acknowledge(record);
     }
 
-    private void acknowledge(MapRecord<String, Object, Object> record) {
+    void acknowledge(MapRecord<String, Object, Object> record) {
         redisTemplate.opsForStream().acknowledge(STREAM_KEY, GROUP, record.getId());
-        redisTemplate.opsForStream().delete(STREAM_KEY, record.getId());
     }
 
     private Map<String, String> stringValues(Map<Object, Object> values) {
