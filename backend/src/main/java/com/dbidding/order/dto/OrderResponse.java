@@ -11,7 +11,8 @@ public record OrderResponse(
         @JsonProperty("card_name") String cardName,
         long price,
         OrderStatus status,
-        @JsonProperty("created_at") Instant createdAt
+        @JsonProperty("created_at") Instant createdAt,
+        @JsonProperty("stream_id") String streamId
 ) {
 
     public static OrderResponse from(Order order) {
@@ -21,7 +22,8 @@ public record OrderResponse(
                 order.getCardName(),
                 order.getPrice(),
                 order.getStatus(),
-                order.getCreatedAt()
+                order.getCreatedAt(),
+                null
         );
     }
 }

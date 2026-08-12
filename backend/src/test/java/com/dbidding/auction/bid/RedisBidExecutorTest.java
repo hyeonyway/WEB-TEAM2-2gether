@@ -40,7 +40,7 @@ class RedisBidExecutorTest {
         );
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
                 eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))
-                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:00:00Z");
+                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:00:00Z|LEADING|");
 
         var response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 

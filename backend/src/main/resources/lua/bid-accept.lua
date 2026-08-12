@@ -1,4 +1,4 @@
--- KEYS: auction state, bidder balance, bidder hold, idempotency result, #323 timeline stream
+-- KEYS: auction state, bidder balance, bidder hold, idempotency result, single timeline stream
 -- ARGV: bidderId, price, idempotencyKey, requestHash, nowEpochMillis, nowIsoInstant
 local function iso8601(epochMillis)
     local seconds = math.floor(epochMillis / 1000)
@@ -36,6 +36,7 @@ local highestBidderId = redis.call('HGET', KEYS[1], 'highestBidderId')
 local highestHoldAmount = tonumber(redis.call('HGET', KEYS[1], 'highestHoldAmount') or '0')
 local requestedPrice = tonumber(ARGV[2])
 local buyNowPrice = tonumber(redis.call('HGET', KEYS[1], 'buyNowPrice'))
+local cardName = redis.call('HGET', KEYS[1], 'cardName') or ''
 
 if not status or not sellerId or not currentPrice or not bidIncrement or not closeTime or not closeTimeEpochMillis then
     return 'REJECTED|STATE_MISSING'
@@ -47,18 +48,21 @@ local buyNow = buyNowPrice and requestedPrice >= buyNowPrice
 local price = buyNow and buyNowPrice or requestedPrice
 if not buyNow and highestBidderId == ARGV[1] then return 'REJECTED|LEADING_BIDDER' end
 if price < currentPrice + bidIncrement then return 'REJECTED|LOW_PRICE' end
+if buyNow and cardName == '' then return 'REJECTED|STATE_MISSING' end
 
 local available = tonumber(redis.call('HGET', KEYS[2], 'availableBalance') or '0')
-if available < price then return 'REJECTED|INSUFFICIENT_BALANCE' end
+local existingBidderHold = highestBidderId == ARGV[1] and highestHoldAmount or 0
+local requiredAvailable = price - existingBidderHold
+if available < requiredAvailable then return 'REJECTED|INSUFFICIENT_BALANCE' end
 
-local newAvailable = available - price
-local newFrozen = tonumber(redis.call('HGET', KEYS[2], 'frozenBalance') or '0') + price
+local newAvailable = available - requiredAvailable
+local newFrozen = tonumber(redis.call('HGET', KEYS[2], 'frozenBalance') or '0') + requiredAvailable
 local bidderWalletVersion = redis.call('HINCRBY', KEYS[2], 'walletVersion', 1)
 redis.call('HSET', KEYS[2], 'availableBalance', newAvailable, 'frozenBalance', newFrozen)
 redis.call('HSET', KEYS[3], 'amount', price)
 
 local previousBidderId = highestBidderId or ''
-if highestBidderId and highestBidderId ~= '' then
+if highestBidderId and highestBidderId ~= '' and highestBidderId ~= ARGV[1] then
     local previousBalanceKey = 'wallet:balance:' .. highestBidderId
     local previousHoldKey = 'wallet:hold:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. highestBidderId
     redis.call('HINCRBY', previousBalanceKey, 'availableBalance', highestHoldAmount)
@@ -100,7 +104,22 @@ local streamId = redis.call('XADD', KEYS[5], '*',
     'currentPrice', price, 'bidCount', bidCount, 'closeTime', nextCloseTime,
     'auctionStatus', nextStatus, 'occurredAt', ARGV[6])
 
+local pendingOrderStatus = ''
+if buyNow then
+    redis.call('HINCRBY', KEYS[2], 'frozenBalance', -price)
+    redis.call('DEL', KEYS[3])
+    newFrozen = tonumber(redis.call('HGET', KEYS[2], 'frozenBalance'))
+    local auctionId = string.match(KEYS[1], 'auction:state:(.+)')
+    redis.call('HSET', 'order:state:' .. auctionId,
+        'auctionId', auctionId, 'buyerId', ARGV[1], 'sellerId', sellerId, 'cardName', cardName,
+        'price', price, 'status', 'PENDING_CONFIRM', 'projectionStatus', 'PENDING', 'streamId', streamId, 'createdAt', ARGV[6])
+    redis.call('SADD', 'order:state:buyer:' .. ARGV[1], auctionId)
+    redis.call('SADD', 'order:state:seller:' .. sellerId, auctionId)
+    pendingOrderStatus = 'PENDING'
+end
+
 local result = 'ACCEPTED|' .. streamId .. '|' .. price .. '|' .. auctionVersion .. '|' .. bidCount
     .. '|' .. newAvailable .. '|' .. newFrozen .. '|' .. bidderWalletVersion .. '|' .. (price + bidIncrement) .. '|' .. nextCloseTime
+    .. '|' .. (buyNow and 'WON' or 'LEADING') .. '|' .. pendingOrderStatus
 redis.call('SET', KEYS[4], ARGV[4] .. '|' .. result, 'EX', 86400)
 return result
