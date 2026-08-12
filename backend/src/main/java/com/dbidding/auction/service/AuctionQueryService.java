@@ -21,6 +21,7 @@ import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
+import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -34,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -47,6 +49,8 @@ public class    AuctionQueryService {
     private final CardService cardService;
     private final AuctionCursorCodec auctionCursorCodec;
     private final Clock clock;
+    @Autowired(required = false)
+    private RedisAuctionRealtimeStateReader realtimeStateReader;
 
     public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
             Integer userId,
@@ -163,7 +167,9 @@ public class    AuctionQueryService {
         CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         List<AuctionImage> images = auctionImageRepository.findByAuctionIdOrderById(auction.getId());
         Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
-        return detail(auction, card, images, myBid);
+        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader == null ? null
+                : realtimeStateReader.read(auctionId, userId);
+        return realtime == null ? detail(auction, card, images, myBid) : detail(auction, card, images, realtime);
     }
 
     public AuctionResponses.Page<BidResponses.BidSummary> getBids(Integer auctionId, PageRequestDto request) {
@@ -188,6 +194,15 @@ public class    AuctionQueryService {
     public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
         Auction auction = getAuction(auctionId);
         WalletBalanceResponse wallet = walletService.getBalance(userId);
+        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader == null ? null : realtimeStateReader.read(auctionId, userId);
+        if (realtime != null) {
+            return BidResponses.BidContext.builder()
+                    .auctionId(auctionId).status(realtime.status()).currentPrice(realtime.currentPrice())
+                    .minimumBid(realtime.currentPrice() + realtime.bidIncrement()).bidIncrement(realtime.bidIncrement())
+                    .myBidStatus(realtime.myBidStatus()).myBidAmount(realtime.myBidAmount())
+                    .wallet(new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance()))
+                    .recentBids(realtime.recentBids()).build();
+        }
         Bid myBid = currentUserBid(userId, auction.getId()).orElse(null);
         var recentBids = getBids(auctionId, new PageRequestDto(0, 5)).content();
         return BidResponses.BidContext.builder()
@@ -325,6 +340,22 @@ public class    AuctionQueryService {
                         Boolean.TRUE.equals(auction.getPsaVerified())
                 ))
                 .build();
+    }
+
+    private AuctionResponses.AuctionDetail detail(
+            Auction auction, CardSnapshot card, List<AuctionImage> images,
+            RedisAuctionRealtimeStateReader.RealtimeState realtime
+    ) {
+        return AuctionResponses.AuctionDetail.builder()
+                .id(auction.getId()).card(cardSummary(card, null)).seller(sellerSummary(auction.getSellerId()))
+                .startPrice(auction.getStartPrice()).currentPrice(realtime.currentPrice())
+                .bidIncrement(realtime.bidIncrement()).minimumBid(realtime.currentPrice() + realtime.bidIncrement())
+                .bidCount(realtime.bidCount()).startsAt(auction.getOpenTime()).endsAt(realtime.closeTime())
+                .status(realtime.status()).myBidStatus(realtime.myBidStatus()).myBidAmount(realtime.myBidAmount())
+                .description(auction.getDescription()).sellerMemo(auction.getSellerMemo()).sellerGrade(auction.getSelfGrade())
+                .shippingFee(auction.getDeliveryFee()).buyNowPrice(realtime.buyNowPrice()).photos(photos(images))
+                .psaCertification(new AuctionResponses.PsaCertification(auction.getPsaCertification(), card.psaGrade(), null,
+                        Boolean.TRUE.equals(auction.getPsaVerified()))).build();
     }
 
     private boolean isVerifiedPsaCertification(String psaGrade, String psaCertification) {
