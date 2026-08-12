@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.bid.RedisAuctionCreateExecutor;
 import com.dbidding.auction.bid.RedisAuctionCreateResult;
+import com.dbidding.auction.bid.RedisCardStateReader;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.metrics.AuctionMetrics;
@@ -84,7 +85,7 @@ class AuctionRegistrationContractTest {
         org.mockito.Mockito.lenient().when(auctionRepository.findBySellerIdAndCreateIdempotencyKey(any(), anyString()))
                 .thenReturn(Optional.empty());
         org.mockito.Mockito.lenient().when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(cardService.getCardSnapshot(1)).thenReturn(card(1, "10"));
+        org.mockito.Mockito.lenient().when(cardService.getCardSnapshot(1)).thenReturn(card(1, "10"));
     }
 
     @Test
@@ -107,7 +108,10 @@ class AuctionRegistrationContractTest {
     void Redis_프로필_생성은_MySQL_저장_대신_Redis_승인_ID를_즉시_반환한다() {
         stubDefaultImage();
         RedisAuctionCreateExecutor redisExecutor = mock(RedisAuctionCreateExecutor.class);
+        RedisCardStateReader redisCardReader = mock(RedisCardStateReader.class);
         ReflectionTestUtils.setField(auctionCommandService, "redisAuctionCreateExecutor", redisExecutor);
+        ReflectionTestUtils.setField(auctionCommandService, "redisCardStateReader", redisCardReader);
+        when(redisCardReader.getCardSnapshot(1)).thenReturn(card(1, "10"));
         when(redisExecutor.execute(any())).thenReturn(new RedisAuctionCreateResult(
                 42, "1720000000000-0", AuctionStatus.OPEN,
                 Instant.parse("2026-08-04T00:00:00Z"), Instant.parse("2026-08-04T12:00:00Z")
@@ -120,6 +124,7 @@ class AuctionRegistrationContractTest {
 
         assertThat(response.id()).isEqualTo(42);
         verify(redisExecutor).execute(any());
+        verify(cardService, org.mockito.Mockito.never()).getCardSnapshot(1);
         verify(auctionRepository, org.mockito.Mockito.never()).save(any());
     }
 

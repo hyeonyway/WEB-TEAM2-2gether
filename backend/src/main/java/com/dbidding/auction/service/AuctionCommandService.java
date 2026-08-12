@@ -9,6 +9,7 @@ import com.dbidding.auction.bid.BidExecutor;
 import com.dbidding.auction.bid.RedisAuctionCreateCommand;
 import com.dbidding.auction.bid.RedisAuctionCreateExecutor;
 import com.dbidding.auction.bid.RedisAuctionCreateResult;
+import com.dbidding.auction.bid.RedisCardStateReader;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionStatus;
@@ -74,13 +75,15 @@ public class AuctionCommandService {
     private final BidExecutor bidExecutor;
     @Autowired(required = false)
     private RedisAuctionCreateExecutor redisAuctionCreateExecutor;
+    @Autowired(required = false)
+    private RedisCardStateReader redisCardStateReader;
 
     @Transactional
     public AuctionCreateResponse create(Integer userId, AuctionCreateRequest request, String idempotencyKey) {
         IdempotencyKeys.validate(idempotencyKey);
         validateCreateRequest(request);
 
-        CardSnapshot card = cardService.getCardSnapshot(request.itemId());
+        CardSnapshot card = cardSnapshotForCreate(request.itemId());
         boolean psaVerified = validatePsaCertification(card, request);
         List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
         validateImages(images);
@@ -182,6 +185,12 @@ public class AuctionCommandService {
                 .startsAt(created.occurredAt())
                 .endsAt(created.closeTime())
                 .build();
+    }
+
+    private CardSnapshot cardSnapshotForCreate(Integer itemId) {
+        return redisCardStateReader == null
+                ? cardService.getCardSnapshot(itemId)
+                : redisCardStateReader.getCardSnapshot(itemId);
     }
 
     public BidResponses.BidResult participate(

@@ -22,6 +22,10 @@ HTTP 201 (Redis auctionId)
 event:timeline → 전역 단일 consumer → MySQL auctions / images / inbox
 ```
 
+경매 생성·활성 경매 조회에 필요한 카드 표시/검증 snapshot은 `card:state:{cardId}`에 보관한다.
+필수 필드는 `name`, `setName`, `psaGrade`, `language`, `thumbnailUrl`이다. `redis` 프로필의 경매 생성은
+MySQL `card_metadata` fallback을 사용하지 않으며 카드 state가 없으면 요청을 거부한다.
+
 ## 경매 ID 계약
 
 Redis Lua가 `INCR auction:sequence`으로 경매 ID를 발급한다. 이 ID는 API 응답, Redis state key,
