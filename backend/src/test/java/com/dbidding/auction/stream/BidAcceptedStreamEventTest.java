@@ -51,6 +51,16 @@ class BidAcceptedStreamEventTest {
         assertThat(event).isInstanceOf(AuctionCreatedStreamEvent.class);
         assertThat(((AuctionCreatedStreamEvent) event).itemId()).isEqualTo(10);
     }
+
+    @Test
+    void 경매_종료_요청_stream_계약을_파싱한다() {
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-5", Map.of(
+                "eventType", "auction.close-requested.v1", "schemaVersion", "1",
+                "auctionId", "10", "occurredAt", "2026-08-10T12:00:00Z"
+        ));
+        assertThat(event).isInstanceOf(AuctionCloseRequestedStreamEvent.class);
+        assertThat(((AuctionCloseRequestedStreamEvent) event).auctionId()).isEqualTo(10);
+    }
     @Test
     void 승인된_입찰_stream_계약을_파싱한다() {
         BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from("1720000000000-0", fields());
