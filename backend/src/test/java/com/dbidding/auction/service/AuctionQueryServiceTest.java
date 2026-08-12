@@ -105,6 +105,7 @@ class AuctionQueryServiceTest {
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeAuctionIds()).thenReturn(null);
         when(reader.readSnapshot(1)).thenReturn(new RedisAuctionRealtimeStateReader.Snapshot(
                 AuctionStatus.ENDING, 43_000L, 3_000L, 7, Instant.parse("2026-08-08T01:00:00Z"), 100_000L, 2
         ));

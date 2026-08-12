@@ -10,6 +10,7 @@ redis.call('HSET', KEYS[1],
     'closeTime', ARGV[2],
     'closeTimeEpochMillis', ARGV[3],
     'closeRequestedAt', ARGV[2])
+redis.call('ZREM', 'auction:active:by-close-time', ARGV[1])
 
 redis.call('XADD', KEYS[2], '*',
     'schemaVersion', '1',

@@ -15,6 +15,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
+import org.springframework.core.env.Environment;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -32,6 +34,8 @@ public class AuctionDeadlineScheduler {
     private final AuctionRepository auctionRepository;
     private final TaskScheduler taskScheduler;
     private final Clock clock;
+    @Autowired(required = false)
+    private Environment environment;
     private final Object scheduleLock = new Object();
     private ScheduledFuture<?> scheduledTask;
     private Integer scheduledAuctionId;
@@ -51,6 +55,7 @@ public class AuctionDeadlineScheduler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void scheduleOnStartup() {
+        if (isRedisProfile()) return;
         scheduleNext("application_ready");
     }
 
@@ -58,6 +63,7 @@ public class AuctionDeadlineScheduler {
     // 발행되므로, 없으면 활성 트랜잭션이 없을 때 조용히 드랍된다.
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void reschedule(AuctionCloseScheduleChangedEvent event) {
+        if (isRedisProfile()) return;
         log.debug(
                 "event=auction.close.deadline.reschedule_requested auctionId={} closeTime={} reason={}",
                 event.auctionId(),
@@ -96,6 +102,10 @@ public class AuctionDeadlineScheduler {
                     reason
             );
         }
+    }
+
+    private boolean isRedisProfile() {
+        return environment != null && environment.matchesProfiles("redis");
     }
 
     private void closeDueAuctionsAtDeadline() {
