@@ -11,6 +11,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.bid.RedisAuctionCreateExecutor;
+import com.dbidding.auction.bid.RedisAuctionCreateResult;
+import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.event.AuctionEventPublisher;
@@ -35,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.dbidding.auction.exception.AuctionException;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,9 +81,9 @@ class AuctionRegistrationContractTest {
                         new AuctionMetrics(new SimpleMeterRegistry()),
                         null
                 );
-        when(auctionRepository.findBySellerIdAndCreateIdempotencyKey(any(), anyString()))
+        org.mockito.Mockito.lenient().when(auctionRepository.findBySellerIdAndCreateIdempotencyKey(any(), anyString()))
                 .thenReturn(Optional.empty());
-        when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.lenient().when(auctionRepository.save(any(Auction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(cardService.getCardSnapshot(1)).thenReturn(card(1, "10"));
     }
 
@@ -97,6 +101,26 @@ class AuctionRegistrationContractTest {
         verify(auctionRepository).save(captor.capture());
         assertThat(captor.getValue().getBuyNowPrice()).isNull();
         verify(auctionStreamPublisher).publish(any());
+    }
+
+    @Test
+    void Redis_프로필_생성은_MySQL_저장_대신_Redis_승인_ID를_즉시_반환한다() {
+        stubDefaultImage();
+        RedisAuctionCreateExecutor redisExecutor = mock(RedisAuctionCreateExecutor.class);
+        ReflectionTestUtils.setField(auctionCommandService, "redisAuctionCreateExecutor", redisExecutor);
+        when(redisExecutor.execute(any())).thenReturn(new RedisAuctionCreateResult(
+                42, "1720000000000-0", AuctionStatus.OPEN,
+                Instant.parse("2026-08-04T00:00:00Z"), Instant.parse("2026-08-04T12:00:00Z")
+        ));
+
+        var response = auctionCommandService.create(1, new AuctionCreateRequest(
+                1, "피카츄 경매", "설명", null, null, List.of("upload-token"),
+                10_000L, 1_000L, null, 12, 3_000L
+        ), "redis-create-key");
+
+        assertThat(response.id()).isEqualTo(42);
+        verify(redisExecutor).execute(any());
+        verify(auctionRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test

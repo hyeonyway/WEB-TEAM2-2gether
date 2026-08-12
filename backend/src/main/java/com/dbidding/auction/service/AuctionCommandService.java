@@ -6,6 +6,9 @@ import com.dbidding.auction.bid.BidCommand;
 import com.dbidding.auction.bid.BidEventData;
 import com.dbidding.auction.bid.BidExecutionResult;
 import com.dbidding.auction.bid.BidExecutor;
+import com.dbidding.auction.bid.RedisAuctionCreateCommand;
+import com.dbidding.auction.bid.RedisAuctionCreateExecutor;
+import com.dbidding.auction.bid.RedisAuctionCreateResult;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionStatus;
@@ -45,6 +48,7 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,13 +72,25 @@ public class AuctionCommandService {
     private final ApplicationEventPublisher eventPublisher;
     private final AuctionMetrics auctionMetrics;
     private final BidExecutor bidExecutor;
+    @Autowired(required = false)
+    private RedisAuctionCreateExecutor redisAuctionCreateExecutor;
 
     @Transactional
     public AuctionCreateResponse create(Integer userId, AuctionCreateRequest request, String idempotencyKey) {
         IdempotencyKeys.validate(idempotencyKey);
         validateCreateRequest(request);
 
+        CardSnapshot card = cardService.getCardSnapshot(request.itemId());
+        boolean psaVerified = validatePsaCertification(card, request);
+        List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
+        validateImages(images);
+
+        Instant now = now();
+        Instant endsAt = now.plus(Duration.ofHours(request.durationHours()));
         String requestHash = createRequestHash(request);
+        if (redisAuctionCreateExecutor != null) {
+            return createInRedis(userId, request, idempotencyKey, requestHash, card, psaVerified, images, now, endsAt);
+        }
         Optional<AuctionCreateResponse> idempotentResponse = findIdempotentCreateResponse(
                 userId,
                 idempotencyKey,
@@ -84,13 +100,6 @@ public class AuctionCommandService {
             return idempotentResponse.get();
         }
 
-        CardSnapshot card = cardService.getCardSnapshot(request.itemId());
-        boolean psaVerified = validatePsaCertification(card, request);
-        List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
-        validateImages(images);
-
-        Instant now = now();
-        Instant endsAt = now.plus(Duration.ofHours(request.durationHours()));
         Auction auction = Auction.builder()
                 .sellerId(userId)
                 .itemId(request.itemId())
@@ -138,6 +147,41 @@ public class AuctionCommandService {
         AuctionCreateResponse response = createResponse(savedAuction);
         publishCloseScheduleChanged(savedAuction, "auction_created");
         return response;
+    }
+
+    private AuctionCreateResponse createInRedis(
+            Integer userId,
+            AuctionCreateRequest request,
+            String idempotencyKey,
+            String requestHash,
+            CardSnapshot card,
+            boolean psaVerified,
+            List<ImageUploadPort.ResolvedImage> images,
+            Instant now,
+            Instant endsAt
+    ) {
+        RedisAuctionCreateResult created = redisAuctionCreateExecutor.execute(new RedisAuctionCreateCommand(
+                userId, request.itemId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
+                request.auctionName(), request.description(), request.sellerMemo(),
+                request.psaCertification(), request.selfGrade(), psaVerified, request.startPrice(), request.buyNowPrice(),
+                request.shippingFee(), request.bidIncrement(), images.stream()
+                        .sorted(java.util.Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
+                        .map(ImageUploadPort.ResolvedImage::imagePath).toList(),
+                endsAt, idempotencyKey, requestHash
+        ));
+        AuctionOpenedEvent openedEvent = new AuctionOpenedEvent(
+                created.auctionId(), card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
+                userId, request.startPrice(), request.startPrice(), request.bidIncrement(), 0,
+                created.closeTime(), created.status(), now
+        );
+        auctionEventPublisher.publishOpened(openedEvent);
+        auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
+        return AuctionCreateResponse.builder()
+                .id(created.auctionId())
+                .status(created.status())
+                .startsAt(created.occurredAt())
+                .endsAt(created.closeTime())
+                .build();
     }
 
     public BidResponses.BidResult participate(
