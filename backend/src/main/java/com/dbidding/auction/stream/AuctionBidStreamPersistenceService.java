@@ -76,7 +76,6 @@ public class AuctionBidStreamPersistenceService {
     public void project(AuctionWalletTimelineEvent event) {
         if (event instanceof WalletStateChangedStreamEvent walletChanged) {
             walletProjectionService.project(walletChanged);
-            inboxRepository.save(archive(event, null, null));
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);

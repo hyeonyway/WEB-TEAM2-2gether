@@ -119,7 +119,7 @@ class AuctionBidStreamPersistenceServiceTest {
 
         verify(walletProjectionService).project(event);
         verify(walletService, org.mockito.Mockito.never()).charge(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
-        verify(inboxRepository, times(2)).save(org.mockito.ArgumentMatchers.any());
+        verify(inboxRepository).save(org.mockito.ArgumentMatchers.any());
         verify(auctionRepository, org.mockito.Mockito.never()).findByIdForUpdate(org.mockito.ArgumentMatchers.any());
     }
 
