@@ -39,13 +39,79 @@ function AnimatedAuctionPrice({price}:{price:number}){
   </strong>;
 }
 
-export default function AuctionCatalog({auctions}:{auctions:AuctionDto[]}){
+type AuctionCatalogProps={
+  auctions:AuctionDto[];
+  onSubscriptionAuctionIdsChange?:(auctionIds:readonly number[])=>void;
+};
+
+// 서버 SSE 구독 캡(16)에서 입찰 모달의 독립 구독 1개 몫을 뺀 값. 화면 축소 등으로 실제
+// 보이는 카드가 이보다 많아지면 뒤(§updateSubscription)에서 우선순위를 매겨 잘라낸다.
+const MAX_SUBSCRIBED_AUCTIONS=15;
+
+export default function AuctionCatalog({auctions,onSubscriptionAuctionIdsChange}:AuctionCatalogProps){
   const authGate=useAuthGate();
   const currentUserId=useCurrentUserId();
   const[selectedAuction,setSelectedAuction]=useState<AuctionDto|null>(null);
   const now=useCountdownNow();
+  const catalogRef=useRef<HTMLElement>(null);
+  const subscribedAuctionIdsRef=useRef<ReadonlySet<number>>(new Set());
+  const auctionIdSignature=auctions.map(auction=>auction.id).join(',');
+
+  useEffect(()=>{
+    if(!onSubscriptionAuctionIdsChange)return;
+    const auctionIds=auctionIdSignature===''?[]:auctionIdSignature.split(',').map(Number);
+    if(!auctionIds.length){
+      subscribedAuctionIdsRef.current=new Set();
+      onSubscriptionAuctionIdsChange([]);
+      return;
+    }
+    const previousIds=subscribedAuctionIdsRef.current;
+    const currentAuctionIdSet=new Set(auctionIds);
+    if([...previousIds].some(auctionId=>!currentAuctionIdSet.has(auctionId))){
+      subscribedAuctionIdsRef.current=new Set();
+    }
+    const updateSubscription=(visibleAuctionIds:ReadonlySet<number>)=>{
+      const visibleIndexes=auctionIds.flatMap((auctionId,index)=>visibleAuctionIds.has(auctionId)?[index]:[]);
+      if(!visibleIndexes.length)return;
+      if([...visibleAuctionIds].every(auctionId=>subscribedAuctionIdsRef.current.has(auctionId)))return;
+      const first=Math.min(...visibleIndexes);
+      const last=Math.max(...visibleIndexes);
+      const bufferedIndexes=[];
+      for(let index=Math.max(0,first-3);index<Math.min(auctionIds.length,last+4);index++)bufferedIndexes.push(index);
+      // 화면에 진짜 보이는 카드를 최우선으로 채우고, 남는 자리에 스크롤 예측용 버퍼를 채운다.
+      // 화면 축소 등으로 실제 보이는 카드 수가 서버 캡을 넘으면 버퍼부터 잘리고, 그래도 넘치면
+      // 보이는 카드 자체도 잘린다 — 일부 카드가 잠시 실시간 갱신을 못 받을 수는 있어도,
+      // 캡을 넘겨서 SSE 구독 자체가 통째로 끊기는 것보다는 훨씬 낫다.
+      const visibleIndexSet=new Set(visibleIndexes);
+      const prioritizedIndexes=[...visibleIndexes,...bufferedIndexes.filter(index=>!visibleIndexSet.has(index))]
+        .slice(0,MAX_SUBSCRIBED_AUCTIONS);
+      const nextAuctionIds=[...new Set(prioritizedIndexes)].sort((left,right)=>left-right)
+        .map(index=>auctionIds[index]);
+      subscribedAuctionIdsRef.current=new Set(nextAuctionIds);
+      onSubscriptionAuctionIdsChange(nextAuctionIds);
+    };
+    if(typeof IntersectionObserver==='undefined'){
+      const nextAuctionIds=auctionIds.slice(0,MAX_SUBSCRIBED_AUCTIONS);
+      subscribedAuctionIdsRef.current=new Set(nextAuctionIds);
+      onSubscriptionAuctionIdsChange(nextAuctionIds);
+      return;
+    }
+    const visibleAuctionIds=new Set<number>();
+    const observer=new IntersectionObserver(entries=>{
+      entries.forEach(entry=>{
+        const auctionId=Number((entry.target as HTMLElement).dataset.auctionId);
+        if(!Number.isInteger(auctionId))return;
+        if(entry.isIntersecting)visibleAuctionIds.add(auctionId);
+        else visibleAuctionIds.delete(auctionId);
+      });
+      updateSubscription(visibleAuctionIds);
+    });
+    catalogRef.current?.querySelectorAll<HTMLElement>('[data-auction-id]').forEach(card=>observer.observe(card));
+    return()=>observer.disconnect();
+  },[auctionIdSignature,onSubscriptionAuctionIdsChange]);
+
   if(!auctions.length)return <div className="filter-empty"><Search/><b>조건에 맞는 경매가 없습니다.</b><span>검색어나 필터를 변경해 보세요.</span></div>;
-  return <><section className="card-grid">{auctions.map(auction=>{const remaining=formatRemaining(auction.endsAt,now),ended=isAuctionEnded(auction.status,remaining),isSeller=currentUserId!==null&&auction.sellerId===currentUserId,buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} key={auction.id}>
+  return <><section className="card-grid" ref={catalogRef}>{auctions.map(auction=>{const remaining=formatRemaining(auction.endsAt,now),ended=isAuctionEnded(auction.status,remaining),isSeller=currentUserId!==null&&auction.sellerId===currentUserId,buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} data-auction-id={auction.id} key={auction.id}>
     <div className="auction-image-viewport"><CardArtwork theme={auction.card.theme} imageUrl={auction.card.imageUrl} name={auction.card.name}/></div>
     <div>
       <div className="card-meta"><span><span className="grade">PSA {psaGrade}</span><span className="grade">{auction.card.language}</span></span><span className="auction-countdown"><Clock3/>{remaining}{!ended&&' 남음'}</span></div>

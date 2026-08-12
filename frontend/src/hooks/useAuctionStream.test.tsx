@@ -55,7 +55,7 @@ describe('useAuctionStream',()=>{
     ['AUCTION_CLOSED',{...basePayload,final_price:50_000,card_id:3,card_name:'리자몽',card_psa_grade:'10',card_language:'JP',card_thumbnail_url:null,seller_id:20,winner_id:7}],
   ] as const)('%s event 필드를 payload 타입으로 사용한다',(type,data)=>{
     const onAuctionUpdated=vi.fn();
-    renderHook(()=>useAuctionStream({onAuctionUpdated}));
+    renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated}));
 
     act(()=>publish(type,data));
 
@@ -64,7 +64,7 @@ describe('useAuctionStream',()=>{
 
   it('잘못된 data는 무시한다',()=>{
     const onAuctionUpdated=vi.fn();
-    renderHook(()=>useAuctionStream({onAuctionUpdated}));
+    renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated}));
 
     act(()=>publish('BID_PLACED','not-json'));
     act(()=>publish('BID_PLACED',{...basePayload}));
@@ -74,7 +74,7 @@ describe('useAuctionStream',()=>{
 
   it('최초 연결을 제외하고 공유 연결이 재개되면 재연결 콜백을 한 번 실행한다',()=>{
     const onReconnected=vi.fn();
-    renderHook(()=>useAuctionStream({onAuctionUpdated:vi.fn(),onReconnected}));
+    renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated:vi.fn(),onReconnected}));
 
     act(()=>openStream());
     expect(onReconnected).not.toHaveBeenCalled();
@@ -85,7 +85,7 @@ describe('useAuctionStream',()=>{
 
   it('언마운트 시 이벤트 구독과 연결을 정리한다',()=>{
     const onAuctionUpdated=vi.fn();
-    const {unmount}=renderHook(()=>useAuctionStream({onAuctionUpdated}));
+    const {unmount}=renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated}));
     const eventSource=EventSourceMock.instances[0];
 
     unmount();
@@ -98,8 +98,8 @@ describe('useAuctionStream',()=>{
   it('여러 훅이 하나의 EventSource 연결을 공유한다',()=>{
     const firstSubscriber=vi.fn();
     const secondSubscriber=vi.fn();
-    const first=renderHook(()=>useAuctionStream({onAuctionUpdated:firstSubscriber}));
-    const second=renderHook(()=>useAuctionStream({onAuctionUpdated:secondSubscriber}));
+    const first=renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated:firstSubscriber}));
+    const second=renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated:secondSubscriber}));
     const eventSource=EventSourceMock.instances[0];
 
     expect(EventSourceMock.instances).toHaveLength(1);
@@ -113,5 +113,17 @@ describe('useAuctionStream',()=>{
 
     second.unmount();
     expect(eventSource.close).toHaveBeenCalledOnce();
+  });
+
+  it('활성 화면이 요청한 경매 ID 합집합으로 하나의 스트림을 연결한다',()=>{
+    const first=renderHook(()=>useAuctionStream({auctionIds:[10,11],onAuctionUpdated:vi.fn()}));
+    const second=renderHook(()=>useAuctionStream({auctionIds:[11,12],onAuctionUpdated:vi.fn()}));
+
+    expect(EventSourceMock.instances).toHaveLength(2);
+    expect(EventSourceMock.instances[1]?.url).toContain('/api/auctions/stream?auctionIds=10%2C11%2C12');
+    expect(EventSourceMock.instances[0]?.close).toHaveBeenCalledOnce();
+
+    first.unmount();
+    second.unmount();
   });
 });

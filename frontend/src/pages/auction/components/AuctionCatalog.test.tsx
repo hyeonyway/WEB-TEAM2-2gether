@@ -79,4 +79,21 @@ describe('AuctionCatalog',()=>{
 
     expect(screen.getByTestId('auction-catalog-path')).toHaveTextContent('/auction/1');
   });
+
+  it('경매 ID 목록이 같으면 이벤트 데이터가 바뀌어도 viewport observer를 다시 만들지 않는다',()=>{
+    const disconnect=vi.fn();
+    const Observer=vi.fn(function(){return {observe:vi.fn(),disconnect,unobserve:vi.fn()};});
+    vi.stubGlobal('IntersectionObserver',Observer);
+    const onSubscriptionAuctionIdsChange=vi.fn();
+    const {rerender}=render(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+      <AuctionCatalog auctions={[auction]} onSubscriptionAuctionIdsChange={onSubscriptionAuctionIdsChange}/>
+    </AuthContext.Provider></MemoryRouter>);
+
+    rerender(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+      <AuctionCatalog auctions={[{...auction,bidCount:auction.bidCount+1}]} onSubscriptionAuctionIdsChange={onSubscriptionAuctionIdsChange}/>
+    </AuthContext.Provider></MemoryRouter>);
+
+    expect(Observer).toHaveBeenCalledTimes(1);
+    expect(disconnect).not.toHaveBeenCalled();
+  });
 });

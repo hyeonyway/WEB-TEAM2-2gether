@@ -39,6 +39,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const[amount,setAmount]=useState<number|string>(minimum);
   useEffect(()=>{setAmount(current=>{const value=Number(current);return current===''||!Number.isFinite(value)||value<minimum?minimum:current;});},[minimum]);
   useAuctionStream({
+    auctionIds:[auction.id],
     onAuctionUpdated:event=>{if(event.auction_id!==auction.id)return;queryClient.setQueryData<BidContextResponseDto>(auctionQueryKeys.bidContext(auction.id),current=>applyBidContextEvent(current,event));},
     onReconnected:()=>{void Promise.all([queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auction.id)})]);},
   });

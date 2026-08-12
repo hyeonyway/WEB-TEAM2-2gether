@@ -47,6 +47,7 @@ export default function AuctionDetailPage(){
     enabled:validAuctionId,
   });
   useAuctionStream({
+    auctionIds:validAuctionId?[auctionId]:[],
     enabled:validAuctionId,
     onAuctionUpdated:event=>{
       if(event.auction_id!==auctionId)return;
