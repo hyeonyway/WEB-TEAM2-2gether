@@ -1,6 +1,7 @@
 package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.domain.Bid;
@@ -9,8 +10,10 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.service.WalletService;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
@@ -27,8 +30,10 @@ import org.springframework.transaction.annotation.Propagation;
 public class AuctionBidStreamPersistenceService {
     private final AuctionBidEventInboxRepository inboxRepository;
     private final AuctionRepository auctionRepository;
+    private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
+    private final AccountRepository accountRepository;
     private final com.dbidding.wallet.service.WalletProjectionService walletProjectionService;
     private final OrderService orderService;
     private final CardService cardService;
@@ -39,15 +44,24 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
         return inboxRepository.findByStreamId(event.streamId())
-                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null,
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : null,
                         event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordMalformed(String streamId, Map<String, String> payload) {
         return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionBidEventInbox(
-                streamId, null, null, "unknown", 1, payload.toString(), Instant.now(), clock.instant()
+                streamId, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
+                payload.toString(), Instant.now(), clock.instant()
         )));
+    }
+
+    private int malformedSchemaVersion(Map<String, String> payload) {
+        try {
+            return Integer.parseInt(payload.getOrDefault("schemaVersion", "0"));
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -65,16 +79,43 @@ public class AuctionBidStreamPersistenceService {
     /** PENDING으로 기록된 이벤트를 실제 도메인 테이블에 반영한다. */
     @Transactional
     public void project(AuctionWalletTimelineEvent event) {
-        if (event instanceof WalletChargedStreamEvent charged) {
-            walletService.charge(charged.userId(), charged.amount(), charged.idempotencyKey());
-            return;
-        }
         if (event instanceof WalletStateChangedStreamEvent walletChanged) {
             walletProjectionService.project(walletChanged);
-            inboxRepository.save(archive(event, null, null));
+            return;
+        }
+        if (event instanceof AuctionCreatedStreamEvent created) {
+            cardService.getCardSnapshot(created.itemId());
+            if (!accountRepository.existsById(created.sellerId())) throw new InvalidBidStreamEventException("존재하지 않는 판매자입니다: " + created.sellerId());
+            if (auctionRepository.findBySellerIdAndCreateIdempotencyKey(created.sellerId(), created.idempotencyKey()).isPresent()) return;
+            Auction auction = Auction.builder()
+                    .sellerId(created.sellerId()).itemId(created.itemId()).auctionName(created.auctionName())
+                    .description(created.description()).sellerMemo(created.sellerMemo()).psaCertification(created.psaCertification()).selfGrade(created.selfGrade()).psaVerified(created.psaVerified()).startPrice(created.startPrice()).buyNowPrice(created.buyNowPrice())
+                    .deliveryFee(created.deliveryFee()).openTime(created.occurredAt()).estimatedCloseTime(created.closeTime())
+                    .closeTime(created.closeTime()).bidPriceUnit(created.bidPriceUnit()).hyped(false).build();
+            auction.recordCreateIdempotency(created.idempotencyKey(), created.idempotencyRequestHash());
+            Auction saved = auctionRepository.save(auction);
+            auctionImageRepository.saveAll(created.imagePaths().stream().map(path -> new AuctionImage(saved, path)).toList());
+            return;
+        }
+        if (event instanceof AuctionCloseRequestedStreamEvent close) {
+            closeAuction(close);
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);
+    }
+
+    private void closeAuction(AuctionCloseRequestedStreamEvent event) {
+        Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
+                .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 종료 대상 경매입니다: " + event.auctionId()));
+        if ((auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.OPEN && auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.ENDING)
+                || auction.getCloseTime().isAfter(event.occurredAt())) throw new InvalidBidStreamEventException("아직 종료할 수 없는 경매입니다: " + event.auctionId());
+        java.util.Optional<Bid> winning = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING);
+        if (winning.isEmpty()) { auction.closeWithoutTrade(event.occurredAt()); return; }
+        Bid winner = winning.get();
+        winner.markWon();
+        auction.closeWithWinningBid(winner, event.occurredAt());
+        walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        completeBuyNow(auction, winner, event.occurredAt());
     }
 
     private void persistBid(BidAcceptedStreamEvent event) {

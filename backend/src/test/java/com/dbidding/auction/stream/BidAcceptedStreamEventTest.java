@@ -10,19 +10,19 @@ import org.junit.jupiter.api.Test;
 class BidAcceptedStreamEventTest {
 
     @Test
-    void 지갑_상태_이벤트는_사후_잔액과_버전을_역직렬화한다() {
+    void v2_충전_이벤트는_사후_잔액과_버전을_역직렬화한다() {
         UUID eventId = UUID.randomUUID();
         AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-3", Map.ofEntries(
                 Map.entry("schemaVersion", "2"),
-                Map.entry("eventType", "wallet.refunded.v1"),
+                Map.entry("eventType", "wallet.charged.v1"),
                 Map.entry("eventId", eventId.toString()),
                 Map.entry("userId", "20"),
                 Map.entry("walletVersion", "8"),
                 Map.entry("availableBalance", "70000"),
                 Map.entry("frozenBalance", "10000"),
-                Map.entry("transactionType", "REFUND"),
+                Map.entry("transactionType", "CHARGE"),
                 Map.entry("transactionAmount", "3000"),
-                Map.entry("idempotencyKey", "refund-1"),
+                Map.entry("idempotencyKey", "charge-1"),
                 Map.entry("occurredAt", "2026-08-11T00:00:00Z")
         ));
 
@@ -32,6 +32,34 @@ class BidAcceptedStreamEventTest {
         assertThat(wallet.walletVersion()).isEqualTo(8L);
         assertThat(wallet.availableBalance()).isEqualTo(70_000L);
         assertThat(wallet.frozenBalance()).isEqualTo(10_000L);
+    }
+
+    @Test
+    void 경매_생성_stream_계약을_파싱한다() {
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-4", Map.ofEntries(
+                Map.entry("eventType", "auction.created.v1"), Map.entry("schemaVersion", "1"),
+                Map.entry("sellerId", "1"), Map.entry("itemId", "10"), Map.entry("auctionName", "name"),
+                Map.entry("description", "description"), Map.entry("startPrice", "10000"),
+                Map.entry("buyNowPrice", "20000"), Map.entry("deliveryFee", "3000"),
+                Map.entry("bidPriceUnit", "1000"), Map.entry("closeTime", "2026-08-10T12:00:00Z"),
+                Map.entry("sellerMemo", "memo"), Map.entry("psaCertification", "1234567"),
+                Map.entry("selfGrade", "NM"), Map.entry("psaVerified", "true"),
+                Map.entry("imagePaths", "auctions/1.jpg\nauctions/2.jpg"),
+                Map.entry("idempotencyKey", "auction-create-1"), Map.entry("idempotencyRequestHash", "a".repeat(64)),
+                Map.entry("occurredAt", "2026-08-10T11:00:00Z")
+        ));
+        assertThat(event).isInstanceOf(AuctionCreatedStreamEvent.class);
+        assertThat(((AuctionCreatedStreamEvent) event).itemId()).isEqualTo(10);
+    }
+
+    @Test
+    void 경매_종료_요청_stream_계약을_파싱한다() {
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-5", Map.of(
+                "eventType", "auction.close-requested.v1", "schemaVersion", "1",
+                "auctionId", "10", "occurredAt", "2026-08-10T12:00:00Z"
+        ));
+        assertThat(event).isInstanceOf(AuctionCloseRequestedStreamEvent.class);
+        assertThat(((AuctionCloseRequestedStreamEvent) event).auctionId()).isEqualTo(10);
     }
     @Test
     void 승인된_입찰_stream_계약을_파싱한다() {
@@ -86,19 +114,6 @@ class BidAcceptedStreamEventTest {
     }
 
     @Test
-    void 지갑_충전_이벤트를_타임라인_계약으로_파싱한다() {
-        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-2", Map.of(
-                "eventType", "wallet.charged.v1",
-                "schemaVersion", "1",
-                "userId", "1",
-                "amount", "50000",
-                "idempotencyKey", "charge-1",
-                "occurredAt", "2026-08-10T11:00:00Z"
-        ));
-
-        assertThat(event).isInstanceOf(WalletChargedStreamEvent.class);
-    }
-
     private Map<String, String> fields() {
         return new java.util.HashMap<>(Map.ofEntries(
                 Map.entry("eventType", "bid.accepted.v1"),
