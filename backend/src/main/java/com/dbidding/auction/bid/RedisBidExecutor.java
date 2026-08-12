@@ -8,9 +8,10 @@ import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -21,15 +22,38 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Profile("redis")
-@RequiredArgsConstructor
 @Slf4j
 public class RedisBidExecutor implements BidExecutor {
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<String> bidAcceptScript;
     private final Clock clock;
+    private final RedisAuctionStateSeeder auctionStateSeeder;
+    private final com.dbidding.wallet.service.RedisWalletStateSeeder walletStateSeeder;
+
+    @Autowired
+    public RedisBidExecutor(
+            StringRedisTemplate redisTemplate,
+            RedisScript<String> bidAcceptScript,
+            Clock clock,
+            @Nullable RedisAuctionStateSeeder auctionStateSeeder,
+            @Nullable com.dbidding.wallet.service.RedisWalletStateSeeder walletStateSeeder
+    ) {
+        this.redisTemplate = redisTemplate;
+        this.bidAcceptScript = bidAcceptScript;
+        this.clock = clock;
+        this.auctionStateSeeder = auctionStateSeeder;
+        this.walletStateSeeder = walletStateSeeder;
+    }
+
+    /** Lua 단독 통합 테스트가 기존 준비된 Redis 상태를 사용할 수 있도록 유지한다. */
+    RedisBidExecutor(StringRedisTemplate redisTemplate, RedisScript<String> bidAcceptScript, Clock clock) {
+        this(redisTemplate, bidAcceptScript, clock, null, null);
+    }
 
     @Override
     public BidExecutionResult execute(BidCommand command) {
+        if (auctionStateSeeder != null) auctionStateSeeder.seedIfAbsent(command.auctionId());
+        if (walletStateSeeder != null) walletStateSeeder.seedIfAbsent(command.bidderId());
         Instant now = clock.instant();
         String requestHash = IdempotencyKeys.sha256(command.price());
         List<String> keys = List.of(

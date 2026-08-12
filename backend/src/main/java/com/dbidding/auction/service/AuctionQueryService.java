@@ -22,6 +22,7 @@ import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
+import com.dbidding.auction.bid.RedisAuctionStateSeeder;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -51,6 +52,8 @@ public class    AuctionQueryService {
     private final Clock clock;
     @Autowired(required = false)
     private RedisAuctionRealtimeStateReader realtimeStateReader;
+    @Autowired(required = false)
+    private RedisAuctionStateSeeder stateSeeder;
 
     public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
             Integer userId,
@@ -247,6 +250,7 @@ public class    AuctionQueryService {
     }
 
     public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
+        seedAuctionIfRequired(auctionId);
         RedisAuctionRealtimeStateReader.AuctionState redisState = realtimeStateReader == null ? null
                 : realtimeStateReader.readAuctionState(auctionId);
         if (redisState != null) {
@@ -287,6 +291,7 @@ public class    AuctionQueryService {
     }
 
     public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
+        seedAuctionIfRequired(auctionId);
         WalletBalanceResponse wallet = walletService.getBalance(userId);
         RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader == null ? null : realtimeStateReader.read(auctionId, userId);
         if (realtime != null) {
@@ -316,6 +321,12 @@ public class    AuctionQueryService {
     private Auction getAuction(Integer auctionId) {
         return auctionRepository.findById(auctionId)
 				.orElseThrow(AuctionException::notFound);
+    }
+
+    private void seedAuctionIfRequired(Integer auctionId) {
+        if (realtimeStateReader != null && realtimeStateReader.readAuctionState(auctionId) == null && stateSeeder != null) {
+            stateSeeder.seedIfAbsent(auctionId);
+        }
     }
 
     private Map<Integer, CardSnapshot> cardSnapshots(List<Auction> auctions) {

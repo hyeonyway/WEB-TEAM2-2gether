@@ -36,6 +36,14 @@ public class RedisBidLuaConfiguration {
     }
 
     @Bean
+    public RedisScript<Long> auctionStateSeedScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-state-seed.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
+    @Bean
     public RedisScript<Long> auctionCloseRequestScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/auction-close-request.lua"));
