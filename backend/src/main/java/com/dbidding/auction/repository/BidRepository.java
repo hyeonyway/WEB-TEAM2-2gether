@@ -19,10 +19,10 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     List<Bid> findByAuctionIdInAndStatus(Collection<Integer> auctionIds, BidStatus status);
 
-    @Query("select b.auction.id from Bid b where b.status = :bidStatus and b.auction.status in :auctionStatuses")
-    List<Integer> findAuctionIdsByStatusAndAuctionStatusIn(
+    @Query("select b.auction.id from Bid b where b.status = :bidStatus and b.auction.status = :auctionStatus")
+    List<Integer> findAuctionIdsByStatusAndAuctionStatus(
             @Param("bidStatus") BidStatus bidStatus,
-            @Param("auctionStatuses") Collection<AuctionStatus> auctionStatuses
+            @Param("auctionStatus") AuctionStatus auctionStatus
     );
 
     @Query(

@@ -5,12 +5,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.notification.recovery.NotificationReconciliationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class UrgentNotificationRecoverySchedulerTest {
@@ -28,7 +26,7 @@ class UrgentNotificationRecoverySchedulerTest {
         scheduler.recover();
 
         verify(notificationReconciliationService)
-                .recoverOutbidNotifications(Instant.parse("2026-07-29T00:50:00Z"), List.of(AuctionStatus.ENDING));
+                .recoverEndingOutbidNotifications(Instant.parse("2026-07-29T00:50:00Z"));
         verify(notificationReconciliationService, never()).recoverAuctionOpenedNotifications(any());
     }
 }

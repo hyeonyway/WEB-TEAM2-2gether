@@ -121,4 +121,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             Collection<AuctionStatus> statuses,
             Instant closeTime
     );
+
+    @Query("select a.id from Auction a where a.status = :status")
+    List<Integer> findIdsByStatus(@Param("status") AuctionStatus status);
 }

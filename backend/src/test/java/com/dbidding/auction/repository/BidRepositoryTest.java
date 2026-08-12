@@ -85,7 +85,7 @@ class BidRepositoryTest {
         bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
 
         List<Integer> auctionIds = bidRepository
-                .findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, List.of(AuctionStatus.OPEN));
+                .findAuctionIdsByStatusAndAuctionStatus(BidStatus.LEADING, AuctionStatus.OPEN);
 
         assertThat(auctionIds).contains(auction.getId());
     }
@@ -95,7 +95,7 @@ class BidRepositoryTest {
         bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
 
         List<Integer> auctionIds = bidRepository
-                .findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, List.of(AuctionStatus.ENDING));
+                .findAuctionIdsByStatusAndAuctionStatus(BidStatus.LEADING, AuctionStatus.ENDING);
 
         assertThat(auctionIds).doesNotContain(auction.getId());
     }

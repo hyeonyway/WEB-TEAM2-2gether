@@ -102,9 +102,9 @@ notification:
     urgent:
       enabled: ${NOTIFICATION_RECOVERY_URGENT_ENABLED:true}
       fixed-delay-ms: ${NOTIFICATION_RECOVERY_URGENT_FIXED_DELAY_MS:90000}
-    result:
-      enabled: ${NOTIFICATION_RECOVERY_RESULT_ENABLED:true}
-      fixed-delay-ms: ${NOTIFICATION_RECOVERY_RESULT_FIXED_DELAY_MS:300000}
+    non-urgent:
+      enabled: ${NOTIFICATION_RECOVERY_NON_URGENT_ENABLED:true}
+      fixed-delay-ms: ${NOTIFICATION_RECOVERY_NON_URGENT_FIXED_DELAY_MS:300000}
 
 app:
   password-hash:
