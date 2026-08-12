@@ -81,7 +81,8 @@ public class    AuctionQueryService {
         Map<Integer, List<AuctionImage>> images = imagesByAuction(content);
         Map<Integer, Bid> myBids = myBids(userId, content);
         List<AuctionResponses.AuctionSummary> items = content.stream()
-                .map(auction -> summary(auction, cards.get(auction.getItemId()), firstImage(images, auction), myBids.get(auction.getId())))
+                .map(auction -> summary(auction, cards.get(auction.getItemId()), firstImage(images, auction), myBids.get(auction.getId()),
+                        realtimeStateReader == null ? null : realtimeStateReader.readSnapshot(auction.getId())))
                 .toList();
         String nextCursor = hasNext
                 ? auctionCursorCodec.encode(cursorOf(content.getLast(), sort))
@@ -273,21 +274,22 @@ public class    AuctionQueryService {
             Auction auction,
             CardSnapshot card,
             AuctionImage representativeImage,
-            Bid myBid
+            Bid myBid,
+            RedisAuctionRealtimeStateReader.Snapshot realtime
     ) {
         return AuctionResponses.AuctionSummary.builder()
                 .id(auction.getId())
                 .card(cardSummary(card, representativeImage))
                 .seller(sellerSummary(auction.getSellerId()))
                 .startPrice(auction.getStartPrice())
-                .currentPrice(auction.getCurrentPrice())
-                .bidIncrement(auction.getBidPriceUnit())
-                .minimumBid(auction.minimumBid())
-                .bidCount(auction.getBidCount())
-                .buyNowPrice(auction.getBuyNowPrice())
+                .currentPrice(realtime == null ? auction.getCurrentPrice() : realtime.currentPrice())
+                .bidIncrement(realtime == null ? auction.getBidPriceUnit() : realtime.bidIncrement())
+                .minimumBid(realtime == null ? auction.minimumBid() : realtime.currentPrice() + realtime.bidIncrement())
+                .bidCount(realtime == null ? auction.getBidCount() : realtime.bidCount())
+                .buyNowPrice(realtime == null ? auction.getBuyNowPrice() : realtime.buyNowPrice())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
-                .status(auction.getStatus())
+                .endsAt(realtime == null ? auction.getCloseTime() : realtime.closeTime())
+                .status(realtime == null ? auction.getStatus() : realtime.status())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .build();

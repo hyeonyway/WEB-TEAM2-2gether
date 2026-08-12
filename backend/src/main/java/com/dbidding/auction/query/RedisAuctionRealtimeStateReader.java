@@ -12,7 +12,12 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-/** Redis 승인 상태에서 활성 경매의 변경 가능한 read model만 읽는다. */
+/**
+ * Redis 승인 상태에서 활성 경매의 변경 가능한 read model만 읽는다.
+ *
+ * <p>현재 키 형식은 단일 Redis 인스턴스를 전제로 한다. Cluster로 확장할 때는 Lua에서 함께
+ * 접근하는 경매 키에 같은 hash tag를 적용해야 한다.</p>
+ */
 @Component
 @Profile("redis")
 public class RedisAuctionRealtimeStateReader {
@@ -23,39 +28,47 @@ public class RedisAuctionRealtimeStateReader {
     }
 
     public RealtimeState read(Integer auctionId, Integer userId) {
-        Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
-        if (fields.isEmpty()) return null;
+        Snapshot snapshot = readSnapshot(auctionId);
+        if (snapshot == null) return null;
         try {
-            AuctionStatus status = AuctionStatus.valueOf(required(fields, "status"));
-            long currentPrice = Long.parseLong(required(fields, "currentPrice"));
-            long bidIncrement = Long.parseLong(required(fields, "bidIncrement"));
-            int bidCount = Integer.parseInt(required(fields, "bidCount"));
-            Instant closeTime = Instant.parse(required(fields, "closeTime"));
-            Long buyNowPrice = nullableLong(fields.get("buyNowPrice"));
-            List<BidResponses.BidSummary> recentBids = recentBids(auctionId, userId);
+            List<BidResponses.BidSummary> recentBids = recentBids(auctionId, snapshot.highestBidderId());
             Map<Object, Object> myBid = userId == null ? Map.of() : redisTemplate.opsForHash().entries(bidderKey(auctionId, userId));
             MyBidStatus myBidStatus = myBid.isEmpty() ? MyBidStatus.NONE : MyBidStatus.valueOf(required(myBid, "status"));
             Long myBidAmount = myBid.isEmpty() ? null : Long.valueOf(required(myBid, "amount"));
-            return new RealtimeState(status, currentPrice, bidIncrement, bidCount, closeTime, buyNowPrice,
+            return new RealtimeState(snapshot.status(), snapshot.currentPrice(), snapshot.bidIncrement(), snapshot.bidCount(), snapshot.closeTime(), snapshot.buyNowPrice(),
                     myBidStatus, myBidAmount, recentBids);
         } catch (IllegalArgumentException exception) {
             return null;
         }
     }
 
-    private List<BidResponses.BidSummary> recentBids(Integer auctionId, Integer userId) {
+    public Snapshot readSnapshot(Integer auctionId) {
+        Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
+        if (fields.isEmpty()) return null;
+        try {
+            return new Snapshot(AuctionStatus.valueOf(required(fields, "status")), Long.parseLong(required(fields, "currentPrice")),
+                    Long.parseLong(required(fields, "bidIncrement")), Integer.parseInt(required(fields, "bidCount")),
+                    Instant.parse(required(fields, "closeTime")), nullableLong(fields.get("buyNowPrice")),
+                    nullableInteger(fields.get("highestBidderId")));
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private List<BidResponses.BidSummary> recentBids(Integer auctionId, Integer highestBidderId) {
         List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().reverseRange(
                 recentBidKey(auctionId), Range.unbounded(), org.springframework.data.redis.connection.Limit.limit().count(5)
         );
         if (records == null) return List.of();
-        return records.stream().map(record -> summary(record, userId)).toList();
+        return records.stream().map(record -> summary(record, highestBidderId)).toList();
     }
 
-    private BidResponses.BidSummary summary(MapRecord<String, Object, Object> record, Integer userId) {
+    private BidResponses.BidSummary summary(MapRecord<String, Object, Object> record, Integer highestBidderId) {
         Map<Object, Object> values = record.getValue();
         Integer bidderId = Integer.valueOf(value(values.get("bidderId")));
-        return new BidResponses.BidSummary(null, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
-                userId != null && userId.equals(bidderId), Instant.parse(value(values.get("occurredAt"))));
+        long sequence = Long.parseLong(value(values.get("sequence")));
+        return new BidResponses.BidSummary(Long.MAX_VALUE - sequence, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
+                bidderId.equals(highestBidderId), Instant.parse(value(values.get("occurredAt"))));
     }
 
     private String required(Map<Object, Object> fields, String name) {
@@ -65,6 +78,7 @@ public class RedisAuctionRealtimeStateReader {
     }
     private String value(Object value) { return value == null ? null : value.toString(); }
     private Long nullableLong(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Long.valueOf(text); }
+    private Integer nullableInteger(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Integer.valueOf(text); }
     private String stateKey(Integer auctionId) { return "auction:state:" + auctionId; }
     private String recentBidKey(Integer auctionId) { return "auction:recent-bids:" + auctionId; }
     private String bidderKey(Integer auctionId, Integer userId) { return "auction:bidder:" + auctionId + ":" + userId; }
@@ -73,4 +87,6 @@ public class RedisAuctionRealtimeStateReader {
     public record RealtimeState(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                                 Instant closeTime, Long buyNowPrice, MyBidStatus myBidStatus,
                                 Long myBidAmount, List<BidResponses.BidSummary> recentBids) { }
+    public record Snapshot(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
+                           Instant closeTime, Long buyNowPrice, Integer highestBidderId) { }
 }

@@ -28,7 +28,7 @@ class RedisAuctionRealtimeStateReaderTest {
         when(redisTemplate.opsForStream()).thenReturn(streamOperations);
         when(hashOperations.entries("auction:state:10")).thenReturn(Map.of(
                 "status", "ENDING", "currentPrice", "43000", "bidIncrement", "3000", "bidCount", "7",
-                "closeTime", "2026-08-10T01:05:00Z", "buyNowPrice", "100000"
+                "closeTime", "2026-08-10T01:05:00Z", "buyNowPrice", "100000", "highestBidderId", "2"
         ));
         when(hashOperations.entries("auction:bidder:10:2")).thenReturn(Map.of("status", "LEADING", "amount", "43000"));
         MapRecord<String, Object, Object> bid = MapRecord.create("auction:recent-bids:10", Map.of(
@@ -44,5 +44,7 @@ class RedisAuctionRealtimeStateReaderTest {
         assertThat(state.myBidStatus().name()).isEqualTo("LEADING");
         assertThat(state.myBidAmount()).isEqualTo(43_000L);
         assertThat(state.recentBids()).extracting(item -> item.amount()).containsExactly(43_000L);
+        assertThat(state.recentBids()).extracting(item -> item.id()).containsExactly(Long.MAX_VALUE - 7);
+        assertThat(state.recentBids()).extracting(item -> item.isHighest()).containsExactly(true);
     }
 }

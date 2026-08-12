@@ -108,4 +108,22 @@ class RedisBidLuaIntegrationTest {
         assertThatThrownBy(() -> executor.execute(new BidCommand(2, 1, 46_000L, "request-1")))
                 .hasMessage("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
     }
+
+    @Test
+    void 최근_입찰_Stream은_최대_50개만_보관한다() {
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.of(
+                "status", "OPEN", "sellerId", "999", "currentPrice", "0", "bidIncrement", "1",
+                "closeTime", "2026-08-10T01:00:00Z", "closeTimeEpochMillis", "1786323600000",
+                "highestBidderId", "", "highestHoldAmount", "0", "sequence", "0", "bidCount", "0"
+        ));
+        for (int bidderId = 1; bidderId <= 55; bidderId++) {
+            redisTemplate.opsForHash().putAll("wallet:balance:" + bidderId, Map.of(
+                    "availableBalance", "1000000", "frozenBalance", "0", "walletVersion", "0"
+            ));
+            executor.execute(new BidCommand(bidderId, 1, (long) bidderId, "bounded-" + bidderId));
+        }
+
+        assertThat(redisTemplate.opsForStream().size("auction:recent-bids:1")).isEqualTo(50L);
+        assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(55L);
+    }
 }
