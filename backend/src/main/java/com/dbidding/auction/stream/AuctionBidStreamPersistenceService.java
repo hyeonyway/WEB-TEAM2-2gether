@@ -53,8 +53,8 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
         return inboxRepository.findByStreamId(event.streamId())
-                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : null,
-                        event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : event instanceof OrderStateChangedStreamEvent order ? order.auctionId() : null,
+                event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : event instanceof OrderStateChangedStreamEvent order ? order.orderVersion() : null)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -90,6 +90,10 @@ public class AuctionBidStreamPersistenceService {
     public void project(AuctionWalletTimelineEvent event) {
         if (event instanceof WalletStateChangedStreamEvent walletChanged) {
             walletProjectionService.project(walletChanged);
+            return;
+        }
+        if (event instanceof OrderStateChangedStreamEvent orderChanged) {
+            projectOrderState(orderChanged);
             return;
         }
         if (event instanceof AuctionCreatedStreamEvent created) {
@@ -135,6 +139,24 @@ public class AuctionBidStreamPersistenceService {
                 .executeUpdate();
     }
 
+    private void projectOrderState(OrderStateChangedStreamEvent event) {
+        com.dbidding.order.Order order = orderRepository.findByIdForUpdate(event.orderId())
+                .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 주문 상태 이벤트입니다: " + event.orderId()));
+        if (!order.getAuctionId().equals(event.auctionId()) || !order.getBuyerId().equals(event.buyerId())
+                || !order.getSellerId().equals(event.sellerId())) {
+            throw new InvalidBidStreamEventException("주문 상태 이벤트의 참여자 정보가 일치하지 않습니다.");
+        }
+        order.applyProjectedStatus(event.status());
+        walletProjectionService.project(new WalletStateChangedStreamEvent(
+                event.streamId(), event.eventId(), "wallet." + event.eventType().substring("order.".length()), event.walletUserId(),
+                event.walletVersion(), event.availableBalance(), event.frozenBalance(), event.auctionId(), null, null,
+                event.transactionType(), event.transactionAmount(), event.idempotencyKey(), event.occurredAt()
+        ));
+        orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectedStatusAfterCommit(
+                event.auctionId(), event.orderId(), event.status().name()));
+        orderService.publishProjectedStateChange(order, event.actorId());
+    }
+
     private void closeAuction(AuctionCloseRequestedStreamEvent event) {
         Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
                 .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 종료 대상 경매입니다: " + event.auctionId()));
@@ -175,7 +197,8 @@ public class AuctionBidStreamPersistenceService {
                 .orElseThrow(() -> new IllegalStateException("수신 기록이 없는 Stream 이벤트입니다: " + streamId));
         boolean firstError = !hasProjectionError();
         inbox.markError(exception.getClass().getSimpleName() + ": " + exception.getMessage());
-        if (inbox.getAuctionId() != null && "auction.buy-now.v1".equals(inbox.getEventType())) {
+        if (inbox.getAuctionId() != null && ("auction.buy-now.v1".equals(inbox.getEventType())
+                || inbox.getEventType().startsWith("order."))) {
             orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectionError(inbox.getAuctionId()));
         }
         return firstError;

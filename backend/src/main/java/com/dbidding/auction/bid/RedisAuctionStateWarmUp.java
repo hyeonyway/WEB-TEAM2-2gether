@@ -23,8 +23,8 @@ public class RedisAuctionStateWarmUp {
     private final RedisAuctionStateSeeder stateSeeder;
     private final Clock clock;
 
-    @Bean
-    ApplicationRunner redisAuctionStateWarmUp(
+    @Bean("redisAuctionStateWarmUpRunner")
+    ApplicationRunner redisAuctionStateWarmUpRunner(
             @Value("${auction.state-seeding.warm-up.enabled:true}") boolean enabled,
             @Value("${auction.state-seeding.warm-up.closing-window-minutes:30}") long closingWindowMinutes,
             @Value("${auction.state-seeding.warm-up.recent-limit:100}") int recentLimit

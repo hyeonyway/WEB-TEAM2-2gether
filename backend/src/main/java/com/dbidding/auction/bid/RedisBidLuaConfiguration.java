@@ -66,4 +66,28 @@ public class RedisBidLuaConfiguration {
         script.setResultType(String.class);
         return script;
     }
+
+    @Bean
+    public RedisScript<String> orderWalletTransitionScript() {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/order-wallet-transition.lua"));
+        script.setResultType(String.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<Long> orderStateSeedScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/order-state-seed.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<String> orderStateReadScript() {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/order-state-read.lua"));
+        script.setResultType(String.class);
+        return script;
+    }
 }
