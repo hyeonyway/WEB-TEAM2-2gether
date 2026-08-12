@@ -96,6 +96,33 @@ class NotificationServiceTest {
     }
 
     @Test
+    void 여러_경매의_행을_재조회_없이_한번에_INSERT한다() {
+        List<NotificationInsertRow> rows = List.of(
+                new NotificationInsertRow(1, 10, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                new NotificationInsertRow(2, 10, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                new NotificationInsertRow(1, 20, "피카츄 카드의 경매가 등록되었습니다.")
+        );
+
+        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+
+        then(jdbcTemplate).should().update(
+                eq("INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES "
+                        + "(?, ?, ?, ?, ?), (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)"),
+                eq(1), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다."),
+                eq(2), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다."),
+                eq(1), eq(20), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("피카츄 카드의 경매가 등록되었습니다.")
+        );
+        then(notificationRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void 대상_행이_없으면_INSERT를_실행하지_않는다() {
+        notificationService.insertAllIgnoringDuplicates(List.of(), NotificationType.AUCTION_OPENED);
+
+        then(jdbcTemplate).shouldHaveNoInteractions();
+    }
+
+    @Test
     void 알림_목록을_첫_페이지로_조회한다() {
         given(notificationRepository.findByUserIdOrderByIdDesc(1, PageRequest.of(0, 21)))
                 .willReturn(List.of(Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지")));

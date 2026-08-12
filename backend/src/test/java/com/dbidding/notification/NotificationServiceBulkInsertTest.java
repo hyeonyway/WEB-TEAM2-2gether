@@ -95,6 +95,63 @@ class NotificationServiceBulkInsertTest {
         assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(overChunkUserIds);
     }
 
+    @Test
+    void 여러_경매의_행을_insertAllIgnoringDuplicates로_한번에_저장한다() {
+        Integer otherAuctionId = auctionId + 1;
+        List<NotificationInsertRow> rows = List.of(
+                new NotificationInsertRow(userIds.get(0), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                new NotificationInsertRow(userIds.get(1), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                new NotificationInsertRow(userIds.get(2), otherAuctionId, "피카츄 카드의 경매가 등록되었습니다.")
+        );
+
+        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId, otherAuctionId), userIds
+        );
+        assertThat(saved).hasSize(3);
+        assertThat(saved)
+                .filteredOn(notification -> notification.getAuctionId().equals(otherAuctionId))
+                .extracting(Notification::getMessage)
+                .containsExactly("피카츄 카드의 경매가 등록되었습니다.");
+    }
+
+    @Test
+    void insertAllIgnoringDuplicates는_이미_있는_행을_건너뛰고_나머지만_저장한다() {
+        notificationService.save(
+                userIds.get(0), auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
+        );
+        List<NotificationInsertRow> rows = List.of(
+                new NotificationInsertRow(userIds.get(0), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                new NotificationInsertRow(userIds.get(1), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다.")
+        );
+
+        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId), userIds
+        );
+        assertThat(saved).hasSize(2);
+        assertThat(saved).extracting(Notification::getUserId)
+                .containsExactlyInAnyOrder(userIds.get(0), userIds.get(1));
+    }
+
+    @Test
+    void insertAllIgnoringDuplicates는_행이_청크_크기를_넘으면_여러_청크로_나눠도_전부_저장한다() {
+        List<Integer> overChunkUserIds = insertUsersInBulk("insert-all-chunk-over", 10_001);
+        List<NotificationInsertRow> rows = overChunkUserIds.stream()
+                .map(userId -> new NotificationInsertRow(userId, auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."))
+                .toList();
+
+        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId), overChunkUserIds
+        );
+        assertThat(saved).hasSize(10_001);
+        assertThat(saved).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(overChunkUserIds);
+    }
+
     private List<Integer> insertUsersInBulk(String suffix, int count) {
         int startId = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(id), 0) FROM users", Integer.class) + 1;
         List<Integer> userIds = new ArrayList<>(count);

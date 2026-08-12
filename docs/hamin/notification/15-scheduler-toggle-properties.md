@@ -44,3 +44,7 @@ notification:
 
 - `application.yml` 수정만. 코드(스케줄러 클래스) 변경 없음 — 이미 프로퍼티를 읽도록 되어 있어서 키를 노출만 하면 됨.
 - 테스트 영향 없음(기본값 동일하게 유지하므로 기존 스케줄러 동작 변화 없음).
+
+## 이후 변경
+
+이슈 #373에서 `AuctionResultNotificationRecoveryScheduler`가 `NonUrgentNotificationRecoveryScheduler`로 리네이밍되면서, 위 `result` 키도 `non-urgent`로 함께 바뀌었다(`notification.recovery.non-urgent.*` / `NOTIFICATION_RECOVERY_NON_URGENT_*`). 자세한 내용은 [18-recovery-scheduler-urgency-split-plan.md](18-recovery-scheduler-urgency-split-plan.md) 참고. 이 문서의 위 내용은 이슈 #366 당시 상태 그대로 남겨둔다.

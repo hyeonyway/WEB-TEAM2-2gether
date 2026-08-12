@@ -63,6 +63,35 @@ public class NotificationService {
         );
     }
 
+    /**
+     * 여러 경매의 알림을 한 번에 INSERT로 저장한다(복구 배치 전용, 이슈 #373). 라이브
+     * 이벤트 경로({@link #saveAllIgnoringDuplicates})와 달리 SSE push가 필요 없어
+     * 재조회 SELECT를 하지 않는다. bid와 무관한 알림 전용이라 bid_id는 항상
+     * {@link Notification#NO_BID}다. 행 1개당 {@code ?} 5개를 쓰므로
+     * {@link #FAN_OUT_CHUNK_SIZE} 단위로 나눠 INSERT한다.
+     */
+    @Transactional
+    public void insertAllIgnoringDuplicates(List<NotificationInsertRow> rows, NotificationType type) {
+        for (int from = 0; from < rows.size(); from += FAN_OUT_CHUNK_SIZE) {
+            List<NotificationInsertRow> chunk = rows.subList(from, Math.min(from + FAN_OUT_CHUNK_SIZE, rows.size()));
+            insertRowsIgnoringDuplicates(chunk, type);
+        }
+    }
+
+    private void insertRowsIgnoringDuplicates(List<NotificationInsertRow> rows, NotificationType type) {
+        String placeholders = String.join(", ", Collections.nCopies(rows.size(), "(?, ?, ?, ?, ?)"));
+        String sql = "INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES " + placeholders;
+        List<Object> args = new ArrayList<>(rows.size() * 5);
+        for (NotificationInsertRow row : rows) {
+            args.add(row.userId());
+            args.add(row.auctionId());
+            args.add(type.name());
+            args.add(Notification.NO_BID);
+            args.add(row.message());
+        }
+        jdbcTemplate.update(sql, args.toArray());
+    }
+
     private void insertIgnoringDuplicates(
             List<Integer> userIds, Integer auctionId, NotificationType type, String message
     ) {
