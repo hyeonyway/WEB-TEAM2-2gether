@@ -46,8 +46,17 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordMalformed(String streamId, Map<String, String> payload) {
         return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionBidEventInbox(
-                streamId, null, null, "unknown", 1, payload.toString(), Instant.now(), clock.instant()
+                streamId, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
+                payload.toString(), Instant.now(), clock.instant()
         )));
+    }
+
+    private int malformedSchemaVersion(Map<String, String> payload) {
+        try {
+            return Integer.parseInt(payload.getOrDefault("schemaVersion", "0"));
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
     }
 
     @Transactional(readOnly = true)

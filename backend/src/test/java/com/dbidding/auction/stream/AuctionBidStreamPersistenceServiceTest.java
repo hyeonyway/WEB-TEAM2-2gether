@@ -3,6 +3,7 @@ package com.dbidding.auction.stream;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.Auction;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -119,6 +121,25 @@ class AuctionBidStreamPersistenceServiceTest {
         verify(walletService, org.mockito.Mockito.never()).charge(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
         verify(inboxRepository, times(2)).save(org.mockito.ArgumentMatchers.any());
         verify(auctionRepository, org.mockito.Mockito.never()).findByIdForUpdate(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void malformed_이벤트도_원본_이벤트_타입과_스키마_버전을_inbox에_보존한다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, bidRepository, walletService, walletProjectionService, orderService, cardService,
+                auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
+        );
+        given(inboxRepository.findByStreamId("malformed-1")).willReturn(java.util.Optional.empty());
+
+        service.recordMalformed("malformed-1", java.util.Map.of(
+                "eventType", "wallet.charged.v1",
+                "schemaVersion", "2"
+        ));
+
+        ArgumentCaptor<com.dbidding.auction.domain.AuctionBidEventInbox> inbox = ArgumentCaptor.forClass(com.dbidding.auction.domain.AuctionBidEventInbox.class);
+        verify(inboxRepository).save(inbox.capture());
+        assertThat(inbox.getValue().getEventType()).isEqualTo("wallet.charged.v1");
+        assertThat(inbox.getValue().getSchemaVersion()).isEqualTo(2);
     }
 
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {
