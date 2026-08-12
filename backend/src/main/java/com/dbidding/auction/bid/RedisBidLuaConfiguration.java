@@ -82,4 +82,12 @@ public class RedisBidLuaConfiguration {
         script.setResultType(Long.class);
         return script;
     }
+
+    @Bean
+    public RedisScript<String> orderStateReadScript() {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/order-state-read.lua"));
+        script.setResultType(String.class);
+        return script;
+    }
 }

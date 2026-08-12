@@ -68,14 +68,14 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
                 "availableBalance", "20000", "frozenBalance", "0", "walletVersion", "8"
         ));
 
-        execute("7", "CANCELLED", "order.cancelled.v1", "seller-cancel:100", "hash-cancel");
+        execute("7", "CANCELLED", "order.seller-cancelled.v1", "seller-cancel:100", "hash-cancel");
 
         assertThat(redisTemplate.opsForHash().entries("order:state:10")).containsEntry("status", "CANCELLED");
         assertThat(redisTemplate.opsForHash().entries("wallet:balance:1"))
                 .containsEntry("availableBalance", "70000").containsEntry("walletVersion", "9");
         var event = redisTemplate.opsForStream().read(org.springframework.data.redis.connection.stream.StreamOffset.fromStart("event:timeline"))
                 .getFirst().getValue();
-        assertThat(event).containsEntry("eventType", "order.cancelled.v1")
+        assertThat(event).containsEntry("eventType", "order.seller-cancelled.v1")
                 .containsEntry("walletUserId", "1").containsEntry("transactionType", "ORDER_CANCEL_REFUND");
     }
 
@@ -86,7 +86,7 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
                 "availableBalance", "20000", "frozenBalance", "0", "walletVersion", "8"
         ));
 
-        String result = execute("99", "CANCELLED", "order.cancelled.v1", "buyer-cancel:100", "hash-cancel");
+        String result = execute("99", "CANCELLED", "order.buyer-cancelled.v1", "buyer-cancel:100", "hash-cancel");
 
         assertThat(result).isEqualTo("REJECTED|ACCESS_DENIED");
         assertThat(redisTemplate.opsForHash().get("order:state:10", "status")).isEqualTo("PENDING_CONFIRM");

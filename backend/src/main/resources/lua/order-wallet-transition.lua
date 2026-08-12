@@ -16,7 +16,8 @@ if status ~= 'PENDING_CONFIRM' then return 'REJECTED|INVALID_STATUS' end
 
 local completing = ARGV[2] == 'COMPLETED'
 if completing and buyerId ~= ARGV[1] then return 'REJECTED|ACCESS_DENIED' end
-if not completing and buyerId ~= ARGV[1] and sellerId ~= ARGV[1] then return 'REJECTED|ACCESS_DENIED' end
+if not completing and ARGV[3] == 'order.buyer-cancelled.v1' and buyerId ~= ARGV[1] then return 'REJECTED|ACCESS_DENIED' end
+if not completing and ARGV[3] == 'order.seller-cancelled.v1' and sellerId ~= ARGV[1] then return 'REJECTED|ACCESS_DENIED' end
 
 local available = tonumber(redis.call('HGET', KEYS[2], 'availableBalance'))
 local frozen = tonumber(redis.call('HGET', KEYS[2], 'frozenBalance'))

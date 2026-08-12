@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import com.dbidding.wallet.service.RedisWalletStateSeeder;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,6 +28,8 @@ public class RedisOrderCommandService {
     private final RedisScript<String> orderWalletTransitionScript;
     private final RedisOrderStateSeeder stateSeeder;
     private final RedisWalletStateSeeder walletStateSeeder;
+    private final RedisScript<String> orderStateReadScript;
+    private final ObjectMapper objectMapper;
     private final Clock clock;
 
     public RedisOrderCommandService(
@@ -33,12 +37,16 @@ public class RedisOrderCommandService {
             @Qualifier("orderWalletTransitionScript") RedisScript<String> orderWalletTransitionScript,
             RedisOrderStateSeeder stateSeeder,
             RedisWalletStateSeeder walletStateSeeder,
+            @Qualifier("orderStateReadScript") RedisScript<String> orderStateReadScript,
+            ObjectMapper objectMapper,
             Clock clock
     ) {
         this.redisTemplate = redisTemplate;
         this.orderWalletTransitionScript = orderWalletTransitionScript;
         this.stateSeeder = stateSeeder;
         this.walletStateSeeder = walletStateSeeder;
+        this.orderStateReadScript = orderStateReadScript;
+        this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
@@ -47,11 +55,11 @@ public class RedisOrderCommandService {
     }
 
     public OrderResponse cancel(Integer orderId, Integer actorId) {
-        return transition(orderId, actorId, OrderStatus.CANCELLED, "order.cancelled.v1", "buyer-cancel");
+        return transition(orderId, actorId, OrderStatus.CANCELLED, "order.buyer-cancelled.v1", "buyer-cancel");
     }
 
     public OrderResponse sellerCancel(Integer orderId, Integer actorId) {
-        return transition(orderId, actorId, OrderStatus.CANCELLED, "order.cancelled.v1", "seller-cancel");
+        return transition(orderId, actorId, OrderStatus.CANCELLED, "order.seller-cancelled.v1", "seller-cancel");
     }
 
     private OrderResponse transition(Integer orderId, Integer actorId, OrderStatus targetStatus, String eventType, String command) {
@@ -60,7 +68,8 @@ public class RedisOrderCommandService {
         Integer buyerId = integer(order, "buyerId");
         Integer sellerId = integer(order, "sellerId");
         if (targetStatus == OrderStatus.COMPLETED && !buyerId.equals(actorId)) throw new OrderAccessDeniedException();
-        if (targetStatus == OrderStatus.CANCELLED && !buyerId.equals(actorId) && !sellerId.equals(actorId)) throw new OrderAccessDeniedException();
+        if ("buyer-cancel".equals(command) && !buyerId.equals(actorId)) throw new OrderAccessDeniedException();
+        if ("seller-cancel".equals(command) && !sellerId.equals(actorId)) throw new OrderAccessDeniedException();
         Integer walletUserId = targetStatus == OrderStatus.COMPLETED ? sellerId : buyerId;
         walletStateSeeder.seedIfAbsent(walletUserId);
         String idempotencyKey = command + ':' + orderId;
@@ -87,16 +96,24 @@ public class RedisOrderCommandService {
     }
 
     private Map<Object, Object> findOrderState(Integer orderId) {
-        // projection이 orderId를 넣은 뒤 주문 명령을 허용한다. 목록 조회의 pending 주문에는 명령을 노출하지 않는다.
-        String auctionId = redisTemplate.opsForValue().get("order:state:by-order-id:" + orderId);
-        if (auctionId == null || auctionId.isBlank()) {
+        Map<Object, Object> order = readOrderState(orderId);
+        if (order.isEmpty()) {
             stateSeeder.seedIfAbsent(orderId);
-            auctionId = redisTemplate.opsForValue().get("order:state:by-order-id:" + orderId);
+            order = readOrderState(orderId);
         }
-        if (auctionId == null || auctionId.isBlank()) throw new OrderNotFoundException();
-        Map<Object, Object> order = redisTemplate.opsForHash().entries(stateKey(Integer.valueOf(auctionId)));
+        if (order.isEmpty()) throw new OrderNotFoundException();
         if (order.isEmpty() || !String.valueOf(orderId).equals(required(order, "orderId"))) throw new OrderNotFoundException();
         return order;
+    }
+
+    private Map<Object, Object> readOrderState(Integer orderId) {
+        String raw = redisTemplate.execute(orderStateReadScript, List.of("order:state:by-order-id:" + orderId));
+        if (raw == null || raw.isBlank()) return Map.of();
+        try {
+            return new java.util.HashMap<>(objectMapper.readValue(raw, new TypeReference<Map<String, String>>() { }));
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException("Redis 주문 상태를 읽을 수 없습니다.", exception);
+        }
     }
 
     private String required(Map<Object, Object> values, String field) { Object value = values.get(field); if (value == null || value.toString().isBlank()) throw new OrderNotFoundException(); return value.toString(); }

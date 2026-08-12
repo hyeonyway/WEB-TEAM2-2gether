@@ -33,7 +33,7 @@ POST /orders/{orderId}/cancel | /seller-cancel
     XADD order.cancelled.v1
 ```
 
-응답 유실 후 같은 HTTP 요청이 재시도되는 경우를 위해 명령 종류와 `orderId`로 결정적 멱등 키를 만든다. 동일 명령은 저장된 결과를 반환하고 Stream 이벤트를 중복 생성하지 않는다. 다른 역할의 취소는 별도 키를 쓰더라도 상태 검증에서 거부된다.
+응답 유실 후 같은 HTTP 요청이 재시도되는 경우를 위해 명령 종류와 `orderId`로 결정적 멱등 키를 만든다. 동일 명령은 저장된 결과를 반환하고 Stream 이벤트를 중복 생성하지 않는다. 다른 역할의 취소는 별도 키를 쓰더라도 상태 검증에서 거부된다. 클라이언트 멱등 키 헤더 계약은 프론트·백엔드 API 계약 이슈에서 별도로 정한다.
 
 ## Stream 및 MySQL projection
 

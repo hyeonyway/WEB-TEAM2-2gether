@@ -63,7 +63,7 @@ event:timeline                        전역 단일 Redis Stream
 - 판매자 취소: `PENDING_CONFIRM -> CANCELLED`, 구매자 환불
 - orderVersion/walletVersion 증가와 `order.completed.v1` 또는 `order.cancelled.v1` 발행
 
-같은 요청이 응답 유실 후 재시도되면 저장된 결과를 반환하고 Stream 이벤트를 중복 생성하지 않는다. 이미 완료·취소된 주문 또는 권한 없는 요청은 상태·지갑·Stream을 변경하지 않는다.
+같은 요청이 응답 유실 후 재시도되면 명령 종류와 orderId로 만든 결정적 멱등 키의 저장 결과를 반환하고 Stream 이벤트를 중복 생성하지 않는다. 이미 완료·취소된 주문 또는 권한 없는 요청은 상태·지갑·Stream을 변경하지 않는다. 클라이언트 멱등 키 헤더 계약은 별도 API 계약 이슈에서 다룬다.
 
 즉시 낙찰 직후 MySQL orderId가 아직 없는 pending 주문은 기존처럼 확정·취소 대상이 아니다. MySQL projection이 orderId를 Redis state에 연결한 뒤 주문 명령을 허용한다.
 
