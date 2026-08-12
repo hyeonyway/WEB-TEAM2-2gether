@@ -21,7 +21,8 @@ Redis-first 경매 생성은 카드명·세트명·PSA 등급·언어·썸네일
 | `language` | 카드 언어, 없으면 빈 값 |
 | `thumbnailUrl` | 대표 이미지 경로 |
 
-각 Hash에는 TTL을 적용한다. 기본값은 24시간(`86400`초)이며 application property로 조절한다.
+각 Hash에는 TTL을 적용한다. 기본값은 24시간(`86400`초)이며, cardId 기반 0~1시간 결정적 jitter를 더해
+동시에 적재된 cache key의 만료가 집중되지 않게 한다. TTL과 jitter 상한은 application property로 조절한다.
 
 ## Read-through 흐름
 

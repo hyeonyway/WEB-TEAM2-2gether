@@ -18,15 +18,18 @@ public class RedisCardStateReader {
     private final StringRedisTemplate redisTemplate;
     private final CardMetadataRepository cardMetadataRepository;
     private final long ttlSeconds;
+    private final long ttlJitterSeconds;
 
     public RedisCardStateReader(
             StringRedisTemplate redisTemplate,
             CardMetadataRepository cardMetadataRepository,
-            @Value("${card.snapshot-cache.ttl-seconds:86400}") long ttlSeconds
+            @Value("${card.snapshot-cache.ttl-seconds:86400}") long ttlSeconds,
+            @Value("${card.snapshot-cache.ttl-jitter-seconds:3600}") long ttlJitterSeconds
     ) {
         this.redisTemplate = redisTemplate;
         this.cardMetadataRepository = cardMetadataRepository;
         this.ttlSeconds = ttlSeconds;
+        this.ttlJitterSeconds = ttlJitterSeconds;
     }
 
     public CardSnapshot getCardSnapshot(Integer cardId) {
@@ -56,7 +59,7 @@ public class RedisCardStateReader {
         hashes.putIfAbsent(key, "psaGrade", nullableValue(snapshot.psaGrade()));
         hashes.putIfAbsent(key, "language", nullableValue(snapshot.language()));
         hashes.putIfAbsent(key, "thumbnailUrl", snapshot.thumbnailUrl());
-        redisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+        redisTemplate.expire(key, Duration.ofSeconds(ttlFor(snapshot.cardId())));
     }
 
     private String required(Map<Object, Object> state, String field) {
@@ -72,4 +75,9 @@ public class RedisCardStateReader {
 
     private String nullableValue(String value) { return value == null ? "" : value; }
     private String key(Integer cardId) { return "card:cache:" + cardId; }
+
+    long ttlFor(Integer cardId) {
+        if (ttlJitterSeconds <= 0) return ttlSeconds;
+        return ttlSeconds + Math.floorMod(cardId.longValue(), ttlJitterSeconds + 1);
+    }
 }

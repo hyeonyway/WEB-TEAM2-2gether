@@ -100,6 +100,7 @@ auction:
 card:
   snapshot-cache:
     ttl-seconds: ${CARD_SNAPSHOT_CACHE_TTL_SECONDS:86400}
+    ttl-jitter-seconds: ${CARD_SNAPSHOT_CACHE_TTL_JITTER_SECONDS:3600}
 
 notification:
   recovery:
