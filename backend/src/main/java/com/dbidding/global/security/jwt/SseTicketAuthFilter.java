@@ -26,7 +26,8 @@ public class SseTicketAuthFilter extends OncePerRequestFilter {
 	private static final List<String> PERSONALIZED_SSE_PATHS = List.of(
 		"/api/dashboard/stream",
 		"/api/users/{userId}/auctions/stream",
-		"/api/users/{userId}/notifications/stream"
+		"/api/users/{userId}/notifications/stream",
+		"/api/me/wallet/stream"
 	);
 	private static final String UNAUTHORIZED = "UNAUTHORIZED";
 	private static final String UNAUTHORIZED_MESSAGE = "인증이 필요합니다.";
