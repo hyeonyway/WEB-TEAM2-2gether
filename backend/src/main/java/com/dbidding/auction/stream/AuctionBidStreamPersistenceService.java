@@ -1,6 +1,7 @@
 package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.domain.Bid;
@@ -9,8 +10,10 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.service.WalletService;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
@@ -27,8 +30,10 @@ import org.springframework.transaction.annotation.Propagation;
 public class AuctionBidStreamPersistenceService {
     private final AuctionBidEventInboxRepository inboxRepository;
     private final AuctionRepository auctionRepository;
+    private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
+    private final AccountRepository accountRepository;
     private final com.dbidding.wallet.service.WalletProjectionService walletProjectionService;
     private final OrderService orderService;
     private final CardService cardService;
@@ -80,14 +85,16 @@ public class AuctionBidStreamPersistenceService {
         }
         if (event instanceof AuctionCreatedStreamEvent created) {
             cardService.getCardSnapshot(created.itemId());
+            if (!accountRepository.existsById(created.sellerId())) throw new InvalidBidStreamEventException("존재하지 않는 판매자입니다: " + created.sellerId());
             if (auctionRepository.findBySellerIdAndCreateIdempotencyKey(created.sellerId(), created.idempotencyKey()).isPresent()) return;
             Auction auction = Auction.builder()
                     .sellerId(created.sellerId()).itemId(created.itemId()).auctionName(created.auctionName())
-                    .description(created.description()).startPrice(created.startPrice()).buyNowPrice(created.buyNowPrice())
+                    .description(created.description()).sellerMemo(created.sellerMemo()).psaCertification(created.psaCertification()).selfGrade(created.selfGrade()).psaVerified(created.psaVerified()).startPrice(created.startPrice()).buyNowPrice(created.buyNowPrice())
                     .deliveryFee(created.deliveryFee()).openTime(created.occurredAt()).estimatedCloseTime(created.closeTime())
                     .closeTime(created.closeTime()).bidPriceUnit(created.bidPriceUnit()).hyped(false).build();
             auction.recordCreateIdempotency(created.idempotencyKey(), created.idempotencyRequestHash());
-            auctionRepository.save(auction);
+            Auction saved = auctionRepository.save(auction);
+            auctionImageRepository.saveAll(created.imagePaths().stream().map(path -> new AuctionImage(saved, path)).toList());
             return;
         }
         persistBid((BidAcceptedStreamEvent) event);

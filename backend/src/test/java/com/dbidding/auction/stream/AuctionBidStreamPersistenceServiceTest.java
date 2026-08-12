@@ -10,6 +10,8 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.repository.AuctionImageRepository;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.card.service.CardService;
@@ -34,9 +36,13 @@ class AuctionBidStreamPersistenceServiceTest {
     @Mock
     private AuctionRepository auctionRepository;
     @Mock
+    private AuctionImageRepository auctionImageRepository;
+    @Mock
     private BidRepository bidRepository;
     @Mock
     private WalletService walletService;
+    @Mock
+    private AccountRepository accountRepository;
     @Mock
     private com.dbidding.wallet.service.WalletProjectionService walletProjectionService;
     @Mock
@@ -53,8 +59,10 @@ class AuctionBidStreamPersistenceServiceTest {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
                 inboxRepository,
                 auctionRepository,
+                auctionImageRepository,
                 bidRepository,
                 walletService,
+                accountRepository,
                 walletProjectionService,
                 orderService,
                 cardService,
@@ -86,7 +94,7 @@ class AuctionBidStreamPersistenceServiceTest {
     @Test
     void 버전이_건너뛰면_재시도_대신_경매_pause_대상이_되는_예외를_발생시킨다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
-                inboxRepository, auctionRepository, bidRepository, walletService, walletProjectionService, orderService, cardService,
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService, orderService, cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
         given(inboxRepository.findByStreamId("5-0")).willReturn(java.util.Optional.empty());
@@ -105,7 +113,7 @@ class AuctionBidStreamPersistenceServiceTest {
     @Test
     void v2_지갑_충전은_같은_타임라인_inbox에_기록하고_snapshot으로_projection한다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
-                inboxRepository, auctionRepository, bidRepository, walletService, walletProjectionService, orderService, cardService,
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService, orderService, cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
         WalletStateChangedStreamEvent event = new WalletStateChangedStreamEvent(
@@ -126,7 +134,7 @@ class AuctionBidStreamPersistenceServiceTest {
     @Test
     void malformed_이벤트도_원본_이벤트_타입과_스키마_버전을_inbox에_보존한다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
-                inboxRepository, auctionRepository, bidRepository, walletService, walletProjectionService, orderService, cardService,
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService, orderService, cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
         given(inboxRepository.findByStreamId("malformed-1")).willReturn(java.util.Optional.empty());
