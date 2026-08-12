@@ -13,23 +13,13 @@ DB 변경은 테이블 CRUD가 아니라 사용자 행동 또는 하나의 원�
 | 도메인 전이 | Event | 발생 producer | Consumer DB projection | 상태 |
 | --- | --- | --- | --- | --- |
 | 경매 등록 | `auction.created.v1` | 경매 등록 command producer | `auctions`, `images` 생성 | 구현 |
-| 경매 수정 | `auction.updated.v1` | 경매 수정 command producer | 허용 필드 갱신 | 구현 예정 |
-| 판매자 취소 | `auction.cancel-requested.v1` | 취소 command producer | 경매 취소, hold release, 후속 환불 | 구현 예정 |
 | 마감 종료 요청 | `auction.close-requested.v1` | 마감 scheduler | DB lock 후 유찰/낙찰 결정, 주문·hold 반영 | 구현 |
-| 유찰 결과 | `auction.failed.v1` | 종료 projection의 후속 도메인 event | `FAILED`, hold release 결과 전파 | 구현 예정 |
-| 낙찰 결과 | `auction.closed.v1` | 종료 projection의 후속 도메인 event | `ENDED`, winner, order 결과 전파 | 구현 예정 |
 | 일반 입찰 승인 | `bid.accepted.v1` | 입찰 승인 producer | `bids`, `auctions`, hold projection | 구현 |
 | 즉시 낙찰 승인 | `auction.buy-now.v1` | 입찰 승인 producer | 입찰·경매 종료·주문·hold capture | 구현 |
 | 지갑 충전 | `wallet.charged.v1` | 충전 command producer | wallet snapshot, point record | 구현 |
 | 지갑 환불 | `wallet.refunded.v1` | 환불 command producer | wallet snapshot, point record | 구현 |
-| hold 생성/해제/capture | `wallet.hold-created.v1`, `wallet.hold-released.v1`, `wallet.hold-captured.v1` | 입찰·종료 producer | wallet hold 및 wallet snapshot | 구현 예정 |
 | 판매자 정산 | `wallet.settled.v1` | 구매 확정 producer | wallet snapshot, point record | 구현 |
 | 주문 취소 환불 | `wallet.cancel-refunded.v1` | 주문 취소 producer | wallet snapshot, point record | 구현 |
-| 주문 취소 | `order.cancelled.v1` | 주문 취소 command producer | order 상태, 환불 요청 | 구현 예정 |
-| 구매 확정 | `order.confirmed.v1` | 구매 확정 command producer | order 상태, 정산 요청 | 구현 예정 |
-| 알림 생성 | `notification.created.v1` | 각 도메인 projection | notifications 생성·SSE 발행 | 구현 예정 |
-| 알림 읽음 | `notification.read.v1` | 알림 읽음 command producer | notification read 상태 갱신 | 구현 예정 |
-| 사용자 상태 변경 | `user.status-changed.v1` | 회원 탈퇴/정지/복구 producer | users 상태 갱신 | 구현 예정 |
 
 ### 순서와 식별자 계약
 
