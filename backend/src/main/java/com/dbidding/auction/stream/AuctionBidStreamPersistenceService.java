@@ -44,7 +44,7 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
         return inboxRepository.findByStreamId(event.streamId())
-                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null,
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : null,
                         event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
     }
 
@@ -97,7 +97,25 @@ public class AuctionBidStreamPersistenceService {
             auctionImageRepository.saveAll(created.imagePaths().stream().map(path -> new AuctionImage(saved, path)).toList());
             return;
         }
+        if (event instanceof AuctionCloseRequestedStreamEvent close) {
+            closeAuction(close);
+            return;
+        }
         persistBid((BidAcceptedStreamEvent) event);
+    }
+
+    private void closeAuction(AuctionCloseRequestedStreamEvent event) {
+        Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
+                .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 종료 대상 경매입니다: " + event.auctionId()));
+        if ((auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.OPEN && auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.ENDING)
+                || auction.getCloseTime().isAfter(event.occurredAt())) throw new InvalidBidStreamEventException("아직 종료할 수 없는 경매입니다: " + event.auctionId());
+        java.util.Optional<Bid> winning = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING);
+        if (winning.isEmpty()) { auction.closeWithoutTrade(event.occurredAt()); return; }
+        Bid winner = winning.get();
+        winner.markWon();
+        auction.closeWithWinningBid(winner, event.occurredAt());
+        walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
+        completeBuyNow(auction, winner, event.occurredAt());
     }
 
     private void persistBid(BidAcceptedStreamEvent event) {
