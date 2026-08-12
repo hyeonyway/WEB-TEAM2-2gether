@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.Wallet;
@@ -44,6 +45,9 @@ class WalletServiceHoldTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private WalletService service;
 	private SimpleMeterRegistry meterRegistry;
 
@@ -55,7 +59,8 @@ class WalletServiceHoldTest {
 			pointRecordRepository,
 			walletHoldRepository,
 			new WalletMetrics(meterRegistry),
-			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC),
+			eventPublisher
 		);
 	}
 
@@ -100,6 +105,7 @@ class WalletServiceHoldTest {
 		);
 		assertThat(operationTimerCount("hold", "success")).isEqualTo(1);
 		assertThat(lockTimerCount("hold")).isEqualTo(1);
+		then(eventPublisher).should().publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
 	}
 
 	@Test
@@ -199,6 +205,7 @@ class WalletServiceHoldTest {
 		assertThat(first.frozenBalance()).isZero();
 		assertThat(second.frozenBalance()).isZero();
 		then(walletHoldRepository).should(never()).delete(org.mockito.ArgumentMatchers.any());
+		then(eventPublisher).should(org.mockito.Mockito.times(2)).publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
 	}
 
 	@Test

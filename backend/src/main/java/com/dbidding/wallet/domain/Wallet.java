@@ -54,6 +54,14 @@ public class Wallet {
 		point -= amount;
 	}
 
+	/**
+	 * 지갑 행 잠금 아래에서만 호출한다. 직접 지갑 변경도 Redis projection과 같은
+	 * 단조 버전을 사용해, 서버 재시작 뒤에도 SSE snapshot의 선후 관계를 보장한다.
+	 */
+	public long advanceProjectionVersion() {
+		return ++projectionVersion;
+	}
+
 	private void validatePositive(long amount) {
 		if (amount <= 0) {
 			throw new IllegalArgumentException("Amount must be positive");

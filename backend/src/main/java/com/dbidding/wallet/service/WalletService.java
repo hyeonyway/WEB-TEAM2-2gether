@@ -8,6 +8,8 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,14 +33,12 @@ import com.dbidding.wallet.metrics.WalletMetrics.Operation;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import com.dbidding.wallet.sse.WalletBalanceChangedEvent;
 
 import io.micrometer.core.instrument.Timer;
 
-import lombok.RequiredArgsConstructor;
-
 @Service
 @Profile("!redis")
-@RequiredArgsConstructor
 public class WalletService {
 
 	private static final long MINIMUM_CHARGE_AMOUNT = 1_000L;
@@ -50,6 +50,35 @@ public class WalletService {
 	private final WalletHoldRepository walletHoldRepository;
 	private final WalletMetrics walletMetrics;
 	private final Clock clock;
+	private final ApplicationEventPublisher eventPublisher;
+
+	@Autowired
+	public WalletService(
+		WalletRepository walletRepository,
+		PointRecordRepository pointRecordRepository,
+		WalletHoldRepository walletHoldRepository,
+		WalletMetrics walletMetrics,
+		Clock clock,
+		ApplicationEventPublisher eventPublisher
+	) {
+		this.walletRepository = walletRepository;
+		this.pointRecordRepository = pointRecordRepository;
+		this.walletHoldRepository = walletHoldRepository;
+		this.walletMetrics = walletMetrics;
+		this.clock = clock;
+		this.eventPublisher = eventPublisher;
+	}
+
+	/** 기존 단위 테스트와 테스트용 확장 서비스의 생성자 계약을 유지한다. */
+	protected WalletService(
+		WalletRepository walletRepository,
+		PointRecordRepository pointRecordRepository,
+		WalletHoldRepository walletHoldRepository,
+		WalletMetrics walletMetrics,
+		Clock clock
+	) {
+		this(walletRepository, pointRecordRepository, walletHoldRepository, walletMetrics, clock, event -> { });
+	}
 
 	@Transactional(readOnly = true)
 	public WalletBalanceResponse getBalance(Integer userId) {
@@ -87,6 +116,7 @@ public class WalletService {
 		PointRecord record = pointRecordRepository.save(
 			PointRecord.charge(wallet.getId(), amount, wallet.getPoint(), idempotencyKey)
 		);
+		publishBalanceChanged(wallet, balance(wallet, walletRepository.sumHeldAmount(wallet.getId())));
 		return WalletTransactionResponse.from(record);
 	}
 
@@ -108,6 +138,7 @@ public class WalletService {
 		PointRecord record = pointRecordRepository.save(
 			PointRecord.refund(wallet.getId(), amount, wallet.getPoint(), idempotencyKey)
 		);
+		publishBalanceChanged(wallet, balance(wallet, walletRepository.sumHeldAmount(wallet.getId())));
 		return WalletTransactionResponse.from(record);
 	}
 
@@ -142,7 +173,9 @@ public class WalletService {
 				WalletHold.held(wallet.getId(), auctionId, totalAmount)
 			);
 		}
-		return balance(wallet, Math.addExact(frozenBefore, additionalAmount));
+		WalletBalanceResponse balance = balance(wallet, Math.addExact(frozenBefore, additionalAmount));
+		publishBalanceChanged(wallet, balance);
+		return balance;
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -162,7 +195,9 @@ public class WalletService {
 			.orElse(0L);
 		latest.filter(WalletHold::isHeld)
 			.ifPresent(hold -> hold.release(clock.instant()));
-		return balance(wallet, Math.subtractExact(frozenBefore, releasedAmount));
+		WalletBalanceResponse balance = balance(wallet, Math.subtractExact(frozenBefore, releasedAmount));
+		publishBalanceChanged(wallet, balance);
+		return balance;
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -207,6 +242,7 @@ public class WalletService {
 		PointRecord record = pointRecordRepository.save(
 			PointRecord.orderSettlement(wallet.getId(), auctionId, amount, wallet.getPoint())
 		);
+		publishBalanceChanged(wallet, balance(wallet, walletRepository.sumHeldAmount(wallet.getId())));
 		return WalletTransactionResponse.from(record);
 	}
 
@@ -218,6 +254,7 @@ public class WalletService {
 		PointRecord record = pointRecordRepository.save(
 			PointRecord.orderCancelRefund(wallet.getId(), auctionId, amount, wallet.getPoint())
 		);
+		publishBalanceChanged(wallet, balance(wallet, walletRepository.sumHeldAmount(wallet.getId())));
 		return WalletTransactionResponse.from(record);
 	}
 
@@ -251,7 +288,9 @@ public class WalletService {
 				wallet.getPoint()
 			)
 		);
-		return balance(wallet, Math.subtractExact(frozenBefore, amount));
+		WalletBalanceResponse balance = balance(wallet, Math.subtractExact(frozenBefore, amount));
+		publishBalanceChanged(wallet, balance);
+		return balance;
 	}
 
 	private Wallet lockWallet(Integer userId) {
@@ -320,7 +359,8 @@ public class WalletService {
 		return new WalletBalanceResponse(
 			wallet.getPoint(),
 			frozenBalance,
-			wallet.getPoint() - frozenBalance
+			wallet.getPoint() - frozenBalance,
+			wallet.getProjectionVersion()
 		);
 	}
 
@@ -348,5 +388,16 @@ public class WalletService {
 			|| idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
 			throw new InvalidIdempotencyKeyException();
 		}
+	}
+
+	/**
+	 * DB가 승인 원본인 프로필에서는 projection 버전을 증가시키고 browser SSE를 발행한다.
+	 * Redis 승인 프로필의 Stream projection은 Redis가 이미 부여한 버전을 사용하므로 하위
+	 * 구현이 이 훅을 비활성화한다.
+	 */
+	protected void publishBalanceChanged(Wallet wallet, WalletBalanceResponse balance) {
+		long walletVersion = wallet.advanceProjectionVersion();
+		eventPublisher.publishEvent(new WalletBalanceChangedEvent(wallet.getUserId(), balance,
+			walletVersion, clock.instant()));
 	}
 }

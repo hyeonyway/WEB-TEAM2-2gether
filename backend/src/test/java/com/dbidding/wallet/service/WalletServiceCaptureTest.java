@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointTransactionType;
@@ -43,6 +44,9 @@ class WalletServiceCaptureTest {
 	@Mock
 	private PointRecordRepository pointRecordRepository;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private WalletService service;
 
 	@BeforeEach
@@ -52,7 +56,8 @@ class WalletServiceCaptureTest {
 			pointRecordRepository,
 			walletHoldRepository,
 			new WalletMetrics(new SimpleMeterRegistry()),
-			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC),
+			eventPublisher
 		);
 	}
 
@@ -82,6 +87,7 @@ class WalletServiceCaptureTest {
 					&& record.getBalance() == 4_000L
 			)
 		);
+		then(eventPublisher).should().publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
 	}
 
 	@Test

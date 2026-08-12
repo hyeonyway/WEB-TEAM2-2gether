@@ -17,8 +17,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.dbidding.wallet.domain.PointRecord;
 import com.dbidding.wallet.domain.PointTransactionType;
@@ -33,6 +35,7 @@ import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 import com.dbidding.wallet.metrics.WalletMetrics;
+import com.dbidding.wallet.sse.WalletBalanceChangedEvent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +50,9 @@ class WalletServiceTransactionTest {
 	@Mock
 	private WalletHoldRepository walletHoldRepository;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private WalletService service;
 
 	@BeforeEach
@@ -56,7 +62,8 @@ class WalletServiceTransactionTest {
 			pointRecordRepository,
 			walletHoldRepository,
 			new WalletMetrics(new SimpleMeterRegistry()),
-			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
+			Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC),
+			eventPublisher
 		);
 	}
 
@@ -77,6 +84,21 @@ class WalletServiceTransactionTest {
 				&& record.getAmount() == 10_000L
 				&& record.getBalance() == 10_000L
 		));
+	}
+
+	@Test
+	void 직접_충전은_영속_지갑_버전을_증가시킨_이벤트를_발행한다() {
+		Wallet wallet = walletWithPoint(0L);
+		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
+		given(pointRecordRepository.save(any(PointRecord.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+
+		service.charge(1, 1_000L, "charge-version-key");
+
+		ArgumentCaptor<WalletBalanceChangedEvent> eventCaptor = ArgumentCaptor.forClass(WalletBalanceChangedEvent.class);
+		then(eventPublisher).should().publishEvent(eventCaptor.capture());
+		assertThat(wallet.getProjectionVersion()).isEqualTo(1L);
+		assertThat(eventCaptor.getValue().walletVersion()).isEqualTo(1L);
 	}
 
 	@Test
@@ -103,6 +125,22 @@ class WalletServiceTransactionTest {
 		assertThat(wallet.getPoint()).isEqualTo(7_000L);
 		assertThat(response.amount()).isEqualTo(-3_000L);
 		assertThat(response.balance()).isEqualTo(7_000L);
+		then(eventPublisher).should().publishEvent(org.mockito.ArgumentMatchers.any(WalletBalanceChangedEvent.class));
+	}
+
+	@Test
+	void 정산과_주문취소_환불은_각각_지갑_SSE를_발행한다() {
+		Wallet wallet = walletWithPoint(10_000L);
+		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
+		given(walletRepository.sumHeldAmount(wallet.getId())).willReturn(0L);
+		given(pointRecordRepository.save(any(PointRecord.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+		service.settle(1, 10, 5_000L);
+		service.cancelRefund(1, 10, 3_000L);
+
+		ArgumentCaptor<WalletBalanceChangedEvent> events = ArgumentCaptor.forClass(WalletBalanceChangedEvent.class);
+		then(eventPublisher).should(org.mockito.Mockito.times(2)).publishEvent(events.capture());
+		assertThat(events.getAllValues()).extracting(WalletBalanceChangedEvent::walletVersion).containsExactly(1L, 2L);
 	}
 
 	@Test
