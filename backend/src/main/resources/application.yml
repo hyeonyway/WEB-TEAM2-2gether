@@ -97,6 +97,10 @@ auction:
       enabled: ${AUCTION_CLOSING_SCHEDULER_ENABLED:true}
       fixed-delay-ms: ${AUCTION_CLOSING_SCHEDULER_FIXED_DELAY_MS:60000}
 
+card:
+  snapshot-cache:
+    ttl-seconds: ${CARD_SNAPSHOT_CACHE_TTL_SECONDS:86400}
+
 notification:
   recovery:
     urgent:
