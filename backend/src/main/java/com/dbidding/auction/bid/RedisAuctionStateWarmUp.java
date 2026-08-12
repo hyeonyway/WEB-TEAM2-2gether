@@ -34,7 +34,7 @@ public class RedisAuctionStateWarmUp {
             var now = clock.instant();
             var candidates = new LinkedHashMap<Integer, com.dbidding.auction.domain.Auction>();
             auctionRepository.findActiveForWarmUp(
-                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), now, now.plus(Duration.ofMinutes(closingWindowMinutes)),
+                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), now.plus(Duration.ofMinutes(closingWindowMinutes)),
                     PageRequest.of(0, recentLimit)
             ).forEach(auction -> candidates.put(auction.getId(), auction));
             if (candidates.size() < recentLimit) auctionRepository.findByStatusInOrderByOpenTimeDesc(

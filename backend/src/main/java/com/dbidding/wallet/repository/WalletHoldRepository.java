@@ -29,9 +29,10 @@ public interface WalletHoldRepository extends JpaRepository<WalletHold, Long> {
 	boolean existsByEventId(UUID eventId);
 
 	@Query(value = """
-		SELECT w.user_id AS userId, wh.auction_id AS auctionId, wh.amount AS amount
+		SELECT w.user_id AS userId, wh.auction_id AS auctionId, SUM(wh.amount) AS amount
 		FROM wallet_holds wh JOIN wallets w ON w.id = wh.wallet_id
 		WHERE w.user_id IN (:userIds) AND wh.status = 'HELD'
+		GROUP BY w.user_id, wh.auction_id
 		""", nativeQuery = true)
 	List<WalletHeldHoldRow> findHeldRowsForUsers(@Param("userIds") Collection<Integer> userIds);
 }

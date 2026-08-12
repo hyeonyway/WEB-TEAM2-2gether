@@ -9,6 +9,9 @@ import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
+import com.dbidding.auction.exception.AuctionException;
+import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
+import com.dbidding.global.concurrent.RedisStateSingleFlight;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -30,24 +33,43 @@ public class RedisAuctionStateSeeder {
     private final AuctionImageRepository auctionImageRepository;
     private final CardService cardService;
     private final StringRedisTemplate redisTemplate;
+    private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
+    private final RedisStateSingleFlight singleFlight;
     @Qualifier("auctionStateSeedScript") private final RedisScript<Long> auctionStateSeedScript;
 
     public boolean seedIfAbsent(Integer auctionId) {
-        return auctionRepository.findByIdAndStatusNot(auctionId, AuctionStatus.ENDED)
-                .filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus()))
-                .map(this::seed).orElse(false);
+        String key = "auction:state:" + auctionId;
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
+        return singleFlight.execute(key, () -> {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
+            if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
+            return auctionRepository.findByIdAndStatusNot(auctionId, AuctionStatus.ENDED)
+                    .filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus()))
+                    .map(this::seed).orElse(false);
+        });
     }
 
     public void seedAllIfAbsent(List<Auction> auctions) {
-        auctions.stream().filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus()))
-                .forEach(this::seed);
+        if (!projectionCatchUpVerifier.isCaughtUp()) return;
+        List<Auction> active = auctions.stream().filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus())).toList();
+        if (active.isEmpty()) return;
+        List<Integer> auctionIds = active.stream().map(Auction::getId).toList();
+        java.util.Map<Integer, Bid> leading = bidRepository.findByAuctionIdInAndStatus(auctionIds, BidStatus.LEADING).stream()
+                .collect(java.util.stream.Collectors.toMap(bid -> bid.getAuction().getId(), bid -> bid, (first, ignored) -> first));
+        java.util.Map<Integer, CardSnapshot> cards = cardService.getCardSnapshots(active.stream().map(Auction::getItemId).distinct().toList());
+        java.util.Map<Integer, List<String>> imagePaths = auctionImageRepository.findByAuctionIdInOrderById(auctionIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(image -> image.getAuction().getId(), java.util.stream.Collectors.mapping(image -> image.getImagePath(), java.util.stream.Collectors.toList())));
+        active.forEach(auction -> seed(auction, leading.get(auction.getId()), cards.get(auction.getItemId()), imagePaths.getOrDefault(auction.getId(), List.of())));
     }
 
     private boolean seed(Auction auction) {
         Bid leading = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING).orElse(null);
         CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
-        String imagePaths = String.join("\n", auctionImageRepository.findByAuctionIdOrderById(auction.getId()).stream()
-                .map(image -> image.getImagePath()).toList());
+        return seed(auction, leading, card, auctionImageRepository.findByAuctionIdOrderById(auction.getId()).stream().map(image -> image.getImagePath()).toList());
+    }
+
+    private boolean seed(Auction auction, Bid leading, CardSnapshot card, List<String> imagePathList) {
+        String imagePaths = String.join("\n", imagePathList);
         List<String> args = new ArrayList<>(List.of(String.valueOf(auction.getCloseTime().toEpochMilli()), String.valueOf(auction.getId())));
         put(args, "status", auction.getStatus().name()); put(args, "sellerId", auction.getSellerId()); put(args, "itemId", auction.getItemId());
         put(args, "cardName", card.name()); put(args, "cardPsaGrade", nullToEmpty(card.psaGrade())); put(args, "cardLanguage", nullToEmpty(card.language())); put(args, "cardThumbnailUrl", card.thumbnailUrl());

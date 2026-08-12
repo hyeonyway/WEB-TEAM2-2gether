@@ -4,6 +4,9 @@ import com.dbidding.wallet.repository.WalletBootstrapRow;
 import com.dbidding.wallet.repository.WalletRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletHeldHoldRow;
+import com.dbidding.auction.exception.AuctionException;
+import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
+import com.dbidding.global.concurrent.RedisStateSingleFlight;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,12 +23,21 @@ public class RedisWalletStateSeeder {
     private final WalletRepository walletRepository;
     private final WalletHoldRepository walletHoldRepository;
     private final StringRedisTemplate redisTemplate;
+    private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
+    private final RedisStateSingleFlight singleFlight;
     @Qualifier("walletBootstrapScript")
     private final RedisScript<Long> walletBootstrapScript;
 
     public void seedIfAbsent(Integer userId) {
-        List<WalletHeldHoldRow> holds = walletHoldRepository.findHeldRowsForUsers(List.of(userId));
-        walletRepository.findBootstrapRowsForUsers(List.of(userId)).stream().findFirst().ifPresent(wallet -> seed(wallet, holds));
+        String key = "wallet:balance:" + userId;
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return;
+        singleFlight.execute(key, () -> {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
+            if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
+            List<WalletHeldHoldRow> holds = walletHoldRepository.findHeldRowsForUsers(List.of(userId));
+            walletRepository.findBootstrapRowsForUsers(List.of(userId)).stream().findFirst().ifPresent(wallet -> seed(wallet, holds));
+            return true;
+        });
     }
 
     private void seed(WalletBootstrapRow wallet, List<WalletHeldHoldRow> holds) {

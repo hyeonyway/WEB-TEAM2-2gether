@@ -29,6 +29,11 @@ on-demand로 초기화한다.
 Redis key가 이미 있으면 MySQL 값을 다시 쓰지 않는다. 초기화는 `HSETNX` 기반 Lua로 수행해 동시 state
 miss 요청에서도 기존 Redis 상태를 덮어쓰지 않는다.
 
+같은 key의 동시 miss는 애플리케이션 single-flight로 하나의 MySQL 조회만 수행한다. 또한 Stream 최신
+entry가 MySQL inbox에서 `PROCESSED`이고 `PENDING`·`ERROR` inbox가 없을 때만 MySQL projection을 seed
+원본으로 사용한다. 이 조건을 만족하지 않으면 `STATE_RECOVERY_REQUIRED`로 거절하며 과거 projection을
+Redis 승인 상태로 복원하지 않는다.
+
 ## 활성 경매 상태
 
 MySQL에서 `OPEN`, `ENDING` 경매와 현재 최고 입찰을 읽어 다음 필드를 구성한다.
@@ -63,6 +68,10 @@ MySQL projection의 `point`, `projectionVersion`, HELD hold 합계로 아래 값
 
 마감 임박 경매를 먼저, 부족한 수만 최근 활성 경매로 채운다. Redis가 AOF 복구로 이미 상태를 보유한
 경우에도 Lua의 조건부 저장으로 추가 쓰기 없이 건너뛴다.
+
+warm-up은 대상 경매를 일괄 조회한 뒤 LEADING bid, 이미지, 카드 snapshot도 각각 IN 조회로 가져온다.
+경매별 개별 조회를 반복하지 않는다. 마감 시각이 지났지만 아직 `OPEN`·`ENDING`인 경매도 종료 scheduler가
+처리할 수 있도록 warm-up 후보에 포함한다.
 
 ## 실패와 제약
 

@@ -124,10 +124,9 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
 
     List<Auction> findByStatusInOrderByOpenTimeDesc(Collection<AuctionStatus> statuses, Pageable pageable);
 
-    @Query("select a from Auction a where a.status in :statuses and a.closeTime >= :now and a.closeTime <= :until order by a.closeTime asc")
+    @Query("select a from Auction a where a.status in :statuses and a.closeTime <= :until order by a.closeTime asc")
     List<Auction> findActiveForWarmUp(
             @Param("statuses") Collection<AuctionStatus> statuses,
-            @Param("now") Instant now,
             @Param("until") Instant until,
             Pageable pageable
     );
