@@ -36,7 +36,7 @@ class RedisBidExecutorTest {
     void Lua가_승인한_입찰의_eventId와_실시간_상태를_응답한다() {
         List<String> keys = List.of(
                 "auction:state:1", "wallet:balance:2", "wallet:hold:1:2",
-                "auction:bid:idempotency:1:2:bid-key", "auction:timeline-events"
+                "auction:bid:idempotency:1:2:bid-key", "event:timeline"
         );
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
                 eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))

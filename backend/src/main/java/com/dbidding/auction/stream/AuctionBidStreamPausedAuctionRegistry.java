@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 @Profile("redis")
 @RequiredArgsConstructor
 public class AuctionBidStreamPausedAuctionRegistry {
-    static final String KEY = "auction:timeline-events:paused-auctions";
+    static final String KEY = "event:timeline:paused-auctions";
 
     private final StringRedisTemplate redisTemplate;
 

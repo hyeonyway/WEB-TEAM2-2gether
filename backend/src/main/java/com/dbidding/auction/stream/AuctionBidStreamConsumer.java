@@ -37,7 +37,7 @@ import org.springframework.stereotype.Component;
 @Profile("redis")
 @RequiredArgsConstructor
 public class AuctionBidStreamConsumer implements SmartLifecycle {
-    static final String STREAM_KEY = "auction:timeline-events";
+    static final String STREAM_KEY = "event:timeline";
     static final String GROUP = "auction-timeline-persistence";
     static final String CONSUMER_NAME = "auction-timeline-single";
 
