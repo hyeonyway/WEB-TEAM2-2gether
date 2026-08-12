@@ -18,6 +18,7 @@ public class OrderController {
 
     private final OrderService orderService;
     private final java.util.Optional<RedisOrderRealtimeStateReader> realtimeStateReader;
+    private final java.util.Optional<RedisOrderCommandService> redisOrderCommandService;
 
     @GetMapping("/purchases")
     public List<OrderResponse> findPurchases(@CurrentUser Integer userId) {
@@ -38,16 +39,19 @@ public class OrderController {
 
     @PostMapping("/{orderId}/confirm")
     public OrderResponse confirm(@CurrentUser Integer userId, @PathVariable Integer orderId) {
-        return OrderResponse.from(orderService.confirm(orderId, userId));
+        return redisOrderCommandService.map(service -> service.confirm(orderId, userId))
+                .orElseGet(() -> OrderResponse.from(orderService.confirm(orderId, userId)));
     }
 
     @PostMapping("/{orderId}/cancel")
     public OrderResponse cancel(@CurrentUser Integer userId, @PathVariable Integer orderId) {
-        return OrderResponse.from(orderService.cancel(orderId, userId));
+        return redisOrderCommandService.map(service -> service.cancel(orderId, userId))
+                .orElseGet(() -> OrderResponse.from(orderService.cancel(orderId, userId)));
     }
 
     @PostMapping("/{orderId}/seller-cancel")
     public OrderResponse sellerCancel(@CurrentUser Integer userId, @PathVariable Integer orderId) {
-        return OrderResponse.from(orderService.sellerCancel(orderId, userId));
+        return redisOrderCommandService.map(service -> service.sellerCancel(orderId, userId))
+                .orElseGet(() -> OrderResponse.from(orderService.sellerCancel(orderId, userId)));
     }
 }

@@ -33,9 +33,26 @@ public class RedisOrderRealtimeStateProjection {
         redisTemplate.opsForHash().put("order:state:" + auctionId, "projectionStatus", "PROJECTION_ERROR");
     }
 
+    public void markProjectedStatusAfterCommit(Integer auctionId, Integer orderId, String status) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { markProjectedStatus(auctionId, orderId, status); }
+            });
+            return;
+        }
+        markProjectedStatus(auctionId, orderId, status);
+    }
+
     private void markProjected(Integer auctionId, Integer orderId) {
         redisTemplate.opsForHash().putAll("order:state:" + auctionId, java.util.Map.of(
                 "orderId", String.valueOf(orderId), "projectionStatus", "PROJECTED"
+        ));
+        redisTemplate.opsForSet().add("order:state:by-order-id:" + orderId, String.valueOf(auctionId));
+    }
+
+    private void markProjectedStatus(Integer auctionId, Integer orderId, String status) {
+        redisTemplate.opsForHash().putAll("order:state:" + auctionId, java.util.Map.of(
+                "orderId", String.valueOf(orderId), "status", status, "projectionStatus", "PROJECTED"
         ));
     }
 }

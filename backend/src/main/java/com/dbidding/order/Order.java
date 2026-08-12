@@ -71,6 +71,15 @@ public class Order {
         this.status = OrderStatus.CANCELLED;
     }
 
+    /** Redis 승인 이벤트를 MySQL projection에 반영한다. */
+    public void applyProjectedStatus(OrderStatus status) {
+        if (this.status == status) return;
+        requirePendingConfirm();
+        if (status == OrderStatus.COMPLETED) confirm();
+        else if (status == OrderStatus.CANCELLED) cancel();
+        else throw new InvalidOrderStatusException();
+    }
+
     private void requirePendingConfirm() {
         if (status != OrderStatus.PENDING_CONFIRM) {
             throw new InvalidOrderStatusException();
