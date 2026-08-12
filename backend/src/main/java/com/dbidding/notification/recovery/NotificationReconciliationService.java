@@ -13,6 +13,7 @@ import com.dbidding.notification.NotificationType;
 import com.dbidding.wishlist.WishlistService;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -135,9 +136,16 @@ public class NotificationReconciliationService {
      * 상회입찰 알림 존재 체크를 후보 bid마다 따로 하지 않고, 후보 전체에 대해 한 번만
      * 배치 조회한다(N+1 방지). bidId가 sentinel(0)이 아닌 경우는 설계상 OUTBID뿐이라
      * type 조건 없이 bidId만으로 존재 확인에 충분하다.
+     * {@code activeAuctionStatuses}로 ENDING 전용(긴급, 짧은 주기)과 OPEN 전용(비긴급,
+     * 긴 주기) 호출을 분리한다(이슈 #373) — 앤티스나이핑 자동 연장(5분)이 실제로 걸리는
+     * 건 ENDING뿐이라 급하게 복구해야 하는 대상도 ENDING으로 한정된다. 종료 경계
+     * 캐치(아래 최근 종료 경매 포함 로직)는 어느 쪽 상태로 호출되든 항상 수행한다 — 종료
+     * 직전 경매가 ENDING을 거치지 않고 OPEN에서 바로 닫히는 경우도 있어서, 이 캐치를 한쪽
+     * 상태에만 묶으면 다른 쪽에서 종료 경계 유실 버그가 재발한다.
      */
-    public void recoverOutbidNotifications(Instant windowStart) {
-        Set<Integer> candidateAuctionIds = new LinkedHashSet<>(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING));
+    public void recoverOutbidNotifications(Instant windowStart, Collection<AuctionStatus> activeAuctionStatuses) {
+        Set<Integer> candidateAuctionIds = new LinkedHashSet<>(
+                bidRepository.findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, activeAuctionStatuses));
         // 상회입찰 직후~다음 스캔 사이에 경매가 종료되면 낙찰 bid가 LEADING→WON으로 바뀌면서
         // 위 조회에서 빠져버린다. 그 경매의 outbid된 유저들이 영영 복구 대상에서 누락되는 걸
         // 막기 위해, 최근 종료된 경매도 후보에 포함한다(낙찰자는 status=WON이라 아래에서 스킵됨).

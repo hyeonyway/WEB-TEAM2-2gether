@@ -124,12 +124,14 @@ class NotificationReconciliationServiceTest {
         verify(notificationService, never()).save(any(), any(), any(), any());
     }
 
+    private static final List<AuctionStatus> ACTIVE_STATUSES = List.of(AuctionStatus.OPEN, AuctionStatus.ENDING);
+
     @Test
     void 활성_경매도_최근_종료된_경매도_없으면_상회입찰_복구를_바로_종료한다() {
-        given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of());
+        given(bidRepository.findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, ACTIVE_STATUSES)).willReturn(List.of());
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
 
-        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)), ACTIVE_STATUSES);
 
         verify(bidRepository, never()).findLatestBidPerBidderByAuctionIdIn(anyCollection());
     }
@@ -138,11 +140,11 @@ class NotificationReconciliationServiceTest {
     void 최신_bid가_leading이면_상회입찰_알림을_보내지_않는다() {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
         Bid leadingBid = bid(1L, 3, auction, 60_000L, BidStatus.LEADING);
-        given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of(1));
+        given(bidRepository.findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, ACTIVE_STATUSES)).willReturn(List.of(1));
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(leadingBid));
 
-        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)), ACTIVE_STATUSES);
 
         verify(notificationRepository, never()).findByBidIdIn(anyCollection());
         verify(notificationService, never()).saveForBid(any(), any(), any(), any(), any());
@@ -152,12 +154,12 @@ class NotificationReconciliationServiceTest {
     void 최신_bid가_outbid고_이후_알림이_없으면_상회입찰_복구_알림을_보낸다() {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
         Bid outbidBid = bid(2L, 3, auction, 55_000L, BidStatus.OUTBID);
-        given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of(1));
+        given(bidRepository.findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, ACTIVE_STATUSES)).willReturn(List.of(1));
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
         given(notificationRepository.findByBidIdIn(List.of(outbidBid.getId()))).willReturn(List.of());
 
-        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)), ACTIVE_STATUSES);
 
         verify(notificationService).saveForBid(3, 1, NotificationType.OUTBID, outbidBid.getId(), "55,000원에 상회 입찰이 발생했습니다.");
     }
@@ -167,13 +169,13 @@ class NotificationReconciliationServiceTest {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
         Bid outbidBid = bid(2L, 3, auction, 55_000L, BidStatus.OUTBID);
         Notification existingOutbidNotification = existingOutbidNotification(outbidBid.getId());
-        given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of(1));
+        given(bidRepository.findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, ACTIVE_STATUSES)).willReturn(List.of(1));
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
         given(notificationRepository.findByBidIdIn(List.of(outbidBid.getId())))
                 .willReturn(List.of(existingOutbidNotification));
 
-        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)), ACTIVE_STATUSES);
 
         verify(notificationService, never()).saveForBid(any(), any(), any(), any(), any());
     }
@@ -182,14 +184,25 @@ class NotificationReconciliationServiceTest {
     void 상회입찰_직후_경매가_종료돼_LEADING이_사라져도_outbid_유저를_복구한다() {
         Auction auction = auction(1, "리자몽 EX", AuctionStatus.ENDED);
         Bid outbidBid = bid(2L, 3, auction, 55_000L, BidStatus.OUTBID);
-        given(bidRepository.findAuctionIdsByStatus(BidStatus.LEADING)).willReturn(List.of());
+        given(bidRepository.findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, ACTIVE_STATUSES)).willReturn(List.of());
         given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
         given(bidRepository.findLatestBidPerBidderByAuctionIdIn(Set.of(1))).willReturn(List.of(outbidBid));
         given(notificationRepository.findByBidIdIn(List.of(outbidBid.getId()))).willReturn(List.of());
 
-        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)));
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)), ACTIVE_STATUSES);
 
         verify(notificationService).saveForBid(3, 1, NotificationType.OUTBID, outbidBid.getId(), "55,000원에 상회 입찰이 발생했습니다.");
+    }
+
+    @Test
+    void ENDING만_넘기면_ENDING_상태로만_LEADING_bid를_조회한다() {
+        given(bidRepository.findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, List.of(AuctionStatus.ENDING)))
+                .willReturn(List.of());
+        given(auctionRepository.findByStatusInAndCloseTimeGreaterThanEqual(anyList(), any())).willReturn(List.of());
+
+        reconciliationService.recoverOutbidNotifications(now.minus(Duration.ofMinutes(10)), List.of(AuctionStatus.ENDING));
+
+        verify(bidRepository).findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, List.of(AuctionStatus.ENDING));
     }
 
     private Auction auction(Integer id, String auctionName, AuctionStatus status) {

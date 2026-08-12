@@ -81,12 +81,23 @@ class BidRepositoryTest {
     }
 
     @Test
-    void LEADING_상태인_bid의_경매_id를_조회한다() {
+    void LEADING_상태이면서_경매_상태가_일치하는_bid의_경매_id를_조회한다() {
         bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
 
-        List<Integer> auctionIds = bidRepository.findAuctionIdsByStatus(BidStatus.LEADING);
+        List<Integer> auctionIds = bidRepository
+                .findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, List.of(AuctionStatus.OPEN));
 
         assertThat(auctionIds).contains(auction.getId());
+    }
+
+    @Test
+    void 경매_상태가_일치하지_않으면_LEADING_bid여도_조회되지_않는다() {
+        bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
+
+        List<Integer> auctionIds = bidRepository
+                .findAuctionIdsByStatusAndAuctionStatusIn(BidStatus.LEADING, List.of(AuctionStatus.ENDING));
+
+        assertThat(auctionIds).doesNotContain(auction.getId());
     }
 
     @Test
