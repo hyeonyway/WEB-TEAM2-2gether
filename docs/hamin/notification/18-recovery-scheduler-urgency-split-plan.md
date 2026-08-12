@@ -100,4 +100,34 @@ notification:
 - 영향받는 4개 테스트 클래스(`BidRepositoryTest`, `NotificationReconciliationServiceTest`, `UrgentNotificationRecoverySchedulerTest`, `AuctionResultNotificationRecoverySchedulerTest`) 개별 실행 통과.
 - 전체 스위트(`./gradlew test`) 통과.
 
+## 재검토(2차): 후보 조회 방식 재설계 + 경매 생성 알림 batch insert 통합
+
+1차 구현을 리뷰하며 세 가지를 다시 짚었다.
+
+### 1. ENDING 상회입찰 복구: `bids` 조인 제거
+
+`Auction.placeBid` → `extendCloseTimeIfNeeded`([Auction.java:171-191](../../../backend/src/main/java/com/dbidding/auction/domain/Auction.java))을 확인한 결과, 경매가 `ENDING`이 되는 유일한 경로는 "마감 임박 윈도우 안에 입찰이 들어와 앤티스나이핑 연장이 트리거되는 경우"뿐이다. 즉 **ENDING ⟹ 그 트리거 입찰이 항상 LEADING으로 남아있음**이 구조적으로 보장된다(다른 경로로 ENDING이 세팅되는 곳은 코드 전체에 없음 — 스케줄러(`AuctionDeadlineScheduler`/`AuctionClosingScheduler`)는 `ENDED`/`FAILED`로만 전환하고 ENDING을 세팅하는 시간 기반 경로는 존재하지 않는다는 것도 별도로 확인했다).
+
+그래서 `bids.status=LEADING`과 조인할 필요 없이 `AuctionRepository`에 `findIdsByStatus(AuctionStatus)`(단일 상태 id 프로젝션, 기존 `findDueAuctionIds` 패턴과 동일)를 추가해 `auctions.status=ENDING`만으로 후보를 뽑는다. 종료 경계 캐치(최근 종료 경매 병합)는 그대로 유지 — ENDING은 정의상 마감 임박이라 스캔 사이에 닫힐 확률이 가장 높은 쪽이라 오히려 더 필요하다.
+
+### 2. OPEN 상회입찰 복구: 조인은 유지(제거하면 역효과)
+
+OPEN은 ENDING과 달리 입찰이 하나도 없는 신규 등록 경매도 포함되는 기본 상태라, `auctions.status=OPEN`만으로 후보를 뽑으면 "입찰이 실제로 있는 경매"보다 훨씬 넓은 집합(입찰 없는 경매까지 전부)이 잡혀서 이후 `findLatestBidPerBidderByAuctionIdIn` 비용이 불필요하게 커진다. 그래서 OPEN 쪽은 `bids.status=LEADING`과의 조인(`BidRepository.findAuctionIdsByStatusAndAuctionStatus`, 이번에 `Collection<AuctionStatus>`에서 단일 `AuctionStatus`로 시그니처도 단순화)을 그대로 유지한다. 종료 경계 캐치도 그대로 유지 — 오히려 OPEN이 ENDING을 거치지 않고 바로 닫히는 경우(막판 스나이핑이 없는 대다수 경매)가 더 흔해서, 이 캐치를 없애면 재발 위험이 ENDING보다 크다.
+
+결과적으로 `recoverOutbidNotifications(windowStart, activeAuctionStatuses)` 하나였던 메서드를 `recoverEndingOutbidNotifications(windowStart)`/`recoverOpenOutbidNotifications(windowStart)` 둘로 나누고, 공통 로직(종료 경계 캐치 + outbid 판정 + 저장)은 private 헬퍼로 추출했다. 두 메서드가 애초에 다른 조회 전략을 쓰게 된 이상, "상태를 파라미터로 받는 제네릭 메서드 하나"보다 "이름이 곧 의도를 말해주는 메서드 둘"이 더 정확하다고 판단했다.
+
+### 3. 경매 생성 알림 복구: 경매별 개별 INSERT를 하나로 통합
+
+`recoverAuctionOpenedNotifications`가 윈도우 안에 열린 경매마다 `saveAllIgnoringDuplicates`를 개별 호출하던 걸(경매 N개 → INSERT N번), 여러 경매의 `(userId, auctionId, message)` 행을 모아 한 번에(청크 단위로) INSERT하도록 바꿨다. 덤으로 이 복구 배치 호출은 원래도 반환값(재조회 SELECT 결과)을 안 썼는데 라이브 이벤트 경로가 쓰는 기존 메서드를 그대로 호출해서 경매마다 불필요한 재조회까지 하고 있었다 — 그래서 재조회가 없는 전용 메서드(`NotificationService.insertAllIgnoringDuplicates(List<NotificationInsertRow>, NotificationType)`)를 새로 만들었다. 라이브 경로(`NotificationEventListener.handleAuctionOpened`, 항상 경매 1개 + SSE push 필요)가 쓰는 기존 `saveAllIgnoringDuplicates`는 그대로 둔다 — 요구사항이 다른 두 호출부를 억지로 하나의 시그니처로 합치지 않았다.
+
+### 4. 스케줄러 리네이밍(사용자 확정)
+
+1차에서는 배포 환경 `.env` 오버라이드(`NOTIFICATION_RECOVERY_RESULT_*`)를 깨뜨릴 위험 때문에 `AuctionResultNotificationRecoveryScheduler`란 이름과 `notification.recovery.result.*` 키를 그대로 남겨뒀는데, 리뷰 중 "이제 하는 일에 안 맞는 이름이니 바꾸자"는 요청이 있었다. 프로퍼티 키까지 같이 바꿀지 클래스명만 바꿀지 확인한 결과 **"프로퍼티 키도 같이 변경"**으로 확정 — `NonUrgentNotificationRecoveryScheduler`로 리네이밍하고 `notification.recovery.non-urgent.*` / `NOTIFICATION_RECOVERY_NON_URGENT_*`로 전부 통일했다(배포 서버 `.env`에 기존 `NOTIFICATION_RECOVERY_RESULT_*` 오버라이드가 있었다면 이제 적용되지 않고 새 기본값 300000ms로 동작하게 됨 — 사용자가 이 트레이드오프를 알고 선택함). [15-scheduler-toggle-properties.md](15-scheduler-toggle-properties.md)에 이 변경을 가리키는 안내를 추가해뒀다.
+
+### 2차 변경 파일
+
+`AuctionRepository`(`findIdsByStatus` 추가), `BidRepository`(`findAuctionIdsByStatusAndAuctionStatus`로 시그니처 단순화), `NotificationReconciliationService`(상회입찰 메서드 분리 + 경매 생성 알림 batch insert), `NotificationService`(`insertAllIgnoringDuplicates` 추가), `NotificationInsertRow`(신규 레코드), `UrgentNotificationRecoveryScheduler`, `NonUrgentNotificationRecoveryScheduler`(리네이밍), `application.yml`, 관련 테스트 6개 + 신규 real-DB 테스트(`NotificationServiceBulkInsertTest`).
+
+영향받는 테스트 클래스 개별 실행과 전체 스위트(`./gradlew test`) 모두 통과.
+
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
