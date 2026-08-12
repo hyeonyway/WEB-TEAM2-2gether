@@ -80,7 +80,17 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("100000");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "frozenBalance")).isEqualTo("0");
         assertThat(redisTemplate.opsForHash().get("wallet:hold:1:2", "amount")).isEqualTo("43000");
+        assertThat(redisTemplate.opsForHash().get("auction:bidder:1:2", "status")).isEqualTo("LEADING");
+        assertThat(redisTemplate.opsForHash().get("auction:bidder:1:1", "status")).isEqualTo("OUTBID");
         assertThat(redisTemplate.opsForStream().size("auction:timeline-events")).isEqualTo(1L);
+        assertThat(redisTemplate.opsForStream().size("auction:recent-bids:1")).isEqualTo(1L);
+        var recentBid = redisTemplate.opsForStream()
+                .read(StreamOffset.create("auction:recent-bids:1", ReadOffset.from("0-0")))
+                .getFirst()
+                .getValue();
+        assertThat(recentBid).containsEntry("bidderId", "2")
+                .containsEntry("bidPrice", "43000")
+                .containsEntry("sequence", "7");
         var event = redisTemplate.opsForStream()
                 .read(StreamOffset.create("auction:timeline-events", ReadOffset.from("0-0")))
                 .getFirst()
