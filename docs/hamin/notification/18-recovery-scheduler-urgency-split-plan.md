@@ -81,4 +81,23 @@ notification:
 - 새 스케줄러 클래스/프로퍼티 키 신설 없음.
 - `recoverAuctionClosedNotifications`의 window/로직 자체는 변경 없음(호출 주기만 7분→5분으로 바뀜).
 
+## 구현 완료
+
+계획대로 구현했다. 변경 파일: `BidRepository`, `NotificationReconciliationService`, `UrgentNotificationRecoveryScheduler`, `AuctionResultNotificationRecoveryScheduler`, `application.yml`, 관련 테스트 4개.
+
+### 성능 확인: join 추가로 조회가 느려지지 않는지 로컬 DB로 실측
+
+`findAuctionIdsByStatus` → `findAuctionIdsByStatusAndAuctionStatusIn`로 바꾸면서 `bids`-`auctions` join이 하나 늘었는데, 실제로 성능 저하가 있는지 로컬 DB(bids 136,150건, auctions 25,819건, LEADING bid 66건)에서 `EXPLAIN`으로 확인했다.
+
+- 기존 쿼리(`bids.status='LEADING'`만): `idx_bids_status`로 66 rows, `type=ref`.
+- 신규 + `auctions.status IN ('ENDING')`: 옵티마이저가 `auctions`를 `idx_auctions_status`로 먼저 좁힌 뒤(14 rows, **Using index**, 커버링) `bids`를 `idx_bids_auction_id`로 join — 후보군이 오히려 66→14로 줄어 더 가벼움.
+- 신규 + `auctions.status IN ('OPEN')`: `bids.status`로 66 rows 잡은 뒤 `auctions`를 **PRIMARY KEY**로 `eq_ref` join(포인트 조회) — 기존과 거의 동일한 비용에 PK lookup 66회 추가되는 정도.
+
+두 경우 다 `type`이 `ref`/`eq_ref`(최선의 동등 조건 join)이고 풀스캔·filesort 없음. `bids.status`(`idx_bids_status`)와 `auctions.status`(`idx_auctions_status`)가 이미 있고 join 키(`bids.auction_id` ↔ `auctions.id`)도 양쪽 다 인덱스(FK 인덱스/PK)라, 추가 마이그레이션 없이 기존 인덱스만으로 충분했다.
+
+### 테스트
+
+- 영향받는 4개 테스트 클래스(`BidRepositoryTest`, `NotificationReconciliationServiceTest`, `UrgentNotificationRecoverySchedulerTest`, `AuctionResultNotificationRecoverySchedulerTest`) 개별 실행 통과.
+- 전체 스위트(`./gradlew test`) 통과.
+
 > 이 문서는 claude의 도움을 받아 작성하였습니다.
