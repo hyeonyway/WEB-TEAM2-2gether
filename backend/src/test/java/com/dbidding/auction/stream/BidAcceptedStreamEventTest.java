@@ -10,19 +10,19 @@ import org.junit.jupiter.api.Test;
 class BidAcceptedStreamEventTest {
 
     @Test
-    void 지갑_상태_이벤트는_사후_잔액과_버전을_역직렬화한다() {
+    void v2_충전_이벤트는_사후_잔액과_버전을_역직렬화한다() {
         UUID eventId = UUID.randomUUID();
         AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-3", Map.ofEntries(
                 Map.entry("schemaVersion", "2"),
-                Map.entry("eventType", "wallet.refunded.v1"),
+                Map.entry("eventType", "wallet.charged.v1"),
                 Map.entry("eventId", eventId.toString()),
                 Map.entry("userId", "20"),
                 Map.entry("walletVersion", "8"),
                 Map.entry("availableBalance", "70000"),
                 Map.entry("frozenBalance", "10000"),
-                Map.entry("transactionType", "REFUND"),
+                Map.entry("transactionType", "CHARGE"),
                 Map.entry("transactionAmount", "3000"),
-                Map.entry("idempotencyKey", "refund-1"),
+                Map.entry("idempotencyKey", "charge-1"),
                 Map.entry("occurredAt", "2026-08-11T00:00:00Z")
         ));
 
@@ -86,19 +86,6 @@ class BidAcceptedStreamEventTest {
     }
 
     @Test
-    void 지갑_충전_이벤트를_타임라인_계약으로_파싱한다() {
-        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-2", Map.of(
-                "eventType", "wallet.charged.v1",
-                "schemaVersion", "1",
-                "userId", "1",
-                "amount", "50000",
-                "idempotencyKey", "charge-1",
-                "occurredAt", "2026-08-10T11:00:00Z"
-        ));
-
-        assertThat(event).isInstanceOf(WalletChargedStreamEvent.class);
-    }
-
     private Map<String, String> fields() {
         return new java.util.HashMap<>(Map.ofEntries(
                 Map.entry("eventType", "bid.accepted.v1"),

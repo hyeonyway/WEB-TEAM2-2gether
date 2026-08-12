@@ -14,6 +14,8 @@ import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
 import com.dbidding.wallet.service.WalletService;
+import com.dbidding.wallet.domain.PointTransactionType;
+import java.util.UUID;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -99,20 +101,23 @@ class AuctionBidStreamPersistenceServiceTest {
     }
 
     @Test
-    void 지갑_충전은_같은_타임라인_inbox에_기록하고_wallet에_반영한다() {
+    void v2_지갑_충전은_같은_타임라인_inbox에_기록하고_snapshot으로_projection한다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
                 inboxRepository, auctionRepository, bidRepository, walletService, walletProjectionService, orderService, cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
         );
-        WalletChargedStreamEvent event = new WalletChargedStreamEvent(
-                "charge-1", 1, 50_000L, "charge-key", Instant.parse("2026-08-10T12:00:00Z")
+        WalletStateChangedStreamEvent event = new WalletStateChangedStreamEvent(
+                "charge-1", UUID.randomUUID(), "wallet.charged.v1", 1, 1L, 50_000L, 0L,
+                null, null, null, PointTransactionType.CHARGE, 50_000L,
+                "charge-key", Instant.parse("2026-08-10T12:00:00Z")
         );
         given(inboxRepository.findByStreamId("charge-1")).willReturn(java.util.Optional.empty());
 
         service.persist(event);
 
-        verify(walletService).charge(1, 50_000L, "charge-key");
-        verify(inboxRepository).save(org.mockito.ArgumentMatchers.any());
+        verify(walletProjectionService).project(event);
+        verify(walletService, org.mockito.Mockito.never()).charge(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
+        verify(inboxRepository, times(2)).save(org.mockito.ArgumentMatchers.any());
         verify(auctionRepository, org.mockito.Mockito.never()).findByIdForUpdate(org.mockito.ArgumentMatchers.any());
     }
 

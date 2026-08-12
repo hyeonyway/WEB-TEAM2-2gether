@@ -65,10 +65,6 @@ public class AuctionBidStreamPersistenceService {
     /** PENDING으로 기록된 이벤트를 실제 도메인 테이블에 반영한다. */
     @Transactional
     public void project(AuctionWalletTimelineEvent event) {
-        if (event instanceof WalletChargedStreamEvent charged) {
-            walletService.charge(charged.userId(), charged.amount(), charged.idempotencyKey());
-            return;
-        }
         if (event instanceof WalletStateChangedStreamEvent walletChanged) {
             walletProjectionService.project(walletChanged);
             inboxRepository.save(archive(event, null, null));
