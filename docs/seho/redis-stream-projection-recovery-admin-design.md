@@ -14,7 +14,7 @@ projection을 비동기로 반영한다. 따라서 DB projection 실패는 Redis
   최대 3회(1초, 2초, 4초) 재시도한다.
 - 이벤트 계약·버전·도메인 오류 및 재시도 소진은 inbox를 `ERROR`로 전환한다.
 - terminal 오류는 inbox를 `ERROR`로 기록한 뒤 Stream entry를 ACK하고 `XDEL`한다.
-  consumer는 다음 이벤트를 계속 projection한다.
+  이후 이벤트는 inbox에 `PENDING`으로만 보존하고, 선행 오류가 해소될 때까지 projection하지 않는다.
 - inbox에는 `attempt_count`, `last_attempt_at`, 실패 메시지를 보존한다.
 
 Stream은 단기 전달 버퍼다. inbox 기록과 projection 결론이 난 entry는 ACK 직후 `XDEL`해 장기
@@ -38,6 +38,6 @@ Stream은 단기 전달 버퍼다. inbox 기록과 projection 결론이 난 entr
 2. consumer leader lock 아래에서 inbox payload를 순서대로 다시 읽는다.
 3. 기존 projection service로 MySQL에만 재적용하고, 성공한 inbox를 `PROCESSED`로 변경한다.
 4. 한 이벤트라도 실패하면 즉시 중단하고 실행자·범위·결과·실패 사유를 감사 이력에 남긴다.
-5. 실패한 이벤트는 `ERROR`로 남기고 다음 이벤트 소비는 계속 유지한다.
+5. 실패한 이벤트는 `ERROR`로 남기며, 뒤 이벤트는 `PENDING`으로 보류된 순서대로 재처리한다.
 
 이 작업은 Redis 상태를 다시 승인하거나 Stream group cursor를 되감지 않는다.

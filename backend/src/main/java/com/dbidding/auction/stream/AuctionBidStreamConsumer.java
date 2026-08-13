@@ -132,6 +132,12 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
             return;
         }
         persistenceService.recordPending(event);
+        // 선행 projection 오류가 남아 있으면 global 순서를 보존한다. 이후 이벤트는 inbox에만
+        // PENDING으로 보관하고 Stream entry는 단기 버퍼 정책에 따라 즉시 제거한다.
+        if (persistenceService.hasProjectionError()) {
+            acknowledgeAndDelete(record);
+            return;
+        }
         RuntimeException failure = projectWithRetry(event);
         if (failure == null) {
             persistenceService.markProcessed(event.streamId());
