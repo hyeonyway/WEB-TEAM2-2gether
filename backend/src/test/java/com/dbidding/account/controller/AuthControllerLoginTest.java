@@ -29,6 +29,7 @@ import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.dto.LoginRequest;
 import com.dbidding.account.dto.LoginResponse;
 import com.dbidding.account.exception.InvalidCredentialsException;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.service.SignupService;
 
 @WebMvcTest(AuthController.class)
@@ -48,6 +49,9 @@ class AuthControllerLoginTest {
 
 	@MockitoBean
 	private RefreshCookieFactory refreshCookieFactory;
+
+	@MockitoBean
+	private AccountRepository accountRepository;
 
 	@Test
 	void 로그인하면_access만_응답하고_refresh는_host_only_cookie로_전달한다() throws Exception {

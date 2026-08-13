@@ -27,6 +27,7 @@ import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
 import com.dbidding.account.service.SignupService;
+import com.dbidding.account.repository.AccountRepository;
 
 import jakarta.servlet.http.Cookie;
 
@@ -52,6 +53,9 @@ class AuthControllerLogoutTest {
 
 	@MockitoBean
 	private AuthenticationStrategy authenticationStrategy;
+
+	@MockitoBean
+	private AccountRepository accountRepository;
 
 	@Test
 	void 로그아웃하면_서버_인증_정보를_폐기하고_refresh_cookie를_만료시킨다() throws Exception {
