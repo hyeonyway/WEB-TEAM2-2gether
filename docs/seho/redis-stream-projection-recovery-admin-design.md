@@ -8,7 +8,8 @@ projection을 비동기로 반영한다. 따라서 DB projection 실패는 Redis
 
 ## 실패 처리
 
-`AuctionBidStreamConsumer`는 이벤트를 inbox에 기록한 뒤 projection을 수행한다.
+`AuctionBidStreamConsumer`는 Stream 원본 payload를 JSON으로 inbox에 기록한 뒤 ACK·삭제한다.
+실제 projection은 inbox의 가장 이른 `PENDING` 행만 조회해 수행한다.
 
 - `TransientDataAccessException`, `RecoverableDataAccessException`, DB transaction 생성 실패는
   최대 3회(1초, 2초, 4초) 재시도한다.
@@ -17,8 +18,8 @@ projection을 비동기로 반영한다. 따라서 DB projection 실패는 Redis
   이후 이벤트는 inbox에 `PENDING`으로만 보존하고, 선행 오류가 해소될 때까지 projection하지 않는다.
 - inbox에는 `attempt_count`, `last_attempt_at`, 실패 메시지를 보존한다.
 
-Stream은 단기 전달 버퍼다. inbox 기록과 projection 결론이 난 entry는 ACK 직후 `XDEL`해 장기
-보관하지 않는다. 오류 이벤트의 원본·원인은 MySQL inbox가 운영 추적 근거가 된다.
+Stream은 단기 전달 버퍼다. inbox 기록이 성공한 entry는 ACK 직후 `XDEL`해 장기 보관하지 않는다.
+오류 이벤트의 원본·원인은 MySQL inbox가 운영 추적·재처리 근거가 된다.
 
 ## 관리자 상태 화면
 

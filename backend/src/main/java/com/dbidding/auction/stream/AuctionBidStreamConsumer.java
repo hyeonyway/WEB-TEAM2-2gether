@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
+import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
@@ -27,6 +28,8 @@ import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 단일 Redis Stream을 순서대로 MySQL projection으로 전달하는 전역 단일 consumer다.
@@ -48,6 +51,8 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
+    private final AuctionBidEventInboxRepository inboxRepository;
+    private final ObjectMapper objectMapper;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("auction-timeline-single-", 0).factory()
     );
@@ -92,6 +97,7 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
 
     private void consumeUntilIdle() {
         for (int processed = 0; running && leaderLock.isLeader() && processed < properties.maxRecordsPerRun(); processed++) {
+            if (projectOldestPending()) continue;
             MapRecord<String, Object, Object> record = claimPending();
             if (record == null) {
                 List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().read(
@@ -131,23 +137,38 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
             acknowledgeAndDelete(record);
             return;
         }
-        persistenceService.recordPending(event);
-        // 선행 projection 오류가 남아 있으면 global 순서를 보존한다. 이후 이벤트는 inbox에만
-        // PENDING으로 보관하고 Stream entry는 단기 버퍼 정책에 따라 즉시 제거한다.
-        if (persistenceService.hasProjectionError()) {
-            acknowledgeAndDelete(record);
-            return;
-        }
-        RuntimeException failure = projectWithRetry(event);
-        if (failure == null) {
-            persistenceService.markProcessed(event.streamId());
-        } else {
-            if (persistenceService.markError(event.streamId(), failure)) {
-                log.error("event=auction.bid.stream.projection.error streamId={} auctionId={}",
-                        event.streamId(), event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null, failure);
+        persistenceService.recordPending(event, serialize(values));
+        acknowledgeAndDelete(record);
+    }
+
+    /** Redis Stream은 inbox 적재만 담당하고, 실제 projection은 DB inbox 순서만 따른다. */
+    private boolean projectOldestPending() {
+        if (persistenceService.hasProjectionError()) return false;
+        AuctionBidEventInbox inbox = inboxRepository.findFirstByProjectionStatusOrderByIdAsc(
+                com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING).orElse(null);
+        if (inbox == null) return false;
+        try {
+            AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from(
+                    inbox.getStreamId(), objectMapper.readValue(inbox.getPayload(), new TypeReference<>() {}));
+            RuntimeException failure = projectWithRetry(event);
+            if (failure == null) persistenceService.markProcessed(event.streamId());
+            else if (persistenceService.markError(event.streamId(), failure)) log.error(
+                    "event=auction.bid.inbox.projection.error streamId={} auctionId={}", event.streamId(), inbox.getAuctionId(), failure);
+        } catch (Exception exception) {
+            RuntimeException failure = exception instanceof RuntimeException runtime ? runtime : new IllegalStateException(exception);
+            if (persistenceService.markError(inbox.getStreamId(), failure)) {
+                log.error("event=auction.bid.inbox.payload.error streamId={}", inbox.getStreamId(), failure);
             }
         }
-        acknowledgeAndDelete(record);
+        return true;
+    }
+
+    private String serialize(Map<String, String> values) {
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw new IllegalStateException("Stream payload 직렬화에 실패했습니다.", exception);
+        }
     }
 
     private RuntimeException projectWithRetry(AuctionWalletTimelineEvent event) {
