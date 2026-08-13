@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,12 +30,15 @@ import org.springframework.stereotype.Service;
  * 체크 없이 INSERT IGNORE로 바로 저장한다 — 라이브 경로가 먼저 저장해둔 행과 겹쳐도
  * 조용히 건너뛴다(이슈 #414).
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationReconciliationService {
 
     private static final List<AuctionStatus> OPEN_STATUSES = List.of(AuctionStatus.OPEN, AuctionStatus.ENDING);
     private static final List<AuctionStatus> CLOSED_STATUSES = List.of(AuctionStatus.ENDED, AuctionStatus.FAILED);
+    private static final int DEADLOCK_MAX_ATTEMPTS = 3;
+    private static final long DEADLOCK_RETRY_BACKOFF_MS = 100;
 
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
@@ -67,7 +72,7 @@ public class NotificationReconciliationService {
                 rows.add(NotificationInsertRow.of(userId, auction.getId(), NotificationType.AUCTION_OPENED, message));
             }
         }
-        notificationService.insertAllIgnoringDuplicates(rows);
+        insertAllIgnoringDuplicatesWithDeadlockRetry(rows);
     }
 
     /**
@@ -108,7 +113,7 @@ public class NotificationReconciliationService {
                 ));
             }
         }
-        notificationService.insertAllIgnoringDuplicates(rows);
+        insertAllIgnoringDuplicatesWithDeadlockRetry(rows);
     }
 
     /**
@@ -174,6 +179,40 @@ public class NotificationReconciliationService {
                     latestBid.getBidderId(), latestBid.getAuction().getId(), NotificationType.OUTBID, latestBid.getId(), message
             ));
         }
-        notificationService.insertAllIgnoringDuplicates(rows);
+        insertAllIgnoringDuplicatesWithDeadlockRetry(rows);
+    }
+
+    /**
+     * urgent/non-urgent 스케줄러가 같은 대상 경매를 겹쳐 처리할 수 있어(이슈 #429, ENDING 상회입찰과
+     * 최근 종료 경매 후보가 양쪽에서 겹침) {@code notification} 유니크 키 range에 대한 gap lock
+     * 경합으로 {@link CannotAcquireLockException}(MySQL 데드락)이 드물게 발생한다. MySQL은 데드락
+     * 희생 트랜잭션을 통째로 롤백하므로, 재시도는 반드시 새 트랜잭션으로 다시 시도해야 한다 —
+     * {@link NotificationService#insertAllIgnoringDuplicates}를 다시 호출하면 프록시를 통한
+     * 외부 호출이라 매 시도마다 새 트랜잭션이 열린다(같은 클래스 안에서 재시도했다면 이미 롤백된
+     * 트랜잭션에 대고 재시도하는 셈이라 무효했을 것). INSERT IGNORE(#414)가 멱등이라 이미 커밋된
+     * 청크를 포함해 전체를 다시 실행해도 안전하다.
+     */
+    private void insertAllIgnoringDuplicatesWithDeadlockRetry(List<NotificationInsertRow> rows) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                notificationService.insertAllIgnoringDuplicates(rows);
+                return;
+            } catch (CannotAcquireLockException exception) {
+                if (attempt >= DEADLOCK_MAX_ATTEMPTS) {
+                    throw exception;
+                }
+                log.warn("event=notification.recovery.insert.deadlock.retry attempt={}", attempt, exception);
+                sleepBeforeRetry(DEADLOCK_RETRY_BACKOFF_MS * attempt);
+            }
+        }
+    }
+
+    private void sleepBeforeRetry(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("알림 복구 배치 데드락 재시도 대기 중 인터럽트됨", interruptedException);
+        }
     }
 }
