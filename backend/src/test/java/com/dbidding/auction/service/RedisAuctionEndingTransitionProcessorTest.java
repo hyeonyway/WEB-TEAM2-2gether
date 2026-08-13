@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.sse.AuctionStreamPublisher;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashSet;
@@ -27,12 +28,13 @@ class RedisAuctionEndingTransitionProcessorTest {
     private final EndingExtensionProvider extensionProvider = mock(EndingExtensionProvider.class);
     private final AuctionMetrics auctionMetrics = mock(AuctionMetrics.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final AuctionStreamPublisher auctionStreamPublisher = mock(AuctionStreamPublisher.class);
 
     @Test
     void due_경매만_전이하고_성공한_경매의_연장마감으로_재예약을_요청한다() {
         Instant now = Instant.parse("2026-08-10T00:00:00Z");
         RedisAuctionEndingTransitionProcessor processor = new RedisAuctionEndingTransitionProcessor(
-                redisTemplate, script, extensionProvider, auctionMetrics, eventPublisher
+                redisTemplate, script, extensionProvider, auctionMetrics, eventPublisher, auctionStreamPublisher
         );
         when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
         when(zSetOperations.rangeByScore("auction:ending-window:by-close-time", 0, now.toEpochMilli(), 0, 100))
@@ -40,6 +42,8 @@ class RedisAuctionEndingTransitionProcessorTest {
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
         when(hashOperations.get("auction:state:1", "closeTime")).thenReturn("2026-08-10T00:05:00Z");
         when(hashOperations.get("auction:state:2", "closeTime")).thenReturn("2026-08-10T00:05:00Z");
+        when(hashOperations.get("auction:state:1", "estimatedCloseTime")).thenReturn("2026-08-10T00:05:00Z");
+        when(hashOperations.get("auction:state:2", "estimatedCloseTime")).thenReturn("2026-08-10T00:05:00Z");
         when(extensionProvider.next()).thenReturn(Duration.ofSeconds(90));
         when(redisTemplate.execute(eq(script), anyList(), eq("1"), eq("1786320000000"), eq("2026-08-10T00:00:00Z"),
                 eq("2026-08-10T00:06:30Z"), eq("1786320390000"))).thenReturn("TRANSITIONED|1-0|2026-08-10T00:06:30Z");

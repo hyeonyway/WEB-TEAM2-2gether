@@ -1,6 +1,8 @@
 package com.dbidding.auction.service;
 
 import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.sse.AuctionStreamPayload;
+import com.dbidding.auction.sse.AuctionStreamPublisher;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +29,7 @@ class RedisAuctionEndingTransitionProcessor implements AuctionEndingTransitionPr
     private final EndingExtensionProvider extensionProvider;
     private final AuctionMetrics auctionMetrics;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuctionStreamPublisher auctionStreamPublisher;
 
     @Override
     public List<Integer> transitionDueAuctions(Instant now, int limit) {
@@ -47,6 +50,8 @@ class RedisAuctionEndingTransitionProcessor implements AuctionEndingTransitionPr
     private void transition(Integer auctionId, Instant now, List<Integer> transitioned) {
         Object closeTimeValue = redisTemplate.opsForHash().get(stateKey(auctionId), "closeTime");
         if (closeTimeValue == null) return;
+        Object estimatedCloseTimeValue = redisTemplate.opsForHash().get(stateKey(auctionId), "estimatedCloseTime");
+        Instant estimatedCloseTime = estimatedCloseTimeValue == null ? Instant.parse(closeTimeValue.toString()) : Instant.parse(estimatedCloseTimeValue.toString());
         Instant newCloseTime = Instant.parse(closeTimeValue.toString()).plus(extensionProvider.next());
         String raw = redisTemplate.execute(auctionEndingTransitionScript,
                 List.of(stateKey(auctionId), ENDING_WINDOW_BY_CLOSE_TIME, ACTIVE_BY_CLOSE_TIME, TIMELINE_STREAM),
@@ -56,6 +61,7 @@ class RedisAuctionEndingTransitionProcessor implements AuctionEndingTransitionPr
         auctionMetrics.recordEndingTransition();
         transitioned.add(auctionId);
         eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(auctionId, newCloseTime, "ending_transition"));
+        auctionStreamPublisher.publish(AuctionStreamPayload.endingStarted(auctionId, estimatedCloseTime, now));
         log.info("event=auction.ending.transitioned auctionId={} estimatedCloseTime={} realCloseTime={} extensionSeconds={}",
                 auctionId, closeTimeValue, newCloseTime, java.time.Duration.between(Instant.parse(closeTimeValue.toString()), newCloseTime).toSeconds());
     }

@@ -75,6 +75,18 @@ class AuctionTest {
                 .hasMessage("이미 종료된 경매입니다.");
     }
 
+    @Test
+    void Redis_Stream의_확정된_실제_마감시각을_OPEN_경매에_한번만_적용한다() {
+        Instant estimatedCloseTime = Instant.parse("2026-07-29T10:00:00Z");
+        Auction auction = auction(estimatedCloseTime);
+
+        assertThat(auction.applyEndingTransition(estimatedCloseTime.plusSeconds(90))).isTrue();
+        assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDING);
+        assertThat(auction.getCloseTime()).isEqualTo(Instant.parse("2026-07-29T10:01:30Z"));
+        assertThat(auction.getEstimatedCloseTime()).isEqualTo(estimatedCloseTime);
+        assertThat(auction.applyEndingTransition(estimatedCloseTime.plusSeconds(120))).isFalse();
+    }
+
     private Auction auction(Instant closeTime) {
         return Auction.builder()
                 .sellerId(1)

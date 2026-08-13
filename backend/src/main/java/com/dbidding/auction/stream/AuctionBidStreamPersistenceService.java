@@ -60,7 +60,7 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionTimelineEvent recordPending(AuctionWalletTimelineEvent event, String rawPayload) {
         return inboxRepository.findByStreamId(event.streamId())
-                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : event instanceof OrderStateChangedStreamEvent order ? order.auctionId() : null,
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionEndingStartedStreamEvent ending ? ending.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : event instanceof OrderStateChangedStreamEvent order ? order.auctionId() : null,
                 event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : event instanceof OrderStateChangedStreamEvent order ? order.orderVersion() : null, rawPayload)));
     }
 
@@ -128,7 +128,21 @@ public class AuctionBidStreamPersistenceService {
             closeAuction(close);
             return;
         }
+        if (event instanceof AuctionEndingStartedStreamEvent ending) {
+            projectEndingTransition(ending);
+            return;
+        }
         persistBid((BidAcceptedStreamEvent) event);
+    }
+
+    private void projectEndingTransition(AuctionEndingStartedStreamEvent event) {
+        Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
+                .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 ENDING 대상 경매입니다: " + event.auctionId()));
+        try {
+            auction.applyEndingTransition(event.closeTime());
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidBidStreamEventException(exception.getMessage(), exception);
+        }
     }
 
     private void insertCreatedAuction(AuctionCreatedStreamEvent event) {
