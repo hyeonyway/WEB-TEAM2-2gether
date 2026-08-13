@@ -88,7 +88,6 @@ describe('walletApi', () => {
   });
 
   it('Redis 승인 응답의 null 거래 ID와 이벤트 타입을 정상 거래로 변환한다', async () => {
-    vi.stubEnv('VITE_API_PROFILE', 'redis');
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({
         transactionId: null,
@@ -110,7 +109,6 @@ describe('walletApi', () => {
       amount: 1_000,
       balance: 151_000,
     });
-    vi.unstubAllEnvs();
   });
 
   it('멱등키와 금액으로 Wallet을 환불한다', async () => {

@@ -5,7 +5,6 @@ import type {
   WalletTransactionVariables,
 } from '../dto/walletDto';
 import {authenticatedRequest} from './authenticatedRequest';
-import {isRedisApiProfile} from './apiProfile';
 
 function isSafeBalance(value: unknown): value is number {
   return typeof value === 'number'
@@ -33,8 +32,10 @@ function isWalletTransactionDto(
   if (typeof value !== 'object' || value === null) return false;
   const transaction = value as Partial<WalletTransactionDto>;
   const transactionType:unknown=transaction.transactionType;
-  const redisTransaction=isRedisApiProfile()
-    && transaction.transactionId===null
+  // The backend can route a request to the Redis approval path independently of
+  // the static frontend build profile. Treat its documented event-shaped result
+  // as a successful transaction instead of reporting an error after a 200.
+  const redisTransaction=transaction.transactionId===null
     && transactionType===`wallet.${expectedType==='CHARGE'?'charged':'refunded'}.v1`;
   return (isSafeBalance(transaction.transactionId)||redisTransaction)
     && (transactionType === expectedType||redisTransaction)
