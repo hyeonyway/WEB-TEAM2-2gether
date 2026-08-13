@@ -34,17 +34,18 @@ public class RedisAuctionStateWarmUp {
             @Value("${auction.state-seeding.warm-up.ending-window-repair-limit:1000}") int endingWindowRepairLimit
     ) {
         return arguments -> {
-            if (!enabled || recentLimit < 1) return;
-            var now = clock.instant();
-            var candidates = new LinkedHashMap<Integer, com.dbidding.auction.domain.Auction>();
-            auctionRepository.findActiveForWarmUp(
-                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), now.plus(Duration.ofMinutes(closingWindowMinutes)),
-                    PageRequest.of(0, recentLimit)
-            ).forEach(auction -> candidates.put(auction.getId(), auction));
-            if (candidates.size() < recentLimit) auctionRepository.findByStatusInOrderByOpenTimeDesc(
-                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), PageRequest.of(0, recentLimit)
-            ).forEach(auction -> candidates.putIfAbsent(auction.getId(), auction));
-            stateSeeder.seedAllIfAbsent(candidates.values().stream().limit(recentLimit).toList());
+            if (enabled && recentLimit > 0) {
+                var now = clock.instant();
+                var candidates = new LinkedHashMap<Integer, com.dbidding.auction.domain.Auction>();
+                auctionRepository.findActiveForWarmUp(
+                        List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), now.plus(Duration.ofMinutes(closingWindowMinutes)),
+                        PageRequest.of(0, recentLimit)
+                ).forEach(auction -> candidates.put(auction.getId(), auction));
+                if (candidates.size() < recentLimit) auctionRepository.findByStatusInOrderByOpenTimeDesc(
+                        List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), PageRequest.of(0, recentLimit)
+                ).forEach(auction -> candidates.putIfAbsent(auction.getId(), auction));
+                stateSeeder.seedAllIfAbsent(candidates.values().stream().limit(recentLimit).toList());
+            }
             repairEndingWindow(Math.max(endingWindowRepairLimit, 0));
         };
     }

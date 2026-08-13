@@ -99,7 +99,8 @@ class AuctionQueryServiceTest {
 
     @Test
     void Redis_활성_경매_snapshot으로_목록의_변경_필드를_overlay한다() {
-        Auction auction = auction(1, AuctionStatus.OPEN, 40_000L, 2);
+        Instant estimatedCloseTime = Instant.parse("2026-08-08T01:00:00Z");
+        Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
         when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of(auction));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -116,6 +117,26 @@ class AuctionQueryServiceTest {
         assertThat(response.content().getFirst())
                 .extracting(item -> item.currentPrice(), item -> item.bidCount(), item -> item.status(), item -> item.endsAt())
                 .containsExactly(43_000L, 7, AuctionStatus.ENDING, Instant.parse("2026-08-08T01:00:00Z"));
+    }
+
+    @Test
+    void Redis_실시간_상태를_병합한_상세도_ENDING의_예정_마감을_반환한다() {
+        Instant estimatedCloseTime = Instant.parse("2026-08-08T01:00:00Z");
+        Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.readAuctionState(1)).thenReturn(null);
+        when(reader.read(1, null)).thenReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
+                AuctionStatus.ENDING, 43_000L, 3_000L, 7, estimatedCloseTime.plusSeconds(90), 100_000L,
+                MyBidStatus.NONE, null, List.of()
+        ));
+        when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
+        when(cardService.getCardSnapshot(1)).thenReturn(card(1));
+        when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.getDetail(null, 1);
+
+        assertThat(response.endsAt()).isEqualTo(estimatedCloseTime);
     }
 
     @Test

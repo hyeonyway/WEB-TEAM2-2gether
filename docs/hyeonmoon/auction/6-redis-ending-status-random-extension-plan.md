@@ -19,6 +19,9 @@
 - `auction:ending-window:by-close-time`은 생성·시드·buy-now·일반 마감·ENDING 전이·정리 작업에서 모두 관리한다.
 - 이미 존재하는 Redis hash에는 새 필드가 없을 수 있다. reader fallback과 기동 시 bounded repair를 함께 둔다.
 - 내부 Stream에는 실제 마감시각을 기록하되, REST/SSE `endsAt`에는 `estimatedCloseTime`만 사용한다.
+- `bid-accept.lua` 응답에도 `estimatedCloseTime`을 포함한다. 입찰 HTTP 응답과 그 결과로 조립되는 `bid.placed` SSE가 실제 연장 시각을 재노출하지 않는다.
+- active index를 직접 읽지 못해 MySQL 경매와 Redis realtime 상태를 병합하는 fallback 조회도, 활성 상태면 MySQL의 `estimatedCloseTime`을 사용한다.
+- 상태 repair는 warm-up 상태 시딩과 독립적으로 실행한다. `AUCTION_STATE_WARM_UP_ENABLED=false`여도 기존 Redis hash의 ending-window 인덱스 보정은 `ending-window-repair-limit` 범위에서 수행한다.
 
 ## Global Constraints
 
@@ -134,6 +137,17 @@ public interface AuctionEndingTransitionProcessor {
 - [ ] Do not claim to reconstruct hidden extensions from old states: before this feature they had no comparable public-time contract. The repair prevents rollout failure and makes post-deploy transitions correct.
 - [ ] Add Testcontainers Redis end-to-end regression: OPEN → test clock at ending score → transition → Stream projection. Assert Redis/MySQL actual close agreement, frozen REST/SSE time, later bid unchanged times, close only at extended score, and repeated transition/backup no duplicate extension or Stream event.
 - [ ] Run `cd backend && ./gradlew clean test`. If Docker/Testcontainers is unavailable, report that prerequisite rather than calling the suite passing. Commit as `test: Redis 마감임박 전이 배포 보정과 회귀 검증 추가`.
+
+---
+
+## 완료 상태
+
+- [x] Task 1 — Redis 상태·ending-window 인덱스 생성, 시드, 종료, 정리 경로를 반영했다.
+- [x] Task 2 — Lua 기반 단발 `OPEN → ENDING` 전이와 Redis processor를 구현했다.
+- [x] Task 3 — DB/Redis 프로필이 공통 전이 processor 계약과 재예약 로직을 사용하도록 정리했다.
+- [x] Task 4 — Stream projection과 목록·상세·입찰 응답·SSE의 공개 마감시각 마스킹을 반영했다.
+- [x] Task 5 — 기존 Redis 상태 repair를 추가했고, warm-up 비활성화 상태에서도 repair가 실행되는 회귀 테스트를 추가했다.
+- [x] 리뷰 보완 — Redis Lua의 확장 응답(28필드)과 이전 27필드 idempotency 재생 응답을 함께 허용해 배포 직후 재시도 호환성을 유지한다.
 
 ## 완료 조건
 

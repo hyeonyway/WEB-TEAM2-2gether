@@ -15,6 +15,7 @@ local currentPrice = tonumber(redis.call('HGET', KEYS[1], 'currentPrice'))
 local bidIncrement = tonumber(redis.call('HGET', KEYS[1], 'bidIncrement'))
 local closeTime = redis.call('HGET', KEYS[1], 'closeTime')
 local closeTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'closeTimeEpochMillis'))
+local estimatedCloseTime = redis.call('HGET', KEYS[1], 'estimatedCloseTime') or closeTime
 local highestBidderId = redis.call('HGET', KEYS[1], 'highestBidderId')
 local highestHoldAmount = tonumber(redis.call('HGET', KEYS[1], 'highestHoldAmount') or '0')
 local requestedPrice = tonumber(ARGV[2])
@@ -124,5 +125,6 @@ local result = 'ACCEPTED|' .. streamId .. '|' .. price .. '|' .. auctionVersion 
     .. '|' .. nextStatus .. '|' .. tostring(closeTimeExtended)
     .. '|' .. cardName .. '|' .. cardPsaGrade .. '|' .. cardLanguage .. '|' .. cardThumbnailUrl .. '|' .. sellerId
     .. '|' .. previousAvailable .. '|' .. previousFrozen .. '|' .. previousWalletVersion
+    .. '|' .. estimatedCloseTime
 redis.call('SET', KEYS[4], ARGV[4] .. '|' .. result, 'EX', 86400)
 return result .. '|false'
