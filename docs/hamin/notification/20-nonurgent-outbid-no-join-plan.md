@@ -38,4 +38,10 @@ Javadoc을 "OPEN만 좁혀서 후보를 뽑는다"에서 "ENDING 제외를 안 �
 ## 테스트
 
 - `BidRepositoryTest`: `findAuctionIdsByStatusAndAuctionStatus` 관련 두 테스트를 `findAuctionIdsByStatus`로 교체 — "LEADING이면 경매 상태 무관하게 조회된다"는 걸 보이는 테스트로 재작성(기존 "경매 상태가 일치하지 않으면 조회되지 않는다" 테스트는 이제 반대로 "ENDING이어도 조회된다"가 맞는 동작이라 뒤집어야 함).
-- `NotificationReconciliationServiceTest`: `findAuctionIdsByStatusAndAuctionStatus` mock/verify를 `findAuctionIdsByStatus(LEADING)`로 교체. "ENDING 경매는 bids 조인 없이 auctionRepository로 직접 조회한다" 테스트의 `verify(bidRepository, never())` 대상도 새 메서드명으로 변경.
+- `NotificationReconciliationServiceTest`: `findAuctionIdsByStatusAndAuctionStatus` mock/verify를 `findAuctionIdsByStatus(LEADING)`로 교체. "ENDING 경매는 bids 조인 없이 auctionRepository로 직접 조회한다" 테스트의 `verify(bidRepository, never())` 대상도 새 메서드명으로 변경. non-urgent가 ENDING도 같이 잡는다는 것 자체를 보이는 회귀 테스트(`ENDING_경매도_LEADING_bid를_통해_non_urgent에서_함께_복구된다`) 추가.
+
+## 구현 완료
+
+- `BidRepository.findAuctionIdsByStatusAndAuctionStatus` 삭제, join 없는 `findAuctionIdsByStatus(BidStatus)` 추가.
+- `recoverOpenOutbidNotifications`가 `auctions` join 없이 `bids.status=LEADING`만으로 후보를 뽑도록 변경 + Javadoc 갱신.
+- `BidRepositoryTest`, `NotificationReconciliationServiceTest` 갱신, 영향받는 테스트 클래스 통과 확인.
