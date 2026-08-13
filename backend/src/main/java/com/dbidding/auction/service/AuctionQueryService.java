@@ -131,17 +131,20 @@ public class    AuctionQueryService {
     ) {
         String zsetKey = sortZSetKey(sort);
         boolean descending = sort != AuctionSort.PRICE_LOW;
-        Double afterScore = cursor == null ? null : cursorScore(cursor, sort);
-        AuctionCursor boundaryCursor = cursor;
+        Double initialBound = cursor == null ? null : cursorScore(cursor, sort);
+        Double bound = initialBound;
+        long withinBoundOffset = 0;
         List<RedisAuctionRealtimeStateReader.AuctionState> collected = new ArrayList<>();
         boolean exhausted = false;
         for (int batch = 0; collected.size() < limit && !exhausted && batch < SORT_ZSET_MAX_BATCHES; batch++) {
-            List<ZSetOperations.TypedTuple<String>> raw = realtimeStateReader.activeIdsBatch(zsetKey, descending, afterScore, SORT_ZSET_FETCH_BATCH_SIZE);
+            List<ZSetOperations.TypedTuple<String>> raw = realtimeStateReader.activeIdsBatch(zsetKey, descending, bound, withinBoundOffset, SORT_ZSET_FETCH_BATCH_SIZE);
             if (raw.isEmpty()) {
                 exhausted = true;
                 break;
             }
-            AuctionCursor cursorForFilter = boundaryCursor;
+            // 커서 경계 필터는 "아직 사용자 커서와 같은 score(동점 구간) 안에 있을 때"만 적용한다.
+            // score가 바뀌면 그 뒤로는 전부 커서 이후이므로(순서상 모호함이 없음) 더 적용할 필요가 없다.
+            AuctionCursor cursorForFilter = cursor != null && java.util.Objects.equals(bound, initialBound) ? cursor : null;
             List<RedisAuctionRealtimeStateReader.AuctionState> filtered = raw.stream()
                     .map(tuple -> realtimeStateReader.readAuctionState(Integer.valueOf(tuple.getValue())))
                     .filter(Objects::nonNull)
@@ -155,11 +158,17 @@ public class    AuctionQueryService {
                     .filter(state -> cursorForFilter == null || isAfterCursor(state, cursorForFilter, sort))
                     .toList();
             collected.addAll(filtered);
-            ZSetOperations.TypedTuple<String> lastRaw = raw.getLast();
-            afterScore = lastRaw.getScore();
-            boundaryCursor = new AuctionCursor(sort, afterScore == null ? null : afterScore.longValue(),
-                    sort == AuctionSort.LATEST ? java.time.Instant.ofEpochMilli(afterScore == null ? 0 : afterScore.longValue()) : null,
-                    Integer.valueOf(lastRaw.getValue()));
+            double lastScore = raw.getLast().getScore();
+            long itemsAtLastScore = raw.stream().filter(tuple -> tuple.getScore() == lastScore).count();
+            // 이 배치 전체가 여전히 같은 bound(score)에 머물러 있으면 - batchSize를 넘는 동점이 있다는 뜻이므로,
+            // 같은 score 안에서 이미 가져온 만큼 offset을 늘려 다음 호출이 이어서 가져오게 한다. score가
+            // 바뀌었으면 그 새 score에서 이 배치가 이미 소비한 만큼만 offset으로 남긴다.
+            if (bound != null && lastScore == bound) {
+                withinBoundOffset += raw.size();
+            } else {
+                bound = lastScore;
+                withinBoundOffset = itemsAtLastScore;
+            }
             if (raw.size() < SORT_ZSET_FETCH_BATCH_SIZE) exhausted = true;
         }
         return collected.size() > limit ? collected.subList(0, limit) : collected;
