@@ -8,6 +8,7 @@ import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @Profile("redis")
@@ -28,6 +29,18 @@ public class AuctionStreamRecoveryAdminService {
                 inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.ERROR),
                 first == null ? null : first.getStreamId(),
                 first == null ? null : first.getFailureMessage()
+        );
+    }
+
+    public AuctionStreamRecoveryEventPage events(Integer userId, int page) {
+        requireAdmin(userId);
+        var result = inboxRepository.findByProjectionStatusInOrderByIdAsc(
+                java.util.List.of(AuctionBidEventProjectionStatus.PENDING, AuctionBidEventProjectionStatus.ERROR),
+                PageRequest.of(Math.max(0, page), 50)
+        );
+        return new AuctionStreamRecoveryEventPage(
+                result.getContent().stream().map(AuctionStreamRecoveryEventResponse::from).toList(),
+                result.getNumber(), result.getTotalPages(), result.getTotalElements()
         );
     }
 
