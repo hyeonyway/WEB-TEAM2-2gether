@@ -49,6 +49,19 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     Page<Bid> findByAuctionIdOrderByCreatedAtDescIdDesc(Integer auctionId, Pageable pageable);
 
+    @Query(
+            value = """
+                    SELECT ranked.* FROM (
+                        SELECT b.*, ROW_NUMBER() OVER (PARTITION BY b.auction_id ORDER BY b.created_at DESC, b.id DESC) AS row_number
+                        FROM bids b
+                        WHERE b.auction_id IN (:auctionIds)
+                    ) ranked
+                    WHERE ranked.row_number <= 5
+                    """,
+            nativeQuery = true
+    )
+    List<Bid> findRecentFiveByAuctionIdIn(@Param("auctionIds") Collection<Integer> auctionIds);
+
     List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDescIdDesc(Collection<Integer> auctionIds, Integer bidderId);
 
     List<Bid> findByBidderIdOrderByCreatedAtDescIdDesc(Integer bidderId);

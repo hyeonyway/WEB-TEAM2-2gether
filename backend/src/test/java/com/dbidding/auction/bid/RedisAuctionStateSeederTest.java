@@ -50,6 +50,8 @@ class RedisAuctionStateSeederTest {
         ReflectionTestUtils.setField(auction, "lastBidEventVersion", 0L);
         given(projectionCatchUpVerifier.isCaughtUp()).willReturn(true);
         given(bidRepository.findByAuctionIdInAndStatus(anyList(), any())).willReturn(List.of());
+        given(bidRepository.findLatestBidPerBidderByAuctionIdIn(anyList())).willReturn(List.of());
+        given(bidRepository.findRecentFiveByAuctionIdIn(anyList())).willReturn(List.of());
         given(cardStateReader.getCardSnapshots(anyList())).willReturn(java.util.Map.of(2,
                 new CardSnapshot(2, "카드", "세트", null, null, "thumbnail")));
         given(redisTemplate.execute(eq(auctionStateSeedScript), anyList(), any(Object[].class))).willReturn(1L);

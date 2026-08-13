@@ -100,6 +100,7 @@ redis.call('XADD', 'auction:recent-bids:' .. string.match(KEYS[1], 'auction:stat
     'bidderId', ARGV[1], 'bidPrice', price, 'sequence', auctionVersion, 'occurredAt', ARGV[6])
 redis.call('HSET', 'auction:bidder:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. ARGV[1],
     'status', buyNow and 'WON' or 'LEADING', 'amount', price)
+redis.call('SADD', 'auction:dashboard:participating:' .. ARGV[1], string.match(KEYS[1], 'auction:state:(.+)'))
 
 local streamId = redis.call('XADD', KEYS[5], '*',
     'schemaVersion', '1', 'eventType', buyNow and 'auction.buy-now.v1' or 'bid.accepted.v1',
