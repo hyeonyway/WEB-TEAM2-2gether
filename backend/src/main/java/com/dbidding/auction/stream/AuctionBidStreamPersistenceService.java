@@ -185,7 +185,7 @@ public class AuctionBidStreamPersistenceService {
         winner.markWon();
         auction.closeWithWinningBid(winner, event.occurredAt());
         walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
-        completeBuyNow(auction, winner, event.occurredAt());
+        completeBuyNow(auction, winner, event.occurredAt(), event.streamId());
     }
 
     private void persistBid(BidAcceptedStreamEvent event) {
@@ -198,7 +198,7 @@ public class AuctionBidStreamPersistenceService {
         if (bid != null) {
             bidRepository.save(bid);
             if (event.isBuyNow()) {
-                completeBuyNow(auction, bid, event.occurredAt());
+                completeBuyNow(auction, bid, event.occurredAt(), event.streamId());
             }
         }
     }
@@ -269,13 +269,13 @@ public class AuctionBidStreamPersistenceService {
     }
 
     /** 기존 즉시 낙찰 경로의 주문 생성과 종료 이벤트를 같은 DB 트랜잭션에 포함한다. */
-    private void completeBuyNow(Auction auction, Bid winningBid, java.time.Instant occurredAt) {
+    private void completeBuyNow(Auction auction, Bid winningBid, java.time.Instant occurredAt, String streamId) {
         CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         orderService.createFromAuctionClosed(
                 auction.getId(), winningBid.getBidderId(), auction.getSellerId(), card.name(), winningBid.getBidPrice()
         );
         orderRealtimeStateProjection.ifPresent(projection -> orderRepository.findByAuctionId(auction.getId())
-                .ifPresent(order -> projection.markProjectedAfterCommit(auction.getId(), order.getId())));
+                .ifPresent(order -> projection.markCreatedOrderAfterCommit(order, streamId)));
         auctionEventPublisher.publishClosed(new AuctionClosedEvent(
                 auction.getId(), card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
                 winningBid.getBidderId(), auction.getSellerId(), auction.getStartPrice(), auction.getCurrentPrice(),
