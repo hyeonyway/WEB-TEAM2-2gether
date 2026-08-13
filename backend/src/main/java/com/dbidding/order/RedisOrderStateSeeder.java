@@ -43,6 +43,20 @@ class RedisOrderStateSeeder {
         });
     }
 
+    /**
+     * 호출부(RedisOrderListStateSeeder.seedIfRequired)가 여러 주문을 시딩하는 루프에 들어가기 전
+     * 이미 isCaughtUp()을 한 번 확인한 경우 사용한다. 주문마다 같은 전역 상태를 다시 물어보는
+     * 중복 쿼리(N+1)를 없애기 위한 경로이므로, 바깥에서 catch-up을 보장하지 않는 곳에서는 쓰면 안 된다.
+     */
+    boolean seedAssumingCaughtUp(Order order) {
+        String indexKey = "order:state:by-order-id:" + order.getId();
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
+        return singleFlight.execute(indexKey, () -> {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
+            return seed(order);
+        });
+    }
+
     private boolean seed(Order order) {
         String indexKey = "order:state:by-order-id:" + order.getId();
         return Long.valueOf(1L).equals(redisTemplate.execute(orderStateSeedScript,

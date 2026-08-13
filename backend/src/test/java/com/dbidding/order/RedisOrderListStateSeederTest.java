@@ -37,8 +37,9 @@ class RedisOrderListStateSeederTest {
 
         seeder.seedIfRequired(7, true);
 
-        verify(orderStateSeeder).seedIfAbsent(order1);
-        verify(orderStateSeeder).seedIfAbsent(order2);
+        verify(catchUpVerifier, times(1)).isCaughtUp();
+        verify(orderStateSeeder).seedAssumingCaughtUp(order1);
+        verify(orderStateSeeder).seedAssumingCaughtUp(order2);
         verify(valueOperations).set(org.mockito.ArgumentMatchers.eq("order:state:seeded:buyer:7"), org.mockito.ArgumentMatchers.eq("1"),
                 org.mockito.ArgumentMatchers.any(java.time.Duration.class));
     }
