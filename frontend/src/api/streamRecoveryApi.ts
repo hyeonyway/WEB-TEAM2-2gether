@@ -1,7 +1,6 @@
 import {authenticatedRequest} from './authenticatedRequest';
 
 export type StreamRecoveryStatusDto={
-  paused:boolean;
   pendingCount:number;
   errorCount:number;
   firstIncompleteStreamId:string|null;

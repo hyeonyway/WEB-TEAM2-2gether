@@ -32,8 +32,8 @@ import org.springframework.stereotype.Component;
  * 단일 Redis Stream을 순서대로 MySQL projection으로 전달하는 전역 단일 consumer다.
  *
  * <p>leader lock은 여러 애플리케이션 인스턴스가 떠도 활성 worker를 하나로 제한한다. 이 consumer는
- * 한 번에 한 이벤트만 처리하고, 처리 완료 후에는 ACK만 한다. Stream 레코드는 Redis AOF 기반의
- * 재구성 원본이므로 여기서 삭제하지 않는다.</p>
+ * 한 번에 한 이벤트만 처리하고, 처리 결론이 난 entry는 ACK와 XDEL로 즉시 제거한다.
+ * inbox가 projection 결과와 오류 원인의 영속 근거다.</p>
  */
 @Slf4j
 @Component
@@ -48,7 +48,6 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
-    private final AuctionTimelineStreamPauseRegistry pauseRegistry;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("auction-timeline-single-", 0).factory()
     );
@@ -77,10 +76,6 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
         while (running) {
             try {
                 if (!leaderLock.isLeader() && !leaderLock.tryAcquire()) {
-                    Thread.sleep(Duration.ofSeconds(1));
-                    continue;
-                }
-                if (pauseRegistry.isPaused()) {
                     Thread.sleep(Duration.ofSeconds(1));
                     continue;
                 }
@@ -133,7 +128,7 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
             if (!persistenceService.hasProjectionError() && persistenceService.markError(inbox.getStreamId(), exception)) {
                 log.error("event=auction.bid.stream.projection.error streamId={} malformed=true", inbox.getStreamId(), exception);
             }
-            acknowledge(record);
+            acknowledgeAndDelete(record);
             return;
         }
         persistenceService.recordPending(event);
@@ -145,9 +140,8 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
                 log.error("event=auction.bid.stream.projection.error streamId={} auctionId={}",
                         event.streamId(), event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null, failure);
             }
-            pauseRegistry.pause(event.streamId(), auctionIdOf(event), versionOf(event), failure);
         }
-        acknowledge(record);
+        acknowledgeAndDelete(record);
     }
 
     private RuntimeException projectWithRetry(AuctionWalletTimelineEvent event) {
@@ -177,22 +171,13 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
                 || exception instanceof CannotCreateTransactionException;
     }
 
-    private Integer auctionIdOf(AuctionWalletTimelineEvent event) {
-        if (event instanceof BidAcceptedStreamEvent bid) return bid.auctionId();
-        if (event instanceof AuctionCloseRequestedStreamEvent close) return close.auctionId();
-        if (event instanceof AuctionCreatedStreamEvent created) return created.auctionId();
-        if (event instanceof OrderStateChangedStreamEvent order) return order.auctionId();
-        return null;
-    }
-
-    private Long versionOf(AuctionWalletTimelineEvent event) {
-        if (event instanceof BidAcceptedStreamEvent bid) return bid.auctionVersion();
-        if (event instanceof OrderStateChangedStreamEvent order) return order.orderVersion();
-        return null;
-    }
-
     void acknowledge(MapRecord<String, Object, Object> record) {
         redisTemplate.opsForStream().acknowledge(STREAM_KEY, GROUP, record.getId());
+    }
+
+    void acknowledgeAndDelete(MapRecord<String, Object, Object> record) {
+        acknowledge(record);
+        redisTemplate.opsForStream().delete(STREAM_KEY, record.getId());
     }
 
     private Map<String, String> stringValues(Map<Object, Object> values) {

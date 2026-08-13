@@ -16,7 +16,6 @@ import org.springframework.data.domain.PageRequest;
 public class AuctionStreamRecoveryAdminService {
     private final AccountRepository accountRepository;
     private final AuctionBidEventInboxRepository inboxRepository;
-    private final AuctionTimelineStreamPauseRegistry pauseRegistry;
 
     public AuctionStreamRecoveryStatus status(Integer userId) {
         requireAdmin(userId);
@@ -24,7 +23,6 @@ public class AuctionStreamRecoveryAdminService {
                 .findFirstByProjectionStatusInOrderByIdAsc(java.util.List.of(AuctionBidEventProjectionStatus.PENDING, AuctionBidEventProjectionStatus.ERROR))
                 .orElse(null);
         return new AuctionStreamRecoveryStatus(
-                pauseRegistry.isPaused(),
                 inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.PENDING),
                 inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.ERROR),
                 first == null ? null : first.getStreamId(),
