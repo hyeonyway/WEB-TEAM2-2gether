@@ -20,6 +20,7 @@ import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.exception.InvalidCredentialsException;
 import com.dbidding.account.service.SignupService;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.global.security.CurrentUser;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +35,7 @@ public class AuthController {
 	private final SignupService signupService;
 	private final CredentialAuthenticationService credentialAuthenticationService;
 	private final AuthenticationStrategy authenticationStrategy;
+	private final AccountRepository accountRepository;
 
 	@PostMapping("/signup")
 	public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
@@ -59,7 +61,8 @@ public class AuthController {
 
 	@GetMapping("/me")
 	public CurrentAccountResponse currentAccount(@CurrentUser Integer userId) {
-		return new CurrentAccountResponse(userId);
+		String role = accountRepository.findById(userId).orElseThrow().getRole().name();
+		return new CurrentAccountResponse(userId, role);
 	}
 
 	@ExceptionHandler({

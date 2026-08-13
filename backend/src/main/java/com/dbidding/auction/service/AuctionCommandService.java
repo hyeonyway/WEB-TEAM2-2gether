@@ -141,7 +141,7 @@ public class AuctionCommandService {
                 savedAuction.getCurrentPrice(),
                 savedAuction.getBidPriceUnit(),
                 savedAuction.getBidCount(),
-                savedAuction.getCloseTime(),
+                savedAuction.getEstimatedCloseTime(),
                 savedAuction.getStatus(),
                 now
         );
@@ -165,7 +165,7 @@ public class AuctionCommandService {
             Instant endsAt
     ) {
         RedisAuctionCreateResult created = redisAuctionCreateExecutor.execute(new RedisAuctionCreateCommand(
-                userId, request.itemId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
+                userId, request.itemId(), card.name(), card.setName(), card.psaGrade(), card.language(), card.thumbnailUrl(),
                 request.auctionName(), request.description(), request.sellerMemo(),
                 request.psaCertification(), request.selfGrade(), psaVerified, request.startPrice(), request.buyNowPrice(),
                 request.shippingFee(), request.bidIncrement(), images.stream()
@@ -178,8 +178,13 @@ public class AuctionCommandService {
                 userId, request.startPrice(), request.startPrice(), request.bidIncrement(), 0,
                 created.closeTime(), created.status(), now
         );
-        auctionEventPublisher.publishOpened(openedEvent);
-        auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
+        if (!created.replayed()) {
+            auctionEventPublisher.publishOpened(openedEvent);
+            auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
+            eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
+                    created.auctionId(), created.closeTime(), "auction_created"
+            ));
+        }
         return AuctionCreateResponse.builder()
                 .id(created.auctionId())
                 .status(created.status())
@@ -219,8 +224,8 @@ public class AuctionCommandService {
 
     /**
      * {@code bidExecutor.execute()}는 이벤트를 발행하지 않으므로(#281), 여기서 result로부터
-     * 조립해서 발행한다. buyNow로 즉시낙찰된 경우 {@code AuctionClosedEvent}도, 마감시간이
-     * 연장된 경우 {@code AuctionCloseScheduleChangedEvent}도 같은 자리에서 순서대로 발행한다.
+     * 조립해서 발행한다. buyNow로 즉시낙찰된 경우 {@code AuctionClosedEvent}도 같은 자리에서
+     * 순서대로 발행한다.
      */
     private void publishBidEvents(Integer userId, Integer auctionId, BidExecutionResult outcome) {
         BidEventData data = outcome.eventData();
@@ -248,11 +253,6 @@ public class AuctionCommandService {
             );
             auctionEventPublisher.publishClosed(closed);
             auctionStreamPublisher.publish(AuctionStreamPayload.closed(closed));
-        }
-        if (data.closeTimeExtended()) {
-            eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
-                    auctionId, auction.endsAt(), "close_time_extended"
-            ));
         }
     }
 
@@ -465,7 +465,7 @@ public class AuctionCommandService {
                 .id(auction.getId())
                 .status(auction.getStatus())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .endsAt(auction.getEstimatedCloseTime())
                 .build();
     }
 

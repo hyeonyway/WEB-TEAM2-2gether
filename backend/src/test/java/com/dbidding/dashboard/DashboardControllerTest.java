@@ -24,7 +24,7 @@ class DashboardControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private DashboardService dashboardService;
+    private DashboardQueryService dashboardService;
 
     @MockitoBean
     private CurrentUserProvider currentUserProvider;

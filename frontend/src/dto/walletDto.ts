@@ -8,7 +8,7 @@ export type WalletBalanceDto = {
 export type WalletTransactionType = 'CHARGE' | 'REFUND';
 
 export type WalletTransactionDto = {
-  transactionId: number;
+  transactionId: number|null;
   transactionType: WalletTransactionType;
   amount: number;
   balance: number;

@@ -58,10 +58,15 @@ class RedisAuctionCreateLuaIntegrationTest {
                 .containsEntry("status", "OPEN")
                 .containsEntry("sellerId", "7")
                 .containsEntry("cardName", "리자몽")
+                .containsEntry("cardSetName", "base")
                 .containsEntry("currentPrice", "40000")
-                .containsEntry("bidCount", "0");
+                .containsEntry("bidCount", "0")
+                .containsEntry("estimatedCloseTime", "2026-08-12T12:00:00Z")
+                .containsEntry("estimatedCloseTimeEpochMillis", "1786536000000");
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         assertThat(redisTemplate.opsForZSet().range("auction:active:by-close-time", 0, -1)).containsExactly("1");
+        assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "1"))
+                .isEqualTo(1786535700000D);
         var event = redisTemplate.opsForStream()
                 .read(StreamOffset.create("event:timeline", ReadOffset.from("0-0")))
                 .getFirst().getValue();
@@ -75,7 +80,7 @@ class RedisAuctionCreateLuaIntegrationTest {
     }
 
     private RedisAuctionCreateCommand command(String idempotencyKey) {
-        return new RedisAuctionCreateCommand(7, 10, "리자몽", "10", "JP", "/cards/charizard.png", "리자몽 경매", "설명", "메모", null, "NM", false,
+        return new RedisAuctionCreateCommand(7, 10, "리자몽", "base", "10", "JP", "/cards/charizard.png", "리자몽 경매", "설명", "메모", null, "NM", false,
                 40_000L, 80_000L, 3_000L, 1_000L, List.of("/auctions/1.png", "/auctions/2.png"),
                 Instant.parse("2026-08-12T12:00:00Z"), idempotencyKey, "a".repeat(64));
     }

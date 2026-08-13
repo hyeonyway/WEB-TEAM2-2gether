@@ -1,5 +1,6 @@
 import {Route, Routes} from 'react-router-dom';
 import {Header} from '../components';
+import {Navigate} from 'react-router-dom';
 import {RequireAuth} from '../auth/RequireAuth';
 import AuctionDetailPage from '../pages/auction-detail';
 import AuctionPage from '../pages/auction';
@@ -9,6 +10,7 @@ import DashboardPage from '../pages/dashboard';
 import HomePage from '../pages/home';
 import MyPage from '../pages/mypage';
 import SellPage from '../pages/sell';
+import StreamRecoveryPage from '../pages/stream-recovery';
 import {routePaths} from './routePaths';
 
 export function AppRoutes() {
@@ -21,6 +23,8 @@ export function AppRoutes() {
       <Route path={routePaths.auctionDetail} element={<AuctionDetailPage/>}/>
       <Route path={routePaths.dashboard} element={<RequireAuth><DashboardPage/></RequireAuth>}/>
       <Route path={routePaths.myPage} element={<RequireAuth><MyPage/></RequireAuth>}/>
+      <Route path={routePaths.admin} element={<StreamRecoveryPage/>}/>
+      <Route path="/admin/stream-recovery" element={<Navigate to={routePaths.admin} replace/>}/>
       <Route
         path={routePaths.sell}
         element={<RequireAuth><SellPage Header={Header}/></RequireAuth>}

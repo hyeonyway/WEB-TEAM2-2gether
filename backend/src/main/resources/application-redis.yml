@@ -21,5 +21,17 @@ app:
       # 단일 timeline queue는 leader lock을 획득한 하나의 Consumer만 순차 처리한다.
       consumer-lock-at-most-for: ${AUCTION_REDIS_BID_CONSUMER_LOCK_AT_MOST_FOR:5m}
       # 한 번의 blocking read 후 단건씩 처리할 최대 이벤트 수. 각 이벤트는 별도 DB 트랜잭션과 ACK를 사용한다.
-      # ACK된 Stream 레코드는 삭제하지 않으며 AOF 기반 재구성 원본으로 보존한다.
+      # inbox에 결과가 기록된 Stream 레코드는 ACK와 XDEL로 즉시 제거한다.
       max-records-per-run: ${AUCTION_REDIS_BID_MAX_RECORDS_PER_RUN:100}
+
+auction:
+  active-index:
+    cleanup:
+      fixed-delay-ms: ${AUCTION_ACTIVE_INDEX_CLEANUP_FIXED_DELAY_MS:3600000}
+      stale-after: ${AUCTION_ACTIVE_INDEX_CLEANUP_STALE_AFTER:PT24H}
+      batch-size: ${AUCTION_ACTIVE_INDEX_CLEANUP_BATCH_SIZE:100}
+  state-seeding:
+    warm-up:
+      enabled: ${AUCTION_STATE_WARM_UP_ENABLED:true}
+      closing-window-minutes: ${AUCTION_STATE_WARM_UP_CLOSING_WINDOW_MINUTES:30}
+      recent-limit: ${AUCTION_STATE_WARM_UP_RECENT_LIMIT:100}

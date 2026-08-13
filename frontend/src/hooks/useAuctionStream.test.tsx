@@ -27,11 +27,17 @@ const basePayload={
   occurred_at:'2026-08-03T14:28:12Z',
 };
 
-function publish(type:'AUCTION_CREATED'|'BID_PLACED'|'AUCTION_CLOSED',data:object|string){
+// 공유 연결의 event_id 중복 판별은 세션 동안 유지되는 모듈 상태라 테스트 사이에도 리셋되지 않는다.
+// 그래서 매 publish마다 파일 전체에서 한 번도 쓰인 적 없는 새 id를 기본값으로 부여해,
+// 명시적으로 id를 지정하는 테스트(중복/리마운트 시나리오)를 제외하고는 서로 영향을 주지 않게 한다.
+let nextEventId=1;
+
+function publish(type:'AUCTION_CREATED'|'BID_PLACED'|'AUCTION_CLOSED'|'AUCTION_ENDING_STARTED',data:object|string,eventId?:number){
   const eventSource=EventSourceMock.instances.at(-1);
   if(!eventSource)throw new Error('EventSource가 생성되지 않았습니다.');
   eventSource.dispatchEvent(new MessageEvent(type,{
     data:typeof data==='string'?data:JSON.stringify(data),
+    lastEventId:String(eventId??nextEventId++),
   }));
 }
 
@@ -53,6 +59,7 @@ describe('useAuctionStream',()=>{
     ['AUCTION_CREATED',{...basePayload,card_id:3,card_name:'리자몽',card_psa_grade:'10',card_language:'JP',card_thumbnail_url:null,seller_id:20}],
     ['BID_PLACED',{...basePayload,bidder_id:7,previous_bidder_id:5}],
     ['AUCTION_CLOSED',{...basePayload,final_price:50_000,card_id:3,card_name:'리자몽',card_psa_grade:'10',card_language:'JP',card_thumbnail_url:null,seller_id:20,winner_id:7}],
+    ['AUCTION_ENDING_STARTED',{...basePayload,status:'ENDING'}],
   ] as const)('%s event 필드를 payload 타입으로 사용한다',(type,data)=>{
     const onAuctionUpdated=vi.fn();
     renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated}));
@@ -93,6 +100,27 @@ describe('useAuctionStream',()=>{
 
     expect(eventSource.close).toHaveBeenCalledOnce();
     expect(onAuctionUpdated).not.toHaveBeenCalled();
+  });
+
+  it('이미 처리한 event_id는 구독자를 다시 마운트해도 중복 반영하지 않는다',()=>{
+    const first=vi.fn();
+    const firstHook=renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated:first}));
+    const eventId=nextEventId++;
+
+    act(()=>publish('BID_PLACED',{...basePayload,bidder_id:7,previous_bidder_id:null},eventId));
+    expect(first).toHaveBeenCalledOnce();
+
+    // 모달을 닫았다 다시 여는 것과 같은 리마운트: 새 구독자를 등록해도 다른 구독자가 남아있어
+    // 공유 연결은 계속 열려 있고, 이미 처리한 event_id 기록도 유지된다.
+    firstHook.unmount();
+    const second=vi.fn();
+    renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated:second}));
+
+    act(()=>publish('BID_PLACED',{...basePayload,bidder_id:7,previous_bidder_id:null},eventId));
+    expect(second).not.toHaveBeenCalled();
+
+    act(()=>publish('BID_PLACED',{...basePayload,bidder_id:7,previous_bidder_id:null}));
+    expect(second).toHaveBeenCalledOnce();
   });
 
   it('여러 훅이 하나의 EventSource 연결을 공유한다',()=>{

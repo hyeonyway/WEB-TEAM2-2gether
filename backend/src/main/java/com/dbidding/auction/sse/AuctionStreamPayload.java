@@ -1,6 +1,7 @@
 package com.dbidding.auction.sse;
 
 import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
@@ -60,6 +61,23 @@ public record AuctionStreamPayload(
                 event.bidIncrement(), event.bidCount(), event.closeTime(),
                 event.status(), event.closeTime(),
                 event.occurredAt(), null);
+    }
+
+    public static AuctionStreamPayload endingStarted(Auction auction, Instant occurredAt) {
+        return new AuctionStreamPayload(
+                AuctionStreamEventType.AUCTION_ENDING_STARTED, auction.getId(), null, null, null, null, null, null,
+                null, null, null, auction.getStartPrice(), auction.getCurrentPrice(), null,
+                auction.getBidPriceUnit(), auction.getBidCount(), auction.getEstimatedCloseTime(),
+                auction.getStatus(), null, occurredAt, null
+        );
+    }
+
+    public static AuctionStreamPayload endingStarted(Integer auctionId, Instant estimatedCloseTime, Instant occurredAt) {
+        return new AuctionStreamPayload(
+                AuctionStreamEventType.AUCTION_ENDING_STARTED, auctionId, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, estimatedCloseTime,
+                AuctionStatus.ENDING, null, occurredAt, null
+        );
     }
 
     public AuctionStreamPayload withPublishedAt(Instant publishedAt) {

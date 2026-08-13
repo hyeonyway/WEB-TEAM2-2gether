@@ -22,6 +22,7 @@ import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
+import com.dbidding.auction.bid.RedisAuctionStateSeeder;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -51,6 +52,8 @@ public class    AuctionQueryService {
     private final Clock clock;
     @Autowired(required = false)
     private RedisAuctionRealtimeStateReader realtimeStateReader;
+    @Autowired(required = false)
+    private RedisAuctionStateSeeder stateSeeder;
 
     public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
             Integer userId,
@@ -166,14 +169,14 @@ public class    AuctionQueryService {
                 .startPrice(state.startPrice()).currentPrice(state.currentPrice()).bidIncrement(state.bidIncrement())
                 .minimumBid(state.buyNowPrice() == null ? state.currentPrice() + state.bidIncrement()
                         : Math.min(state.currentPrice() + state.bidIncrement(), state.buyNowPrice()))
-                .bidCount(state.bidCount()).buyNowPrice(state.buyNowPrice()).startsAt(state.openTime()).endsAt(state.closeTime())
+                .bidCount(state.bidCount()).buyNowPrice(state.buyNowPrice()).startsAt(state.openTime()).endsAt(publicCloseTime(state))
                 .status(state.status()).myBidStatus(realtime == null ? MyBidStatus.NONE : realtime.myBidStatus())
                 .myBidAmount(realtime == null ? null : realtime.myBidAmount()).build();
     }
 
     private CardSnapshot redisCardSnapshot(RedisAuctionRealtimeStateReader.AuctionState state) {
         return new CardSnapshot(
-                state.itemId(), state.cardName(), "", state.cardPsaGrade(), state.cardLanguage(), state.cardThumbnailUrl()
+                state.itemId(), state.cardName(), state.cardSetName(), state.cardPsaGrade(), state.cardLanguage(), state.cardThumbnailUrl()
         );
     }
 
@@ -247,6 +250,7 @@ public class    AuctionQueryService {
     }
 
     public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
+        seedAuctionIfRequired(auctionId);
         RedisAuctionRealtimeStateReader.AuctionState redisState = realtimeStateReader == null ? null
                 : realtimeStateReader.readAuctionState(auctionId);
         if (redisState != null) {
@@ -287,6 +291,7 @@ public class    AuctionQueryService {
     }
 
     public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
+        seedAuctionIfRequired(auctionId);
         WalletBalanceResponse wallet = walletService.getBalance(userId);
         RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader == null ? null : realtimeStateReader.read(auctionId, userId);
         if (realtime != null) {
@@ -316,6 +321,12 @@ public class    AuctionQueryService {
     private Auction getAuction(Integer auctionId) {
         return auctionRepository.findById(auctionId)
 				.orElseThrow(AuctionException::notFound);
+    }
+
+    private void seedAuctionIfRequired(Integer auctionId) {
+        if (realtimeStateReader != null && realtimeStateReader.readAuctionState(auctionId) == null && stateSeeder != null) {
+            stateSeeder.seedIfAbsent(auctionId);
+        }
     }
 
     private Map<Integer, CardSnapshot> cardSnapshots(List<Auction> auctions) {
@@ -382,7 +393,7 @@ public class    AuctionQueryService {
                 .bidCount(realtime == null ? auction.getBidCount() : realtime.bidCount())
                 .buyNowPrice(realtime == null ? auction.getBuyNowPrice() : realtime.buyNowPrice())
                 .startsAt(auction.getOpenTime())
-                .endsAt(realtime == null ? auction.getCloseTime() : realtime.closeTime())
+                .endsAt(realtime == null ? publicCloseTime(auction) : publicCloseTime(auction, realtime.status(), realtime.closeTime()))
                 .status(realtime == null ? auction.getStatus() : realtime.status())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
@@ -403,6 +414,11 @@ public class    AuctionQueryService {
         );
     }
 
+    private Instant publicCloseTime(Auction auction) {
+        return auction.getStatus() == AuctionStatus.OPEN || auction.getStatus() == AuctionStatus.ENDING
+                ? auction.getEstimatedCloseTime() : auction.getCloseTime();
+    }
+
     private AuctionResponses.AuctionDetail detail(
             Auction auction,
             CardSnapshot card,
@@ -419,7 +435,7 @@ public class    AuctionQueryService {
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .endsAt(publicCloseTime(auction))
                 .status(auction.getStatus())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
@@ -452,7 +468,7 @@ public class    AuctionQueryService {
                 .startPrice(state.startPrice()).currentPrice(state.currentPrice()).bidIncrement(state.bidIncrement())
                 .minimumBid(state.buyNowPrice() == null ? state.currentPrice() + state.bidIncrement()
                         : Math.min(state.currentPrice() + state.bidIncrement(), state.buyNowPrice()))
-                .bidCount(state.bidCount()).startsAt(state.openTime()).endsAt(state.closeTime()).status(state.status())
+                .bidCount(state.bidCount()).startsAt(state.openTime()).endsAt(publicCloseTime(state)).status(state.status())
                 .myBidStatus(realtime == null ? MyBidStatus.NONE : realtime.myBidStatus())
                 .myBidAmount(realtime == null ? null : realtime.myBidAmount()).description(state.description())
                 .sellerMemo(state.sellerMemo()).sellerGrade(state.selfGrade()).shippingFee(state.deliveryFee())
@@ -469,12 +485,25 @@ public class    AuctionQueryService {
                 .id(auction.getId()).card(cardSummary(card, null)).seller(sellerSummary(auction.getSellerId()))
                 .startPrice(auction.getStartPrice()).currentPrice(realtime.currentPrice())
                 .bidIncrement(realtime.bidIncrement()).minimumBid(realtime.currentPrice() + realtime.bidIncrement())
-                .bidCount(realtime.bidCount()).startsAt(auction.getOpenTime()).endsAt(realtime.closeTime())
+                .bidCount(realtime.bidCount()).startsAt(auction.getOpenTime())
+                .endsAt(publicCloseTime(auction, realtime.status(), realtime.closeTime()))
                 .status(realtime.status()).myBidStatus(realtime.myBidStatus()).myBidAmount(realtime.myBidAmount())
                 .description(auction.getDescription()).sellerMemo(auction.getSellerMemo()).sellerGrade(auction.getSelfGrade())
                 .shippingFee(auction.getDeliveryFee()).buyNowPrice(realtime.buyNowPrice()).photos(photos(images))
                 .psaCertification(new AuctionResponses.PsaCertification(auction.getPsaCertification(), card.psaGrade(), null,
                         Boolean.TRUE.equals(auction.getPsaVerified()))).build();
+    }
+
+    private Instant publicCloseTime(RedisAuctionRealtimeStateReader.AuctionState state) {
+        return state.status() == AuctionStatus.OPEN || state.status() == AuctionStatus.ENDING
+                ? state.estimatedCloseTime()
+                : state.closeTime();
+    }
+
+    private Instant publicCloseTime(Auction auction, AuctionStatus realtimeStatus, Instant realtimeCloseTime) {
+        return realtimeStatus == AuctionStatus.OPEN || realtimeStatus == AuctionStatus.ENDING
+                ? auction.getEstimatedCloseTime()
+                : realtimeCloseTime;
     }
 
     private boolean isVerifiedPsaCertification(String psaGrade, String psaCertification) {

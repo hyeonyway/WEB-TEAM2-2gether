@@ -1,0 +1,110 @@
+package com.dbidding.auction.bid;
+
+import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.domain.Bid;
+import com.dbidding.auction.domain.BidStatus;
+import com.dbidding.auction.repository.AuctionImageRepository;
+import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
+import com.dbidding.auction.exception.AuctionException;
+import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
+import com.dbidding.global.concurrent.RedisStateSingleFlight;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Profile;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+/** MySQL projection의 활성 경매를 Redis state miss 때만 조건부 생성한다. */
+@Component
+@Profile("redis")
+@RequiredArgsConstructor
+public class RedisAuctionStateSeeder {
+    private static final String ACTIVE_BY_CLOSE_TIME = "auction:active:by-close-time";
+    private final AuctionRepository auctionRepository;
+    private final BidRepository bidRepository;
+    private final AuctionImageRepository auctionImageRepository;
+    private final RedisCardStateReader cardStateReader;
+    private final StringRedisTemplate redisTemplate;
+    private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
+    private final RedisStateSingleFlight singleFlight;
+    @Qualifier("auctionStateSeedScript") private final RedisScript<Long> auctionStateSeedScript;
+
+    @Transactional(readOnly = true)
+    public boolean seedIfAbsent(Integer auctionId) {
+        String key = "auction:state:" + auctionId;
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
+        return singleFlight.execute(key, () -> {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
+            if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
+            return auctionRepository.findByIdAndStatusNot(auctionId, AuctionStatus.ENDED)
+                    .filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus()))
+                    .map(this::seed).orElse(false);
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public void seedAllIfAbsent(List<Auction> auctions) {
+        if (!projectionCatchUpVerifier.isCaughtUp()) return;
+        List<Auction> active = auctions.stream().filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus())).toList();
+        if (active.isEmpty()) return;
+        List<Integer> auctionIds = active.stream().map(Auction::getId).toList();
+        java.util.Map<Integer, Bid> leading = bidRepository.findByAuctionIdInAndStatus(auctionIds, BidStatus.LEADING).stream()
+                .collect(java.util.stream.Collectors.toMap(bid -> bid.getAuction().getId(), bid -> bid, (first, ignored) -> first));
+        java.util.Map<Integer, List<Bid>> latestBidsByAuction = bidRepository.findLatestBidPerBidderByAuctionIdIn(auctionIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(bid -> bid.getAuction().getId()));
+        java.util.Map<Integer, List<Bid>> recentBidsByAuction = bidRepository.findRecentFiveByAuctionIdIn(auctionIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(bid -> bid.getAuction().getId()));
+        java.util.Map<Integer, CardSnapshot> cards = cardStateReader.getCardSnapshots(active.stream().map(Auction::getItemId).distinct().toList());
+        java.util.Map<Integer, List<String>> imagePaths = auctionImageRepository.findByAuctionIdInOrderById(auctionIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(image -> image.getAuction().getId(), java.util.stream.Collectors.mapping(image -> image.getImagePath(), java.util.stream.Collectors.toList())));
+        active.forEach(auction -> seed(auction, leading.get(auction.getId()), cards.get(auction.getItemId()), imagePaths.getOrDefault(auction.getId(), List.of()),
+                latestBidsByAuction.getOrDefault(auction.getId(), List.of()), recentBidsByAuction.getOrDefault(auction.getId(), List.of())));
+    }
+
+    private boolean seed(Auction auction) {
+        Bid leading = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING).orElse(null);
+        CardSnapshot card = cardStateReader.getCardSnapshot(auction.getItemId());
+        return seed(auction, leading, card, auctionImageRepository.findByAuctionIdOrderById(auction.getId()).stream().map(image -> image.getImagePath()).toList(),
+                bidRepository.findLatestBidPerBidderByAuctionIdIn(List.of(auction.getId())), bidRepository.findRecentFiveByAuctionIdIn(List.of(auction.getId())));
+    }
+
+    private boolean seed(Auction auction, Bid leading, CardSnapshot card, List<String> imagePathList, List<Bid> latestBids, List<Bid> recentBids) {
+        String imagePaths = String.join("\n", imagePathList);
+        List<String> stateArgs = new ArrayList<>();
+        put(stateArgs, "status", auction.getStatus().name()); put(stateArgs, "sellerId", auction.getSellerId()); put(stateArgs, "itemId", auction.getItemId());
+        put(stateArgs, "cardName", card.name()); put(stateArgs, "cardSetName", card.setName()); put(stateArgs, "cardPsaGrade", nullToEmpty(card.psaGrade())); put(stateArgs, "cardLanguage", nullToEmpty(card.language())); put(stateArgs, "cardThumbnailUrl", card.thumbnailUrl());
+        put(stateArgs, "auctionName", auction.getAuctionName()); put(stateArgs, "description", auction.getDescription()); put(stateArgs, "sellerMemo", nullToEmpty(auction.getSellerMemo()));
+        put(stateArgs, "psaCertification", nullToEmpty(auction.getPsaCertification())); put(stateArgs, "selfGrade", nullToEmpty(auction.getSelfGrade())); put(stateArgs, "psaVerified", auction.getPsaVerified());
+        put(stateArgs, "startPrice", auction.getStartPrice()); put(stateArgs, "currentPrice", auction.getCurrentPrice()); put(stateArgs, "buyNowPrice", auction.getBuyNowPrice() == null ? "" : auction.getBuyNowPrice());
+        put(stateArgs, "deliveryFee", auction.getDeliveryFee()); put(stateArgs, "bidIncrement", auction.getBidPriceUnit()); put(stateArgs, "imagePaths", imagePaths);
+        put(stateArgs, "openTime", auction.getOpenTime()); put(stateArgs, "closeTime", auction.getCloseTime()); put(stateArgs, "closeTimeEpochMillis", auction.getCloseTime().toEpochMilli());
+        put(stateArgs, "estimatedCloseTime", auction.getEstimatedCloseTime()); put(stateArgs, "estimatedCloseTimeEpochMillis", auction.getEstimatedCloseTime().toEpochMilli());
+        put(stateArgs, "highestBidderId", leading == null ? "" : leading.getBidderId()); put(stateArgs, "highestHoldAmount", leading == null ? 0 : leading.getBidPrice());
+        // bidCount에는 Redis Stream 도입 전의 입찰 이력도 포함될 수 있다. 이벤트 버전은
+        // MySQL projection이 마지막으로 반영한 버전에서 이어야 하므로 별도로 초기화한다.
+        put(stateArgs, "sequence", auction.getLastBidEventVersion()); put(stateArgs, "bidCount", auction.getBidCount());
+        List<String> args = new ArrayList<>(List.of(String.valueOf(auction.getCloseTime().toEpochMilli()), String.valueOf(auction.getId()), String.valueOf(stateArgs.size() / 2)));
+        args.addAll(stateArgs);
+        args.add(String.valueOf(latestBids.size()));
+        latestBids.forEach(bid -> { args.add(String.valueOf(bid.getBidderId())); args.add(redisBidStatus(bid)); args.add(String.valueOf(bid.getBidPrice())); });
+        List<Bid> chronologicalRecentBids = recentBids.stream().sorted(Comparator.comparing(Bid::getCreatedAt).thenComparing(Bid::getId)).toList();
+        args.add(String.valueOf(chronologicalRecentBids.size()));
+        chronologicalRecentBids.forEach(bid -> { args.add(String.valueOf(bid.getId())); args.add(String.valueOf(bid.getBidderId())); args.add(String.valueOf(bid.getBidPrice())); args.add(String.valueOf(bid.getId())); args.add(bid.getCreatedAt().toString()); });
+        return Long.valueOf(1L).equals(redisTemplate.execute(auctionStateSeedScript,
+                List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME, "auction:recent-bids:" + auction.getId(), "auction:ending-window:by-close-time"), args.toArray()));
+    }
+
+    private String redisBidStatus(Bid bid) { return bid.getStatus() == BidStatus.LEADING || bid.getStatus() == BidStatus.WON ? "LEADING" : "OUTBID"; }
+
+    private void put(List<String> args, String field, Object value) { args.add(field); args.add(String.valueOf(value)); }
+    private String nullToEmpty(String value) { return value == null ? "" : value; }
+}

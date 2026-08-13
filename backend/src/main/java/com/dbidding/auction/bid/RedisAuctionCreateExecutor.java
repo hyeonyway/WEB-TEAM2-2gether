@@ -28,9 +28,10 @@ public class RedisAuctionCreateExecutor {
         String raw = redisTemplate.execute(auctionCreateScript, List.of(
                         "auction:sequence",
                         "auction:create:idempotency:" + command.sellerId() + ':' + command.idempotencyKey(),
-                        TIMELINE_STREAM
+                        TIMELINE_STREAM,
+                        "auction:ending-window:by-close-time"
                 ),
-                command.sellerId().toString(), command.itemId().toString(), required(command.cardName()),
+                command.sellerId().toString(), command.itemId().toString(), required(command.cardName()), required(command.cardSetName()),
                 nullable(command.cardPsaGrade()), nullable(command.cardLanguage()), nullable(command.cardThumbnailUrl()),
                 required(command.auctionName()), required(command.description()), nullable(command.sellerMemo()),
                 nullable(command.psaCertification()), nullable(command.selfGrade()), Boolean.toString(command.psaVerified()),
@@ -45,11 +46,11 @@ public class RedisAuctionCreateExecutor {
         if (fields.length == 2 && "REJECTED".equals(fields[0]) && "IDEMPOTENCY_CONFLICT".equals(fields[1])) {
             throw AuctionException.idempotencyConflict();
         }
-        if (fields.length != 6 || !"ACCEPTED".equals(fields[0])) {
+        if (fields.length != 7 || !"ACCEPTED".equals(fields[0])) {
             throw AuctionException.invalidRequest("경매 생성 Redis 상태 전이에 실패했습니다.");
         }
         return new RedisAuctionCreateResult(Integer.valueOf(fields[1]), fields[2], AuctionStatus.valueOf(fields[3]),
-                Instant.parse(fields[4]), closeTime);
+                Instant.parse(fields[4]), closeTime, Boolean.parseBoolean(fields[6]));
     }
 
     private String required(String value) {

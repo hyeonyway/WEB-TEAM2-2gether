@@ -7,6 +7,7 @@ public record RedisAuctionCreateCommand(
         Integer sellerId,
         Integer itemId,
         String cardName,
+        String cardSetName,
         String cardPsaGrade,
         String cardLanguage,
         String cardThumbnailUrl,

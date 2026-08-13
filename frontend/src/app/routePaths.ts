@@ -7,6 +7,7 @@ export const routePaths = {
   dashboard: '/dashboard',
   myPage: '/mypage',
   sell: '/sell',
+  admin: '/admin',
 } as const;
 
 export const appRoutePatterns = Object.values(routePaths);

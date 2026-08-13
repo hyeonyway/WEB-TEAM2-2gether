@@ -9,41 +9,60 @@ import org.junit.jupiter.api.Test;
 
 class AuctionTest {
     @Test
-    void 마감_시간_근처에_입찰하면_종료_시간을_연장한다() {
+    void OPEN_경매가_ENDING으로_전환되면_closeTime만_랜덤_연장분만큼_늘고_estimatedCloseTime은_그대로다() {
         Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
         Auction auction = auction(closeTime);
 
-        boolean extended = auction.placeBid(
-                43_000L,
-                closeTime.minus(Duration.ofMinutes(3)),
-                Duration.ofMinutes(5),
-                Duration.ofMinutes(5)
-        );
+        boolean transitioned = auction.enterEnding(Duration.ofSeconds(90));
 
-        assertThat(extended).isTrue();
-        assertThat(auction.getCurrentPrice()).isEqualTo(43_000L);
-        assertThat(auction.getBidCount()).isEqualTo(1);
-        assertThat(auction.getCloseTime()).isEqualTo(closeTime.plus(Duration.ofMinutes(5)));
-        assertThat(auction.getEstimatedCloseTime()).isEqualTo(closeTime.plus(Duration.ofMinutes(5)));
+        assertThat(transitioned).isTrue();
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDING);
+        assertThat(auction.getCloseTime()).isEqualTo(closeTime.plusSeconds(90));
+        assertThat(auction.getEstimatedCloseTime()).isEqualTo(closeTime);
     }
 
     @Test
-    void 마감_시간_근처가_아닌_입찰은_종료_시간을_연장하지_않는다() {
+    void 이미_ENDING인_경매를_다시_전환해도_상태와_두_시각_모두_변하지_않는다() {
+        Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
+        Auction auction = auction(closeTime);
+        auction.enterEnding(Duration.ofMinutes(1));
+        Instant extendedCloseTime = auction.getCloseTime();
+
+        boolean transitioned = auction.enterEnding(Duration.ofMinutes(2));
+
+        assertThat(transitioned).isFalse();
+        assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDING);
+        assertThat(auction.getCloseTime()).isEqualTo(extendedCloseTime);
+        assertThat(auction.getEstimatedCloseTime()).isEqualTo(closeTime);
+    }
+
+    @Test
+    void OPEN_상태의_일반_입찰은_마감시각을_연장하지_않는다() {
         Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
         Auction auction = auction(closeTime);
 
-        boolean extended = auction.placeBid(
-                43_000L,
-                closeTime.minus(Duration.ofMinutes(10)),
-                Duration.ofMinutes(5),
-                Duration.ofMinutes(5)
-        );
+        auction.placeBid(43_000L, closeTime.minus(Duration.ofMinutes(3)));
 
-        assertThat(extended).isFalse();
+        assertThat(auction.getCurrentPrice()).isEqualTo(43_000L);
+        assertThat(auction.getBidCount()).isEqualTo(1);
         assertThat(auction.getCloseTime()).isEqualTo(closeTime);
         assertThat(auction.getEstimatedCloseTime()).isEqualTo(closeTime);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
+    }
+
+    @Test
+    void ENDING_상태의_일반_입찰은_현재가와_입찰수만_바꾸고_시각은_바꾸지_않는다() {
+        Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
+        Auction auction = auction(closeTime);
+        auction.enterEnding(Duration.ofMinutes(1));
+        Instant extendedCloseTime = auction.getCloseTime();
+
+        auction.placeBid(43_000L, closeTime.minusSeconds(30));
+
+        assertThat(auction.getCurrentPrice()).isEqualTo(43_000L);
+        assertThat(auction.getBidCount()).isEqualTo(1);
+        assertThat(auction.getCloseTime()).isEqualTo(extendedCloseTime);
+        assertThat(auction.getEstimatedCloseTime()).isEqualTo(closeTime);
     }
 
     @Test
@@ -51,13 +70,21 @@ class AuctionTest {
         Instant closeTime = Instant.parse("2026-07-29T10:00:00Z");
         Auction auction = auction(closeTime);
 
-        assertThatThrownBy(() -> auction.placeBid(
-                43_000L,
-                closeTime,
-                Duration.ofMinutes(5),
-                Duration.ofMinutes(5)
-        )).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> auction.placeBid(43_000L, closeTime))
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("이미 종료된 경매입니다.");
+    }
+
+    @Test
+    void Redis_Stream의_확정된_실제_마감시각을_OPEN_경매에_한번만_적용한다() {
+        Instant estimatedCloseTime = Instant.parse("2026-07-29T10:00:00Z");
+        Auction auction = auction(estimatedCloseTime);
+
+        assertThat(auction.applyEndingTransition(estimatedCloseTime.plusSeconds(90))).isTrue();
+        assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDING);
+        assertThat(auction.getCloseTime()).isEqualTo(Instant.parse("2026-07-29T10:01:30Z"));
+        assertThat(auction.getEstimatedCloseTime()).isEqualTo(estimatedCloseTime);
+        assertThat(auction.applyEndingTransition(estimatedCloseTime.plusSeconds(120))).isFalse();
     }
 
     private Auction auction(Instant closeTime) {

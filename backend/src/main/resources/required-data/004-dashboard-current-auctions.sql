@@ -72,19 +72,20 @@ SELECT
   '오늘 시작한 대시보드 테스트용 진행 경매',
   `seed`.`start_price`,
   `seed`.`start_price` + (`seed`.`number_of_bids` * `seed`.`bid_unit`),
-  `seed`.`start_price` + (12 * `seed`.`bid_unit`),
+  -- 부하테스트 중 즉시낙찰로 조기 종료되지 않도록 즉시낙찰가를 아예 안 넣음(009 파일과 동일 방식).
+  NULL,
   3000,
   `seed`.`auction_status`,
   TIMESTAMP(CURDATE(), '00:00:00'),
   CASE
     WHEN `seed`.`auction_status` = 'ENDING'
       THEN TIMESTAMPADD(MINUTE, 20 + MOD(`seed`.`item_id`, 40), NOW(6))
-    ELSE TIMESTAMPADD(HOUR, 2 + MOD(`seed`.`item_id`, 12), NOW(6))
+    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
   END,
   CASE
     WHEN `seed`.`auction_status` = 'ENDING'
       THEN TIMESTAMPADD(MINUTE, 20 + MOD(`seed`.`item_id`, 40), NOW(6))
-    ELSE TIMESTAMPADD(HOUR, 2 + MOD(`seed`.`item_id`, 12), NOW(6))
+    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
   END,
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,

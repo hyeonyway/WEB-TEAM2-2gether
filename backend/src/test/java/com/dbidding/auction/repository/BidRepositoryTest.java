@@ -3,7 +3,6 @@ package com.dbidding.auction.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dbidding.auction.domain.Auction;
-import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import java.time.Duration;
@@ -81,21 +80,21 @@ class BidRepositoryTest {
     }
 
     @Test
-    void LEADING_상태이면서_경매_상태가_일치하는_bid의_경매_id를_조회한다() {
+    void LEADING_bid의_경매_id를_경매_상태와_무관하게_조회한다() {
         bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
 
-        List<Integer> auctionIds = bidRepository
-                .findAuctionIdsByStatusAndAuctionStatus(BidStatus.LEADING, AuctionStatus.OPEN);
+        List<Integer> auctionIds = bidRepository.findAuctionIdsByStatus(BidStatus.LEADING);
 
         assertThat(auctionIds).contains(auction.getId());
     }
 
     @Test
-    void 경매_상태가_일치하지_않으면_LEADING_bid여도_조회되지_않는다() {
-        bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
+    void LEADING이_아닌_bid의_경매_id는_조회되지_않는다() {
+        Bid outbid = bidRepository.save(Bid.leading(bidderId, auction, 45_000L, Instant.now().minus(Duration.ofMinutes(10))));
+        outbid.markOutbid();
+        bidRepository.save(outbid);
 
-        List<Integer> auctionIds = bidRepository
-                .findAuctionIdsByStatusAndAuctionStatus(BidStatus.LEADING, AuctionStatus.ENDING);
+        List<Integer> auctionIds = bidRepository.findAuctionIdsByStatus(BidStatus.LEADING);
 
         assertThat(auctionIds).doesNotContain(auction.getId());
     }

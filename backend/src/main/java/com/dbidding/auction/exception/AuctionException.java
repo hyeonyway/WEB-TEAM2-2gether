@@ -57,4 +57,8 @@ public class AuctionException extends ApiException {
 	public static AuctionException cardNotFound() {
 		return new AuctionException(HttpStatus.NOT_FOUND, "CARD_NOT_FOUND", "카드를 찾을 수 없습니다.");
 	}
+
+	public static AuctionException stateRecoveryRequired() {
+		return new AuctionException(HttpStatus.SERVICE_UNAVAILABLE, "STATE_RECOVERY_REQUIRED", "실시간 상태 복구가 완료되지 않았습니다.");
+	}
 }

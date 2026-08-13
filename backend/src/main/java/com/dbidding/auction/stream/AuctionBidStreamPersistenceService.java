@@ -2,13 +2,12 @@ package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
-import com.dbidding.auction.domain.AuctionBidEventInbox;
+import com.dbidding.auction.domain.AuctionTimelineEvent;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
-import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -33,7 +32,7 @@ import org.springframework.transaction.annotation.Propagation;
 @Service
 @RequiredArgsConstructor
 public class AuctionBidStreamPersistenceService {
-    private final AuctionBidEventInboxRepository inboxRepository;
+    private final AuctionTimelineEventRepository inboxRepository;
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
@@ -44,6 +43,8 @@ public class AuctionBidStreamPersistenceService {
     private final OrderRepository orderRepository;
     private final Optional<RedisOrderRealtimeStateProjection> orderRealtimeStateProjection;
     private final CardService cardService;
+    /** 생성자 호환을 유지하되, 실시간 발행은 Redis 승인 경로에서만 수행한다. */
+    @SuppressWarnings("unused")
     private final AuctionEventPublisher auctionEventPublisher;
     private final Clock clock;
     @PersistenceContext
@@ -51,15 +52,21 @@ public class AuctionBidStreamPersistenceService {
 
     /** Stream 수신 자체는 projection 실패와 독립적으로 반드시 보존한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
+    public AuctionTimelineEvent recordPending(AuctionWalletTimelineEvent event) {
+        return recordPending(event, event.archivePayload());
+    }
+
+    /** Projection worker가 DB만 읽어 재구성할 수 있도록 원본 Stream payload를 함께 보관한다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuctionTimelineEvent recordPending(AuctionWalletTimelineEvent event, String rawPayload) {
         return inboxRepository.findByStreamId(event.streamId())
-                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : null,
-                        event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : null)));
+                .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionEndingStartedStreamEvent ending ? ending.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : event instanceof OrderStateChangedStreamEvent order ? order.auctionId() : null,
+                event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : event instanceof OrderStateChangedStreamEvent order ? order.orderVersion() : null, rawPayload)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public AuctionBidEventInbox recordMalformed(String streamId, Map<String, String> payload) {
-        return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionBidEventInbox(
+    public AuctionTimelineEvent recordMalformed(String streamId, Map<String, String> payload) {
+        return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionTimelineEvent(
                 streamId, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
                 payload.toString(), Instant.now(), clock.instant()
         )));
@@ -78,6 +85,17 @@ public class AuctionBidStreamPersistenceService {
         return inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
     }
 
+    /** 첫 오류를 다시 PENDING으로 전환한다. 이후 투영 worker는 DB inbox의 ID 순서대로 처리한다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuctionTimelineEvent requeueFirstError() {
+        return inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.ERROR)
+                .map(inbox -> {
+                    inbox.requeueForProjection();
+                    return inbox;
+                })
+                .orElse(null);
+    }
+
     /** 기존 호출부 및 단위 테스트 호환용 동기 projection 경로. */
     public void persist(AuctionWalletTimelineEvent event) {
         recordPending(event);
@@ -90,6 +108,10 @@ public class AuctionBidStreamPersistenceService {
     public void project(AuctionWalletTimelineEvent event) {
         if (event instanceof WalletStateChangedStreamEvent walletChanged) {
             walletProjectionService.project(walletChanged);
+            return;
+        }
+        if (event instanceof OrderStateChangedStreamEvent orderChanged) {
+            projectOrderState(orderChanged);
             return;
         }
         if (event instanceof AuctionCreatedStreamEvent created) {
@@ -106,7 +128,21 @@ public class AuctionBidStreamPersistenceService {
             closeAuction(close);
             return;
         }
+        if (event instanceof AuctionEndingStartedStreamEvent ending) {
+            projectEndingTransition(ending);
+            return;
+        }
         persistBid((BidAcceptedStreamEvent) event);
+    }
+
+    private void projectEndingTransition(AuctionEndingStartedStreamEvent event) {
+        Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
+                .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 ENDING 대상 경매입니다: " + event.auctionId()));
+        try {
+            auction.applyEndingTransition(event.closeTime());
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidBidStreamEventException(exception.getMessage(), exception);
+        }
     }
 
     private void insertCreatedAuction(AuctionCreatedStreamEvent event) {
@@ -135,6 +171,24 @@ public class AuctionBidStreamPersistenceService {
                 .executeUpdate();
     }
 
+    private void projectOrderState(OrderStateChangedStreamEvent event) {
+        com.dbidding.order.Order order = orderRepository.findByIdForUpdate(event.orderId())
+                .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 주문 상태 이벤트입니다: " + event.orderId()));
+        if (!order.getAuctionId().equals(event.auctionId()) || !order.getBuyerId().equals(event.buyerId())
+                || !order.getSellerId().equals(event.sellerId())) {
+            throw new InvalidBidStreamEventException("주문 상태 이벤트의 참여자 정보가 일치하지 않습니다.");
+        }
+        order.applyProjectedStatus(event.status());
+        walletProjectionService.project(new WalletStateChangedStreamEvent(
+                event.streamId(), event.eventId(), "wallet." + event.eventType().substring("order.".length()), event.walletUserId(),
+                event.walletVersion(), event.availableBalance(), event.frozenBalance(), event.auctionId(), null, null,
+                event.transactionType(), event.transactionAmount(), event.idempotencyKey(), event.occurredAt()
+        ));
+        orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectedStatusAfterCommit(
+                event.auctionId(), event.orderId(), event.status().name()));
+        // 주문 알림과 wallet SSE는 Redis 승인 직후 발행한다. projection은 DB 반영만 담당한다.
+    }
+
     private void closeAuction(AuctionCloseRequestedStreamEvent event) {
         Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
                 .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 종료 대상 경매입니다: " + event.auctionId()));
@@ -146,7 +200,7 @@ public class AuctionBidStreamPersistenceService {
         winner.markWon();
         auction.closeWithWinningBid(winner, event.occurredAt());
         walletService.capture(winner.getBidderId(), auction.getId(), winner.getBidPrice());
-        completeBuyNow(auction, winner, event.occurredAt());
+        completeBuyNow(auction, winner, event.occurredAt(), event.streamId());
     }
 
     private void persistBid(BidAcceptedStreamEvent event) {
@@ -159,7 +213,7 @@ public class AuctionBidStreamPersistenceService {
         if (bid != null) {
             bidRepository.save(bid);
             if (event.isBuyNow()) {
-                completeBuyNow(auction, bid, event.occurredAt());
+                completeBuyNow(auction, bid, event.occurredAt(), event.streamId());
             }
         }
     }
@@ -171,14 +225,20 @@ public class AuctionBidStreamPersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean markError(String streamId, RuntimeException exception) {
-        AuctionBidEventInbox inbox = inboxRepository.findByStreamId(streamId)
+        AuctionTimelineEvent inbox = inboxRepository.findByStreamId(streamId)
                 .orElseThrow(() -> new IllegalStateException("수신 기록이 없는 Stream 이벤트입니다: " + streamId));
         boolean firstError = !hasProjectionError();
         inbox.markError(exception.getClass().getSimpleName() + ": " + exception.getMessage());
-        if (inbox.getAuctionId() != null && "auction.buy-now.v1".equals(inbox.getEventType())) {
+        if (inbox.getAuctionId() != null && ("auction.buy-now.v1".equals(inbox.getEventType())
+                || inbox.getEventType().startsWith("order."))) {
             orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectionError(inbox.getAuctionId()));
         }
         return firstError;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordProjectionAttempt(String streamId) {
+        inboxRepository.findByStreamId(streamId).ifPresent(inbox -> inbox.recordAttempt(clock.instant()));
     }
 
     private Bid apply(
@@ -223,26 +283,20 @@ public class AuctionBidStreamPersistenceService {
         return bid;
     }
 
-    /** 기존 즉시 낙찰 경로의 주문 생성과 종료 이벤트를 같은 DB 트랜잭션에 포함한다. */
-    private void completeBuyNow(Auction auction, Bid winningBid, java.time.Instant occurredAt) {
+    /** Redis에서 승인된 즉시 낙찰 결과를 주문과 도메인 테이블에 projection한다. */
+    private void completeBuyNow(Auction auction, Bid winningBid, java.time.Instant occurredAt, String streamId) {
         CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         orderService.createFromAuctionClosed(
                 auction.getId(), winningBid.getBidderId(), auction.getSellerId(), card.name(), winningBid.getBidPrice()
         );
         orderRealtimeStateProjection.ifPresent(projection -> orderRepository.findByAuctionId(auction.getId())
-                .ifPresent(order -> projection.markProjectedAfterCommit(auction.getId(), order.getId())));
-        auctionEventPublisher.publishClosed(new AuctionClosedEvent(
-                auction.getId(), card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
-                winningBid.getBidderId(), auction.getSellerId(), auction.getStartPrice(), auction.getCurrentPrice(),
-                winningBid.getBidPrice(), auction.getBidPriceUnit(), auction.getBidCount(), auction.getCloseTime(),
-                auction.getStatus(), occurredAt
-        ));
+                .ifPresent(order -> projection.markCreatedOrderAfterCommit(order, streamId)));
     }
 
-    private AuctionBidEventInbox archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion) {
-        return new AuctionBidEventInbox(
-                event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
-                event.archivePayload(), event.occurredAt(), clock.instant()
+    private AuctionTimelineEvent archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
+        return new AuctionTimelineEvent(
+            event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
+                payload, event.occurredAt(), clock.instant()
         );
     }
 

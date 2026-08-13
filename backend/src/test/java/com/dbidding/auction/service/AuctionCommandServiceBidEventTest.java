@@ -42,8 +42,8 @@ import org.springframework.context.ApplicationEventPublisher;
 
 /**
  * #281 — {@code BidExecutor}가 더 이상 이벤트를 발행하지 않으므로, {@code participate()}가
- * result로부터 이벤트를 올바르게 조립·발행하는지 검증한다(상회입찰/최초입찰/즉시낙찰/마감연장/
- * 멱등재생 5가지 케이스).
+ * result로부터 이벤트를 올바르게 조립·발행하는지 검증한다(상회입찰/최초입찰/즉시낙찰/
+ * 멱등재생 4가지 케이스).
  */
 @ExtendWith(MockitoExtension.class)
 class AuctionCommandServiceBidEventTest {
@@ -95,7 +95,7 @@ class AuctionCommandServiceBidEventTest {
     @Test
     void 상회입찰이면_BidPlacedEvent를_조립해서_로컬과_스트림_양쪽에_발행한다() {
         BidExecutionResult outcome = outcomeWith(new BidEventData(
-                1, 9, 20L, 40_000L, 1_000L, AuctionStatus.OPEN, false, null
+                1, 9, 20L, 40_000L, 1_000L, AuctionStatus.OPEN, null
         ));
         when(bidExecutor.execute(any(BidCommand.class))).thenReturn(outcome);
 
@@ -119,7 +119,7 @@ class AuctionCommandServiceBidEventTest {
     @Test
     void 최초입찰이면_previousBidderId가_null인_이벤트를_발행한다() {
         BidExecutionResult outcome = outcomeWith(new BidEventData(
-                1, null, null, 40_000L, 1_000L, AuctionStatus.OPEN, false, null
+                1, null, null, 40_000L, 1_000L, AuctionStatus.OPEN, null
         ));
         when(bidExecutor.execute(any(BidCommand.class))).thenReturn(outcome);
 
@@ -135,7 +135,7 @@ class AuctionCommandServiceBidEventTest {
     void 즉시낙찰이면_AuctionClosedEvent도_로컬과_스트림_양쪽에_발행한다() {
         AuctionCloseData closeData = new AuctionCloseData(1, "리자몽", "10", "JP", "/thumb.png", 5);
         BidExecutionResult outcome = outcomeWith(new BidEventData(
-                1, null, null, 40_000L, 1_000L, AuctionStatus.ENDED, false, closeData
+                1, null, null, 40_000L, 1_000L, AuctionStatus.ENDED, closeData
         ));
         when(bidExecutor.execute(any(BidCommand.class))).thenReturn(outcome);
 
@@ -149,22 +149,6 @@ class AuctionCommandServiceBidEventTest {
                         && event.status() == AuctionStatus.ENDED
         ));
         verify(auctionStreamPublisher, org.mockito.Mockito.times(2)).publish(any());
-    }
-
-    @Test
-    void 마감시간이_연장되면_스케줄_변경_이벤트를_발행한다() {
-        BidExecutionResult outcome = outcomeWith(new BidEventData(
-                1, null, null, 40_000L, 1_000L, AuctionStatus.OPEN, true, null
-        ));
-        when(bidExecutor.execute(any(BidCommand.class))).thenReturn(outcome);
-
-        auctionCommandService.participate(2, 1, new BidCreateRequest(43_000L), "bid-key");
-
-        verify(eventPublisher).publishEvent(argThat((Object event) ->
-                event instanceof AuctionCloseScheduleChangedEvent changed
-                        && changed.auctionId().equals(1)
-                        && changed.reason().equals("close_time_extended")
-        ));
     }
 
     @Test

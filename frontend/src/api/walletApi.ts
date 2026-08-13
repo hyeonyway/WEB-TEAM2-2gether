@@ -31,8 +31,14 @@ function isWalletTransactionDto(
 ): value is WalletTransactionDto {
   if (typeof value !== 'object' || value === null) return false;
   const transaction = value as Partial<WalletTransactionDto>;
-  return isSafeBalance(transaction.transactionId)
-    && transaction.transactionType === expectedType
+  const transactionType:unknown=transaction.transactionType;
+  // The backend can route a request to the Redis approval path independently of
+  // the static frontend build profile. Treat its documented event-shaped result
+  // as a successful transaction instead of reporting an error after a 200.
+  const redisTransaction=transaction.transactionId===null
+    && transactionType===`wallet.${expectedType==='CHARGE'?'charged':'refunded'}.v1`;
+  return (isSafeBalance(transaction.transactionId)||redisTransaction)
+    && (transactionType === expectedType||redisTransaction)
     && isSafeInteger(transaction.amount)
     && isSafeBalance(transaction.balance);
 }
@@ -58,7 +64,12 @@ async function transactWallet(
   if (!isWalletTransactionDto(transaction, expectedType)) {
     throw new TypeError('Wallet 거래 응답이 올바르지 않습니다.');
   }
-  return transaction;
+  const transactionType:unknown=transaction.transactionType;
+  return {
+    ...transaction,
+    transactionType:transactionType==='wallet.charged.v1'?'CHARGE'
+      :transactionType==='wallet.refunded.v1'?'REFUND':transactionType as WalletTransactionType,
+  };
 }
 
 export function chargeWallet(variables: WalletTransactionVariables) {

@@ -4,7 +4,7 @@ import java.util.Map;
 import java.time.Instant;
 
 /** Redis Stream의 전역 순서를 공유하는 경매·지갑 상태 변경 이벤트. */
-public sealed interface AuctionWalletTimelineEvent permits BidAcceptedStreamEvent, WalletStateChangedStreamEvent, AuctionCreatedStreamEvent, AuctionCloseRequestedStreamEvent {
+public sealed interface AuctionWalletTimelineEvent permits BidAcceptedStreamEvent, WalletStateChangedStreamEvent, AuctionCreatedStreamEvent, AuctionCloseRequestedStreamEvent, AuctionEndingStartedStreamEvent, OrderStateChangedStreamEvent {
     String streamId();
 
     String archiveEventType();
@@ -21,8 +21,10 @@ public sealed interface AuctionWalletTimelineEvent permits BidAcceptedStreamEven
         if (eventType != null && eventType.startsWith("wallet.")) {
             return WalletStateChangedStreamEvent.from(streamId, values);
         }
+        if (eventType != null && eventType.startsWith("order.")) return OrderStateChangedStreamEvent.from(streamId, values);
         if ("auction.created.v1".equals(eventType)) return AuctionCreatedStreamEvent.from(streamId, values);
         if ("auction.close-requested.v1".equals(eventType)) return AuctionCloseRequestedStreamEvent.from(streamId, values);
+        if ("auction.ending-started.v1".equals(eventType)) return AuctionEndingStartedStreamEvent.from(streamId, values);
         return BidAcceptedStreamEvent.from(streamId, values);
     }
 }

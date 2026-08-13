@@ -19,11 +19,8 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     List<Bid> findByAuctionIdInAndStatus(Collection<Integer> auctionIds, BidStatus status);
 
-    @Query("select b.auction.id from Bid b where b.status = :bidStatus and b.auction.status = :auctionStatus")
-    List<Integer> findAuctionIdsByStatusAndAuctionStatus(
-            @Param("bidStatus") BidStatus bidStatus,
-            @Param("auctionStatus") AuctionStatus auctionStatus
-    );
+    @Query("select b.auction.id from Bid b where b.status = :bidStatus")
+    List<Integer> findAuctionIdsByStatus(@Param("bidStatus") BidStatus bidStatus);
 
     @Query(
             value = """
@@ -53,7 +50,29 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     Page<Bid> findByAuctionIdOrderByCreatedAtDescIdDesc(Integer auctionId, Pageable pageable);
 
+    @Query(
+            value = """
+                    SELECT ranked.* FROM (
+                        SELECT b.*, ROW_NUMBER() OVER (PARTITION BY b.auction_id ORDER BY b.created_at DESC, b.id DESC) AS bid_rank
+                        FROM bids b
+                        WHERE b.auction_id IN (:auctionIds)
+                    ) ranked
+                    WHERE ranked.bid_rank <= 5
+                    """,
+            nativeQuery = true
+    )
+    List<Bid> findRecentFiveByAuctionIdIn(@Param("auctionIds") Collection<Integer> auctionIds);
+
     List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDescIdDesc(Collection<Integer> auctionIds, Integer bidderId);
 
     List<Bid> findByBidderIdOrderByCreatedAtDescIdDesc(Integer bidderId);
+
+    @Query("""
+            select distinct b.auction from Bid b
+            where b.bidderId = :bidderId and b.auction.status in :statuses
+            """)
+    List<com.dbidding.auction.domain.Auction> findDistinctAuctionByBidderIdAndAuctionStatusIn(
+            @Param("bidderId") Integer bidderId,
+            @Param("statuses") Collection<AuctionStatus> statuses
+    );
 }

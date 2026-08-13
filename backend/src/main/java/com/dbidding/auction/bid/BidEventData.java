@@ -16,7 +16,23 @@ public record BidEventData(
         Long startPrice,
         Long bidIncrement,
         AuctionStatus status,
-        boolean closeTimeExtended,
         AuctionCloseData closeData
 ) {
+    /**
+     * Redis 입찰 경로가 다음 리팩터링 전까지 이전 생성자 형태를 사용할 수 있도록 둔
+     * 호환 생성자다. 시간 기준 ENDING 전환에서는 입찰이 마감 시간을 연장하지 않으므로
+     * {@code closeTimeExtended} 값은 더 이상 이벤트 데이터에 보존하지 않는다.
+     */
+    public BidEventData(
+            Integer itemId,
+            Integer previousBidderId,
+            Long previousBidId,
+            Long startPrice,
+            Long bidIncrement,
+            AuctionStatus status,
+            boolean closeTimeExtended,
+            AuctionCloseData closeData
+    ) {
+        this(itemId, previousBidderId, previousBidId, startPrice, bidIncrement, status, closeData);
+    }
 }

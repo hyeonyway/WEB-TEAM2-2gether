@@ -87,6 +87,30 @@ describe('walletApi', () => {
       .toBe('charge-attempt-id');
   });
 
+  it('Redis 승인 응답의 null 거래 ID와 이벤트 타입을 정상 거래로 변환한다', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({
+        transactionId: null,
+        transactionType: 'wallet.charged.v1',
+        amount: 1_000,
+        balance: 151_000,
+      }), {
+        status: 200,
+        headers: {'Content-Type': 'application/json'},
+      }));
+    setAccessToken('wallet-access-token');
+
+    await expect(chargeWallet({
+      amount: 1_000,
+      idempotencyKey: 'redis-charge-attempt-id',
+    })).resolves.toEqual({
+      transactionId: null,
+      transactionType: 'CHARGE',
+      amount: 1_000,
+      balance: 151_000,
+    });
+  });
+
   it('멱등키와 금액으로 Wallet을 환불한다', async () => {
     const transaction = {
       transactionId: 8,

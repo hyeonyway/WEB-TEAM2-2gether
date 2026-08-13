@@ -49,7 +49,7 @@ public class RedisAuctionRealtimeStateReader {
         try {
             return new AuctionState(
                     auctionId, AuctionStatus.valueOf(required(fields, "status")), Integer.valueOf(required(fields, "sellerId")),
-                    Integer.valueOf(required(fields, "itemId")), required(fields, "cardName"), nullableString(fields.get("cardPsaGrade")),
+                    Integer.valueOf(required(fields, "itemId")), required(fields, "cardName"), required(fields, "cardSetName"), nullableString(fields.get("cardPsaGrade")),
                     nullableString(fields.get("cardLanguage")), nullableString(fields.get("cardThumbnailUrl")), required(fields, "auctionName"),
                     required(fields, "description"), nullableString(fields.get("sellerMemo")), nullableString(fields.get("psaCertification")),
                     nullableString(fields.get("selfGrade")), Boolean.parseBoolean(required(fields, "psaVerified")),
@@ -57,7 +57,8 @@ public class RedisAuctionRealtimeStateReader {
                     Long.valueOf(required(fields, "bidIncrement")), Integer.valueOf(required(fields, "bidCount")),
                     nullableLong(fields.get("buyNowPrice")), Long.valueOf(required(fields, "deliveryFee")),
                     Instant.parse(required(fields, "openTime")), Instant.parse(required(fields, "closeTime")),
-                    splitLines(required(fields, "imagePaths"))
+                    splitLines(required(fields, "imagePaths")),
+                    optionalInstant(fields.get("estimatedCloseTime")).orElse(Instant.parse(required(fields, "closeTime")))
             );
         } catch (IllegalArgumentException exception) {
             return null;
@@ -66,7 +67,13 @@ public class RedisAuctionRealtimeStateReader {
 
     public List<Integer> activeAuctionIds() {
         java.util.Set<String> ids = redisTemplate.opsForZSet().range("auction:active:by-close-time", 0, -1);
-        if (ids == null) return null;
+        if (ids == null) return List.of();
+        return ids.stream().map(Integer::valueOf).toList();
+    }
+
+    public List<Integer> participatingAuctionIds(Integer userId) {
+        java.util.Set<String> ids = redisTemplate.opsForSet().members("auction:dashboard:participating:" + userId);
+        if (ids == null) return List.of();
         return ids.stream().map(Integer::valueOf).toList();
     }
 
@@ -90,7 +97,12 @@ public class RedisAuctionRealtimeStateReader {
         Map<Object, Object> values = record.getValue();
         Integer bidderId = Integer.valueOf(value(values.get("bidderId")));
         long sequence = Long.parseLong(value(values.get("sequence")));
-        return new BidResponses.BidSummary(Long.MAX_VALUE - sequence, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
+        Long bidId = nullableLong(values.get("bidId"));
+        // Long.MAX_VALUE - sequence는 JSON으로 프론트에 전달되며 JS Number(double)로 변환될 때
+        // 정밀도가 깨져(그 크기대의 double 표현 간격이 sequence 차이보다 커서) 서로 다른 입찰이
+        // 같은 id로 뭉개진다. 프론트가 이미 "DB에 아직 없는 실시간 입찰"을 음수 id로 표시하는
+        // 관례(-event_id)를 따르므로 여기서도 -sequence를 쓴다.
+        return new BidResponses.BidSummary(bidId == null ? -sequence : bidId, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
                 bidderId.equals(highestBidderId), Instant.parse(value(values.get("occurredAt"))));
     }
 
@@ -102,6 +114,7 @@ public class RedisAuctionRealtimeStateReader {
     private String value(Object value) { return value == null ? null : value.toString(); }
     private Long nullableLong(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Long.valueOf(text); }
     private Integer nullableInteger(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Integer.valueOf(text); }
+    private java.util.Optional<Instant> optionalInstant(Object value) { String text = value(value); return text == null || text.isBlank() ? java.util.Optional.empty() : java.util.Optional.of(Instant.parse(text)); }
     private String nullableString(Object value) { String text = value(value); return text == null || text.isBlank() ? null : text; }
     private List<String> splitLines(String value) { return List.of(value.split("\\n", -1)); }
     private String stateKey(Integer auctionId) { return "auction:state:" + auctionId; }
@@ -114,9 +127,18 @@ public class RedisAuctionRealtimeStateReader {
                                 Long myBidAmount, List<BidResponses.BidSummary> recentBids) { }
     public record Snapshot(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                            Instant closeTime, Long buyNowPrice, Integer highestBidderId) { }
-    public record AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName,
+    public record AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName, String cardSetName,
                                String cardPsaGrade, String cardLanguage, String cardThumbnailUrl, String auctionName, String description, String sellerMemo, String psaCertification,
                                String selfGrade, boolean psaVerified, long startPrice, long currentPrice,
                                long bidIncrement, int bidCount, Long buyNowPrice, long deliveryFee,
-                               Instant openTime, Instant closeTime, List<String> imagePaths) { }
+                               Instant openTime, Instant closeTime, List<String> imagePaths, Instant estimatedCloseTime) {
+        public AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName, String cardSetName,
+                            String cardPsaGrade, String cardLanguage, String cardThumbnailUrl, String auctionName, String description, String sellerMemo,
+                            String psaCertification, String selfGrade, boolean psaVerified, long startPrice, long currentPrice, long bidIncrement,
+                            int bidCount, Long buyNowPrice, long deliveryFee, Instant openTime, Instant closeTime, List<String> imagePaths) {
+            this(auctionId, status, sellerId, itemId, cardName, cardSetName, cardPsaGrade, cardLanguage, cardThumbnailUrl, auctionName,
+                    description, sellerMemo, psaCertification, selfGrade, psaVerified, startPrice, currentPrice, bidIncrement, bidCount,
+                    buyNowPrice, deliveryFee, openTime, closeTime, imagePaths, closeTime);
+        }
+    }
 }

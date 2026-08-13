@@ -285,14 +285,15 @@ CREATE TABLE bids
 
     INDEX idx_bids_user_id (user_id),
     INDEX idx_bids_auction_id (auction_id),
-    INDEX idx_bids_auction_price (auction_id, bid_price),
-    INDEX idx_bids_status (status)
+    INDEX idx_bids_status (status),
+    INDEX idx_bids_auction_status (auction_id, status),
+    INDEX idx_bids_auction_created (auction_id, created_at DESC, id DESC)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
 
-CREATE TABLE auction_bid_event_inbox
+CREATE TABLE timeline_events
 (
     id              BIGINT       NOT NULL AUTO_INCREMENT,
     stream_id       VARCHAR(64)  NOT NULL,
@@ -305,12 +306,14 @@ CREATE TABLE auction_bid_event_inbox
     projection_status VARCHAR(16) NOT NULL,
     failure_message TEXT,
     processed_at    TIMESTAMP(6),
+    attempt_count   INT          NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMP(6),
 
-    CONSTRAINT pk_auction_bid_event_inbox PRIMARY KEY (id),
-    CONSTRAINT uk_auction_bid_event_inbox_stream_id UNIQUE (stream_id),
+    CONSTRAINT pk_timeline_events PRIMARY KEY (id),
+    CONSTRAINT uk_timeline_events_stream_id UNIQUE (stream_id),
 
-    INDEX idx_auction_bid_event_inbox_auction_id (auction_id),
-    INDEX idx_auction_bid_event_inbox_projection_status (projection_status)
+    INDEX idx_timeline_events_auction_id (auction_id),
+    INDEX idx_timeline_events_projection_status (projection_status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;

@@ -95,10 +95,10 @@ class AuctionBidStreamPersistenceIntegrationTest {
         assertThat(auctionLong("bid_count")).isEqualTo(2L);
         assertThat(auctionLong("last_bid_event_version")).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT event_type FROM auction_bid_event_inbox WHERE stream_id = '1-0'", String.class
+                "SELECT event_type FROM timeline_events WHERE stream_id = '1-0'", String.class
         )).isEqualTo("bid.accepted.v1");
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT payload FROM auction_bid_event_inbox WHERE stream_id = '1-0'", String.class
+                "SELECT payload FROM timeline_events WHERE stream_id = '1-0'", String.class
         )).contains("auctionVersion=1");
         assertThat(balance(FIRST_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 0L, 100_000L, 1L));
         assertThat(balance(SECOND_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 11_000L, 89_000L, 1L));
@@ -118,7 +118,7 @@ class AuctionBidStreamPersistenceIntegrationTest {
         assertThat(balance(SECOND_BIDDER_ID)).isEqualTo(new WalletBalanceResponse(100_000L, 0L, 100_000L, 2L));
         assertThat(holdStatus(FIRST_BIDDER_ID)).isEqualTo("CAPTURED");
         assertThat(holdStatus(SECOND_BIDDER_ID)).isEqualTo("RELEASED");
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM auction_bid_event_inbox WHERE auction_id = ?", Integer.class, AUCTION_ID))
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM timeline_events WHERE auction_id = ?", Integer.class, AUCTION_ID))
                 .isEqualTo(2);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM orders WHERE auction_id = ?", Integer.class, AUCTION_ID))
                 .isEqualTo(1);
@@ -158,7 +158,7 @@ class AuctionBidStreamPersistenceIntegrationTest {
                 .isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT image_path FROM images WHERE auction_id = ?", String.class, redisAuctionId))
                 .isEqualTo("/auctions/redis-1.png");
-        assertThat(jdbcTemplate.queryForObject("SELECT auction_id FROM auction_bid_event_inbox WHERE stream_id = 'created-1'", Integer.class))
+        assertThat(jdbcTemplate.queryForObject("SELECT auction_id FROM timeline_events WHERE stream_id = 'created-1'", Integer.class))
                 .isEqualTo(redisAuctionId);
     }
 

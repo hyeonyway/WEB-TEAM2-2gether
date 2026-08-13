@@ -13,11 +13,13 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Profile;
 
 @Service
+@Profile("!redis")
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class DashboardService {
+public class DashboardService implements DashboardQueryService {
     private static final Set<AuctionStatus> PARTICIPATING_STATUSES =
             Set.of(AuctionStatus.OPEN, AuctionStatus.ENDING);
 

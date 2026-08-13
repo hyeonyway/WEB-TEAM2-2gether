@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.account.repository.AccountRepository;
@@ -17,6 +17,7 @@ import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
 import com.dbidding.order.OrderRepository;
+import com.dbidding.order.Order;
 import com.dbidding.order.realtime.RedisOrderRealtimeStateProjection;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.wallet.domain.PointTransactionType;
@@ -34,7 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class AuctionBidStreamPersistenceServiceTest {
     @Mock
-    private AuctionBidEventInboxRepository inboxRepository;
+    private AuctionTimelineEventRepository inboxRepository;
     @Mock
     private AuctionRepository auctionRepository;
     @Mock
@@ -152,10 +153,37 @@ class AuctionBidStreamPersistenceServiceTest {
                 "schemaVersion", "2"
         ));
 
-        ArgumentCaptor<com.dbidding.auction.domain.AuctionBidEventInbox> inbox = ArgumentCaptor.forClass(com.dbidding.auction.domain.AuctionBidEventInbox.class);
+        ArgumentCaptor<com.dbidding.auction.domain.AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(com.dbidding.auction.domain.AuctionTimelineEvent.class);
         verify(inboxRepository).save(inbox.capture());
         assertThat(inbox.getValue().getEventType()).isEqualTo("wallet.charged.v1");
         assertThat(inbox.getValue().getSchemaVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void 마감_낙찰로_생성된_주문을_Redis_구매목록에_projection한다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService,
+                orderService, orderRepository, java.util.Optional.of(orderRealtimeStateProjection), cardService, auctionEventPublisher, Clock.systemUTC()
+        );
+        AuctionCloseRequestedStreamEvent event = new AuctionCloseRequestedStreamEvent("close-1", 10, Instant.parse("2026-08-10T12:00:00Z"));
+        Bid winner = org.mockito.Mockito.mock(Bid.class);
+        Order order = org.mockito.Mockito.mock(Order.class);
+        given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.of(auction));
+        given(auction.getStatus()).willReturn(com.dbidding.auction.domain.AuctionStatus.OPEN);
+        given(auction.getCloseTime()).willReturn(Instant.parse("2026-08-09T12:00:00Z"));
+        given(auction.getId()).willReturn(10);
+        given(auction.getSellerId()).willReturn(1);
+        given(auction.getItemId()).willReturn(3);
+        given(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(10, com.dbidding.auction.domain.BidStatus.LEADING))
+                .willReturn(java.util.Optional.of(winner));
+        given(winner.getBidderId()).willReturn(2);
+        given(winner.getBidPrice()).willReturn(10_000L);
+        given(cardService.getCardSnapshot(3)).willReturn(new com.dbidding.card.dto.CardResponses.CardSnapshot(3, "카드", null, null, null, null));
+        given(orderRepository.findByAuctionId(10)).willReturn(java.util.Optional.of(order));
+
+        service.project(event);
+
+        verify(orderRealtimeStateProjection).markCreatedOrderAfterCommit(order, "close-1");
     }
 
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {

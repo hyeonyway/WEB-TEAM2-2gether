@@ -1,6 +1,7 @@
 package com.dbidding.order.realtime;
 
 import com.dbidding.order.OrderStatus;
+import com.dbidding.order.RedisOrderListStateSeeder;
 import com.dbidding.order.dto.OrderResponse;
 import java.time.Instant;
 import java.util.Comparator;
@@ -15,16 +16,20 @@ import org.springframework.stereotype.Component;
 @Profile("redis")
 public class RedisOrderRealtimeStateReader {
     private final StringRedisTemplate redisTemplate;
+    private final RedisOrderListStateSeeder listStateSeeder;
 
-    public RedisOrderRealtimeStateReader(StringRedisTemplate redisTemplate) {
+    public RedisOrderRealtimeStateReader(StringRedisTemplate redisTemplate, RedisOrderListStateSeeder listStateSeeder) {
         this.redisTemplate = redisTemplate;
+        this.listStateSeeder = listStateSeeder;
     }
 
     public List<OrderResponse> findForBuyer(Integer buyerId) {
+        listStateSeeder.seedIfRequired(buyerId, true);
         return find("order:state:buyer:" + buyerId);
     }
 
     public List<OrderResponse> findForSeller(Integer sellerId) {
+        listStateSeeder.seedIfRequired(sellerId, false);
         return find("order:state:seller:" + sellerId);
     }
 
@@ -37,7 +42,11 @@ public class RedisOrderRealtimeStateReader {
 
     private OrderResponse read(String auctionId) {
         Map<Object, Object> fields = redisTemplate.opsForHash().entries("order:state:" + auctionId);
-        if (fields.isEmpty()) return null;
+        if (fields.isEmpty()) {
+            if (!listStateSeeder.seedIfMissing(Integer.valueOf(auctionId))) return null;
+            fields = redisTemplate.opsForHash().entries("order:state:" + auctionId);
+            if (fields.isEmpty()) return null;
+        }
         try {
             return new OrderResponse(nullableInteger(fields.get("orderId")), Integer.valueOf(required(fields, "auctionId")), required(fields, "cardName"),
                     Long.parseLong(required(fields, "price")), OrderStatus.valueOf(required(fields, "status")),

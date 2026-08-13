@@ -80,7 +80,7 @@ public class NotificationEventListener {
     }
 
     @Async("notificationTaskExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleOrderCompleted(OrderCompletedEvent event) {
         saveAndPush(event.buyerId(), event.auctionId(), NotificationType.ORDER_COMPLETED, Notification.NO_BID,
                 event.cardName() + " 카드 구매가 확정되었습니다.");
@@ -89,7 +89,7 @@ public class NotificationEventListener {
     }
 
     @Async("notificationTaskExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleOrderCancelled(OrderCancelledEvent event) {
         boolean cancelledBySeller = event.cancelledBy() == OrderCancelledEvent.CancelledBy.SELLER;
         String buyerMessage = cancelledBySeller

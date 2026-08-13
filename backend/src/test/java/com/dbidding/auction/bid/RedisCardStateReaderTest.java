@@ -9,6 +9,7 @@ import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.repository.CardMetadataRepository;
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.data.redis.core.HashOperations;
@@ -68,5 +69,22 @@ class RedisCardStateReaderTest {
 
         assertThat(reader.ttlFor(10)).isEqualTo(86_410);
         assertThat(reader.ttlFor(11)).isEqualTo(86_411);
+    }
+
+    @Test
+    void 여러_카드_snapshot은_cache_hit을_우선_사용한다() {
+        StringRedisTemplate redisTemplate = Mockito.mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        HashOperations<String, Object, Object> hashes = Mockito.mock(HashOperations.class);
+        CardMetadataRepository cardRepository = Mockito.mock(CardMetadataRepository.class);
+        Mockito.when(redisTemplate.opsForHash()).thenReturn(hashes);
+        Mockito.when(hashes.entries("card:cache:10")).thenReturn(Map.of(
+                "name", "리자몽", "setName", "base", "psaGrade", "10", "language", "JP", "thumbnailUrl", "/cards/10.png"
+        ));
+
+        var snapshots = new RedisCardStateReader(redisTemplate, cardRepository, 86_400, 3_600).getCardSnapshots(List.of(10));
+
+        assertThat(snapshots.get(10).setName()).isEqualTo("base");
+        verify(cardRepository, never()).findAllById(List.of(10));
     }
 }
