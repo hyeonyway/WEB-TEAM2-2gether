@@ -39,4 +39,11 @@ class RedisWalletTransitionLuaIntegrationTest {
         assertThat(template.opsForHash().get("wallet:balance:1", "walletVersion")).isEqualTo("5");
         assertThat(template.opsForStream().size("event:timeline")).isEqualTo(1L);
     }
+
+    @Test void 충전은_지갑_잔액에_1시간에서_6시간_사이_idle_TTL을_건다() {
+        template.opsForHash().putAll("wallet:balance:1", Map.of("availableBalance", "10000", "frozenBalance", "2000", "walletVersion", "4"));
+        template.execute(script, List.of("wallet:balance:1", "wallet:idempotency:1:charge-1", "event:timeline"), UUID.randomUUID().toString(), "wallet.charged.v1", "1", "3000", "charge-1", "hash", "2026-08-11T00:00:00Z");
+
+        assertThat(template.getExpire("wallet:balance:1")).isBetween(3600L, 21600L);
+    }
 }

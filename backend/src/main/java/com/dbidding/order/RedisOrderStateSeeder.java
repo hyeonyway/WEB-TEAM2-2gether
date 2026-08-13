@@ -28,11 +28,27 @@ class RedisOrderStateSeeder {
         return singleFlight.execute(indexKey, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
             if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
-            return orderRepository.findById(orderId).map(order -> Long.valueOf(1L).equals(redisTemplate.execute(orderStateSeedScript,
-                    List.of("order:state:" + order.getAuctionId(), indexKey, "order:state:buyer:" + order.getBuyerId(), "order:state:seller:" + order.getSellerId()),
-                    String.valueOf(order.getId()), String.valueOf(order.getAuctionId()), String.valueOf(order.getBuyerId()),
-                    String.valueOf(order.getSellerId()), order.getCardName(), String.valueOf(order.getPrice()), order.getStatus().name(), order.getCreatedAt().toString()
-            ))).orElse(false);
+            return orderRepository.findById(orderId).map(this::seed).orElse(false);
         });
+    }
+
+    /** 목록 조회 등으로 Order를 이미 읽어온 경우, 같은 주문을 다시 조회하지 않고 시딩만 한다. */
+    boolean seedIfAbsent(Order order) {
+        String indexKey = "order:state:by-order-id:" + order.getId();
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
+        return singleFlight.execute(indexKey, () -> {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
+            if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
+            return seed(order);
+        });
+    }
+
+    private boolean seed(Order order) {
+        String indexKey = "order:state:by-order-id:" + order.getId();
+        return Long.valueOf(1L).equals(redisTemplate.execute(orderStateSeedScript,
+                List.of("order:state:" + order.getAuctionId(), indexKey, "order:state:buyer:" + order.getBuyerId(), "order:state:seller:" + order.getSellerId()),
+                String.valueOf(order.getId()), String.valueOf(order.getAuctionId()), String.valueOf(order.getBuyerId()),
+                String.valueOf(order.getSellerId()), order.getCardName(), String.valueOf(order.getPrice()), order.getStatus().name(), order.getCreatedAt().toString()
+        ));
     }
 }

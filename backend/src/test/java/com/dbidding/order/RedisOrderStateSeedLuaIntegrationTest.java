@@ -50,5 +50,18 @@ class RedisOrderStateSeedLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().entries("order:state:10"))
                 .containsEntry("orderId", "100").containsEntry("status", "PENDING_CONFIRM").containsEntry("orderVersion", "0");
         assertThat(redisTemplate.opsForValue().get("order:state:by-order-id:100")).isEqualTo("10");
+        assertThat(redisTemplate.getExpire("order:state:10")).isEqualTo(-1L);
+        assertThat(redisTemplate.getExpire("order:state:by-order-id:100")).isEqualTo(-1L);
+    }
+
+    @Test
+    void 완료_또는_취소_상태의_재시딩은_order_state와_by_order_id에_1시간에서_6시간_사이_TTL을_건다() {
+        List<String> keys = List.of("order:state:10", "order:state:by-order-id:100", "order:state:buyer:1", "order:state:seller:7");
+
+        assertThat(redisTemplate.execute(script, keys, "100", "10", "1", "7", "리자몽", "50000", "COMPLETED", "2026-08-12T00:00:00Z"))
+                .isEqualTo(1L);
+
+        assertThat(redisTemplate.getExpire("order:state:10")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.getExpire("order:state:by-order-id:100")).isBetween(3600L, 21600L);
     }
 }

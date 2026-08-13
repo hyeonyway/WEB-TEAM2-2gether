@@ -76,7 +76,8 @@ public class RedisOrderCommandService {
         String requestHash = eventType + ':' + actorId;
         Instant now = clock.instant();
         String raw = redisTemplate.execute(orderWalletTransitionScript, List.of(
-                        stateKey(auctionId), balanceKey(walletUserId), "order:idempotency:" + orderId + ':' + idempotencyKey, TIMELINE_STREAM
+                        stateKey(auctionId), balanceKey(walletUserId), "order:idempotency:" + orderId + ':' + idempotencyKey, TIMELINE_STREAM,
+                        "order:state:by-order-id:" + orderId
                 ), actorId.toString(), targetStatus.name(), eventType, orderId.toString(), auctionId.toString(), idempotencyKey,
                 requestHash, UUID.randomUUID().toString(), now.toString());
         String[] fields = raw.split("\\|", -1);
