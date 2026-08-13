@@ -99,12 +99,12 @@ class NotificationServiceBulkInsertTest {
     void 여러_경매의_행을_insertAllIgnoringDuplicates로_한번에_저장한다() {
         Integer otherAuctionId = auctionId + 1;
         List<NotificationInsertRow> rows = List.of(
-                new NotificationInsertRow(userIds.get(0), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."),
-                new NotificationInsertRow(userIds.get(1), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."),
-                new NotificationInsertRow(userIds.get(2), otherAuctionId, "피카츄 카드의 경매가 등록되었습니다.")
+                NotificationInsertRow.of(userIds.get(0), auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                NotificationInsertRow.of(userIds.get(1), auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                NotificationInsertRow.of(userIds.get(2), otherAuctionId, NotificationType.AUCTION_OPENED, "피카츄 카드의 경매가 등록되었습니다.")
         );
 
-        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+        notificationService.insertAllIgnoringDuplicates(rows);
 
         List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
                 Notification.NO_BID, List.of(auctionId, otherAuctionId), userIds
@@ -122,11 +122,11 @@ class NotificationServiceBulkInsertTest {
                 userIds.get(0), auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
         List<NotificationInsertRow> rows = List.of(
-                new NotificationInsertRow(userIds.get(0), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."),
-                new NotificationInsertRow(userIds.get(1), auctionId, "리자몽 EX 카드의 경매가 등록되었습니다.")
+                NotificationInsertRow.of(userIds.get(0), auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                NotificationInsertRow.of(userIds.get(1), auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.")
         );
 
-        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+        notificationService.insertAllIgnoringDuplicates(rows);
 
         List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
                 Notification.NO_BID, List.of(auctionId), userIds
@@ -140,10 +140,10 @@ class NotificationServiceBulkInsertTest {
     void insertAllIgnoringDuplicates는_행이_청크_크기를_넘으면_여러_청크로_나눠도_전부_저장한다() {
         List<Integer> overChunkUserIds = insertUsersInBulk("insert-all-chunk-over", 10_001);
         List<NotificationInsertRow> rows = overChunkUserIds.stream()
-                .map(userId -> new NotificationInsertRow(userId, auctionId, "리자몽 EX 카드의 경매가 등록되었습니다."))
+                .map(userId -> NotificationInsertRow.of(userId, auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."))
                 .toList();
 
-        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+        notificationService.insertAllIgnoringDuplicates(rows);
 
         List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
                 Notification.NO_BID, List.of(auctionId), overChunkUserIds

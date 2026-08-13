@@ -1,4 +1,8 @@
 package com.dbidding.notification;
 
-public record NotificationInsertRow(Integer userId, Integer auctionId, String message) {
+public record NotificationInsertRow(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {
+
+    public static NotificationInsertRow of(Integer userId, Integer auctionId, NotificationType type, String message) {
+        return new NotificationInsertRow(userId, auctionId, type, Notification.NO_BID, message);
+    }
 }

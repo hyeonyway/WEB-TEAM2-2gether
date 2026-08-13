@@ -6,9 +6,7 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
-import com.dbidding.notification.Notification;
 import com.dbidding.notification.NotificationInsertRow;
-import com.dbidding.notification.NotificationRepository;
 import com.dbidding.notification.NotificationService;
 import com.dbidding.notification.NotificationType;
 import com.dbidding.wishlist.WishlistService;
@@ -20,19 +18,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
  * NotificationEventListener(라이브 이벤트 경로)가 비동기 처리 실패로 알림을 유실했을 때를 대비한
  * 백스톱. 이벤트 경로를 대체하지 않으며, 주기적으로 최근 상태를 다시 훑어 누락된 알림만 채운다.
- * 존재 체크와 insert 사이에 라이브 경로가 끼어들면 notification의
- * (user_id, auction_id, type, bid_id) 유니크 제약 위반이 날 수 있다 — 이미 누가 보냈다는
- * 정상 상황이므로 예외를 삼키고 다음 후보 처리를 이어간다(설계 근거:
- * docs/hamin/notification/6-notification-recovery-batch.md).
+ * notification의 (user_id, auction_id, type, bid_id) 유니크 제약(설계 근거:
+ * docs/hamin/notification/6-notification-recovery-batch.md 결정 2-1)에 의존해 사전 존재
+ * 체크 없이 INSERT IGNORE로 바로 저장한다 — 라이브 경로가 먼저 저장해둔 행과 겹쳐도
+ * 조용히 건너뛴다(이슈 #414).
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationReconciliationService {
@@ -43,7 +38,6 @@ public class NotificationReconciliationService {
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WishlistService wishlistService;
-    private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
 
     /**
@@ -70,15 +64,18 @@ public class NotificationReconciliationService {
         for (Auction auction : recentlyOpened) {
             String message = auction.getAuctionName() + " 카드의 경매가 등록되었습니다.";
             for (Integer userId : wishlistUserIdsByCardId.getOrDefault(auction.getItemId(), List.of())) {
-                rows.add(new NotificationInsertRow(userId, auction.getId(), message));
+                rows.add(NotificationInsertRow.of(userId, auction.getId(), NotificationType.AUCTION_OPENED, message));
             }
         }
-        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+        notificationService.insertAllIgnoringDuplicates(rows);
     }
 
     /**
-     * 낙찰 bid 조회와 알림 존재 체크를 경매마다 따로 하지 않고, 대상 경매 전체에 대해
-     * 한 번씩만 배치 조회한다(N+1 방지).
+     * 낙찰 bid 조회를 경매마다 따로 하지 않고 대상 경매 전체에 대해 한 번만 배치 조회한다
+     * (N+1 방지). 알림 존재 체크는 하지 않는다 — {@code (user_id, auction_id, type, bid_id)}
+     * 유니크 제약이 있어(설계 근거: docs/hamin/notification/6-notification-recovery-batch.md
+     * 결정 2-1) {@link NotificationService#insertAllIgnoringDuplicates}의 INSERT IGNORE가
+     * 중복 행을 알아서 건너뛴다(이슈 #414).
      */
     public void recoverAuctionClosedNotifications(Instant windowStart) {
         List<Auction> recentlyClosed = auctionRepository
@@ -92,47 +89,26 @@ public class NotificationReconciliationService {
                 .stream()
                 .collect(Collectors.toMap(bid -> bid.getAuction().getId(), bid -> bid));
 
-        List<Integer> candidateUserIds = new ArrayList<>();
-        for (Auction auction : recentlyClosed) {
-            candidateUserIds.add(auction.getSellerId());
-            Bid winningBid = winningBidByAuctionId.get(auction.getId());
-            if (winningBid != null) {
-                candidateUserIds.add(winningBid.getBidderId());
-            }
-        }
-        Set<String> alreadyNotified = notificationRepository
-                .findByBidIdAndAuctionIdInAndUserIdIn(Notification.NO_BID, auctionIds, candidateUserIds)
-                .stream()
-                .map(NotificationReconciliationService::resultNotificationKey)
-                .collect(Collectors.toSet());
-
+        List<NotificationInsertRow> rows = new ArrayList<>();
         for (Auction auction : recentlyClosed) {
             Bid winningBid = winningBidByAuctionId.get(auction.getId());
             if (winningBid != null) {
-                ensureResultNotification(
-                        alreadyNotified,
-                        winningBid.getBidderId(),
-                        auction.getId(),
-                        NotificationType.AUCTION_WON,
+                rows.add(NotificationInsertRow.of(
+                        winningBid.getBidderId(), auction.getId(), NotificationType.AUCTION_WON,
                         auction.getAuctionName() + " 카드 경매에 낙찰되었습니다."
-                );
-                ensureResultNotification(
-                        alreadyNotified,
-                        auction.getSellerId(),
-                        auction.getId(),
-                        NotificationType.AUCTION_WON,
+                ));
+                rows.add(NotificationInsertRow.of(
+                        auction.getSellerId(), auction.getId(), NotificationType.AUCTION_WON,
                         auction.getAuctionName() + " 카드 경매가 낙찰되었습니다."
-                );
+                ));
             } else {
-                ensureResultNotification(
-                        alreadyNotified,
-                        auction.getSellerId(),
-                        auction.getId(),
-                        NotificationType.AUCTION_UNSOLD,
+                rows.add(NotificationInsertRow.of(
+                        auction.getSellerId(), auction.getId(), NotificationType.AUCTION_UNSOLD,
                         auction.getAuctionName() + " 카드 경매가 유찰되었습니다."
-                );
+                ));
             }
         }
+        notificationService.insertAllIgnoringDuplicates(rows);
     }
 
     /**
@@ -160,9 +136,10 @@ public class NotificationReconciliationService {
     }
 
     /**
-     * 상회입찰 알림 존재 체크를 후보 bid마다 따로 하지 않고, 후보 전체에 대해 한 번만
-     * 배치 조회한다(N+1 방지). bidId가 sentinel(0)이 아닌 경우는 설계상 OUTBID뿐이라
-     * type 조건 없이 bidId만으로 존재 확인에 충분하다.
+     * 상회입찰 알림 존재 체크는 하지 않는다 — {@code (user_id, auction_id, type, bid_id)}
+     * 유니크 제약이 있어(설계 근거: docs/hamin/notification/6-notification-recovery-batch.md
+     * 결정 2-1) {@link NotificationService#insertAllIgnoringDuplicates}의 INSERT IGNORE가
+     * 중복 행을 알아서 건너뛴다(이슈 #414).
      * 상회입찰 직후~다음 스캔 사이에 경매가 종료되면 낙찰 bid가 LEADING→WON으로 바뀌면서
      * 위 두 메서드의 조회에서 빠져버린다. 그 경매의 outbid된 유저들이 영영 복구 대상에서
      * 누락되는 걸 막기 위해, 최근 종료된 경매도 후보에 포함한다(낙찰자는 status=WON이라
@@ -185,46 +162,13 @@ public class NotificationReconciliationService {
             return;
         }
 
-        List<Long> candidateBidIds = outbidCandidates.stream().map(Bid::getId).toList();
-        Set<Long> alreadyNotifiedBidIds = notificationRepository.findByBidIdIn(candidateBidIds).stream()
-                .map(Notification::getBidId)
-                .collect(Collectors.toSet());
-
+        List<NotificationInsertRow> rows = new ArrayList<>();
         for (Bid latestBid : outbidCandidates) {
-            if (alreadyNotifiedBidIds.contains(latestBid.getId())) {
-                continue;
-            }
-
-            Integer auctionId = latestBid.getAuction().getId();
             String message = "%,d원에 상회 입찰이 발생했습니다.".formatted(latestBid.getBidPrice());
-            saveIgnoringDuplicate(() -> notificationService.saveForBid(
-                    latestBid.getBidderId(), auctionId, NotificationType.OUTBID, latestBid.getId(), message
+            rows.add(new NotificationInsertRow(
+                    latestBid.getBidderId(), latestBid.getAuction().getId(), NotificationType.OUTBID, latestBid.getId(), message
             ));
         }
-    }
-
-    private void ensureResultNotification(
-            Set<String> alreadyNotified, Integer userId, Integer auctionId, NotificationType type, String message
-    ) {
-        if (alreadyNotified.contains(resultNotificationKey(userId, auctionId, type))) {
-            return;
-        }
-        saveIgnoringDuplicate(() -> notificationService.save(userId, auctionId, type, message));
-    }
-
-    private static String resultNotificationKey(Notification notification) {
-        return resultNotificationKey(notification.getUserId(), notification.getAuctionId(), notification.getType());
-    }
-
-    private static String resultNotificationKey(Integer userId, Integer auctionId, NotificationType type) {
-        return userId + ":" + auctionId + ":" + type;
-    }
-
-    private void saveIgnoringDuplicate(Runnable save) {
-        try {
-            save.run();
-        } catch (DataIntegrityViolationException exception) {
-            log.debug("event=notification.recovery.duplicate_skipped", exception);
-        }
+        notificationService.insertAllIgnoringDuplicates(rows);
     }
 }
