@@ -7,7 +7,7 @@ if existing then
     if string.sub(existing, 1, separator - 1) ~= ARGV[6] then
         return 'REJECTED|IDEMPOTENCY_CONFLICT'
     end
-    return string.sub(existing, separator + 1)
+    return string.sub(existing, separator + 1) .. '|true'
 end
 
 local available = tonumber(redis.call('HGET', KEYS[1], 'availableBalance'))
@@ -30,4 +30,4 @@ local streamId = redis.call('XADD', KEYS[3], '*',
     'transactionAmount', amount, 'idempotencyKey', ARGV[5], 'occurredAt', ARGV[7])
 local result = 'ACCEPTED|' .. streamId .. '|' .. nextAvailable .. '|' .. frozen .. '|' .. version
 redis.call('SET', KEYS[2], ARGV[6] .. '|' .. result, 'EX', 86400)
-return result
+return result .. '|false'

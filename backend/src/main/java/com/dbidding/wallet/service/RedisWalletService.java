@@ -30,6 +30,7 @@ public class RedisWalletService extends WalletService {
     private final RedisScript<String> walletTransitionScript;
     private final RedisWalletStateSeeder stateSeeder;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     public RedisWalletService(
             WalletRepository walletRepository, PointRecordRepository pointRecordRepository,
@@ -42,6 +43,7 @@ public class RedisWalletService extends WalletService {
         this.walletTransitionScript = walletTransitionScript;
         this.stateSeeder = stateSeeder;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -109,7 +111,19 @@ public class RedisWalletService extends WalletService {
             if ("IDEMPOTENCY_CONFLICT".equals(fields.length > 1 ? fields[1] : "")) throw new IdempotencyConflictException();
             throw new IllegalStateException("Redis 지갑 상태가 올바르지 않습니다.");
         }
+        if (fields.length != 6) throw new IllegalStateException("Redis 지갑 승인 응답이 올바르지 않습니다.");
         long balance = Long.parseLong(fields[2]) + Long.parseLong(fields[3]);
+        if (!Boolean.parseBoolean(fields[5])) {
+            long availableBalance = Long.parseLong(fields[2]);
+            long frozenBalance = Long.parseLong(fields[3]);
+            long walletVersion = Long.parseLong(fields[4]);
+            eventPublisher.publishEvent(new com.dbidding.wallet.sse.WalletBalanceChangedEvent(
+                    userId,
+                    new WalletBalanceResponse(balance, frozenBalance, availableBalance, walletVersion),
+                    walletVersion,
+                    Instant.now(clock)
+            ));
+        }
         return new WalletTransactionResponse(null, eventType, "wallet.refunded.v1".equals(eventType) ? -amount : amount, balance);
     }
 
@@ -118,7 +132,7 @@ public class RedisWalletService extends WalletService {
     /**
      * Redis 입찰 Stream을 MySQL에 projection할 때도 부모의 hold/release/capture를 재사용한다.
      * 이 시점에 DB 버전을 다시 증가시키면 Redis walletVersion과 두 개의 독립 카운터가 되므로,
-     * browser SSE는 Redis Stream projection이 원본 버전으로 발행하는 경로만 사용한다.
+     * browser SSE는 Redis Lua 승인 직후 원본 버전으로 발행하므로 projection에서는 발행하지 않는다.
      */
     @Override
     protected void publishBalanceChanged(com.dbidding.wallet.domain.Wallet wallet, WalletBalanceResponse balance) {
