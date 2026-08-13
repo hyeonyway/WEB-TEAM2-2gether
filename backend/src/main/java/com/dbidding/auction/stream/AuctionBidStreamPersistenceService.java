@@ -204,6 +204,11 @@ public class AuctionBidStreamPersistenceService {
         return firstError;
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordProjectionAttempt(String streamId) {
+        inboxRepository.findByStreamId(streamId).ifPresent(inbox -> inbox.recordAttempt(clock.instant()));
+    }
+
     private Bid apply(
             BidAcceptedStreamEvent event,
             Auction auction,

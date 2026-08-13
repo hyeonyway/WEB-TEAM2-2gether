@@ -14,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.RecoverableDataAccessException;
+import org.springframework.dao.TransientDataAccessException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -45,6 +48,7 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
+    private final AuctionTimelineStreamPauseRegistry pauseRegistry;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("auction-timeline-single-", 0).factory()
     );
@@ -73,6 +77,10 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
         while (running) {
             try {
                 if (!leaderLock.isLeader() && !leaderLock.tryAcquire()) {
+                    Thread.sleep(Duration.ofSeconds(1));
+                    continue;
+                }
+                if (pauseRegistry.isPaused()) {
                     Thread.sleep(Duration.ofSeconds(1));
                     continue;
                 }
@@ -129,19 +137,58 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
             return;
         }
         persistenceService.recordPending(event);
-        if (!persistenceService.hasProjectionError()) {
+        RuntimeException failure = projectWithRetry(event);
+        if (failure == null) {
+            persistenceService.markProcessed(event.streamId());
+        } else {
+            if (persistenceService.markError(event.streamId(), failure)) {
+                log.error("event=auction.bid.stream.projection.error streamId={} auctionId={}",
+                        event.streamId(), event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null, failure);
+            }
+            pauseRegistry.pause(event.streamId(), auctionIdOf(event), versionOf(event), failure);
+        }
+        acknowledge(record);
+    }
+
+    private RuntimeException projectWithRetry(AuctionWalletTimelineEvent event) {
+        RuntimeException failure = null;
+        for (int attempt = 0; attempt < properties.maxRetries(); attempt++) {
             try {
+                persistenceService.recordProjectionAttempt(event.streamId());
                 persistenceService.project(event);
-                persistenceService.markProcessed(event.streamId());
+                return null;
             } catch (RuntimeException exception) {
-                if (persistenceService.markError(event.streamId(), exception)) {
-                    // ERROR 로그는 기존 Slack appender가 최초 projection 장애를 알린다.
-                    log.error("event=auction.bid.stream.projection.error streamId={} auctionId={}",
-                            event.streamId(), event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : null, exception);
+                failure = exception;
+                if (!isTransient(exception) || attempt + 1 == properties.maxRetries()) return failure;
+                try {
+                    Thread.sleep(Duration.ofSeconds(1L << attempt));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return exception;
                 }
             }
         }
-        acknowledge(record);
+        return failure;
+    }
+
+    private boolean isTransient(RuntimeException exception) {
+        return exception instanceof TransientDataAccessException
+                || exception instanceof RecoverableDataAccessException
+                || exception instanceof CannotCreateTransactionException;
+    }
+
+    private Integer auctionIdOf(AuctionWalletTimelineEvent event) {
+        if (event instanceof BidAcceptedStreamEvent bid) return bid.auctionId();
+        if (event instanceof AuctionCloseRequestedStreamEvent close) return close.auctionId();
+        if (event instanceof AuctionCreatedStreamEvent created) return created.auctionId();
+        if (event instanceof OrderStateChangedStreamEvent order) return order.auctionId();
+        return null;
+    }
+
+    private Long versionOf(AuctionWalletTimelineEvent event) {
+        if (event instanceof BidAcceptedStreamEvent bid) return bid.auctionVersion();
+        if (event instanceof OrderStateChangedStreamEvent order) return order.orderVersion();
+        return null;
     }
 
     void acknowledge(MapRecord<String, Object, Object> record) {

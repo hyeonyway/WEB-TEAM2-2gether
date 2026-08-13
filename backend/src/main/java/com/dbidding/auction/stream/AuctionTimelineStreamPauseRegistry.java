@@ -22,16 +22,16 @@ public class AuctionTimelineStreamPauseRegistry {
         return Boolean.TRUE.equals(redisTemplate.hasKey(KEY));
     }
 
-    public void pause(BidAcceptedStreamEvent event, Exception exception) {
+    public void pause(String streamId, Integer auctionId, Long eventVersion, Exception exception) {
         redisTemplate.opsForHash().putAll(KEY, Map.of(
-                "streamId", event.streamId(),
-                "auctionId", String.valueOf(event.auctionId()),
-                "eventVersion", String.valueOf(event.auctionVersion()),
+                "streamId", streamId,
+                "auctionId", String.valueOf(auctionId),
+                "eventVersion", String.valueOf(eventVersion),
                 "reason", String.valueOf(exception.getMessage()),
                 "pausedAt", Instant.now().toString()
         ));
         log.error("event=auction.bid.stream.paused streamId={} auctionId={} eventVersion={}",
-                event.streamId(), event.auctionId(), event.auctionVersion(), exception);
+                streamId, auctionId, eventVersion, exception);
     }
 
     public void resume() {

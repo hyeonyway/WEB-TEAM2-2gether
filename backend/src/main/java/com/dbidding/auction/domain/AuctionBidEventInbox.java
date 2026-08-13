@@ -51,6 +51,12 @@ public class AuctionBidEventInbox {
     @Column(name = "processed_at")
     private Instant processedAt;
 
+    @Column(name = "attempt_count", nullable = false)
+    private int attemptCount;
+
+    @Column(name = "last_attempt_at")
+    private Instant lastAttemptAt;
+
     public AuctionBidEventInbox(
             String streamId,
             Integer auctionId,
@@ -69,6 +75,7 @@ public class AuctionBidEventInbox {
         this.payload = payload;
         this.occurredAt = occurredAt;
         this.projectionStatus = AuctionBidEventProjectionStatus.PENDING;
+        this.attemptCount = 0;
         this.processedAt = null;
     }
 
@@ -82,5 +89,10 @@ public class AuctionBidEventInbox {
         this.projectionStatus = AuctionBidEventProjectionStatus.ERROR;
         this.failureMessage = failureMessage;
         this.processedAt = null;
+    }
+
+    public void recordAttempt(Instant attemptedAt) {
+        this.attemptCount++;
+        this.lastAttemptAt = attemptedAt;
     }
 }
