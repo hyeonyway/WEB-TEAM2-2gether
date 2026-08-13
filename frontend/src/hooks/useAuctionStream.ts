@@ -37,9 +37,12 @@ export type AuctionStreamPayload=
     type:'AUCTION_CLOSED';
     seller_id:number;
     winner_id:number|null;
+  }
+  |AuctionStreamBase&{
+    type:'AUCTION_ENDING_STARTED';
   };
 
-const AUCTION_STREAM_EVENT_TYPES=['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED'] as const;
+const AUCTION_STREAM_EVENT_TYPES=['AUCTION_CREATED','BID_PLACED','AUCTION_CLOSED','AUCTION_ENDING_STARTED'] as const;
 type AuctionStreamEventType=typeof AUCTION_STREAM_EVENT_TYPES[number];
 
 type UseAuctionStreamOptions={
@@ -104,7 +107,7 @@ function parsePayload(type:AuctionStreamEventType,event:MessageEvent<string>):Au
       ||!Number.isFinite(value.event_id)
       ||typeof value.occurred_at!=='string'
     )return null;
-    if(value.type!=='BID_PLACED'&&(
+    if(value.type!=='BID_PLACED'&&value.type!=='AUCTION_ENDING_STARTED'&&(
       !Number.isInteger(value.card_id)
       ||typeof value.card_name!=='string'
       ||!Number.isInteger(value.seller_id)

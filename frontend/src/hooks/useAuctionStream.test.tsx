@@ -27,7 +27,7 @@ const basePayload={
   occurred_at:'2026-08-03T14:28:12Z',
 };
 
-function publish(type:'AUCTION_CREATED'|'BID_PLACED'|'AUCTION_CLOSED',data:object|string){
+function publish(type:'AUCTION_CREATED'|'BID_PLACED'|'AUCTION_CLOSED'|'AUCTION_ENDING_STARTED',data:object|string){
   const eventSource=EventSourceMock.instances.at(-1);
   if(!eventSource)throw new Error('EventSource가 생성되지 않았습니다.');
   eventSource.dispatchEvent(new MessageEvent(type,{
@@ -53,6 +53,7 @@ describe('useAuctionStream',()=>{
     ['AUCTION_CREATED',{...basePayload,card_id:3,card_name:'리자몽',card_psa_grade:'10',card_language:'JP',card_thumbnail_url:null,seller_id:20}],
     ['BID_PLACED',{...basePayload,bidder_id:7,previous_bidder_id:5}],
     ['AUCTION_CLOSED',{...basePayload,final_price:50_000,card_id:3,card_name:'리자몽',card_psa_grade:'10',card_language:'JP',card_thumbnail_url:null,seller_id:20,winner_id:7}],
+    ['AUCTION_ENDING_STARTED',{...basePayload,status:'ENDING'}],
   ] as const)('%s event 필드를 payload 타입으로 사용한다',(type,data)=>{
     const onAuctionUpdated=vi.fn();
     renderHook(()=>useAuctionStream({auctionIds:[10],onAuctionUpdated}));
