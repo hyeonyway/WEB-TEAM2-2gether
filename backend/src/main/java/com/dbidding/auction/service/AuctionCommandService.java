@@ -141,7 +141,7 @@ public class AuctionCommandService {
                 savedAuction.getCurrentPrice(),
                 savedAuction.getBidPriceUnit(),
                 savedAuction.getBidCount(),
-                savedAuction.getCloseTime(),
+                savedAuction.getEstimatedCloseTime(),
                 savedAuction.getStatus(),
                 now
         );
@@ -465,7 +465,7 @@ public class AuctionCommandService {
                 .id(auction.getId())
                 .status(auction.getStatus())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .endsAt(auction.getEstimatedCloseTime())
                 .build();
     }
 
