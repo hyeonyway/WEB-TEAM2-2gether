@@ -27,6 +27,24 @@ ON DUPLICATE KEY UPDATE
   `encrypted_password` = VALUES(`encrypted_password`),
   `salt` = VALUES(`salt`);
 
+-- Local administrator for the Stream recovery console.
+-- Credentials: admin@dbidding.com / Dbidding123!
+-- Uses the same demo-only PBKDF2 parameters as the primary local account.
+INSERT INTO `users`
+  (`id`, `email`, `nickname`, `created_at`, `role`, `status`,
+   `encrypted_password`, `salt`)
+VALUES
+  (2, 'admin@dbidding.com', '관리자', NOW(6), 'ADMIN', 'ACTIVE',
+   '180cd1dc8f210c0407949401ebd334b6a95b24dd5d4dcda1643487be90cf9d6f',
+   '6462696464696e672d757365722d3031')
+ON DUPLICATE KEY UPDATE
+  `email` = VALUES(`email`),
+  `nickname` = VALUES(`nickname`),
+  `role` = VALUES(`role`),
+  `status` = VALUES(`status`),
+  `encrypted_password` = VALUES(`encrypted_password`),
+  `salt` = VALUES(`salt`);
+
 -- k6 bid load-test accounts.
 -- Credentials: k6-user00001@dbidding.local .. k6-user50000@dbidding.local
 -- Password (all accounts): K6LoadTest123!
