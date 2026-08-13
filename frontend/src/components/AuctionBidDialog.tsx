@@ -11,14 +11,26 @@ import {showToast} from './Toast';
 import './AuctionBidDialog.css';
 import {Tabs,TabsContent,TabsList,TabsTrigger} from './ui/tabs';
 
+const ANIMATION_DURATION_MS=650;
+// 이 간격보다 빠르게 다음 갱신이 오면, 애니메이션이 끝나기 전에 계속 재시작되며
+// 실제 값보다 뒤처져 보인다(redis 프로필처럼 SSE가 짧은 간격으로 몰아치는 경우).
+// 그 정도 빈도에서는 애니메이션 대신 값만 즉시 반영해 "실시간 값"으로 보이게 한다.
+const RAPID_UPDATE_THRESHOLD_MS=200;
+
 function AnimatedBidValue({value}:{value:number}){
   const[displayValue,setDisplayValue]=useState(value);
   const displayValueRef=useRef(value);
+  const lastUpdatedAtRef=useRef(performance.now());
   useEffect(()=>{
     if(displayValueRef.current===value)return;
-    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){displayValueRef.current=value;setDisplayValue(value);return;}
-    const start=displayValueRef.current,startedAt=performance.now();let animationFrame=0;
-    const animate=(now:number)=>{const progress=Math.min((now-startedAt)/650,1);const next=Math.round(start+(value-start)*(1-Math.pow(1-progress,3)));displayValueRef.current=next;setDisplayValue(next);if(progress<1)animationFrame=requestAnimationFrame(animate);};
+    const now=performance.now();
+    const gapSinceLastUpdate=now-lastUpdatedAtRef.current;
+    lastUpdatedAtRef.current=now;
+    if(gapSinceLastUpdate<RAPID_UPDATE_THRESHOLD_MS||window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      displayValueRef.current=value;setDisplayValue(value);return;
+    }
+    const start=displayValueRef.current,startedAt=now;let animationFrame=0;
+    const animate=(current:number)=>{const progress=Math.min((current-startedAt)/ANIMATION_DURATION_MS,1);const next=Math.round(start+(value-start)*(1-Math.pow(1-progress,3)));displayValueRef.current=next;setDisplayValue(next);if(progress<1)animationFrame=requestAnimationFrame(animate);};
     animationFrame=requestAnimationFrame(animate);return()=>cancelAnimationFrame(animationFrame);
   },[value]);
   return <>{displayValue.toLocaleString()}원</>;
