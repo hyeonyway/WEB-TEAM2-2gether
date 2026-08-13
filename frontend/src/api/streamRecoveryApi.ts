@@ -16,6 +16,7 @@ export type StreamRecoveryEventDto={
 };
 
 export type StreamRecoveryEventPageDto={content:StreamRecoveryEventDto[];page:number;totalPages:number;totalElements:number};
+export type StreamRecoveryReplayDto={accepted:boolean;replayFromStreamId:string|null;pendingCount:number;message:string};
 
 export function fetchStreamRecoveryStatus(){
   return authenticatedRequest<StreamRecoveryStatusDto>('/api/admin/auction-stream/recovery/status');
@@ -23,4 +24,8 @@ export function fetchStreamRecoveryStatus(){
 
 export function fetchStreamRecoveryEvents(page=0){
   return authenticatedRequest<StreamRecoveryEventPageDto>(`/api/admin/auction-stream/recovery/events?page=${page}`);
+}
+
+export function replayStreamRecovery(){
+  return authenticatedRequest<StreamRecoveryReplayDto>('/api/admin/auction-stream/recovery/replay',{method:'POST'});
 }

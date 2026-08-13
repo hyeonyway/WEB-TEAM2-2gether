@@ -91,6 +91,13 @@ public class AuctionBidEventInbox {
         this.processedAt = null;
     }
 
+    /** 운영자가 원인을 조치한 뒤, 같은 이벤트부터 DB inbox 순서로 다시 투영한다. */
+    public void requeueForProjection() {
+        this.projectionStatus = AuctionBidEventProjectionStatus.PENDING;
+        this.failureMessage = null;
+        this.processedAt = null;
+    }
+
     public void recordAttempt(Instant attemptedAt) {
         this.attemptCount++;
         this.lastAttemptAt = attemptedAt;

@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 public class AuctionStreamRecoveryAdminService {
     private final AccountRepository accountRepository;
     private final AuctionBidEventInboxRepository inboxRepository;
+    private final AuctionBidStreamPersistenceService persistenceService;
 
     public AuctionStreamRecoveryStatus status(Integer userId) {
         requireAdmin(userId);
@@ -46,6 +47,19 @@ public class AuctionStreamRecoveryAdminService {
                 result.getContent().stream().map(AuctionStreamRecoveryEventResponse::from).toList(),
                 result.getNumber(), result.getTotalPages(), result.getTotalElements()
         );
+    }
+
+    public AuctionStreamRecoveryReplayResponse replay(Integer userId) {
+        requireAdmin(userId);
+        AuctionBidEventInbox requeued = persistenceService.requeueFirstError();
+        if (requeued == null) {
+            return new AuctionStreamRecoveryReplayResponse(false, null,
+                    inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.PENDING),
+                    "재처리할 ERROR 이벤트가 없습니다.");
+        }
+        return new AuctionStreamRecoveryReplayResponse(true, requeued.getStreamId(),
+                inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.PENDING),
+                "오류 이벤트를 재처리 대기열에 넣었습니다. DB inbox 순서로 projection을 재개합니다.");
     }
 
     private void requireAdmin(Integer userId) {

@@ -84,6 +84,17 @@ public class AuctionBidStreamPersistenceService {
         return inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
     }
 
+    /** 첫 오류를 다시 PENDING으로 전환한다. 이후 투영 worker는 DB inbox의 ID 순서대로 처리한다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuctionBidEventInbox requeueFirstError() {
+        return inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.ERROR)
+                .map(inbox -> {
+                    inbox.requeueForProjection();
+                    return inbox;
+                })
+                .orElse(null);
+    }
+
     /** 기존 호출부 및 단위 테스트 호환용 동기 projection 경로. */
     public void persist(AuctionWalletTimelineEvent event) {
         recordPending(event);
