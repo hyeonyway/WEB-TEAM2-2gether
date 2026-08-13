@@ -103,20 +103,6 @@ public class OrderService {
         }
     }
 
-    /** Redis 주문 상태 이벤트의 MySQL projection이 완료된 뒤 기존 후속 이벤트를 발행한다. */
-    public void publishProjectedStateChange(Order order, Integer actorId) {
-        if (order.getStatus() == OrderStatus.COMPLETED) {
-            orderEventPort.publishCompleted(new OrderCompletedEvent(
-                    order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId(), order.getCardName()
-            ));
-            return;
-        }
-        orderEventPort.publishCancelled(new OrderCancelledEvent(
-                order.getId(), order.getAuctionId(), order.getBuyerId(), order.getSellerId(), order.getCardName(),
-                actorId.equals(order.getBuyerId()) ? CancelledBy.BUYER : CancelledBy.SELLER
-        ));
-    }
-
     private boolean isAuctionUniqueConstraintViolation(Throwable exception) {
         Throwable cause = exception;
         while (cause != null) {
