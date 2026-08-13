@@ -5,8 +5,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.time.Duration;
-import com.dbidding.auction.domain.AuctionBidEventInbox;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.domain.AuctionTimelineEvent;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -30,7 +30,7 @@ class AuctionBidStreamConsumerTest {
                 mock(AuctionBidStreamPersistenceService.class),
                 new AuctionBidStreamProperties(Duration.ofSeconds(1), Duration.ofSeconds(30), 3, Duration.ofMinutes(5), 100),
                 mock(AuctionBidStreamConsumerLeaderLock.class),
-                mock(AuctionBidEventInboxRepository.class),
+                mock(AuctionTimelineEventRepository.class),
                 new ObjectMapper()
         );
 
