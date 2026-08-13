@@ -294,7 +294,9 @@ public class DbBidExecutor implements BidExecutor {
                         auction.getCurrentPrice(),
                         auction.minimumBid(),
                         auction.getBidCount(),
-                        auction.getEstimatedCloseTime()
+                        auction.getStatus() == com.dbidding.auction.domain.AuctionStatus.OPEN
+                                || auction.getStatus() == com.dbidding.auction.domain.AuctionStatus.ENDING
+                                ? auction.getEstimatedCloseTime() : auction.getCloseTime()
                 ),
                 new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance())
         );

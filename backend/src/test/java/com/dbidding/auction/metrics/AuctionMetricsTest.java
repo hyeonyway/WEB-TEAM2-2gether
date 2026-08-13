@@ -64,15 +64,6 @@ class AuctionMetricsTest {
     }
 
     @Test
-    void 경매_연장을_카운트한다() {
-        metrics.recordExtension();
-
-        assertThat(registry.get("dbidding.auction.extensions")
-                .counter()
-                .count()).isEqualTo(1);
-    }
-
-    @Test
     void ENDING_전환을_기록하면_전용_카운터가_증가한다() {
         metrics.recordEndingTransition();
 

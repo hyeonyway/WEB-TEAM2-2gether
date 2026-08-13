@@ -21,8 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Profile("!redis")
 @RequiredArgsConstructor
 public class AuctionEndingTransitionService {
-    private static final Duration ENDING_WINDOW = Duration.ofMinutes(5);
-
     private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuctionStreamPublisher auctionStreamPublisher;
@@ -34,7 +32,7 @@ public class AuctionEndingTransitionService {
         return auctionRepository.findByIdForUpdate(auctionId)
                 .filter(auction -> auction.getStatus() == AuctionStatus.OPEN)
                 .filter(auction -> now.isBefore(auction.getCloseTime()))
-                .filter(auction -> !auction.getCloseTime().minus(ENDING_WINDOW).isAfter(now))
+                .filter(auction -> !auction.getCloseTime().minus(AuctionEndingPolicy.WINDOW).isAfter(now))
                 .map(auction -> transition(auction, now))
                 .orElse(false);
     }

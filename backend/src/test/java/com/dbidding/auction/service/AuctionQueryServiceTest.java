@@ -199,9 +199,8 @@ class AuctionQueryServiceTest {
     }
 
     @Test
-    void 종료된_경매의_상세도_공개_마감시각으로_estimatedCloseTime을_반환한다() {
+    void 종료된_경매의_상세는_실제_마감시각을_반환한다() {
         Auction auction = auction(AuctionStatus.ENDED);
-        Instant estimatedCloseTime = auction.getEstimatedCloseTime();
         Instant actualCloseTime = Instant.now().minusSeconds(30);
         ReflectionTestUtils.setField(auction, "closeTime", actualCloseTime);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
@@ -212,8 +211,7 @@ class AuctionQueryServiceTest {
 
         var response = auctionQueryService.getDetail(3, 1);
 
-        assertThat(response.endsAt()).isEqualTo(estimatedCloseTime);
-        assertThat(response.endsAt()).isNotEqualTo(actualCloseTime);
+        assertThat(response.endsAt()).isEqualTo(actualCloseTime);
     }
 
     @Test

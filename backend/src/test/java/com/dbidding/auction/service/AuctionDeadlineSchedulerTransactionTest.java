@@ -31,7 +31,7 @@ class AuctionDeadlineSchedulerTransactionTest {
         TaskScheduler taskScheduler = mock(TaskScheduler.class);
         Clock clock = Clock.systemUTC();
 
-        when(auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1))).thenReturn(List.of());
+        when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1))).thenReturn(List.of());
         when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1))).thenReturn(List.of());
 
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
@@ -57,7 +57,7 @@ class AuctionDeadlineSchedulerTransactionTest {
                 verifyNoInteractions(auctionRepository);
             });
 
-            verify(auctionRepository).findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1));
+            verify(auctionRepository).findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1));
             verify(auctionRepository).findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1));
 
             reset(auctionRepository);

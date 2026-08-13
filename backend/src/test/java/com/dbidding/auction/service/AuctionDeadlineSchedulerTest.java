@@ -74,7 +74,9 @@ class AuctionDeadlineSchedulerTest {
         scheduler.scheduleNext("redis_test");
 
         assertThat(taskScheduler.scheduledInstant).isEqualTo(closeTime);
-        verify(auctionRepository, org.mockito.Mockito.never()).findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1));
+        verify(auctionRepository, org.mockito.Mockito.never()).findNextCloseTarget(
+                List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)
+        );
     }
 
     @Test
@@ -101,7 +103,7 @@ class AuctionDeadlineSchedulerTest {
     @Test
     void 타이머가_발동하면_마감처리뒤에_해당_OPEN_경매의_ENDING_전환을_시도한다() {
         Auction open = auction(1, AuctionStatus.OPEN, NOW.plus(Duration.ofMinutes(5)));
-        when(auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1)))
+        when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)))
                 .thenReturn(List.of(open), List.of());
         when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1)))
                 .thenReturn(List.of());
@@ -118,7 +120,7 @@ class AuctionDeadlineSchedulerTest {
     void 일정_변경_이벤트를_받으면_기존_예약을_취소하고_다시_계산한다() {
         Auction first = auction(1, AuctionStatus.OPEN, NOW.plus(Duration.ofMinutes(10)));
         Auction changed = auction(2, AuctionStatus.OPEN, NOW.plus(Duration.ofMinutes(7)));
-        when(auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1)))
+        when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)))
                 .thenReturn(List.of(first), List.of(changed));
         when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1)))
                 .thenReturn(List.of());
@@ -135,7 +137,7 @@ class AuctionDeadlineSchedulerTest {
     void 타이머_처리가_실패해도_다음_대상을_다시_예약한다() {
         Auction failed = auction(1, AuctionStatus.ENDING, NOW);
         Auction next = auction(2, AuctionStatus.ENDING, NOW.plus(Duration.ofMinutes(5)));
-        when(auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1))).thenReturn(List.of());
+        when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1))).thenReturn(List.of());
         when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1)))
                 .thenReturn(List.of(failed), List.of(next));
         when(auctionCloseSchedulerProcessor.processDueAuctions(NOW, 100)).thenThrow(new IllegalStateException("close failed"));
@@ -152,7 +154,7 @@ class AuctionDeadlineSchedulerTest {
     @Test
     void 다음_대상이_없으면_기존_예약을_취소한다() {
         Auction auction = auction(1, AuctionStatus.OPEN, NOW.plus(Duration.ofMinutes(10)));
-        when(auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1)))
+        when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)))
                 .thenReturn(List.of(auction), List.of());
         when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1)))
                 .thenReturn(List.of());
@@ -166,7 +168,7 @@ class AuctionDeadlineSchedulerTest {
     }
 
     private void stubCandidates(Auction open, Auction ending) {
-        when(auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1)))
+        when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)))
                 .thenReturn(open == null ? List.of() : List.of(open));
         when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1)))
                 .thenReturn(ending == null ? List.of() : List.of(ending));

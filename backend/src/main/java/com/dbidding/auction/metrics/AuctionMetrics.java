@@ -41,7 +41,6 @@ public class AuctionMetrics {
     private final Map<BidStep, Timer> bidStepTimers = new EnumMap<>(BidStep.class);
     private final Timer bidCriticalSectionTimer;
     private final Timer bidFlushTimer;
-    private final Counter auctionExtensions;
     private final Counter auctionEndingTransitions;
 
     public AuctionMetrics(MeterRegistry registry) {
@@ -88,9 +87,6 @@ public class AuctionMetrics {
                 .publishPercentileHistogram()
                 .serviceLevelObjectives(OPERATION_SLOS)
                 .register(registry);
-        auctionExtensions = Counter.builder("dbidding.auction.extensions")
-                .description("마감 임박 입찰로 경매가 연장된 횟수")
-                .register(registry);
         auctionEndingTransitions = Counter.builder("dbidding.auction.ending.transitions")
                 .description("경매가 시간 기준으로 ENDING 상태에 진입한 횟수")
                 .register(registry);
@@ -134,10 +130,6 @@ public class AuctionMetrics {
 
     public void finishBidFlush(Timer.Sample sample) {
         sample.stop(bidFlushTimer);
-    }
-
-    public void recordExtension() {
-        auctionExtensions.increment();
     }
 
     public void recordEndingTransition() {

@@ -224,8 +224,8 @@ public class AuctionCommandService {
 
     /**
      * {@code bidExecutor.execute()}는 이벤트를 발행하지 않으므로(#281), 여기서 result로부터
-     * 조립해서 발행한다. buyNow로 즉시낙찰된 경우 {@code AuctionClosedEvent}도, 마감시간이
-     * 연장된 경우 {@code AuctionCloseScheduleChangedEvent}도 같은 자리에서 순서대로 발행한다.
+     * 조립해서 발행한다. buyNow로 즉시낙찰된 경우 {@code AuctionClosedEvent}도 같은 자리에서
+     * 순서대로 발행한다.
      */
     private void publishBidEvents(Integer userId, Integer auctionId, BidExecutionResult outcome) {
         BidEventData data = outcome.eventData();

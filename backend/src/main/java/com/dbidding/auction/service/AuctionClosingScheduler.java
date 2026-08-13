@@ -2,12 +2,10 @@ package com.dbidding.auction.service;
 
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,7 +20,6 @@ import org.springframework.stereotype.Component;
 )
 public class AuctionClosingScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
-    private static final Duration ENDING_WINDOW = Duration.ofMinutes(5);
 
     private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor;
     private final AuctionRepository auctionRepository;
@@ -32,13 +29,12 @@ public class AuctionClosingScheduler {
     public AuctionClosingScheduler(
             AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor,
             AuctionRepository auctionRepository,
-            @Autowired(required = false) Optional<AuctionEndingTransitionService> auctionEndingTransitionService,
+            Optional<AuctionEndingTransitionService> auctionEndingTransitionService,
             Clock clock
     ) {
         this.auctionCloseSchedulerProcessor = auctionCloseSchedulerProcessor;
         this.auctionRepository = auctionRepository;
-        this.auctionEndingTransitionService = auctionEndingTransitionService == null
-                ? Optional.empty() : auctionEndingTransitionService;
+        this.auctionEndingTransitionService = auctionEndingTransitionService;
         this.clock = clock;
     }
 
@@ -71,14 +67,23 @@ public class AuctionClosingScheduler {
         if (auctionEndingTransitionService.isEmpty()) {
             return;
         }
-        List<Integer> auctionIds = auctionRepository.findOverdueEndingCandidateIds(
-                now.plus(ENDING_WINDOW), PageRequest.of(0, CLOSE_BATCH_SIZE)
+        List<Integer> auctionIds = auctionRepository.findDueAuctionIds(
+                List.of(com.dbidding.auction.domain.AuctionStatus.OPEN),
+                now.plus(AuctionEndingPolicy.WINDOW),
+                PageRequest.of(0, CLOSE_BATCH_SIZE)
         );
         if (auctionIds.isEmpty()) {
             log.debug("event=auction.ending.backup_scheduler.empty now={}", now);
             return;
         }
-        auctionIds.forEach(auctionId -> auctionEndingTransitionService.get().transitionIfDue(auctionId, now));
+        auctionIds.forEach(auctionId -> {
+            try {
+                auctionEndingTransitionService.get().transitionIfDue(auctionId, now);
+            } catch (RuntimeException exception) {
+                log.warn("event=auction.ending.backup_scheduler.transition_failed auctionId={} now={}", auctionId, now,
+                        exception);
+            }
+        });
         log.info("event=auction.ending.backup_scheduler.completed count={} auctionIds={}", auctionIds.size(), auctionIds);
     }
 }

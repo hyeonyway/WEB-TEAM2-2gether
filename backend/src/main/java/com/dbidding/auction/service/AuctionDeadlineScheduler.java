@@ -4,7 +4,6 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -33,7 +32,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 )
 public class AuctionDeadlineScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
-    private static final Duration ENDING_WINDOW = Duration.ofMinutes(5);
 
     private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor;
     private final AuctionRepository auctionRepository;
@@ -121,14 +119,16 @@ public class AuctionDeadlineScheduler {
             );
         }
 
-        List<Auction> openCandidates = auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1));
+        List<Auction> openCandidates = auctionRepository.findNextCloseTarget(
+                List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)
+        );
         List<Auction> endingCandidates = auctionRepository.findNextCloseTarget(
                 List.of(AuctionStatus.ENDING), PageRequest.of(0, 1)
         );
         ScheduledAuctionTarget openTarget = openCandidates.isEmpty() ? null
                 : new ScheduledAuctionTarget(
                         openCandidates.get(0).getId(),
-                        openCandidates.get(0).getCloseTime().minus(ENDING_WINDOW)
+                        openCandidates.get(0).getCloseTime().minus(AuctionEndingPolicy.WINDOW)
                 );
         ScheduledAuctionTarget endingTarget = endingCandidates.isEmpty() ? null
                 : new ScheduledAuctionTarget(endingCandidates.get(0).getId(), endingCandidates.get(0).getCloseTime());

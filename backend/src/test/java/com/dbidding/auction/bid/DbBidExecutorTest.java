@@ -164,6 +164,7 @@ class DbBidExecutorTest {
 
         assertThat(response.result().bid().amount()).isEqualTo(100_000L);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
+        assertThat(response.result().auction().endsAt()).isEqualTo(clock.instant());
         verify(walletService).lockWalletsInOrder(2, null, 1);
         verify(walletService).captureAfterHold(2, 1, 100_000L);
         verify(walletService, never()).capture(2, 1, 100_000L);
