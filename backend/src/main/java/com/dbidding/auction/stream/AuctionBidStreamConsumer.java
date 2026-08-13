@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import com.dbidding.auction.domain.AuctionBidEventInbox;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.domain.AuctionTimelineEvent;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
@@ -51,7 +51,7 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
-    private final AuctionBidEventInboxRepository inboxRepository;
+    private final AuctionTimelineEventRepository inboxRepository;
     private final ObjectMapper objectMapper;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("auction-timeline-single-", 0).factory()
@@ -130,7 +130,7 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
         try {
             event = AuctionWalletTimelineEvent.from(record.getId().getValue(), values);
         } catch (InvalidBidStreamEventException exception) {
-            AuctionBidEventInbox inbox = persistenceService.recordMalformed(record.getId().getValue(), values);
+            AuctionTimelineEvent inbox = persistenceService.recordMalformed(record.getId().getValue(), values);
             if (!persistenceService.hasProjectionError() && persistenceService.markError(inbox.getStreamId(), exception)) {
                 log.error("event=auction.bid.stream.projection.error streamId={} malformed=true", inbox.getStreamId(), exception);
             }
@@ -144,7 +144,7 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
     /** Redis Stream은 inbox 적재만 담당하고, 실제 projection은 DB inbox 순서만 따른다. */
     private boolean projectOldestPending() {
         if (persistenceService.hasProjectionError()) return false;
-        AuctionBidEventInbox inbox = inboxRepository.findFirstByProjectionStatusOrderByIdAsc(
+        AuctionTimelineEvent inbox = inboxRepository.findFirstByProjectionStatusOrderByIdAsc(
                 com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING).orElse(null);
         if (inbox == null) return false;
         try {

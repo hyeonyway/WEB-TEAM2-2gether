@@ -2,9 +2,9 @@ package com.dbidding.auction.stream;
 
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.repository.AccountRepository;
-import com.dbidding.auction.domain.AuctionBidEventInbox;
+import com.dbidding.auction.domain.AuctionTimelineEvent;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -15,15 +15,15 @@ import org.springframework.data.domain.PageRequest;
 @RequiredArgsConstructor
 public class AuctionStreamRecoveryAdminService {
     private final AccountRepository accountRepository;
-    private final AuctionBidEventInboxRepository inboxRepository;
+    private final AuctionTimelineEventRepository inboxRepository;
     private final AuctionBidStreamPersistenceService persistenceService;
 
     public AuctionStreamRecoveryStatus status(Integer userId) {
         requireAdmin(userId);
-        AuctionBidEventInbox first = inboxRepository
+        AuctionTimelineEvent first = inboxRepository
                 .findFirstByProjectionStatusInOrderByIdAsc(java.util.List.of(AuctionBidEventProjectionStatus.PENDING, AuctionBidEventProjectionStatus.ERROR))
                 .orElse(null);
-        AuctionBidEventInbox latestProcessed = inboxRepository
+        AuctionTimelineEvent latestProcessed = inboxRepository
                 .findFirstByProjectionStatusOrderByProcessedAtDesc(AuctionBidEventProjectionStatus.PROCESSED)
                 .orElse(null);
         return new AuctionStreamRecoveryStatus(
@@ -51,7 +51,7 @@ public class AuctionStreamRecoveryAdminService {
 
     public AuctionStreamRecoveryReplayResponse replay(Integer userId) {
         requireAdmin(userId);
-        AuctionBidEventInbox requeued = persistenceService.requeueFirstError();
+        AuctionTimelineEvent requeued = persistenceService.requeueFirstError();
         if (requeued == null) {
             return new AuctionStreamRecoveryReplayResponse(false, null,
                     inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.PENDING),

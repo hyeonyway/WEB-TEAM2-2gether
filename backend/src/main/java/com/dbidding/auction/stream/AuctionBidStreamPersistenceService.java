@@ -2,13 +2,13 @@ package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
-import com.dbidding.auction.domain.AuctionBidEventInbox;
+import com.dbidding.auction.domain.AuctionTimelineEvent;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -33,7 +33,7 @@ import org.springframework.transaction.annotation.Propagation;
 @Service
 @RequiredArgsConstructor
 public class AuctionBidStreamPersistenceService {
-    private final AuctionBidEventInboxRepository inboxRepository;
+    private final AuctionTimelineEventRepository inboxRepository;
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
@@ -51,21 +51,21 @@ public class AuctionBidStreamPersistenceService {
 
     /** Stream 수신 자체는 projection 실패와 독립적으로 반드시 보존한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
+    public AuctionTimelineEvent recordPending(AuctionWalletTimelineEvent event) {
         return recordPending(event, event.archivePayload());
     }
 
     /** Projection worker가 DB만 읽어 재구성할 수 있도록 원본 Stream payload를 함께 보관한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event, String rawPayload) {
+    public AuctionTimelineEvent recordPending(AuctionWalletTimelineEvent event, String rawPayload) {
         return inboxRepository.findByStreamId(event.streamId())
                 .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : event instanceof OrderStateChangedStreamEvent order ? order.auctionId() : null,
                 event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : event instanceof OrderStateChangedStreamEvent order ? order.orderVersion() : null, rawPayload)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public AuctionBidEventInbox recordMalformed(String streamId, Map<String, String> payload) {
-        return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionBidEventInbox(
+    public AuctionTimelineEvent recordMalformed(String streamId, Map<String, String> payload) {
+        return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionTimelineEvent(
                 streamId, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
                 payload.toString(), Instant.now(), clock.instant()
         )));
@@ -86,7 +86,7 @@ public class AuctionBidStreamPersistenceService {
 
     /** 첫 오류를 다시 PENDING으로 전환한다. 이후 투영 worker는 DB inbox의 ID 순서대로 처리한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public AuctionBidEventInbox requeueFirstError() {
+    public AuctionTimelineEvent requeueFirstError() {
         return inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.ERROR)
                 .map(inbox -> {
                     inbox.requeueForProjection();
@@ -210,7 +210,7 @@ public class AuctionBidStreamPersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean markError(String streamId, RuntimeException exception) {
-        AuctionBidEventInbox inbox = inboxRepository.findByStreamId(streamId)
+        AuctionTimelineEvent inbox = inboxRepository.findByStreamId(streamId)
                 .orElseThrow(() -> new IllegalStateException("수신 기록이 없는 Stream 이벤트입니다: " + streamId));
         boolean firstError = !hasProjectionError();
         inbox.markError(exception.getClass().getSimpleName() + ": " + exception.getMessage());
@@ -284,8 +284,8 @@ public class AuctionBidStreamPersistenceService {
         ));
     }
 
-    private AuctionBidEventInbox archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
-        return new AuctionBidEventInbox(
+    private AuctionTimelineEvent archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
+        return new AuctionTimelineEvent(
             event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
                 payload, event.occurredAt(), clock.instant()
         );

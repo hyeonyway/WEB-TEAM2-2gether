@@ -13,9 +13,9 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "auction_bid_event_inbox")
+@Table(name = "auction_timeline_events")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AuctionBidEventInbox {
+public class AuctionTimelineEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -57,7 +57,7 @@ public class AuctionBidEventInbox {
     @Column(name = "last_attempt_at")
     private Instant lastAttemptAt;
 
-    public AuctionBidEventInbox(
+    public AuctionTimelineEvent(
             String streamId,
             Integer auctionId,
             Long auctionVersion,

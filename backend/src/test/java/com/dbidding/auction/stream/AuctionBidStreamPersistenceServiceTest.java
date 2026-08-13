@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.account.repository.AccountRepository;
@@ -35,7 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class AuctionBidStreamPersistenceServiceTest {
     @Mock
-    private AuctionBidEventInboxRepository inboxRepository;
+    private AuctionTimelineEventRepository inboxRepository;
     @Mock
     private AuctionRepository auctionRepository;
     @Mock
@@ -153,7 +153,7 @@ class AuctionBidStreamPersistenceServiceTest {
                 "schemaVersion", "2"
         ));
 
-        ArgumentCaptor<com.dbidding.auction.domain.AuctionBidEventInbox> inbox = ArgumentCaptor.forClass(com.dbidding.auction.domain.AuctionBidEventInbox.class);
+        ArgumentCaptor<com.dbidding.auction.domain.AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(com.dbidding.auction.domain.AuctionTimelineEvent.class);
         verify(inboxRepository).save(inbox.capture());
         assertThat(inbox.getValue().getEventType()).isEqualTo("wallet.charged.v1");
         assertThat(inbox.getValue().getSchemaVersion()).isEqualTo(2);

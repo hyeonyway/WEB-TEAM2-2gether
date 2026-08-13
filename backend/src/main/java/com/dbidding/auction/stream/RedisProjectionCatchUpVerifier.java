@@ -1,7 +1,7 @@
 package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
-import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class RedisProjectionCatchUpVerifier {
     private static final String STREAM_KEY = "event:timeline";
     private final StringRedisTemplate redisTemplate;
-    private final AuctionBidEventInboxRepository inboxRepository;
+    private final AuctionTimelineEventRepository eventRepository;
 
     public boolean isCaughtUp() {
         List<MapRecord<String, Object, Object>> latest = redisTemplate.opsForStream().reverseRange(
@@ -25,10 +25,10 @@ public class RedisProjectionCatchUpVerifier {
         );
         if (latest == null || latest.isEmpty()) return true;
         String streamId = latest.getFirst().getId().getValue();
-        return inboxRepository.findByStreamId(streamId)
+        return eventRepository.findByStreamId(streamId)
                 .map(inbox -> inbox.getProjectionStatus() == AuctionBidEventProjectionStatus.PROCESSED)
                 .orElse(false)
-                && !inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.PENDING)
-                && !inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
+                && !eventRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.PENDING)
+                && !eventRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
     }
 }
