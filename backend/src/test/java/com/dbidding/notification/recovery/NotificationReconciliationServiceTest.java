@@ -1,10 +1,13 @@
 package com.dbidding.notification.recovery;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.auction.domain.Auction;
@@ -27,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -254,6 +258,50 @@ class NotificationReconciliationServiceTest {
         verify(notificationService).insertAllIgnoringDuplicates(List.of(
                 new NotificationInsertRow(3, 1, NotificationType.OUTBID, outbidBid.getId(), "55,000원에 상회 입찰이 발생했습니다.")
         ));
+    }
+
+    @Test
+    void 저장중_데드락이_나면_재시도해서_성공한다() {
+        Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
+        given(auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
+        given(wishlistService.groupUserIdsByCardIdIn(List.of(auction.getItemId())))
+                .willReturn(Map.of(auction.getItemId(), List.of(1)));
+        willThrow(new CannotAcquireLockException("deadlock"))
+                .willThrow(new CannotAcquireLockException("deadlock"))
+                .willDoNothing()
+                .given(notificationService).insertAllIgnoringDuplicates(any());
+
+        reconciliationService.recoverAuctionOpenedNotifications(now.minus(Duration.ofMinutes(10)));
+
+        verify(notificationService, times(3)).insertAllIgnoringDuplicates(any());
+    }
+
+    @Test
+    void 데드락_재시도를_모두_소진하면_예외를_전파한다() {
+        Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
+        given(auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
+        given(wishlistService.groupUserIdsByCardIdIn(List.of(auction.getItemId())))
+                .willReturn(Map.of(auction.getItemId(), List.of(1)));
+        willThrow(new CannotAcquireLockException("deadlock"))
+                .given(notificationService).insertAllIgnoringDuplicates(any());
+
+        assertThatThrownBy(() -> reconciliationService.recoverAuctionOpenedNotifications(now.minus(Duration.ofMinutes(10))))
+                .isInstanceOf(CannotAcquireLockException.class);
+        verify(notificationService, times(3)).insertAllIgnoringDuplicates(any());
+    }
+
+    @Test
+    void 데드락이_아닌_예외는_재시도_없이_즉시_전파된다() {
+        Auction auction = auction(1, "리자몽 EX", AuctionStatus.OPEN);
+        given(auctionRepository.findByStatusInAndOpenTimeGreaterThanEqual(anyList(), any())).willReturn(List.of(auction));
+        given(wishlistService.groupUserIdsByCardIdIn(List.of(auction.getItemId())))
+                .willReturn(Map.of(auction.getItemId(), List.of(1)));
+        willThrow(new IllegalStateException("다른 오류"))
+                .given(notificationService).insertAllIgnoringDuplicates(any());
+
+        assertThatThrownBy(() -> reconciliationService.recoverAuctionOpenedNotifications(now.minus(Duration.ofMinutes(10))))
+                .isInstanceOf(IllegalStateException.class);
+        verify(notificationService, times(1)).insertAllIgnoringDuplicates(any());
     }
 
     private Auction auction(Integer id, String auctionName, AuctionStatus status) {
