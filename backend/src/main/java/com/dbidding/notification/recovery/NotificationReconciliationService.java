@@ -124,14 +124,19 @@ public class NotificationReconciliationService {
     }
 
     /**
-     * OPEN 경매의 상회입찰 복구(이슈 #373, 비긴급/긴 주기). OPEN은 입찰이 하나도 없어도
-     * 도달하는 기본 상태라(신규 등록 경매 등) {@code auctions.status}만으로 후보를 뽑으면
-     * 입찰이 없는 경매까지 섞여 후보 집합이 불필요하게 커진다. {@code bids.status=LEADING}과
-     * 조인해 "실제 입찰이 있는 경매"로 좁힌다.
+     * OPEN 경매의 상회입찰 복구(이슈 #373, 비긴급/긴 주기). {@code bids.status=LEADING}인
+     * bid의 경매 id를 그대로 후보로 쓴다 — {@code auctions}와 join해서 OPEN만 걸러내지
+     * 않는다(이슈 #416). LEADING bid는 구조상 OPEN 또는 ENDING 경매에서만 존재하므로,
+     * 이 조회는 결과적으로 ENDING 경매도 같이 잡는다. ENDING은 urgent(90초 주기,
+     * {@link #recoverEndingOutbidNotifications})가 이미 더 빠르게 처리하므로 여기서
+     * 겹쳐 처리해도 손해가 없다 — INSERT IGNORE(유니크 제약 (user_id, auction_id, type,
+     * bid_id))가 중복 저장을 조용히 걸러주고, urgent가 window를 놓친 경우엔 오히려
+     * 5분 주기 백업 백스톱이 된다. auctions join 없이 {@code bids.status} 단일 인덱스만
+     * 쓰므로 OPEN만 필터링하던 이전 버전보다 비용도 줄었다.
      */
     public void recoverOpenOutbidNotifications(Instant windowStart) {
         Set<Integer> candidateAuctionIds = new LinkedHashSet<>(
-                bidRepository.findAuctionIdsByStatusAndAuctionStatus(BidStatus.LEADING, AuctionStatus.OPEN));
+                bidRepository.findAuctionIdsByStatus(BidStatus.LEADING));
         recoverOutbidNotificationsForCandidates(candidateAuctionIds, windowStart);
     }
 

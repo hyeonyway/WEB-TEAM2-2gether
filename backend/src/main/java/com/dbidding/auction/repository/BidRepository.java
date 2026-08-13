@@ -1,6 +1,5 @@
 package com.dbidding.auction.repository;
 
-import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import java.util.Collection;
@@ -19,11 +18,8 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     List<Bid> findByAuctionIdInAndStatus(Collection<Integer> auctionIds, BidStatus status);
 
-    @Query("select b.auction.id from Bid b where b.status = :bidStatus and b.auction.status = :auctionStatus")
-    List<Integer> findAuctionIdsByStatusAndAuctionStatus(
-            @Param("bidStatus") BidStatus bidStatus,
-            @Param("auctionStatus") AuctionStatus auctionStatus
-    );
+    @Query("select b.auction.id from Bid b where b.status = :bidStatus")
+    List<Integer> findAuctionIdsByStatus(@Param("bidStatus") BidStatus bidStatus);
 
     @Query(
             value = """
