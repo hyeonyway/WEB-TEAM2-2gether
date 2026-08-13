@@ -11,6 +11,7 @@ import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.data.domain.PageRequest;
@@ -26,19 +27,19 @@ class AuctionDeadlineSchedulerTransactionTest {
     void 일정_변경은_커밋_후에만_재예약하고_롤백하면_무시한다() {
         AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor = mock(AuctionCloseSchedulerProcessor.class);
         AuctionRepository auctionRepository = mock(AuctionRepository.class);
+        AuctionEndingTransitionService auctionEndingTransitionService = mock(AuctionEndingTransitionService.class);
         TaskScheduler taskScheduler = mock(TaskScheduler.class);
         Clock clock = Clock.systemUTC();
 
-        when(auctionRepository.findNextCloseTarget(
-                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
-                PageRequest.of(0, 1)
-        )).thenReturn(List.of());
+        when(auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1))).thenReturn(List.of());
+        when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1))).thenReturn(List.of());
 
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean(TransactionalEventListenerFactory.class);
             context.registerBean(AuctionDeadlineScheduler.class, () -> new AuctionDeadlineScheduler(
                     auctionCloseSchedulerProcessor,
                     auctionRepository,
+                    Optional.of(auctionEndingTransitionService),
                     taskScheduler,
                     clock
             ));
@@ -56,10 +57,8 @@ class AuctionDeadlineSchedulerTransactionTest {
                 verifyNoInteractions(auctionRepository);
             });
 
-            verify(auctionRepository).findNextCloseTarget(
-                    List.of(AuctionStatus.OPEN, AuctionStatus.ENDING),
-                    PageRequest.of(0, 1)
-            );
+            verify(auctionRepository).findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1));
+            verify(auctionRepository).findNextCloseTarget(List.of(AuctionStatus.ENDING), PageRequest.of(0, 1));
 
             reset(auctionRepository);
             transaction.executeWithoutResult(status -> {

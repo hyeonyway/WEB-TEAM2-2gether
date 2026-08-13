@@ -4,8 +4,10 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,9 +33,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 )
 public class AuctionDeadlineScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
+    private static final Duration ENDING_WINDOW = Duration.ofMinutes(5);
 
     private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor;
     private final AuctionRepository auctionRepository;
+    private final Optional<AuctionEndingTransitionService> auctionEndingTransitionService;
     private final TaskScheduler taskScheduler;
     private final Clock clock;
     @Autowired(required = false)
@@ -48,11 +52,13 @@ public class AuctionDeadlineScheduler {
     public AuctionDeadlineScheduler(
             AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor,
             AuctionRepository auctionRepository,
+            Optional<AuctionEndingTransitionService> auctionEndingTransitionService,
             @Qualifier("auctionDeadlineTaskScheduler") TaskScheduler taskScheduler,
             Clock clock
     ) {
         this.auctionCloseSchedulerProcessor = auctionCloseSchedulerProcessor;
         this.auctionRepository = auctionRepository;
+        this.auctionEndingTransitionService = auctionEndingTransitionService;
         this.taskScheduler = taskScheduler;
         this.clock = clock;
     }
@@ -102,10 +108,6 @@ public class AuctionDeadlineScheduler {
         }
     }
 
-    private boolean isRedisProfile() {
-        return environment != null && environment.matchesProfiles("redis");
-    }
-
     private ScheduledAuctionTarget nextTarget() {
         if (isRedisProfile() && redisTemplate != null) {
             java.util.Set<ZSetOperations.TypedTuple<String>> targets = redisTemplate.opsForZSet()
@@ -118,12 +120,29 @@ public class AuctionDeadlineScheduler {
                     Instant.ofEpochMilli(target.getScore().longValue())
             );
         }
-        List<Auction> targets = auctionRepository.findNextCloseTarget(
-                List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), PageRequest.of(0, 1)
+
+        List<Auction> openCandidates = auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1));
+        List<Auction> endingCandidates = auctionRepository.findNextCloseTarget(
+                List.of(AuctionStatus.ENDING), PageRequest.of(0, 1)
         );
-        if (targets.isEmpty()) return null;
-        Auction target = targets.get(0);
-        return new ScheduledAuctionTarget(target.getId(), target.getCloseTime());
+        ScheduledAuctionTarget openTarget = openCandidates.isEmpty() ? null
+                : new ScheduledAuctionTarget(
+                        openCandidates.get(0).getId(),
+                        openCandidates.get(0).getCloseTime().minus(ENDING_WINDOW)
+                );
+        ScheduledAuctionTarget endingTarget = endingCandidates.isEmpty() ? null
+                : new ScheduledAuctionTarget(endingCandidates.get(0).getId(), endingCandidates.get(0).getCloseTime());
+        if (openTarget == null) {
+            return endingTarget;
+        }
+        if (endingTarget == null) {
+            return openTarget;
+        }
+        return openTarget.closeTime().isBefore(endingTarget.closeTime()) ? openTarget : endingTarget;
+    }
+
+    private boolean isRedisProfile() {
+        return environment != null && environment.matchesProfiles("redis");
     }
 
     private record ScheduledAuctionTarget(Integer auctionId, Instant closeTime) {
@@ -131,6 +150,7 @@ public class AuctionDeadlineScheduler {
 
     private void closeDueAuctionsAtDeadline() {
         Instant now = clock.instant();
+        Integer firedAuctionId = scheduledAuctionId;
         log.info(
                 "event=auction.close.deadline.triggered scheduledAuctionId={} scheduledCloseTime={} now={} batchSize={}",
                 scheduledAuctionId,
@@ -145,6 +165,9 @@ public class AuctionDeadlineScheduler {
                     closedAuctions.size(),
                     closedAuctions
             );
+            if (firedAuctionId != null) {
+                auctionEndingTransitionService.ifPresent(service -> service.transitionIfDue(firedAuctionId, now));
+            }
         } catch (RuntimeException exception) {
             log.error(
                     "event=auction.close.deadline.failed scheduledAuctionId={} scheduledCloseTime={} now={} batchSize={}",
