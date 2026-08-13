@@ -42,7 +42,11 @@ public class RedisOrderRealtimeStateReader {
 
     private OrderResponse read(String auctionId) {
         Map<Object, Object> fields = redisTemplate.opsForHash().entries("order:state:" + auctionId);
-        if (fields.isEmpty()) return null;
+        if (fields.isEmpty()) {
+            if (!listStateSeeder.seedIfMissing(Integer.valueOf(auctionId))) return null;
+            fields = redisTemplate.opsForHash().entries("order:state:" + auctionId);
+            if (fields.isEmpty()) return null;
+        }
         try {
             return new OrderResponse(nullableInteger(fields.get("orderId")), Integer.valueOf(required(fields, "auctionId")), required(fields, "cardName"),
                     Long.parseLong(required(fields, "price")), OrderStatus.valueOf(required(fields, "status")),

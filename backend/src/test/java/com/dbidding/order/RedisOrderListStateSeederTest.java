@@ -1,5 +1,6 @@
 package com.dbidding.order;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -60,5 +61,21 @@ class RedisOrderListStateSeederTest {
         assertThatThrownBy(() -> seeder.seedIfRequired(7, true)).isInstanceOf(RuntimeException.class);
 
         verify(orderRepository, times(0)).findByBuyerIdOrderByIdDesc(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void auctionId로_주문을_찾으면_그_주문만_시딩한다() {
+        Order order = Mockito.mock(Order.class);
+        when(orderRepository.findByAuctionId(10)).thenReturn(java.util.Optional.of(order));
+        when(orderStateSeeder.seedIfAbsent(order)).thenReturn(true);
+
+        assertThat(seeder.seedIfMissing(10)).isTrue();
+    }
+
+    @Test
+    void auctionId로_주문을_못_찾으면_false를_반환한다() {
+        when(orderRepository.findByAuctionId(10)).thenReturn(java.util.Optional.empty());
+
+        assertThat(seeder.seedIfMissing(10)).isFalse();
     }
 }

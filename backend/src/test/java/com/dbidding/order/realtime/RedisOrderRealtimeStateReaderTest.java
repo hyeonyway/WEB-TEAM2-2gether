@@ -59,4 +59,35 @@ class RedisOrderRealtimeStateReaderTest {
         assertThat(result.getFirst().id()).isEqualTo(100);
         verify(listStateSeeder).seedIfRequired(9, false);
     }
+
+    @Test
+    void 목록_marker는_살아있어도_개별_order_state가_먼저_만료됐으면_그_주문만_다시_시딩한다() {
+        when(redisTemplate.opsForSet()).thenReturn(setOperations);
+        when(setOperations.members("order:state:buyer:7")).thenReturn(Set.of("10"));
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(hashOperations.entries("order:state:10"))
+                .thenReturn(Map.of())
+                .thenReturn(Map.of(
+                        "orderId", "100", "auctionId", "10", "cardName", "리자몽", "price", "50000",
+                        "status", "COMPLETED", "createdAt", "2026-08-13T00:00:00Z", "streamId", "1-0"
+                ));
+        when(listStateSeeder.seedIfMissing(10)).thenReturn(true);
+
+        var result = reader.findForBuyer(7);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().id()).isEqualTo(100);
+        verify(listStateSeeder).seedIfMissing(10);
+    }
+
+    @Test
+    void 재시딩해도_찾을_수_없으면_목록에서_제외한다() {
+        when(redisTemplate.opsForSet()).thenReturn(setOperations);
+        when(setOperations.members("order:state:buyer:7")).thenReturn(Set.of("10"));
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(hashOperations.entries("order:state:10")).thenReturn(Map.of());
+        when(listStateSeeder.seedIfMissing(10)).thenReturn(false);
+
+        assertThat(reader.findForBuyer(7)).isEmpty();
+    }
 }

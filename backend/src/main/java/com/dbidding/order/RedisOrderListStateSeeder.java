@@ -34,4 +34,13 @@ public class RedisOrderListStateSeeder {
             return true;
         });
     }
+
+    /**
+     * order:state의 auctionId 기준 TTL과 목록 시딩 marker의 userId 기준 TTL은 서로 다른 시점에 만료된다.
+     * marker가 아직 살아있어도 개별 order:state는 먼저 만료될 수 있으므로, 목록 조회에서 개별 항목이
+     * 비어있을 때마다 그 주문 하나만 다시 시딩한다.
+     */
+    public boolean seedIfMissing(Integer auctionId) {
+        return orderRepository.findByAuctionId(auctionId).map(orderStateSeeder::seedIfAbsent).orElse(false);
+    }
 }
