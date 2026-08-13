@@ -112,6 +112,24 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             Pageable pageable
     );
 
+    @Query("""
+            select a from Auction a
+            where a.status = com.dbidding.auction.domain.AuctionStatus.OPEN
+            order by a.closeTime asc, a.id asc
+            """)
+    List<Auction> findFirstOpenByCloseTimeAsc(Pageable pageable);
+
+    @Query("""
+            select a.id from Auction a
+            where a.status = com.dbidding.auction.domain.AuctionStatus.OPEN
+              and a.closeTime <= :threshold
+            order by a.closeTime asc, a.id asc
+            """)
+    List<Integer> findOverdueEndingCandidateIds(
+            @Param("threshold") Instant threshold,
+            Pageable pageable
+    );
+
     List<Auction> findByStatusInAndOpenTimeGreaterThanEqual(
             Collection<AuctionStatus> statuses,
             Instant openTime

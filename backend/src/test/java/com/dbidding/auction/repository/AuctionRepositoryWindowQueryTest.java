@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
@@ -65,6 +66,33 @@ class AuctionRepositoryWindowQueryTest {
 
         assertThat(result).extracting(Auction::getId).contains(recentlyClosed.getId());
         assertThat(result).extracting(Auction::getId).doesNotContain(oldClosed.getId());
+    }
+
+    @Test
+    void OPEN_경매중_실제_마감시각이_가장_이른_한건을_조회한다() {
+        Instant base = Instant.parse("2026-08-12T10:00:00Z");
+        Auction laterOpen = save(AuctionStatus.OPEN, base.minus(Duration.ofHours(1)), base.plus(Duration.ofMinutes(2)));
+        Auction earliestOpen = save(AuctionStatus.OPEN, base.minus(Duration.ofHours(1)), base.plus(Duration.ofMinutes(1)));
+        save(AuctionStatus.ENDING, base.minus(Duration.ofHours(1)), base.plusSeconds(30));
+
+        List<Auction> result = auctionRepository.findFirstOpenByCloseTimeAsc(PageRequest.of(0, 1));
+
+        assertThat(result).extracting(Auction::getId).containsExactly(earliestOpen.getId());
+        assertThat(result).extracting(Auction::getId).doesNotContain(laterOpen.getId());
+    }
+
+    @Test
+    void ENDING_진입시각을_지난_OPEN_경매_ID만_마감시각순으로_조회한다() {
+        Instant threshold = Instant.parse("2026-08-12T10:05:00Z");
+        Auction first = save(AuctionStatus.OPEN, threshold.minus(Duration.ofHours(1)), threshold.minus(Duration.ofMinutes(1)));
+        Auction second = save(AuctionStatus.OPEN, threshold.minus(Duration.ofHours(1)), threshold);
+        Auction futureOpen = save(AuctionStatus.OPEN, threshold.minus(Duration.ofHours(1)), threshold.plus(Duration.ofSeconds(1)));
+        Auction ending = save(AuctionStatus.ENDING, threshold.minus(Duration.ofHours(1)), threshold.minus(Duration.ofMinutes(2)));
+
+        List<Integer> result = auctionRepository.findOverdueEndingCandidateIds(threshold, PageRequest.of(0, 100));
+
+        assertThat(result).containsExactly(first.getId(), second.getId());
+        assertThat(result).doesNotContain(futureOpen.getId(), ending.getId());
     }
 
     private Auction save(AuctionStatus status, Instant openTime, Instant closeTime) {
