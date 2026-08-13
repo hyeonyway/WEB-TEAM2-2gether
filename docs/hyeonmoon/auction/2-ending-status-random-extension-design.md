@@ -182,8 +182,9 @@ ENDING)`)가 `OPEN` 상태도 이미 포함하고 있어서 **그냥 곧장 마�
   전환된다
 - `ENDING` 전환 시 정확히 1회만 1~2분 사이 랜덤 값이 `closeTime`에
   더해지고, 이후 같은 경매에 입찰이 더 들어와도 추가 연장이 없다
-- 목록/상세/대시보드 API와 SSE 페이로드 어디에도 ENDING 이후의 진짜
-  `closeTime`(랜덤 연장 반영값)이 노출되지 않는다
+- 진행 중 경매를 나타내는 목록/상세/대시보드 API와 SSE의 `endsAt` 어디에도
+  ENDING 이후의 진짜 `closeTime`(랜덤 연장 반영값)이 노출되지 않는다. 종료 후
+  `closedAt`은 종료 사실을 기록하는 실제 시각으로 유지한다.
 - 정밀 스케줄러가 놓친 경우를 대비한 60초 백업 폴러 안전망이 ENDING
   전환에도 동작한다
 - 기존 마감 처리·입찰 관련 테스트가 모두 통과한다
@@ -202,10 +203,128 @@ ENDING)`)가 `OPEN` 상태도 이미 포함하고 있어서 **그냥 곧장 마�
   안에서 돌아 동일하게 취약함을 확인, 이번 기능 범위에서 별도 방어
   없이 감수하기로 결정(7.1절)
 
-## 11. 남은 확인 사항 (구현 계획 단계에서 결정)
+## 11. 회귀 테스트 범위 (확정)
 
-- 회귀 테스트 범위(스케줄러 단위 테스트, 마스킹 필드 단위 테스트,
-  SSE 페이로드 테스트, 프론트 카운트다운 컴포넌트 테스트) — 사용자가
-  추가로 고민 중, 확정되면 반영
+이번 변경은 시간·상태·공개 응답이 함께 바뀌므로, 단위 테스트 하나로는
+충분하지 않다. 아래 네 경계를 최소 회귀 범위로 둔다. 테스트에서 랜덤값이나
+현재 시각을 실제 값에 의존시키지 않는다. `Clock`과 1~2분 연장값 공급자는
+주입하거나 고정해, 1분·2분 경계값을 재현 가능하게 검증한다.
 
-> 이 문서는 Claude의 도움을 받아 작성하였습니다
+### 11.1 도메인 규칙 — `AuctionTest`
+
+기존의 “마감 직전 입찰마다 5분 연장” 테스트는 삭제하거나 다음 규칙으로
+교체한다.
+
+- `OPEN` 경매가 ENDING 진입 시각에 도달하면 상태가 `ENDING`으로 바뀌고,
+  `estimatedCloseTime`은 **연장 전** `closeTime`으로 고정된다.
+- 실제 `closeTime`은 주입한 랜덤값만큼 한 번 늘어난다. 1분과 2분 모두를
+  경계값으로 검증한다.
+- 이미 `ENDING`인 경매를 다시 처리해도 상태·두 시각 모두 변하지 않는다.
+  따라서 중복 스케줄 실행이나 백업 폴러와 정밀 타이머의 경합이 두 번째
+  연장을 만들지 못한다.
+- `OPEN`과 `ENDING`의 일반 입찰은 현재가·입찰 수만 바꾸며, `closeTime`과
+  `estimatedCloseTime`을 바꾸지 않는다. 특히 ENDING 중 입찰이 과거의 반복
+  연장 규칙을 되살리지 않는지를 검증한다.
+- 기존의 종료 허용 범위(`OPEN`/`ENDING`만 종료 가능)와 종료 시각 이후 입찰
+  거부 테스트는 유지한다.
+
+도메인 단위 테스트는 JPA나 스케줄러를 띄우지 않는다. 단발성 보장의 중심은
+상태 전이 메서드 자체이므로, 여기서 먼저 고정한다.
+
+### 11.2 정밀 타이머와 백업 폴러 — `AuctionDeadlineSchedulerTest`,
+`AuctionClosingSchedulerTest` 및 종료 처리 서비스 테스트
+
+정밀 타이머는 “가장 이른 실제 마감”만 보던 기존 계약을 다음으로 바꾼다.
+
+| 상황 | 예약/처리 대상 | 검증할 결과 |
+| --- | --- | --- |
+| OPEN의 `closeTime - 5분`이 가장 이르다 | ENDING 진입 시각 | 해당 시각에 실행되고, ENDING 전환 뒤 새 실제 `closeTime`으로 다시 예약 |
+| ENDING의 `closeTime`이 가장 이르다 | 실제 마감 시각 | 기존 마감 처리만 수행 |
+| OPEN 전환 시각과 ENDING 실제 마감이 경쟁 | 두 조회 결과 비교 | 더 이른 한 건만 예약 |
+| 예약 콜백 실행 전 대상 상태가 바뀜 | 현재 DB 상태 재확인 | 이미 ENDING/종료된 경매를 다시 연장하지 않고, 닫힐 시각 전에는 조기 종료하지 않음 |
+| 다음 대상 없음·처리 예외 | 기존 롤링 타이머 경로 | 기존 예약 취소·`finally` 재예약 보장 유지 |
+
+`AuctionCloseScheduleChangedEvent`의 AFTER_COMMIT 재예약 테스트는 유지하고,
+ENDING 전환에서 발행한 이벤트도 커밋 뒤에만 재예약되는 케이스를 추가한다.
+`redis` 프로필에서는 정밀 타이머가 계속 비활성이라는 기존 프로필 테스트도
+유지한다.
+
+60초 백업 폴러는 별도 안전망으로 다음 세 가지를 검증한다.
+
+- ENDING 진입 시각은 지났지만 실제 `closeTime` 전인 OPEN 경매를 ENDING으로
+  전환하고, 바로 종료 처리하지 않는다.
+- 실제 `closeTime`이 지난 ENDING 경매는 기존대로 낙찰/유찰 처리한다.
+- 실제 `closeTime`도 이미 지난 OPEN 경매는 7.1절의 감수한 장애 시나리오대로
+  추가 연장 없이 바로 종료한다. 이 동작을 명시적으로 테스트해 “늦은 폴러가
+  과거 경매를 되살리는” 회귀를 막는다.
+
+스케줄러 테스트에는 실제 `@Scheduled` 대기나 `sleep`을 넣지 않는다. 기존
+`CapturingTaskScheduler`·고정 `Clock`·mock processor를 사용하고, 상태 전환과
+종료 처리는 서비스 단위에서 따로 검증한다.
+
+### 11.3 공개 시간 마스킹과 SSE 계약 — `AuctionQueryServiceTest`,
+`DashboardServiceTest`, `AuctionSseContractTest`
+
+ENDING 상태의 테스트 fixture는 반드시 `estimatedCloseTime != closeTime`으로
+만든다. 두 값이 같으면 실제 시각 유출 회귀를 잡지 못한다.
+
+- 목록과 상세 DB 조회 응답의 `endsAt`은 `estimatedCloseTime`이어야 한다.
+  OPEN에서는 두 값이 같아 기존 API 계약이 유지되는 것도 확인한다.
+- 대시보드의 `estimatedCloseTime` 기반 표시·정렬은 그대로 유지된다. ENDING의
+  랜덤 연장분이 대시보드 정렬이나 필터에 노출되지 않는지를 fixture로 검증한다.
+- `AUCTION_ENDING_STARTED` SSE payload는 상태 `ENDING`과 얼린 `endsAt`만
+  전송한다. 일반 입찰이 ENDING 상태에서 발행하는 SSE도 같은 얼린 `endsAt`을
+  유지한다.
+- 종료 뒤의 `closedAt`은 이미 종료 사실을 알리는 시각이므로 실제 종료 시각으로
+  유지해도 스나이핑 정보가 아니다. 다만 **진행 중 경매를 나타내는** SSE의
+  `endsAt`에는 실제 `closeTime`을 넣지 않는다고 계약을 한정한다.
+- SSE enum/event name, snake_case 직렬화, 선택 구독 fan-out의 기존 계약 테스트는
+  유지한다. 이번 변경 때문에 기존 구독 대상 제한이 느슨해지지 않도록 한다.
+
+Redis 실시간 조회·Lua·stream projection은 8장에서 제외한 별도 경로다. 이 이슈의
+마스킹 회귀 테스트도 DB 경로에 한정한다. Redis 응답의 `closeTime`까지 바꾸는
+테스트를 섞어 “미구현 경로가 우연히 통과한 것처럼” 보이게 하지 않는다.
+
+### 11.4 프론트 표시와 SSE 반영 — `useCountdown.test.ts`,
+`AuctionCatalog.test.tsx`, `AuctionDetailPage.test.tsx`
+
+- `OPEN`은 기존처럼 `endsAt` 기준 `HH:MM:SS` 카운트다운을 표시한다.
+- `ENDING`은 `endsAt`이 미래여도 카운트다운을 계산·표시하지 않고 정적
+  **“마감임박”** 문구를 표시한다. 이 상태를 경매 종료로 오인해 입찰 버튼을
+  비활성화하지는 않는다.
+- `ENDED`/`FAILED` 또는 시간이 지난 OPEN/ENDING은 기존의 “경매 종료” 처리와
+  입찰 불가 상태를 유지한다.
+- 목록과 상세에서 `AUCTION_ENDING_STARTED` SSE를 받으면 status와 `endsAt`이
+  query cache에 반영되고, 즉시 “마감임박”으로 다시 렌더링된다. 상세의 현재가·
+  최근 입찰 갱신은 이 이벤트 타입에서 일어나지 않아야 한다.
+
+프론트 테스트는 실제 1초 타이머를 기다리지 않고 fake timer와 고정된 `endsAt`을
+사용한다. 브라우저 E2E·실시간 Redis 연결은 이번 이슈의 필수 회귀 범위가 아니다.
+
+### 11.5 실행 기준
+
+구현 중에는 아래 대상 테스트를 먼저 실행한다. 변경된 scheduler API에 맞춰
+테스트 클래스가 분리되면 동등한 패키지의 후속 클래스를 포함한다.
+
+```bash
+cd backend
+./gradlew test --tests 'com.dbidding.auction.domain.AuctionTest' \
+  --tests 'com.dbidding.auction.service.AuctionDeadlineSchedulerTest' \
+  --tests 'com.dbidding.auction.service.AuctionDeadlineSchedulerTransactionTest' \
+  --tests 'com.dbidding.auction.service.AuctionClosingSchedulerTest' \
+  --tests 'com.dbidding.auction.service.AuctionDueClosingServiceTest' \
+  --tests 'com.dbidding.auction.service.AuctionQueryServiceTest' \
+  --tests 'com.dbidding.dashboard.DashboardServiceTest' \
+  --tests 'com.dbidding.auction.sse.AuctionSseContractTest'
+
+cd ../frontend
+npm test -- --run src/hooks/useCountdown.test.ts \
+  src/pages/auction/components/AuctionCatalog.test.tsx \
+  src/pages/auction-detail/AuctionDetailPage.test.tsx
+```
+
+PR 직전에는 전체 백엔드 테스트와 프론트 typecheck를 실행한다. 프론트 전체 테스트의
+기존 판매 이미지 업로드 테스트 정합성 문제는 #401의 별도 범위이며, 이 변경의
+성공/실패 판단과 섞지 않는다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다

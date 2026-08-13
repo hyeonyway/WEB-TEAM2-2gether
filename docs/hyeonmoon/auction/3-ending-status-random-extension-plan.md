@@ -15,7 +15,7 @@
 - 고객에게 노출되는 마감시각(`ends_at`/`endsAt`, REST·SSE 공통)은 ENDING 이후 실제 `closeTime`(랜덤 연장 반영값)을 절대 담지 않는다. 이미 종료된 경매의 `closedAt`류 시각은 예외로, 실제 값을 유지한다.
 - `AuctionCloseScheduleChangedEvent`, `AuctionStreamPublisher`, 기존 두 스케줄러(`AuctionDeadlineScheduler`, `AuctionClosingScheduler`)의 기존 계약(반환 타입, 재시작 시 재스케줄, 백업 폴러 주기)은 유지한다 — 이번 변경은 그 위에 얹는다.
 - 신규 필드·컬럼을 추가하지 않는다. 기존 `estimated_close_time` 컬럼을 그대로 재활용한다.
-- 설계 문서: [`docs/hyeonmoon/auction/2-ending-status-random-extension-design.md`](../../hyeonmoon/auction/2-ending-status-random-extension-design.md) (이슈 #418)
+- 설계 문서: [`2-ending-status-random-extension-design.md`](2-ending-status-random-extension-design.md) (이슈 #418)
 
 ---
 
