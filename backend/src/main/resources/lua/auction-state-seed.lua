@@ -1,6 +1,43 @@
--- KEYS[1]: auction state hash, KEYS[2]: active auction ZSET
--- ARGV: closeTimeEpochMillis, auctionId, followed by hash field/value pairs
+-- KEYS[1]: auction state hash, KEYS[2]: active auction ZSET, KEYS[3]: recent bids stream
+-- ARGV: closeTimeEpochMillis, auctionId, state field count, state field/value pairs,
+--       participant count, (bidderId, status, amount)*, recent bid count,
+--       (bidId, bidderId, bidPrice, sequence, occurredAt)*
 if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
-redis.call('HSET', KEYS[1], unpack(ARGV, 3))
+
+local position = 3
+local stateFieldCount = tonumber(ARGV[position])
+position = position + 1
+local stateArguments = {}
+for index = 1, stateFieldCount * 2 do
+    table.insert(stateArguments, ARGV[position])
+    position = position + 1
+end
+
+local participantCount = tonumber(ARGV[position])
+position = position + 1
+for index = 1, participantCount do
+    local bidderId = ARGV[position]
+    local status = ARGV[position + 1]
+    local amount = ARGV[position + 2]
+    position = position + 3
+    redis.call('HSET', 'auction:bidder:' .. ARGV[2] .. ':' .. bidderId, 'status', status, 'amount', amount)
+    redis.call('SADD', 'auction:dashboard:participating:' .. bidderId, ARGV[2])
+end
+
+local recentBidCount = tonumber(ARGV[position])
+position = position + 1
+for index = 1, recentBidCount do
+    local bidId = ARGV[position]
+    local bidderId = ARGV[position + 1]
+    local bidPrice = ARGV[position + 2]
+    local sequence = ARGV[position + 3]
+    local occurredAt = ARGV[position + 4]
+    position = position + 5
+    redis.call('XADD', KEYS[3], 'MAXLEN', 50, '*',
+        'bidId', bidId, 'bidderId', bidderId, 'bidPrice', bidPrice,
+        'sequence', sequence, 'occurredAt', occurredAt)
+end
+
+redis.call('HSET', KEYS[1], unpack(stateArguments))
 redis.call('ZADD', KEYS[2], ARGV[1], ARGV[2])
 return 1

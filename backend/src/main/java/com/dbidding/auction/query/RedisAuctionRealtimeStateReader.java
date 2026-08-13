@@ -66,7 +66,13 @@ public class RedisAuctionRealtimeStateReader {
 
     public List<Integer> activeAuctionIds() {
         java.util.Set<String> ids = redisTemplate.opsForZSet().range("auction:active:by-close-time", 0, -1);
-        if (ids == null) return null;
+        if (ids == null) return List.of();
+        return ids.stream().map(Integer::valueOf).toList();
+    }
+
+    public List<Integer> participatingAuctionIds(Integer userId) {
+        java.util.Set<String> ids = redisTemplate.opsForSet().members("auction:dashboard:participating:" + userId);
+        if (ids == null) return List.of();
         return ids.stream().map(Integer::valueOf).toList();
     }
 
@@ -90,7 +96,8 @@ public class RedisAuctionRealtimeStateReader {
         Map<Object, Object> values = record.getValue();
         Integer bidderId = Integer.valueOf(value(values.get("bidderId")));
         long sequence = Long.parseLong(value(values.get("sequence")));
-        return new BidResponses.BidSummary(Long.MAX_VALUE - sequence, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
+        Long bidId = nullableLong(values.get("bidId"));
+        return new BidResponses.BidSummary(bidId == null ? Long.MAX_VALUE - sequence : bidId, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
                 bidderId.equals(highestBidderId), Instant.parse(value(values.get("occurredAt"))));
     }
 

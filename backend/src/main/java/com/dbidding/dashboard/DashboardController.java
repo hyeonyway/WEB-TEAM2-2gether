@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
 public class DashboardController {
-    private final DashboardService dashboardService;
+    private final DashboardQueryService dashboardService;
 
     @GetMapping("/participating-auctions")
     public List<DashboardResponse.AuctionSnapshot> getParticipatingAuctions(
