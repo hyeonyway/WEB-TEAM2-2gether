@@ -29,7 +29,7 @@ public class RedisOrderListStateSeeder {
             var orders = asBuyer
                     ? orderRepository.findByBuyerIdOrderByIdDesc(userId)
                     : orderRepository.findBySellerIdOrderByIdDesc(userId);
-            orders.forEach(orderStateSeeder::seedIfAbsent);
+            orders.forEach(orderStateSeeder::seedAssumingCaughtUp);
             redisTemplate.opsForValue().set(markerKey, "1", Duration.ofSeconds(3600 + Math.floorMod(userId.longValue(), 18001)));
             return true;
         });
