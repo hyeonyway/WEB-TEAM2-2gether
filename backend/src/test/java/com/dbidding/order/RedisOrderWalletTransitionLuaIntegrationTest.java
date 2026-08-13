@@ -81,7 +81,7 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
     }
 
     @Test
-    void 구매확정_전이는_order_state와_by_order_id와_지갑에_1시간에서_6시간_사이_TTL을_건다() {
+    void 구매확정_전이는_order_state와_by_order_id에만_1시간에서_6시간_사이_TTL을_건다() {
         givenPendingOrder();
         redisTemplate.opsForValue().set("order:state:by-order-id:100", "10");
         redisTemplate.opsForHash().putAll("wallet:balance:7", Map.of(
@@ -92,7 +92,7 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
 
         assertThat(redisTemplate.getExpire("order:state:10")).isBetween(3600L, 21600L);
         assertThat(redisTemplate.getExpire("order:state:by-order-id:100")).isBetween(3600L, 21600L);
-        assertThat(redisTemplate.getExpire("wallet:balance:7")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.getExpire("wallet:balance:7")).isEqualTo(-1L);
     }
 
     @Test

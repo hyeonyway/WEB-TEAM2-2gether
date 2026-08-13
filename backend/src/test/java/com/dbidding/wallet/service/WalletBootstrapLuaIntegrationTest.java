@@ -39,7 +39,7 @@ class WalletBootstrapLuaIntegrationTest {
     static void tearDown() { if (connectionFactory != null) connectionFactory.destroy(); }
 
     @Test
-    void state_miss일_때만_지갑을_생성하고_1시간에서_6시간_사이_TTL을_건다() {
+    void state_miss일_때만_지갑을_생성하고_TTL을_걸지_않는다() {
         List<String> keys = List.of("wallet:balance:7");
 
         assertThat(redisTemplate.execute(script, keys, "70000", "30000", "4")).isEqualTo(1L);
@@ -47,6 +47,6 @@ class WalletBootstrapLuaIntegrationTest {
 
         assertThat(redisTemplate.opsForHash().entries("wallet:balance:7"))
                 .containsEntry("availableBalance", "70000").containsEntry("frozenBalance", "30000");
-        assertThat(redisTemplate.getExpire("wallet:balance:7")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.getExpire("wallet:balance:7")).isEqualTo(-1L);
     }
 }
