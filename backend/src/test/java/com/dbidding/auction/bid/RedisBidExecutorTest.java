@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.ArgumentMatchers.argThat;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -16,6 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.context.ApplicationEventPublisher;
+import com.dbidding.wallet.sse.WalletBalanceChangedEvent;
 
 @ExtendWith(MockitoExtension.class)
 class RedisBidExecutorTest {
@@ -23,13 +28,15 @@ class RedisBidExecutorTest {
     private StringRedisTemplate redisTemplate;
     @Mock
     private RedisScript<String> bidAcceptScript;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-10T00:00:00Z"), ZoneOffset.UTC);
     private RedisBidExecutor redisBidExecutor;
 
     @BeforeEach
     void setUp() {
-        redisBidExecutor = new RedisBidExecutor(redisTemplate, bidAcceptScript, clock);
+        redisBidExecutor = new RedisBidExecutor(redisTemplate, bidAcceptScript, clock, null, null, eventPublisher);
     }
 
     @Test
@@ -40,7 +47,7 @@ class RedisBidExecutorTest {
         );
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
                 eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))
-                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:00:00Z|LEADING|");
+                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:00:00Z|LEADING||1|40000|3000|9|OPEN|false|리자몽|10|JP|/thumb.png|7|100000|0|5|false");
 
         var response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
@@ -52,6 +59,29 @@ class RedisBidExecutorTest {
         assertThat(response.result().auction().bidCount()).isEqualTo(3);
         assertThat(response.result().wallet().availableBalance()).isEqualTo(57_000L);
         assertThat(response.result().wallet().frozenBalance()).isEqualTo(43_000L);
+        assertThat(response.eventData())
+                .extracting(BidEventData::itemId, BidEventData::previousBidderId, BidEventData::startPrice, BidEventData::bidIncrement)
+                .containsExactly(1, 9, 40_000L, 3_000L);
+        assertThat(response.eventData().previousBidId()).isEqualTo(7L);
+        verify(eventPublisher).publishEvent(argThat((Object event) -> event instanceof WalletBalanceChangedEvent changed
+                && changed.userId().equals(2)
+                && changed.balance().availableBalance() == 57_000L
+                && changed.walletVersion() == 1L));
+        verify(eventPublisher).publishEvent(argThat((Object event) -> event instanceof WalletBalanceChangedEvent changed
+                && changed.userId().equals(9)
+                && changed.balance().availableBalance() == 100_000L
+                && changed.walletVersion() == 5L));
+    }
+
+    @Test
+    void 멱등_재생_응답은_실시간_이벤트를_다시_발행하지_않는다() {
+        when(redisTemplate.execute(eq(bidAcceptScript), org.mockito.ArgumentMatchers.anyList(),
+                eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))
+                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:00:00Z|LEADING||1|40000|3000|9|OPEN|false|리자몽|10|JP|/thumb.png|7|100000|0|5|true");
+
+        BidExecutionResult response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
+
         assertThat(response.eventData()).isNull();
+        verifyNoInteractions(eventPublisher);
     }
 }

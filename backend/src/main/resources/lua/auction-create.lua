@@ -8,7 +8,7 @@ if existing then
     if string.sub(existing, 1, separator - 1) ~= ARGV[22] then
         return 'REJECTED|IDEMPOTENCY_CONFLICT'
     end
-    return string.sub(existing, separator + 1)
+    return string.sub(existing, separator + 1) .. '|true'
 end
 
 local auctionId = redis.call('INCR', KEYS[1])
@@ -68,4 +68,4 @@ local streamId = redis.call('XADD', KEYS[3], '*',
 
 local result = 'ACCEPTED|' .. auctionId .. '|' .. streamId .. '|OPEN|' .. ARGV[23] .. '|' .. ARGV[18]
 redis.call('SET', KEYS[2], ARGV[22] .. '|' .. result, 'EX', 86400)
-return result
+return result .. '|false'

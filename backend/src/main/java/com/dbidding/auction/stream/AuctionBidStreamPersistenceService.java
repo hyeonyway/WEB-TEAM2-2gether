@@ -6,7 +6,6 @@ import com.dbidding.auction.domain.AuctionTimelineEvent;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
-import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.dbidding.auction.repository.AuctionRepository;
@@ -44,6 +43,8 @@ public class AuctionBidStreamPersistenceService {
     private final OrderRepository orderRepository;
     private final Optional<RedisOrderRealtimeStateProjection> orderRealtimeStateProjection;
     private final CardService cardService;
+    /** 생성자 호환을 유지하되, 실시간 발행은 Redis 승인 경로에서만 수행한다. */
+    @SuppressWarnings("unused")
     private final AuctionEventPublisher auctionEventPublisher;
     private final Clock clock;
     @PersistenceContext
@@ -171,7 +172,7 @@ public class AuctionBidStreamPersistenceService {
         ));
         orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectedStatusAfterCommit(
                 event.auctionId(), event.orderId(), event.status().name()));
-        orderService.publishProjectedStateChange(order, event.actorId());
+        // 주문 알림과 wallet SSE는 Redis 승인 직후 발행한다. projection은 DB 반영만 담당한다.
     }
 
     private void closeAuction(AuctionCloseRequestedStreamEvent event) {
@@ -268,7 +269,7 @@ public class AuctionBidStreamPersistenceService {
         return bid;
     }
 
-    /** 기존 즉시 낙찰 경로의 주문 생성과 종료 이벤트를 같은 DB 트랜잭션에 포함한다. */
+    /** Redis에서 승인된 즉시 낙찰 결과를 주문과 도메인 테이블에 projection한다. */
     private void completeBuyNow(Auction auction, Bid winningBid, java.time.Instant occurredAt, String streamId) {
         CardSnapshot card = cardService.getCardSnapshot(auction.getItemId());
         orderService.createFromAuctionClosed(
@@ -276,12 +277,6 @@ public class AuctionBidStreamPersistenceService {
         );
         orderRealtimeStateProjection.ifPresent(projection -> orderRepository.findByAuctionId(auction.getId())
                 .ifPresent(order -> projection.markCreatedOrderAfterCommit(order, streamId)));
-        auctionEventPublisher.publishClosed(new AuctionClosedEvent(
-                auction.getId(), card.cardId(), card.name(), card.psaGrade(), card.language(), card.thumbnailUrl(),
-                winningBid.getBidderId(), auction.getSellerId(), auction.getStartPrice(), auction.getCurrentPrice(),
-                winningBid.getBidPrice(), auction.getBidPriceUnit(), auction.getBidCount(), auction.getCloseTime(),
-                auction.getStatus(), occurredAt
-        ));
     }
 
     private AuctionTimelineEvent archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
