@@ -254,11 +254,6 @@ public class AuctionCommandService {
             auctionEventPublisher.publishClosed(closed);
             auctionStreamPublisher.publish(AuctionStreamPayload.closed(closed));
         }
-        if (data.closeTimeExtended()) {
-            eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
-                    auctionId, auction.endsAt(), "close_time_extended"
-            ));
-        }
     }
 
     @Transactional

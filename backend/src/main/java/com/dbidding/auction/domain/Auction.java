@@ -168,34 +168,19 @@ public class Auction {
         }
     }
 
-    private boolean extendCloseTimeIfNeeded(
-            Instant bidAt,
-            Duration extensionWindow,
-            Duration extensionDuration
-    ) {
-        if (extensionWindow.isNegative() || extensionWindow.isZero()) {
+    public boolean enterEnding(Duration randomExtension) {
+        if (status != AuctionStatus.OPEN) {
             return false;
         }
-        if (extensionDuration.isNegative() || extensionDuration.isZero()) {
-            return false;
+        if (randomExtension.isNegative() || randomExtension.isZero()) {
+            throw new IllegalArgumentException("ENDING 연장 시간은 0보다 커야 합니다.");
         }
-        Instant extensionThreshold = closeTime.minus(extensionWindow);
-        if (bidAt.isBefore(extensionThreshold)) {
-            return false;
-        }
-        Instant extendedCloseTime = closeTime.plus(extensionDuration);
-        closeTime = extendedCloseTime;
-        estimatedCloseTime = extendedCloseTime;
+        closeTime = closeTime.plus(randomExtension);
         status = AuctionStatus.ENDING;
         return true;
     }
 
-    public boolean placeBid(
-            Long bidPrice,
-            Instant bidAt,
-            Duration extensionWindow,
-            Duration extensionDuration
-    ) {
+    public void placeBid(Long bidPrice, Instant bidAt) {
         if (status != AuctionStatus.OPEN && status != AuctionStatus.ENDING) {
             throw new IllegalArgumentException("진행 중인 경매에만 입찰할 수 있습니다.");
         }
@@ -207,7 +192,6 @@ public class Auction {
         }
         currentPrice = bidPrice;
         bidCount++;
-        return extendCloseTimeIfNeeded(bidAt, extensionWindow, extensionDuration);
     }
 
     public boolean applyStreamBid(

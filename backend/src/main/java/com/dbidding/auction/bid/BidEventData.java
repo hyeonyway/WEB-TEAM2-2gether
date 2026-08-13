@@ -16,7 +16,6 @@ public record BidEventData(
         Long startPrice,
         Long bidIncrement,
         AuctionStatus status,
-        boolean closeTimeExtended,
         AuctionCloseData closeData
 ) {
 }
