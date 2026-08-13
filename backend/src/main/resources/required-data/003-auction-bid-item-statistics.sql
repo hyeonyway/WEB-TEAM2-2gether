@@ -278,17 +278,18 @@ SELECT
   '현재 진행 상태와 입찰 이력이 연결된 초기 데이터',
   `seed`.`base_price`,
   `seed`.`current_price`,
-  `seed`.`base_price` + (`seed`.`bid_unit` * 15),
+  -- 부하테스트 중 즉시낙찰로 조기 종료되지 않도록 즉시낙찰가를 아예 안 넣음(009 파일과 동일 방식).
+  NULL,
   3000,
   `seed`.`auction_status`,
   TIMESTAMPADD(HOUR, -(2 + MOD(`seed`.`item_id`, 10)), NOW(6)),
   CASE
     WHEN `seed`.`auction_status` = 'ENDING' THEN TIMESTAMPADD(MINUTE, 30, NOW(6))
-    ELSE TIMESTAMPADD(HOUR, 3 + MOD(`seed`.`item_id`, 10), NOW(6))
+    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
   END,
   CASE
     WHEN `seed`.`auction_status` = 'ENDING' THEN TIMESTAMPADD(MINUTE, 30, NOW(6))
-    ELSE TIMESTAMPADD(HOUR, 3 + MOD(`seed`.`item_id`, 10), NOW(6))
+    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
   END,
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,
