@@ -31,6 +31,14 @@ public class AuctionStreamRecoveryAdminController {
         return recoveryService.events(userId, page);
     }
 
+    @GetMapping("/processed-events")
+    public com.dbidding.auction.stream.AuctionStreamRecoveryEventPage processedEvents(
+            @CurrentUser Integer userId,
+            @RequestParam(defaultValue = "0") int page
+    ) {
+        return recoveryService.processedEvents(userId, page);
+    }
+
     @PostMapping("/replay")
     public com.dbidding.auction.stream.AuctionStreamRecoveryReplayResponse replay(@CurrentUser Integer userId) {
         return recoveryService.replay(userId);

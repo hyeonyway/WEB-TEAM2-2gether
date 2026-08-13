@@ -12,7 +12,7 @@ export type StreamRecoveryStatusDto={
 
 export type StreamRecoveryEventDto={
   streamId:string;auctionId:number|null;eventType:string;projectionStatus:'PENDING'|'ERROR';attemptCount:number;
-  occurredAt:string;lastAttemptAt:string|null;failureMessage:string|null;
+  occurredAt:string;lastAttemptAt:string|null;processedAt:string|null;failureMessage:string|null;
 };
 
 export type StreamRecoveryEventPageDto={content:StreamRecoveryEventDto[];page:number;totalPages:number;totalElements:number};
@@ -24,6 +24,10 @@ export function fetchStreamRecoveryStatus(){
 
 export function fetchStreamRecoveryEvents(page=0){
   return authenticatedRequest<StreamRecoveryEventPageDto>(`/api/admin/auction-stream/recovery/events?page=${page}`);
+}
+
+export function fetchStreamRecoveryProcessedEvents(page=0){
+  return authenticatedRequest<StreamRecoveryEventPageDto>(`/api/admin/auction-stream/recovery/processed-events?page=${page}`);
 }
 
 export function replayStreamRecovery(){

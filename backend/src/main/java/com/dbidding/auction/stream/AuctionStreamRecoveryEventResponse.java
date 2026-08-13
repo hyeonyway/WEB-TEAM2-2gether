@@ -11,12 +11,13 @@ public record AuctionStreamRecoveryEventResponse(
         int attemptCount,
         Instant occurredAt,
         Instant lastAttemptAt,
+        Instant processedAt,
         String failureMessage
 ) {
     static AuctionStreamRecoveryEventResponse from(AuctionTimelineEvent inbox) {
         return new AuctionStreamRecoveryEventResponse(
                 inbox.getStreamId(), inbox.getAuctionId(), inbox.getEventType(), inbox.getProjectionStatus().name(),
-                inbox.getAttemptCount(), inbox.getOccurredAt(), inbox.getLastAttemptAt(), inbox.getFailureMessage()
+                inbox.getAttemptCount(), inbox.getOccurredAt(), inbox.getLastAttemptAt(), inbox.getProcessedAt(), inbox.getFailureMessage()
         );
     }
 }

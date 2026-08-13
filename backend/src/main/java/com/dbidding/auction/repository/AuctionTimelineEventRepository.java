@@ -24,5 +24,7 @@ public interface AuctionTimelineEventRepository extends JpaRepository<AuctionTim
 
     Page<AuctionTimelineEvent> findByProjectionStatusInOrderByIdAsc(Collection<AuctionBidEventProjectionStatus> statuses, Pageable pageable);
 
+    Page<AuctionTimelineEvent> findByProjectionStatusOrderByProcessedAtDesc(AuctionBidEventProjectionStatus status, Pageable pageable);
+
     Optional<AuctionTimelineEvent> findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus status);
 }

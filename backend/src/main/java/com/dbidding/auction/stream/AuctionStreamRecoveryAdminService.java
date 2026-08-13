@@ -49,6 +49,17 @@ public class AuctionStreamRecoveryAdminService {
         );
     }
 
+    public AuctionStreamRecoveryEventPage processedEvents(Integer userId, int page) {
+        requireAdmin(userId);
+        var result = inboxRepository.findByProjectionStatusOrderByProcessedAtDesc(
+                AuctionBidEventProjectionStatus.PROCESSED, PageRequest.of(Math.max(0, page), 20)
+        );
+        return new AuctionStreamRecoveryEventPage(
+                result.getContent().stream().map(AuctionStreamRecoveryEventResponse::from).toList(),
+                result.getNumber(), result.getTotalPages(), result.getTotalElements()
+        );
+    }
+
     public AuctionStreamRecoveryReplayResponse replay(Integer userId) {
         requireAdmin(userId);
         AuctionTimelineEvent requeued = persistenceService.requeueFirstError();
