@@ -19,7 +19,8 @@ export function formatRemaining(endsAt:string,now:number):string{
 }
 
 export function isAuctionEnded(status:string,remaining:string):boolean{
-  return !['OPEN','ENDING'].includes(status)||remaining==='경매 종료';
+  if(status==='ENDING')return false;
+  return status!=='OPEN'||remaining==='경매 종료';
 }
 
 export function displayRemaining(status:string,endsAt:string,now:number):string{

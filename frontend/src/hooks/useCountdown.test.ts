@@ -30,6 +30,10 @@ describe('isAuctionEnded',()=>{
   it('남은 시간이 경매_종료면 종료다',()=>{
     expect(isAuctionEnded('OPEN','경매 종료')).toBe(true);
   });
+
+  it('ENDING은 공개 마감시각이 지나도 실제 마감 전까지 종료로 취급하지 않는다',()=>{
+    expect(isAuctionEnded('ENDING','경매 종료')).toBe(false);
+  });
 });
 
 describe('displayRemaining',()=>{
