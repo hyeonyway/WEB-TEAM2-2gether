@@ -13,4 +13,8 @@ public interface AuctionBidEventInboxRepository extends JpaRepository<AuctionBid
     List<AuctionBidEventInbox> findByStreamIdIn(Collection<String> streamIds);
 
     boolean existsByProjectionStatus(AuctionBidEventProjectionStatus projectionStatus);
+
+    long countByProjectionStatus(AuctionBidEventProjectionStatus projectionStatus);
+
+    Optional<AuctionBidEventInbox> findFirstByProjectionStatusInOrderByIdAsc(Collection<AuctionBidEventProjectionStatus> statuses);
 }

@@ -9,6 +9,7 @@ import DashboardPage from '../pages/dashboard';
 import HomePage from '../pages/home';
 import MyPage from '../pages/mypage';
 import SellPage from '../pages/sell';
+import StreamRecoveryPage from '../pages/stream-recovery';
 import {routePaths} from './routePaths';
 
 export function AppRoutes() {
@@ -21,6 +22,7 @@ export function AppRoutes() {
       <Route path={routePaths.auctionDetail} element={<AuctionDetailPage/>}/>
       <Route path={routePaths.dashboard} element={<RequireAuth><DashboardPage/></RequireAuth>}/>
       <Route path={routePaths.myPage} element={<RequireAuth><MyPage/></RequireAuth>}/>
+      <Route path={routePaths.streamRecovery} element={<RequireAuth><StreamRecoveryPage/></RequireAuth>}/>
       <Route
         path={routePaths.sell}
         element={<RequireAuth><SellPage Header={Header}/></RequireAuth>}
