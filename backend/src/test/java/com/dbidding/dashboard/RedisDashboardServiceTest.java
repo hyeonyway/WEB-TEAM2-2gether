@@ -3,6 +3,7 @@ package com.dbidding.dashboard;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
@@ -18,12 +19,14 @@ import org.junit.jupiter.api.Test;
 class RedisDashboardServiceTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-08-13T00:00:00Z"), ZoneOffset.UTC);
     private RedisAuctionRealtimeStateReader stateReader;
+    private RedisDashboardStateSeeder dashboardStateSeeder;
     private RedisDashboardService dashboardService;
 
     @BeforeEach
     void setUp() {
         stateReader = mock(RedisAuctionRealtimeStateReader.class);
-        dashboardService = new RedisDashboardService(stateReader, mock(AuctionQueryService.class), CLOCK);
+        dashboardStateSeeder = mock(RedisDashboardStateSeeder.class);
+        dashboardService = new RedisDashboardService(stateReader, dashboardStateSeeder, mock(AuctionQueryService.class), CLOCK);
     }
 
     @Test
@@ -40,6 +43,7 @@ class RedisDashboardServiceTest {
 
         assertThat(result).extracting(snapshot -> snapshot.id()).containsExactly(2, 1);
         assertThat(result).extracting(snapshot -> snapshot.currentPrice()).containsExactly(300_000L, 120_000L);
+        verify(dashboardStateSeeder).seedIfRequired(7);
     }
 
     private RedisAuctionRealtimeStateReader.AuctionState state(int id, long price, AuctionStatus status, Instant closeTime) {

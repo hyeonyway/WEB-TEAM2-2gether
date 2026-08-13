@@ -23,11 +23,13 @@ public class RedisDashboardService implements DashboardQueryService {
     private static final Set<AuctionStatus> PARTICIPATING_STATUSES = Set.of(AuctionStatus.OPEN, AuctionStatus.ENDING);
 
     private final RedisAuctionRealtimeStateReader realtimeStateReader;
+    private final RedisDashboardStateSeeder dashboardStateSeeder;
     private final AuctionQueryService auctionQueryService;
     private final Clock clock;
 
     @Override
     public List<DashboardResponse.AuctionSnapshot> getParticipatingAuctions(Integer userId, ParticipatingAuctionSort sort) {
+        dashboardStateSeeder.seedIfRequired(userId);
         return realtimeStateReader.participatingAuctionIds(userId).stream()
                 .map(auctionId -> snapshot(auctionId, userId))
                 .filter(snapshot -> snapshot != null && snapshot.myBidStatus() != MyBidStatus.NONE)

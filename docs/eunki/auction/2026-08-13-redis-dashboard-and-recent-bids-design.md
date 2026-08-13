@@ -8,14 +8,16 @@
 ## Redis read model
 
 - `auction:dashboard:participating:{userId}`: 사용자가 한 번이라도 입찰한 활성 경매 ID Set
+- `auction:dashboard:seeded:{userId}`: 사용자 참여 경매 on-demand 시딩 완료 marker
 - `auction:state:{auctionId}`: 현재가, 상태, 마감 시각, 입찰 수와 카드 요약을 포함한 경매 상태
 - `auction:bidder:{auctionId}:{userId}`: 해당 사용자의 `LEADING` 또는 `OUTBID` 상태와 금액
 - `auction:recent-bids:{auctionId}`: 최신 입찰 50개 Stream. API에는 역순으로 최대 5개만 반환한다.
 
 `bid-accept.lua`는 입찰 승인과 동시에 bidder state, 참여 인덱스, recent-bids Stream을 갱신한다.
 경매 state miss 시 `auction-state-seed.lua`가 기존 MySQL projection의 사용자별 마지막 입찰 상태와 최근
-5개 입찰을 state 생성과 한 번의 Lua 실행에서 함께 시딩한다. state가 이미 존재하면 시딩하지 않아 Redis의
-더 최신 승인 상태를 덮어쓰지 않는다.
+5개 입찰을 state 생성과 한 번의 Lua 실행에서 함께 시딩한다. 대시보드 첫 조회는 사용자의 활성 참여 경매만
+추가로 찾아 시딩한 뒤 marker를 남긴다. 이후 요청은 Redis 인덱스만 읽는다. state가 이미 존재하면 시딩하지 않아
+Redis의 더 최신 승인 상태를 덮어쓰지 않는다.
 
 ## 조회 경계
 

@@ -1,5 +1,6 @@
 package com.dbidding.auction.repository;
 
+import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import java.util.Collection;
@@ -52,11 +53,11 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
     @Query(
             value = """
                     SELECT ranked.* FROM (
-                        SELECT b.*, ROW_NUMBER() OVER (PARTITION BY b.auction_id ORDER BY b.created_at DESC, b.id DESC) AS row_number
+                        SELECT b.*, ROW_NUMBER() OVER (PARTITION BY b.auction_id ORDER BY b.created_at DESC, b.id DESC) AS bid_rank
                         FROM bids b
                         WHERE b.auction_id IN (:auctionIds)
                     ) ranked
-                    WHERE ranked.row_number <= 5
+                    WHERE ranked.bid_rank <= 5
                     """,
             nativeQuery = true
     )
@@ -65,4 +66,13 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
     List<Bid> findByAuctionIdInAndBidderIdOrderByCreatedAtDescIdDesc(Collection<Integer> auctionIds, Integer bidderId);
 
     List<Bid> findByBidderIdOrderByCreatedAtDescIdDesc(Integer bidderId);
+
+    @Query("""
+            select distinct b.auction from Bid b
+            where b.bidderId = :bidderId and b.auction.status in :statuses
+            """)
+    List<com.dbidding.auction.domain.Auction> findDistinctAuctionByBidderIdAndAuctionStatusIn(
+            @Param("bidderId") Integer bidderId,
+            @Param("statuses") Collection<AuctionStatus> statuses
+    );
 }
