@@ -3,5 +3,6 @@ package com.dbidding.auction.sse;
 public enum AuctionStreamEventType {
     AUCTION_CREATED,
     BID_PLACED,
-    AUCTION_CLOSED
+    AUCTION_CLOSED,
+    AUCTION_ENDING_STARTED
 }
