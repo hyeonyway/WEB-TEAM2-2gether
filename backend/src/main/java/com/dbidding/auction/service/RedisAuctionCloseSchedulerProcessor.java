@@ -56,7 +56,9 @@ class RedisAuctionCloseSchedulerProcessor implements AuctionCloseSchedulerProces
 
     private boolean closeAndPublish(Integer auctionId, Instant now) {
         String raw = redisTemplate.execute(auctionCloseRequestScript,
-                List.of("auction:state:" + auctionId, STREAM_KEY, "auction:ending-window:by-close-time"),
+                List.of("auction:state:" + auctionId, STREAM_KEY, "auction:ending-window:by-close-time",
+                        "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate",
+                        "auction:active:by-open-time"),
                 String.valueOf(auctionId), now.toString(), String.valueOf(now.toEpochMilli()));
         if (raw == null || !raw.startsWith("ACCEPTED|")) return false;
         String[] fields = raw.split("\\|", -1);

@@ -22,6 +22,10 @@ import org.springframework.stereotype.Component;
 class RedisAuctionActiveIndexCleanupScheduler {
     private static final String ACTIVE_BY_CLOSE_TIME = "auction:active:by-close-time";
     private static final String ENDING_WINDOW_BY_CLOSE_TIME = "auction:ending-window:by-close-time";
+    private static final List<String> ACTIVE_INDEX_KEYS = List.of(
+            ACTIVE_BY_CLOSE_TIME, "auction:active:by-bid-count", "auction:active:by-price",
+            "auction:active:by-change-rate", "auction:active:by-open-time"
+    );
 
     private final StringRedisTemplate redisTemplate;
     @Qualifier("auctionActiveIndexGcScript") private final RedisScript<Long> auctionActiveIndexGcScript;
@@ -33,7 +37,7 @@ class RedisAuctionActiveIndexCleanupScheduler {
     @Scheduled(fixedDelayString = "${auction.active-index.cleanup.fixed-delay-ms:3600000}")
     void removeTerminalEntries() {
         Instant threshold = clock.instant().minus(staleAfter);
-        Long removed = redisTemplate.execute(auctionActiveIndexGcScript, List.of(ACTIVE_BY_CLOSE_TIME),
+        Long removed = redisTemplate.execute(auctionActiveIndexGcScript, ACTIVE_INDEX_KEYS,
                 String.valueOf(threshold.toEpochMilli()), String.valueOf(batchSize));
         Long endingWindowRemoved = redisTemplate.execute(auctionEndingWindowIndexGcScript, List.of(ENDING_WINDOW_BY_CLOSE_TIME),
                 String.valueOf(batchSize));

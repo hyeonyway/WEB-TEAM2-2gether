@@ -25,6 +25,7 @@ import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
 import com.dbidding.auction.bid.RedisAuctionStateSeeder;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -100,26 +102,102 @@ public class    AuctionQueryService {
         );
     }
 
+    private static final int SORT_ZSET_FETCH_BATCH_SIZE = 50;
+    private static final int SORT_ZSET_MAX_BATCHES = 20;
+
     private AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> searchRedisActiveAuctions(
             Integer userId,
             AuctionSearchRequest request
     ) {
-        List<RedisAuctionRealtimeStateReader.AuctionState> states = realtimeStateReader.activeAuctionIds().stream()
-                .map(realtimeStateReader::readAuctionState).filter(Objects::nonNull)
-                .filter(state -> request.status() == null || state.status() == request.status())
-                .filter(state -> request.keywordOrDefault().isBlank()
-                        || state.auctionName().toLowerCase().contains(request.keywordOrDefault().toLowerCase())
-                        || state.cardName().toLowerCase().contains(request.keywordOrDefault().toLowerCase()))
-                .sorted(redisComparator(request.sortOrDefault()))
-                .toList();
+        AuctionSort sort = request.sortOrDefault();
         int size = request.sizeOrDefault();
-        int start = redisCursorStart(states, request.cursor(), request.sortOrDefault());
-        List<RedisAuctionRealtimeStateReader.AuctionState> remaining = states.subList(Math.min(start, states.size()), states.size());
-        boolean hasNext = remaining.size() > size;
-        List<RedisAuctionRealtimeStateReader.AuctionState> page = hasNext ? remaining.subList(0, size) : remaining;
-        List<AuctionResponses.AuctionSummary> items = page.stream().map(state -> redisSummary(state, userId)).toList();
-        String nextCursor = hasNext ? auctionCursorCodec.encode(redisCursorOf(page.getLast(), request.sortOrDefault())) : null;
+        AuctionCursor cursor = request.cursor() == null || request.cursor().isBlank() ? null : auctionCursorCodec.decode(request.cursor(), sort);
+        List<RedisAuctionRealtimeStateReader.AuctionState> page = fetchRedisSortedPage(request, sort, cursor, size + 1);
+        boolean hasNext = page.size() > size;
+        List<RedisAuctionRealtimeStateReader.AuctionState> content = hasNext ? page.subList(0, size) : page;
+        List<AuctionResponses.AuctionSummary> items = content.stream().map(state -> redisSummary(state, userId)).toList();
+        String nextCursor = hasNext ? auctionCursorCodec.encode(redisCursorOf(content.getLast(), sort)) : null;
         return new AuctionResponses.CursorPage<>(items, nextCursor, hasNext);
+    }
+
+    /**
+     * 정렬 기준별 ZSET에서 커서 이후 필요한 만큼만 배치로 가져온다. 하나의 배치가 keyword/psaGrade/status
+     * 필터로 거의 다 걸러지는 경우를 대비해, 부족하면 이전 배치의 마지막 원시 항목 score부터 이어서 최대
+     * SORT_ZSET_MAX_BATCHES번까지 추가로 가져온다(전체 스캔 방지용 상한 — 필터가 매우 좁으면 이 상한 안에서
+     * 요청한 size보다 적게 반환될 수 있다).
+     */
+    private List<RedisAuctionRealtimeStateReader.AuctionState> fetchRedisSortedPage(
+            AuctionSearchRequest request, AuctionSort sort, AuctionCursor cursor, int limit
+    ) {
+        String zsetKey = sortZSetKey(sort);
+        boolean descending = sort != AuctionSort.PRICE_LOW;
+        Double afterScore = cursor == null ? null : cursorScore(cursor, sort);
+        AuctionCursor boundaryCursor = cursor;
+        List<RedisAuctionRealtimeStateReader.AuctionState> collected = new ArrayList<>();
+        boolean exhausted = false;
+        for (int batch = 0; collected.size() < limit && !exhausted && batch < SORT_ZSET_MAX_BATCHES; batch++) {
+            List<ZSetOperations.TypedTuple<String>> raw = realtimeStateReader.activeIdsBatch(zsetKey, descending, afterScore, SORT_ZSET_FETCH_BATCH_SIZE);
+            if (raw.isEmpty()) {
+                exhausted = true;
+                break;
+            }
+            AuctionCursor cursorForFilter = boundaryCursor;
+            List<RedisAuctionRealtimeStateReader.AuctionState> filtered = raw.stream()
+                    .map(tuple -> realtimeStateReader.readAuctionState(Integer.valueOf(tuple.getValue())))
+                    .filter(Objects::nonNull)
+                    .filter(state -> request.status() == null || state.status() == request.status())
+                    .filter(state -> request.keywordOrDefault().isBlank()
+                            || state.auctionName().toLowerCase().contains(request.keywordOrDefault().toLowerCase())
+                            || state.cardName().toLowerCase().contains(request.keywordOrDefault().toLowerCase()))
+                    .filter(state -> request.psaGrade() == null || request.psaGrade().isBlank()
+                            || request.psaGrade().equalsIgnoreCase(state.cardPsaGrade()))
+                    .sorted(redisComparator(sort))
+                    .filter(state -> cursorForFilter == null || isAfterCursor(state, cursorForFilter, sort))
+                    .toList();
+            collected.addAll(filtered);
+            ZSetOperations.TypedTuple<String> lastRaw = raw.getLast();
+            afterScore = lastRaw.getScore();
+            boundaryCursor = new AuctionCursor(sort, afterScore == null ? null : afterScore.longValue(),
+                    sort == AuctionSort.LATEST ? java.time.Instant.ofEpochMilli(afterScore == null ? 0 : afterScore.longValue()) : null,
+                    Integer.valueOf(lastRaw.getValue()));
+            if (raw.size() < SORT_ZSET_FETCH_BATCH_SIZE) exhausted = true;
+        }
+        return collected.size() > limit ? collected.subList(0, limit) : collected;
+    }
+
+    private String sortZSetKey(AuctionSort sort) {
+        return switch (sort) {
+            case LATEST -> "auction:active:by-open-time";
+            case BID_COUNT -> "auction:active:by-bid-count";
+            case PRICE_HIGH, PRICE_LOW -> "auction:active:by-price";
+            case CHANGE_HIGH -> "auction:active:by-change-rate";
+        };
+    }
+
+    private Double cursorScore(AuctionCursor cursor, AuctionSort sort) {
+        return sort == AuctionSort.LATEST ? (double) cursor.timeValue().toEpochMilli() : (double) cursor.value();
+    }
+
+    /** score에 auctionId를 인코딩하지 않으므로, 커서 경계(동점 tie-break 포함)는 여기서 직접 비교한다. */
+    private boolean isAfterCursor(RedisAuctionRealtimeStateReader.AuctionState state, AuctionCursor cursor, AuctionSort sort) {
+        if (sort == AuctionSort.LATEST) {
+            int compared = state.openTime().compareTo(cursor.timeValue());
+            if (compared != 0) return compared < 0;
+            return state.auctionId() < cursor.auctionId();
+        }
+        long value = switch (sort) {
+            case BID_COUNT -> state.bidCount();
+            case PRICE_HIGH, PRICE_LOW -> state.currentPrice();
+            case CHANGE_HIGH -> changeRateBasisPoints(state);
+            case LATEST -> throw new IllegalStateException("unreachable");
+        };
+        int compared = Long.compare(value, cursor.value());
+        if (sort == AuctionSort.PRICE_LOW) {
+            if (compared != 0) return compared > 0;
+            return state.auctionId() < cursor.auctionId();
+        }
+        if (compared != 0) return compared < 0;
+        return state.auctionId() < cursor.auctionId();
     }
 
     private java.util.Comparator<RedisAuctionRealtimeStateReader.AuctionState> redisComparator(AuctionSort sort) {
@@ -136,15 +214,6 @@ public class    AuctionQueryService {
                             (RedisAuctionRealtimeStateReader.AuctionState state) -> changeRateBasisPoints(state)).reversed()
                     .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId, java.util.Comparator.reverseOrder());
         };
-    }
-
-    private int redisCursorStart(List<RedisAuctionRealtimeStateReader.AuctionState> states, String encodedCursor, AuctionSort sort) {
-        if (encodedCursor == null || encodedCursor.isBlank()) return 0;
-        AuctionCursor cursor = auctionCursorCodec.decode(encodedCursor, sort);
-        for (int index = 0; index < states.size(); index++) {
-            if (states.get(index).auctionId().equals(cursor.auctionId())) return index + 1;
-        }
-        return 0;
     }
 
     private AuctionCursor redisCursorOf(RedisAuctionRealtimeStateReader.AuctionState state, AuctionSort sort) {

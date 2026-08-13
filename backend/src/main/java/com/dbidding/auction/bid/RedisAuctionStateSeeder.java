@@ -29,6 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RedisAuctionStateSeeder {
     private static final String ACTIVE_BY_CLOSE_TIME = "auction:active:by-close-time";
+    private static final String ACTIVE_BY_BID_COUNT = "auction:active:by-bid-count";
+    private static final String ACTIVE_BY_PRICE = "auction:active:by-price";
+    private static final String ACTIVE_BY_CHANGE_RATE = "auction:active:by-change-rate";
+    private static final String ACTIVE_BY_OPEN_TIME = "auction:active:by-open-time";
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final AuctionImageRepository auctionImageRepository;
@@ -99,8 +103,18 @@ public class RedisAuctionStateSeeder {
         List<Bid> chronologicalRecentBids = recentBids.stream().sorted(Comparator.comparing(Bid::getCreatedAt).thenComparing(Bid::getId)).toList();
         args.add(String.valueOf(chronologicalRecentBids.size()));
         chronologicalRecentBids.forEach(bid -> { args.add(String.valueOf(bid.getId())); args.add(String.valueOf(bid.getBidderId())); args.add(String.valueOf(bid.getBidPrice())); args.add(String.valueOf(bid.getId())); args.add(bid.getCreatedAt().toString()); });
+        args.add(String.valueOf(auction.getBidCount()));
+        args.add(String.valueOf(auction.getCurrentPrice()));
+        args.add(String.valueOf(changeRateBasisPoints(auction)));
+        args.add(String.valueOf(auction.getOpenTime().toEpochMilli()));
         return Long.valueOf(1L).equals(redisTemplate.execute(auctionStateSeedScript,
-                List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME, "auction:recent-bids:" + auction.getId(), "auction:ending-window:by-close-time"), args.toArray()));
+                List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME, "auction:recent-bids:" + auction.getId(), "auction:ending-window:by-close-time",
+                        ACTIVE_BY_BID_COUNT, ACTIVE_BY_PRICE, ACTIVE_BY_CHANGE_RATE, ACTIVE_BY_OPEN_TIME),
+                args.toArray()));
+    }
+
+    private long changeRateBasisPoints(Auction auction) {
+        return (auction.getCurrentPrice() - auction.getStartPrice()) * 10_000L / auction.getStartPrice();
     }
 
     private String redisBidStatus(Bid bid) { return bid.getStatus() == BidStatus.LEADING || bid.getStatus() == BidStatus.WON ? "LEADING" : "OUTBID"; }

@@ -81,6 +81,9 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("100000");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "frozenBalance")).isEqualTo("0");
         assertThat(redisTemplate.opsForHash().get("wallet:hold:1:2", "amount")).isEqualTo("43000");
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-bid-count", "1")).isEqualTo(3D);
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-price", "1")).isEqualTo(43000D);
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-change-rate", "1")).isEqualTo(750D);
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         var event = redisTemplate.opsForStream()
                 .read(StreamOffset.create("event:timeline", ReadOffset.from("0-0")))
@@ -178,6 +181,9 @@ class RedisBidLuaIntegrationTest {
                 "availableBalance", "60000", "frozenBalance", "40000", "walletVersion", "4"
         ));
         redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "1", 1786323300000D);
+        redisTemplate.opsForZSet().add("auction:active:by-bid-count", "1", 2D);
+        redisTemplate.opsForZSet().add("auction:active:by-price", "1", 40000D);
+        redisTemplate.opsForZSet().add("auction:active:by-change-rate", "1", 0D);
 
         var response = executor.execute(new BidCommand(1, 1, 99_999L, "buy-now-1"));
 
@@ -198,6 +204,9 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.getExpire("auction:state:1")).isBetween(3600L, 21600L);
         assertThat(redisTemplate.getExpire("wallet:balance:1")).isBetween(3600L, 21600L);
         assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "1")).isNull();
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-bid-count", "1")).isNull();
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-price", "1")).isNull();
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-change-rate", "1")).isNull();
 
         executor.execute(new BidCommand(1, 1, 99_999L, "buy-now-1"));
 

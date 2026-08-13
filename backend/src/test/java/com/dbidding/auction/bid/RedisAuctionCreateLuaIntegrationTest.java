@@ -67,6 +67,10 @@ class RedisAuctionCreateLuaIntegrationTest {
         assertThat(redisTemplate.opsForZSet().range("auction:active:by-close-time", 0, -1)).containsExactly("1");
         assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "1"))
                 .isEqualTo(1786535700000D);
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-bid-count", "1")).isEqualTo(0D);
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-price", "1")).isEqualTo(40000D);
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-change-rate", "1")).isEqualTo(0D);
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-open-time", "1")).isEqualTo(1786492800000D);
         var event = redisTemplate.opsForStream()
                 .read(StreamOffset.create("event:timeline", ReadOffset.from("0-0")))
                 .getFirst().getValue();
