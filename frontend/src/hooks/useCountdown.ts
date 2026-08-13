@@ -21,3 +21,9 @@ export function formatRemaining(endsAt:string,now:number):string{
 export function isAuctionEnded(status:string,remaining:string):boolean{
   return !['OPEN','ENDING'].includes(status)||remaining==='경매 종료';
 }
+
+export function displayRemaining(status:string,endsAt:string,now:number):string{
+  const remaining=formatRemaining(endsAt,now);
+  if(remaining==='경매 종료')return remaining;
+  return status==='ENDING'?'마감임박':remaining;
+}

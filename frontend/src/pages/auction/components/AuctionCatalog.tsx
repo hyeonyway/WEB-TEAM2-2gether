@@ -7,7 +7,7 @@ import CardArtwork from '../../cards/components/CardArtwork';
 import {useAuthGate} from '../../../auth/useAuthGate';
 import {useCurrentUserId} from '../../../auth/useCurrentUserId';
 import {normalizePsaGrade} from '../../../api/auctionMapper';
-import {formatRemaining,isAuctionEnded,useCountdownNow} from '../../../hooks/useCountdown';
+import {displayRemaining,formatRemaining,isAuctionEnded,useCountdownNow} from '../../../hooks/useCountdown';
 
 function AnimatedAuctionPrice({price}:{price:number}){
   const previousPrice=useRef(price);
@@ -111,10 +111,10 @@ export default function AuctionCatalog({auctions,onSubscriptionAuctionIdsChange}
   },[auctionIdSignature,onSubscriptionAuctionIdsChange]);
 
   if(!auctions.length)return <div className="filter-empty"><Search/><b>조건에 맞는 경매가 없습니다.</b><span>검색어나 필터를 변경해 보세요.</span></div>;
-  return <><section className="card-grid" ref={catalogRef}>{auctions.map(auction=>{const remaining=formatRemaining(auction.endsAt,now),ended=isAuctionEnded(auction.status,remaining),isSeller=currentUserId!==null&&auction.sellerId===currentUserId,buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} data-auction-id={auction.id} key={auction.id}>
+  return <><section className="card-grid" ref={catalogRef}>{auctions.map(auction=>{const remaining=formatRemaining(auction.endsAt,now),displayedRemaining=displayRemaining(auction.status,auction.endsAt,now),ended=isAuctionEnded(auction.status,remaining),isSeller=currentUserId!==null&&auction.sellerId===currentUserId,buttonState=auction.myBidStatus==='LEADING'?'leading':auction.myBidStatus==='OUTBID'?'outbid':'new',increase=auction.currentPrice-auction.startPrice,increaseRate=auction.startPrice>0?increase/auction.startPrice*100:0,psaGrade=normalizePsaGrade(auction.card.psaGrade);return <article className={`card-tile up${ended?' ended':''}`} data-auction-id={auction.id} key={auction.id}>
     <div className="auction-image-viewport"><CardArtwork theme={auction.card.theme} imageUrl={auction.card.imageUrl} name={auction.card.name}/></div>
     <div>
-      <div className="card-meta"><span><span className="grade">PSA {psaGrade}</span><span className="grade">{auction.card.language}</span></span><span className="auction-countdown"><Clock3/>{remaining}{!ended&&' 남음'}</span></div>
+      <div className="card-meta"><span><span className="grade">PSA {psaGrade}</span><span className="grade">{auction.card.language}</span></span><span className="auction-countdown"><Clock3/>{displayedRemaining}{!ended&&displayedRemaining!=='마감임박'&&' 남음'}</span></div>
       <h3>{auction.card.name}</h3><small>현재 경매가</small>
       <div className="tile-price"><AnimatedAuctionPrice price={auction.currentPrice}/><em>시작가 대비 +{increaseRate.toFixed(1)}%</em></div>
       <div className="auction-card-info">

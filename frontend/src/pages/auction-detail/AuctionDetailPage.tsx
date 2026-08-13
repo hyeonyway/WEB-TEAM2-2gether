@@ -9,7 +9,7 @@ import type {AuctionDetailResponseDto,BidContextResponseDto,BidSummaryResponseDt
 import {useAuctionStream} from '../../hooks/useAuctionStream';
 import {useAuthGate} from '../../auth/useAuthGate';
 import {useCurrentUserId} from '../../auth/useCurrentUserId';
-import {formatRemaining,isAuctionEnded,useCountdownNow} from '../../hooks/useCountdown';
+import {displayRemaining,formatRemaining,isAuctionEnded,useCountdownNow} from '../../hooks/useCountdown';
 import AuctionDetailSkeleton from './AuctionDetailSkeleton';
 import AuctionImageGallery from './AuctionImageGallery';
 
@@ -113,6 +113,7 @@ export default function AuctionDetailPage(){
   const gradeLabel=detail.seller_grade??`PSA ${grade}`;
   const language=mapCardLanguage(detail.card.language);
   const remaining=formatRemaining(detail.ends_at,now);
+  const displayedRemaining=displayRemaining(detail.status,detail.ends_at,now);
   const ended=isAuctionEnded(detail.status,remaining);
   const isSeller=currentUserId!==null&&detail.seller.id===currentUserId;
   const increaseRate=detail.start_price>0
@@ -131,7 +132,7 @@ export default function AuctionDetailPage(){
           <p>{detail.card.set_name} · {detail.card.language}</p>
           <small>경매번호 AUCTION-{String(detail.id).padStart(4,'0')}</small>
         </div>
-        <div className="auction-live-label"><i/> {ended?'종료된 경매':'LIVE 경매'} <span><Clock3/>{remaining}</span></div>
+        <div className="auction-live-label"><i/> {ended?'종료된 경매':'LIVE 경매'} <span><Clock3/>{displayedRemaining}</span></div>
         <div className="auction-current-price"><small>현재 입찰가</small><strong key={latestStreamEventId??'initial'} className={latestStreamEventId===null?'':'auction-detail-price-live'}>{currentPrice.toLocaleString()}원</strong><em>+{increaseRate.toFixed(1)}%</em></div>
         <div className="auction-bid-summary">
           <span>다음 최소 입찰가<b>{minimumBid.toLocaleString()}원</b></span>
