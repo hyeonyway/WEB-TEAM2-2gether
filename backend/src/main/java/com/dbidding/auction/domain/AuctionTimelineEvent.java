@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "auction_timeline_events")
+@Table(name = "timeline_events")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AuctionTimelineEvent {
     @Id
