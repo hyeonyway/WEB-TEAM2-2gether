@@ -80,6 +80,21 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
     }
 
     @Test
+    void 구매확정_전이는_order_state와_by_order_id와_지갑에_1시간에서_6시간_사이_TTL을_건다() {
+        givenPendingOrder();
+        redisTemplate.opsForValue().set("order:state:by-order-id:100", "10");
+        redisTemplate.opsForHash().putAll("wallet:balance:7", Map.of(
+                "availableBalance", "10000", "frozenBalance", "0", "walletVersion", "4"
+        ));
+
+        execute("1", "COMPLETED", "order.completed.v1", "confirm:100", "hash-confirm");
+
+        assertThat(redisTemplate.getExpire("order:state:10")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.getExpire("order:state:by-order-id:100")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.getExpire("wallet:balance:7")).isBetween(3600L, 21600L);
+    }
+
+    @Test
     void 참여자가_아닌_사용자는_주문과_지갑과_Stream을_변경할_수_없다() {
         givenPendingOrder();
         redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
@@ -117,7 +132,7 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
 
     private String execute(String actorId, String targetStatus, String eventType, String idempotencyKey, String requestHash) {
         return redisTemplate.execute(script, List.of("order:state:10", "wallet:balance:" + ("COMPLETED".equals(targetStatus) ? "7" : "1"),
-                        "order:idempotency:100:" + idempotencyKey, "event:timeline"),
+                        "order:idempotency:100:" + idempotencyKey, "event:timeline", "order:state:by-order-id:100"),
                 actorId, targetStatus, eventType, "100", "10", idempotencyKey, requestHash,
                 "11111111-1111-1111-1111-111111111111", "2026-08-12T01:00:00Z");
     }

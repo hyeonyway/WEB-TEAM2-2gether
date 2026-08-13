@@ -8,4 +8,9 @@ redis.call('HSET', KEYS[1],
 redis.call('SET', KEYS[2], ARGV[2])
 redis.call('SADD', KEYS[3], ARGV[2])
 redis.call('SADD', KEYS[4], ARGV[2])
+if ARGV[7] == 'COMPLETED' or ARGV[7] == 'CANCELLED' then
+    local ttl = 3600 + (tonumber(ARGV[2]) % 18001)
+    redis.call('EXPIRE', KEYS[1], ttl)
+    redis.call('EXPIRE', KEYS[2], ttl)
+end
 return 1

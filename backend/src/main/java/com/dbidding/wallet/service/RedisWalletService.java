@@ -11,6 +11,7 @@ import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -62,9 +63,11 @@ public class RedisWalletService extends WalletService {
     @Transactional
     public void provision(Integer userId) {
         super.provision(userId);
-        redisTemplate.opsForHash().putAll(balanceKey(userId), java.util.Map.of(
+        String key = balanceKey(userId);
+        redisTemplate.opsForHash().putAll(key, java.util.Map.of(
                 "availableBalance", "0", "frozenBalance", "0", "walletVersion", "0"
         ));
+        redisTemplate.expire(key, Duration.ofSeconds(3600 + Math.floorMod(userId.longValue(), 18001)));
     }
 
     @Override

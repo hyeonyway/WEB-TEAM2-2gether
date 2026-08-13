@@ -59,6 +59,7 @@ local newAvailable = available - requiredAvailable
 local newFrozen = tonumber(redis.call('HGET', KEYS[2], 'frozenBalance') or '0') + requiredAvailable
 local bidderWalletVersion = redis.call('HINCRBY', KEYS[2], 'walletVersion', 1)
 redis.call('HSET', KEYS[2], 'availableBalance', newAvailable, 'frozenBalance', newFrozen)
+redis.call('EXPIRE', KEYS[2], 3600 + (tonumber(ARGV[1]) % 18001))
 redis.call('HSET', KEYS[3], 'amount', price)
 
 local previousBidderId = highestBidderId or ''
@@ -68,6 +69,7 @@ if highestBidderId and highestBidderId ~= '' and highestBidderId ~= ARGV[1] then
     redis.call('HINCRBY', previousBalanceKey, 'availableBalance', highestHoldAmount)
     redis.call('HINCRBY', previousBalanceKey, 'frozenBalance', -highestHoldAmount)
     redis.call('HINCRBY', previousBalanceKey, 'walletVersion', 1)
+    redis.call('EXPIRE', previousBalanceKey, 3600 + (tonumber(highestBidderId) % 18001))
     redis.call('DEL', previousHoldKey)
     redis.call('HSET', 'auction:bidder:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. highestBidderId,
         'status', 'OUTBID', 'amount', highestHoldAmount)
@@ -91,6 +93,7 @@ redis.call('HSET', KEYS[1], 'currentPrice', price, 'highestBidderId', ARGV[1], '
     'closeTime', nextCloseTime, 'closeTimeEpochMillis', nextCloseTimeEpochMillis, 'status', nextStatus)
 local activeAuctionIndex = 'auction:active:by-close-time'
 if buyNow then
+    redis.call('EXPIRE', KEYS[1], 3600 + (tonumber(string.match(KEYS[1], 'auction:state:(.+)')) % 18001))
     redis.call('ZREM', activeAuctionIndex, string.match(KEYS[1], 'auction:state:(.+)'))
 else
     redis.call('ZADD', activeAuctionIndex, nextCloseTimeEpochMillis, string.match(KEYS[1], 'auction:state:(.+)'))
