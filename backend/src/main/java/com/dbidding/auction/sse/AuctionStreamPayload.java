@@ -72,6 +72,14 @@ public record AuctionStreamPayload(
         );
     }
 
+    public static AuctionStreamPayload endingStarted(Integer auctionId, Instant estimatedCloseTime, Instant occurredAt) {
+        return new AuctionStreamPayload(
+                AuctionStreamEventType.AUCTION_ENDING_STARTED, auctionId, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, estimatedCloseTime,
+                AuctionStatus.ENDING, null, occurredAt, null
+        );
+    }
+
     public AuctionStreamPayload withPublishedAt(Instant publishedAt) {
         return new AuctionStreamPayload(
                 type, auctionId, cardId, cardName, cardPsaGrade, cardLanguage, cardThumbnailUrl, sellerId,

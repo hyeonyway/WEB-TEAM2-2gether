@@ -52,9 +52,25 @@ public class RedisBidLuaConfiguration {
     }
 
     @Bean
+    public RedisScript<String> auctionEndingTransitionScript() {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-ending-transition.lua"));
+        script.setResultType(String.class);
+        return script;
+    }
+
+    @Bean
     public RedisScript<Long> auctionActiveIndexGcScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/auction-active-index-gc.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<Long> auctionEndingWindowIndexGcScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-ending-window-index-gc.lua"));
         script.setResultType(Long.class);
         return script;
     }

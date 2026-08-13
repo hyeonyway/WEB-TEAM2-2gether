@@ -48,7 +48,7 @@ class AuctionCloseRequestLuaIntegrationTest {
         ));
         redisTemplate.opsForZSet().add("auction:active:by-close-time", "11", 1786496400000.0);
 
-        String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline"),
+        String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time"),
                 "11", "2026-08-12T01:00:00Z", "1786496400000");
 
         assertThat(result).startsWith("ACCEPTED||0|7|10|리자몽");
@@ -69,8 +69,9 @@ class AuctionCloseRequestLuaIntegrationTest {
         redisTemplate.opsForHash().putAll("wallet:balance:2", Map.of(
                 "availableBalance", "40000", "frozenBalance", "50000", "walletVersion", "4"
         ));
+        redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "11", 1786496100000.0);
 
-        String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline"),
+        String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time"),
                 "11", "2026-08-12T01:00:00Z", "1786496400000");
 
         assertThat(result).startsWith("ACCEPTED|2|50000|7|10|리자몽");
@@ -78,6 +79,7 @@ class AuctionCloseRequestLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:2", "frozenBalance")).isEqualTo("0");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:2", "walletVersion")).isEqualTo("5");
         assertThat(redisTemplate.hasKey("wallet:hold:11:2")).isFalse();
+        assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "11")).isNull();
     }
 
     @Test
@@ -88,7 +90,7 @@ class AuctionCloseRequestLuaIntegrationTest {
                 "startPrice", "40000", "currentPrice", "50000", "bidIncrement", "3000", "bidCount", "3"
         ));
 
-        String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline"),
+        String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time"),
                 "11", "2026-08-12T02:00:00Z", "1786500000000");
 
         assertThat(result).isEqualTo("REPLAYED");

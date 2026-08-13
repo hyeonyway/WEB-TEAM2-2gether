@@ -6,7 +6,6 @@ import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,7 +34,7 @@ public class AuctionDeadlineScheduler {
 
     private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor;
     private final AuctionRepository auctionRepository;
-    private final Optional<AuctionEndingTransitionService> auctionEndingTransitionService;
+    private final AuctionEndingTransitionProcessor auctionEndingTransitionProcessor;
     private final TaskScheduler taskScheduler;
     private final Clock clock;
     @Autowired(required = false)
@@ -50,13 +49,13 @@ public class AuctionDeadlineScheduler {
     public AuctionDeadlineScheduler(
             AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor,
             AuctionRepository auctionRepository,
-            Optional<AuctionEndingTransitionService> auctionEndingTransitionService,
+            AuctionEndingTransitionProcessor auctionEndingTransitionProcessor,
             @Qualifier("auctionDeadlineTaskScheduler") TaskScheduler taskScheduler,
             Clock clock
     ) {
         this.auctionCloseSchedulerProcessor = auctionCloseSchedulerProcessor;
         this.auctionRepository = auctionRepository;
-        this.auctionEndingTransitionService = auctionEndingTransitionService;
+        this.auctionEndingTransitionProcessor = auctionEndingTransitionProcessor;
         this.taskScheduler = taskScheduler;
         this.clock = clock;
     }
@@ -108,15 +107,11 @@ public class AuctionDeadlineScheduler {
 
     private ScheduledAuctionTarget nextTarget() {
         if (isRedisProfile() && redisTemplate != null) {
-            java.util.Set<ZSetOperations.TypedTuple<String>> targets = redisTemplate.opsForZSet()
-                    .rangeWithScores("auction:active:by-close-time", 0, 0);
-            if (targets == null || targets.isEmpty()) return null;
-            ZSetOperations.TypedTuple<String> target = targets.iterator().next();
-            if (target.getValue() == null || target.getScore() == null) return null;
-            return new ScheduledAuctionTarget(
-                    Integer.valueOf(target.getValue()),
-                    Instant.ofEpochMilli(target.getScore().longValue())
-            );
+            ScheduledAuctionTarget activeTarget = redisTarget("auction:active:by-close-time");
+            ScheduledAuctionTarget endingTarget = redisTarget("auction:ending-window:by-close-time");
+            if (activeTarget == null) return endingTarget;
+            if (endingTarget == null) return activeTarget;
+            return activeTarget.closeTime().isBefore(endingTarget.closeTime()) ? activeTarget : endingTarget;
         }
 
         List<Auction> openCandidates = auctionRepository.findNextCloseTarget(
@@ -145,6 +140,14 @@ public class AuctionDeadlineScheduler {
         return environment != null && environment.matchesProfiles("redis");
     }
 
+    private ScheduledAuctionTarget redisTarget(String key) {
+        java.util.Set<ZSetOperations.TypedTuple<String>> targets = redisTemplate.opsForZSet().rangeWithScores(key, 0, 0);
+        if (targets == null || targets.isEmpty()) return null;
+        ZSetOperations.TypedTuple<String> target = targets.iterator().next();
+        if (target.getValue() == null || target.getScore() == null) return null;
+        return new ScheduledAuctionTarget(Integer.valueOf(target.getValue()), Instant.ofEpochMilli(target.getScore().longValue()));
+    }
+
     private record ScheduledAuctionTarget(Integer auctionId, Instant closeTime) {
     }
 
@@ -159,15 +162,15 @@ public class AuctionDeadlineScheduler {
                 CLOSE_BATCH_SIZE
         );
         try {
+            var transitionedAuctions = auctionEndingTransitionProcessor.transitionDueAuctions(now, CLOSE_BATCH_SIZE);
+            log.info("event=auction.ending.deadline.completed transitionedCount={} auctionIds={}",
+                    transitionedAuctions.size(), transitionedAuctions);
             var closedAuctions = auctionCloseSchedulerProcessor.processDueAuctions(now, CLOSE_BATCH_SIZE);
             log.info(
                     "event=auction.close.deadline.completed closedCount={} auctionIds={}",
                     closedAuctions.size(),
                     closedAuctions
             );
-            if (firedAuctionId != null) {
-                auctionEndingTransitionService.ifPresent(service -> service.transitionIfDue(firedAuctionId, now));
-            }
         } catch (RuntimeException exception) {
             log.error(
                     "event=auction.close.deadline.failed scheduledAuctionId={} scheduledCloseTime={} now={} batchSize={}",

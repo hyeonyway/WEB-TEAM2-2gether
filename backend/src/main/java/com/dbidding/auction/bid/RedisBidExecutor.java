@@ -65,7 +65,8 @@ public class RedisBidExecutor implements BidExecutor {
                 "wallet:balance:" + command.bidderId(),
                 "wallet:hold:" + command.auctionId() + ":" + command.bidderId(),
                 "auction:bid:idempotency:" + command.auctionId() + ":" + command.bidderId() + ":" + command.idempotencyKey(),
-                "event:timeline"
+                "event:timeline",
+                "auction:ending-window:by-close-time"
         );
         String raw = redisTemplate.execute(
                 bidAcceptScript,
@@ -77,17 +78,18 @@ public class RedisBidExecutor implements BidExecutor {
         if (!"ACCEPTED".equals(fields[0])) {
             throw rejection(fields.length > 1 ? fields[1] : "UNKNOWN");
         }
-        if (fields.length != 27) {
+        if (fields.length != 27 && fields.length != 28) {
             throw AuctionException.invalidBidRequest("Redis 입찰 승인 응답이 올바르지 않습니다.");
         }
+        Instant publicCloseTime = Instant.parse(fields.length == 28 ? fields[26] : fields[9]);
         BidResponses.BidResult result = new BidResponses.BidResult(
                 new BidResponses.BidDetail(null, Long.valueOf(fields[2]), BidStatus.valueOf(fields[10]), now, fields[1]),
                 new BidResponses.AuctionSnapshot(command.auctionId(), Long.valueOf(fields[2]), Long.valueOf(fields[8]),
-                        Integer.valueOf(fields[4]), Instant.parse(fields[9])),
+                        Integer.valueOf(fields[4]), publicCloseTime),
                 new BidResponses.WalletSummary(Long.parseLong(fields[5]), Long.parseLong(fields[6])),
                 fields[11].isBlank() ? null : new BidResponses.PendingOrder(command.auctionId(), fields[11], fields[1])
         );
-        boolean replayed = Boolean.parseBoolean(fields[26]);
+        boolean replayed = Boolean.parseBoolean(fields[fields.length - 1]);
         if (replayed) {
             return new BidExecutionResult(result, null);
         }

@@ -57,7 +57,8 @@ public class RedisAuctionRealtimeStateReader {
                     Long.valueOf(required(fields, "bidIncrement")), Integer.valueOf(required(fields, "bidCount")),
                     nullableLong(fields.get("buyNowPrice")), Long.valueOf(required(fields, "deliveryFee")),
                     Instant.parse(required(fields, "openTime")), Instant.parse(required(fields, "closeTime")),
-                    splitLines(required(fields, "imagePaths"))
+                    splitLines(required(fields, "imagePaths")),
+                    optionalInstant(fields.get("estimatedCloseTime")).orElse(Instant.parse(required(fields, "closeTime")))
             );
         } catch (IllegalArgumentException exception) {
             return null;
@@ -113,6 +114,7 @@ public class RedisAuctionRealtimeStateReader {
     private String value(Object value) { return value == null ? null : value.toString(); }
     private Long nullableLong(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Long.valueOf(text); }
     private Integer nullableInteger(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Integer.valueOf(text); }
+    private java.util.Optional<Instant> optionalInstant(Object value) { String text = value(value); return text == null || text.isBlank() ? java.util.Optional.empty() : java.util.Optional.of(Instant.parse(text)); }
     private String nullableString(Object value) { String text = value(value); return text == null || text.isBlank() ? null : text; }
     private List<String> splitLines(String value) { return List.of(value.split("\\n", -1)); }
     private String stateKey(Integer auctionId) { return "auction:state:" + auctionId; }
@@ -129,5 +131,14 @@ public class RedisAuctionRealtimeStateReader {
                                String cardPsaGrade, String cardLanguage, String cardThumbnailUrl, String auctionName, String description, String sellerMemo, String psaCertification,
                                String selfGrade, boolean psaVerified, long startPrice, long currentPrice,
                                long bidIncrement, int bidCount, Long buyNowPrice, long deliveryFee,
-                               Instant openTime, Instant closeTime, List<String> imagePaths) { }
+                               Instant openTime, Instant closeTime, List<String> imagePaths, Instant estimatedCloseTime) {
+        public AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName, String cardSetName,
+                            String cardPsaGrade, String cardLanguage, String cardThumbnailUrl, String auctionName, String description, String sellerMemo,
+                            String psaCertification, String selfGrade, boolean psaVerified, long startPrice, long currentPrice, long bidIncrement,
+                            int bidCount, Long buyNowPrice, long deliveryFee, Instant openTime, Instant closeTime, List<String> imagePaths) {
+            this(auctionId, status, sellerId, itemId, cardName, cardSetName, cardPsaGrade, cardLanguage, cardThumbnailUrl, auctionName,
+                    description, sellerMemo, psaCertification, selfGrade, psaVerified, startPrice, currentPrice, bidIncrement, bidCount,
+                    buyNowPrice, deliveryFee, openTime, closeTime, imagePaths, closeTime);
+        }
+    }
 }

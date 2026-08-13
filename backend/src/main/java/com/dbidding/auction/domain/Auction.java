@@ -180,6 +180,19 @@ public class Auction {
         return true;
     }
 
+    /** Redis Lua가 확정한 실제 마감시각을 projection에 멱등 반영한다. */
+    public boolean applyEndingTransition(Instant actualCloseTime) {
+        if (status != AuctionStatus.OPEN) {
+            return false;
+        }
+        if (!actualCloseTime.isAfter(closeTime)) {
+            throw new IllegalArgumentException("ENDING 실제 마감시각은 기존 마감시각 이후여야 합니다.");
+        }
+        closeTime = actualCloseTime;
+        status = AuctionStatus.ENDING;
+        return true;
+    }
+
     public void placeBid(Long bidPrice, Instant bidAt) {
         if (status != AuctionStatus.OPEN && status != AuctionStatus.ENDING) {
             throw new IllegalArgumentException("진행 중인 경매에만 입찰할 수 있습니다.");

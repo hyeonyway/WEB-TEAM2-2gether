@@ -20,6 +20,7 @@ class RedisAuctionActiveIndexGcLuaIntegrationTest {
     private static LettuceConnectionFactory connectionFactory;
     private StringRedisTemplate redisTemplate;
     private DefaultRedisScript<Long> script;
+    private DefaultRedisScript<Long> endingWindowScript;
 
     @BeforeEach
     void setUp() {
@@ -33,6 +34,9 @@ class RedisAuctionActiveIndexGcLuaIntegrationTest {
         script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/auction-active-index-gc.lua"));
         script.setResultType(Long.class);
+        endingWindowScript = new DefaultRedisScript<>();
+        endingWindowScript.setLocation(new ClassPathResource("lua/auction-ending-window-index-gc.lua"));
+        endingWindowScript.setResultType(Long.class);
     }
 
     @AfterAll
@@ -49,5 +53,19 @@ class RedisAuctionActiveIndexGcLuaIntegrationTest {
 
         assertThat(removed).isEqualTo(1L);
         assertThat(redisTemplate.opsForZSet().range("auction:active:by-close-time", 0, -1)).containsExactly("2");
+    }
+
+    @Test
+    void ending_window에서는_OPEN이_아닌_상태와_상태없는_경매만_제거한다() {
+        redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "1", 1_000);
+        redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "2", 2_000);
+        redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "3", 3_000);
+        redisTemplate.opsForHash().put("auction:state:1", "status", "OPEN");
+        redisTemplate.opsForHash().put("auction:state:2", "status", "ENDING");
+
+        Long removed = redisTemplate.execute(endingWindowScript, List.of("auction:ending-window:by-close-time"), "100");
+
+        assertThat(removed).isEqualTo(2L);
+        assertThat(redisTemplate.opsForZSet().range("auction:ending-window:by-close-time", 0, -1)).containsExactly("1");
     }
 }

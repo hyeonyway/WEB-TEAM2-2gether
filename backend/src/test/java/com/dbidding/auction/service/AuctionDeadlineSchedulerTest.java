@@ -15,7 +15,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -34,13 +33,13 @@ class AuctionDeadlineSchedulerTest {
 
     private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor = mock(AuctionCloseSchedulerProcessor.class);
     private final AuctionRepository auctionRepository = mock(AuctionRepository.class);
-    private final AuctionEndingTransitionService auctionEndingTransitionService = mock(AuctionEndingTransitionService.class);
+    private final AuctionEndingTransitionProcessor auctionEndingTransitionProcessor = mock(AuctionEndingTransitionProcessor.class);
     private final CapturingTaskScheduler taskScheduler = new CapturingTaskScheduler();
     private final Clock clock = Clock.fixed(NOW, ZoneId.of("Asia/Seoul"));
     private final AuctionDeadlineScheduler scheduler = new AuctionDeadlineScheduler(
             auctionCloseSchedulerProcessor,
             auctionRepository,
-            Optional.of(auctionEndingTransitionService),
+            auctionEndingTransitionProcessor,
             taskScheduler,
             clock
     );
@@ -101,7 +100,7 @@ class AuctionDeadlineSchedulerTest {
     }
 
     @Test
-    void 타이머가_발동하면_마감처리뒤에_해당_OPEN_경매의_ENDING_전환을_시도한다() {
+    void 타이머가_발동하면_ENDING_전이후_마감처리를_수행한다() {
         Auction open = auction(1, AuctionStatus.OPEN, NOW.plus(Duration.ofMinutes(5)));
         when(auctionRepository.findNextCloseTarget(List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)))
                 .thenReturn(List.of(open), List.of());
@@ -112,8 +111,9 @@ class AuctionDeadlineSchedulerTest {
         scheduler.scheduleNext("test");
         taskScheduler.scheduledTask.run();
 
-        verify(auctionCloseSchedulerProcessor).processDueAuctions(NOW, 100);
-        verify(auctionEndingTransitionService).transitionIfDue(1, NOW);
+        var order = org.mockito.Mockito.inOrder(auctionEndingTransitionProcessor, auctionCloseSchedulerProcessor);
+        order.verify(auctionEndingTransitionProcessor).transitionDueAuctions(NOW, 100);
+        order.verify(auctionCloseSchedulerProcessor).processDueAuctions(NOW, 100);
     }
 
     @Test

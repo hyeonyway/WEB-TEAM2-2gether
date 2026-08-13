@@ -1,22 +1,5 @@
--- KEYS: auction state, bidder balance, bidder hold, idempotency result, single timeline stream
+-- KEYS: auction state, bidder balance, bidder hold, idempotency result, single timeline stream, ending-window index
 -- ARGV: bidderId, price, idempotencyKey, requestHash, nowEpochMillis, nowIsoInstant
-local function iso8601(epochMillis)
-    local seconds = math.floor(epochMillis / 1000)
-    local day = math.floor(seconds / 86400)
-    local time = seconds - day * 86400
-    local z = day + 719468
-    local era = math.floor((z >= 0 and z or z - 146096) / 146097)
-    local doe = z - era * 146097
-    local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
-    local year = yoe + era * 400
-    local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
-    local monthPrime = math.floor((5 * doy + 2) / 153)
-    local dayOfMonth = doy - math.floor((153 * monthPrime + 2) / 5) + 1
-    local month = monthPrime + (monthPrime < 10 and 3 or -9)
-    year = year + (month <= 2 and 1 or 0)
-    return string.format('%04d-%02d-%02dT%02d:%02d:%02dZ', year, month, dayOfMonth,
-        math.floor(time / 3600), math.floor((time % 3600) / 60), time % 60)
-end
 local existing = redis.call('GET', KEYS[4])
 if existing then
     local separator = string.find(existing, '|')
@@ -32,6 +15,7 @@ local currentPrice = tonumber(redis.call('HGET', KEYS[1], 'currentPrice'))
 local bidIncrement = tonumber(redis.call('HGET', KEYS[1], 'bidIncrement'))
 local closeTime = redis.call('HGET', KEYS[1], 'closeTime')
 local closeTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'closeTimeEpochMillis'))
+local estimatedCloseTime = redis.call('HGET', KEYS[1], 'estimatedCloseTime') or closeTime
 local highestBidderId = redis.call('HGET', KEYS[1], 'highestBidderId')
 local highestHoldAmount = tonumber(redis.call('HGET', KEYS[1], 'highestHoldAmount') or '0')
 local requestedPrice = tonumber(ARGV[2])
@@ -93,11 +77,6 @@ if buyNow then
     nextCloseTime = ARGV[6]
     nextCloseTimeEpochMillis = tonumber(ARGV[5])
     nextStatus = 'ENDED'
-elseif tonumber(ARGV[5]) >= closeTimeEpochMillis - 300000 then
-    nextCloseTimeEpochMillis = closeTimeEpochMillis + 300000
-    nextCloseTime = iso8601(nextCloseTimeEpochMillis)
-    nextStatus = 'ENDING'
-    closeTimeExtended = true
 end
 redis.call('HSET', KEYS[1], 'currentPrice', price, 'highestBidderId', ARGV[1], 'highestHoldAmount', price,
     'closeTime', nextCloseTime, 'closeTimeEpochMillis', nextCloseTimeEpochMillis, 'status', nextStatus)
@@ -105,6 +84,7 @@ local activeAuctionIndex = 'auction:active:by-close-time'
 if buyNow then
     redis.call('EXPIRE', KEYS[1], 3600 + (tonumber(string.match(KEYS[1], 'auction:state:(.+)')) % 18001))
     redis.call('ZREM', activeAuctionIndex, string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZREM', KEYS[6], string.match(KEYS[1], 'auction:state:(.+)'))
 else
     redis.call('ZADD', activeAuctionIndex, nextCloseTimeEpochMillis, string.match(KEYS[1], 'auction:state:(.+)'))
 end
@@ -145,5 +125,6 @@ local result = 'ACCEPTED|' .. streamId .. '|' .. price .. '|' .. auctionVersion 
     .. '|' .. nextStatus .. '|' .. tostring(closeTimeExtended)
     .. '|' .. cardName .. '|' .. cardPsaGrade .. '|' .. cardLanguage .. '|' .. cardThumbnailUrl .. '|' .. sellerId
     .. '|' .. previousAvailable .. '|' .. previousFrozen .. '|' .. previousWalletVersion
+    .. '|' .. estimatedCloseTime
 redis.call('SET', KEYS[4], ARGV[4] .. '|' .. result, 'EX', 86400)
 return result .. '|false'

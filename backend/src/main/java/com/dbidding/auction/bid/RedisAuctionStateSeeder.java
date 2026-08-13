@@ -87,6 +87,7 @@ public class RedisAuctionStateSeeder {
         put(stateArgs, "startPrice", auction.getStartPrice()); put(stateArgs, "currentPrice", auction.getCurrentPrice()); put(stateArgs, "buyNowPrice", auction.getBuyNowPrice() == null ? "" : auction.getBuyNowPrice());
         put(stateArgs, "deliveryFee", auction.getDeliveryFee()); put(stateArgs, "bidIncrement", auction.getBidPriceUnit()); put(stateArgs, "imagePaths", imagePaths);
         put(stateArgs, "openTime", auction.getOpenTime()); put(stateArgs, "closeTime", auction.getCloseTime()); put(stateArgs, "closeTimeEpochMillis", auction.getCloseTime().toEpochMilli());
+        put(stateArgs, "estimatedCloseTime", auction.getEstimatedCloseTime()); put(stateArgs, "estimatedCloseTimeEpochMillis", auction.getEstimatedCloseTime().toEpochMilli());
         put(stateArgs, "highestBidderId", leading == null ? "" : leading.getBidderId()); put(stateArgs, "highestHoldAmount", leading == null ? 0 : leading.getBidPrice());
         // bidCount에는 Redis Stream 도입 전의 입찰 이력도 포함될 수 있다. 이벤트 버전은
         // MySQL projection이 마지막으로 반영한 버전에서 이어야 하므로 별도로 초기화한다.
@@ -99,7 +100,7 @@ public class RedisAuctionStateSeeder {
         args.add(String.valueOf(chronologicalRecentBids.size()));
         chronologicalRecentBids.forEach(bid -> { args.add(String.valueOf(bid.getId())); args.add(String.valueOf(bid.getBidderId())); args.add(String.valueOf(bid.getBidPrice())); args.add(String.valueOf(bid.getId())); args.add(bid.getCreatedAt().toString()); });
         return Long.valueOf(1L).equals(redisTemplate.execute(auctionStateSeedScript,
-                List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME, "auction:recent-bids:" + auction.getId()), args.toArray()));
+                List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME, "auction:recent-bids:" + auction.getId(), "auction:ending-window:by-close-time"), args.toArray()));
     }
 
     private String redisBidStatus(Bid bid) { return bid.getStatus() == BidStatus.LEADING || bid.getStatus() == BidStatus.WON ? "LEADING" : "OUTBID"; }

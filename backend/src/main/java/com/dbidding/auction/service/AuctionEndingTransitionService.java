@@ -8,10 +8,12 @@ import com.dbidding.auction.sse.AuctionStreamPayload;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Profile("!redis")
 @RequiredArgsConstructor
-public class AuctionEndingTransitionService {
+public class AuctionEndingTransitionService implements AuctionEndingTransitionProcessor {
     private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuctionStreamPublisher auctionStreamPublisher;
@@ -35,6 +37,15 @@ public class AuctionEndingTransitionService {
                 .filter(auction -> !auction.getCloseTime().minus(AuctionEndingPolicy.WINDOW).isAfter(now))
                 .map(auction -> transition(auction, now))
                 .orElse(false);
+    }
+
+    @Override
+    public List<Integer> transitionDueAuctions(Instant now, int limit) {
+        return auctionRepository.findDueAuctionIds(
+                        List.of(AuctionStatus.OPEN), now.plus(AuctionEndingPolicy.WINDOW), PageRequest.of(0, limit)
+                ).stream()
+                .filter(auctionId -> transitionIfDue(auctionId, now))
+                .toList();
     }
 
     private boolean transition(Auction auction, Instant now) {

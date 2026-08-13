@@ -169,7 +169,7 @@ public class    AuctionQueryService {
                 .startPrice(state.startPrice()).currentPrice(state.currentPrice()).bidIncrement(state.bidIncrement())
                 .minimumBid(state.buyNowPrice() == null ? state.currentPrice() + state.bidIncrement()
                         : Math.min(state.currentPrice() + state.bidIncrement(), state.buyNowPrice()))
-                .bidCount(state.bidCount()).buyNowPrice(state.buyNowPrice()).startsAt(state.openTime()).endsAt(state.closeTime())
+                .bidCount(state.bidCount()).buyNowPrice(state.buyNowPrice()).startsAt(state.openTime()).endsAt(publicCloseTime(state))
                 .status(state.status()).myBidStatus(realtime == null ? MyBidStatus.NONE : realtime.myBidStatus())
                 .myBidAmount(realtime == null ? null : realtime.myBidAmount()).build();
     }
@@ -393,7 +393,7 @@ public class    AuctionQueryService {
                 .bidCount(realtime == null ? auction.getBidCount() : realtime.bidCount())
                 .buyNowPrice(realtime == null ? auction.getBuyNowPrice() : realtime.buyNowPrice())
                 .startsAt(auction.getOpenTime())
-                .endsAt(realtime == null ? publicCloseTime(auction) : realtime.closeTime())
+                .endsAt(realtime == null ? publicCloseTime(auction) : publicCloseTime(auction, realtime.status(), realtime.closeTime()))
                 .status(realtime == null ? auction.getStatus() : realtime.status())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
@@ -468,7 +468,7 @@ public class    AuctionQueryService {
                 .startPrice(state.startPrice()).currentPrice(state.currentPrice()).bidIncrement(state.bidIncrement())
                 .minimumBid(state.buyNowPrice() == null ? state.currentPrice() + state.bidIncrement()
                         : Math.min(state.currentPrice() + state.bidIncrement(), state.buyNowPrice()))
-                .bidCount(state.bidCount()).startsAt(state.openTime()).endsAt(state.closeTime()).status(state.status())
+                .bidCount(state.bidCount()).startsAt(state.openTime()).endsAt(publicCloseTime(state)).status(state.status())
                 .myBidStatus(realtime == null ? MyBidStatus.NONE : realtime.myBidStatus())
                 .myBidAmount(realtime == null ? null : realtime.myBidAmount()).description(state.description())
                 .sellerMemo(state.sellerMemo()).sellerGrade(state.selfGrade()).shippingFee(state.deliveryFee())
@@ -485,12 +485,25 @@ public class    AuctionQueryService {
                 .id(auction.getId()).card(cardSummary(card, null)).seller(sellerSummary(auction.getSellerId()))
                 .startPrice(auction.getStartPrice()).currentPrice(realtime.currentPrice())
                 .bidIncrement(realtime.bidIncrement()).minimumBid(realtime.currentPrice() + realtime.bidIncrement())
-                .bidCount(realtime.bidCount()).startsAt(auction.getOpenTime()).endsAt(realtime.closeTime())
+                .bidCount(realtime.bidCount()).startsAt(auction.getOpenTime())
+                .endsAt(publicCloseTime(auction, realtime.status(), realtime.closeTime()))
                 .status(realtime.status()).myBidStatus(realtime.myBidStatus()).myBidAmount(realtime.myBidAmount())
                 .description(auction.getDescription()).sellerMemo(auction.getSellerMemo()).sellerGrade(auction.getSelfGrade())
                 .shippingFee(auction.getDeliveryFee()).buyNowPrice(realtime.buyNowPrice()).photos(photos(images))
                 .psaCertification(new AuctionResponses.PsaCertification(auction.getPsaCertification(), card.psaGrade(), null,
                         Boolean.TRUE.equals(auction.getPsaVerified()))).build();
+    }
+
+    private Instant publicCloseTime(RedisAuctionRealtimeStateReader.AuctionState state) {
+        return state.status() == AuctionStatus.OPEN || state.status() == AuctionStatus.ENDING
+                ? state.estimatedCloseTime()
+                : state.closeTime();
+    }
+
+    private Instant publicCloseTime(Auction auction, AuctionStatus realtimeStatus, Instant realtimeCloseTime) {
+        return realtimeStatus == AuctionStatus.OPEN || realtimeStatus == AuctionStatus.ENDING
+                ? auction.getEstimatedCloseTime()
+                : realtimeCloseTime;
     }
 
     private boolean isVerifiedPsaCertification(String psaGrade, String psaCertification) {

@@ -28,7 +28,8 @@ public class RedisAuctionCreateExecutor {
         String raw = redisTemplate.execute(auctionCreateScript, List.of(
                         "auction:sequence",
                         "auction:create:idempotency:" + command.sellerId() + ':' + command.idempotencyKey(),
-                        TIMELINE_STREAM
+                        TIMELINE_STREAM,
+                        "auction:ending-window:by-close-time"
                 ),
                 command.sellerId().toString(), command.itemId().toString(), required(command.cardName()), required(command.cardSetName()),
                 nullable(command.cardPsaGrade()), nullable(command.cardLanguage()), nullable(command.cardThumbnailUrl()),

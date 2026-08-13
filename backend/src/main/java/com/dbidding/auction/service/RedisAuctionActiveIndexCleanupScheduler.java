@@ -21,9 +21,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class RedisAuctionActiveIndexCleanupScheduler {
     private static final String ACTIVE_BY_CLOSE_TIME = "auction:active:by-close-time";
+    private static final String ENDING_WINDOW_BY_CLOSE_TIME = "auction:ending-window:by-close-time";
 
     private final StringRedisTemplate redisTemplate;
     @Qualifier("auctionActiveIndexGcScript") private final RedisScript<Long> auctionActiveIndexGcScript;
+    @Qualifier("auctionEndingWindowIndexGcScript") private final RedisScript<Long> auctionEndingWindowIndexGcScript;
     private final Clock clock;
     @Value("${auction.active-index.cleanup.stale-after:PT24H}") private Duration staleAfter;
     @Value("${auction.active-index.cleanup.batch-size:100}") private int batchSize;
@@ -33,8 +35,11 @@ class RedisAuctionActiveIndexCleanupScheduler {
         Instant threshold = clock.instant().minus(staleAfter);
         Long removed = redisTemplate.execute(auctionActiveIndexGcScript, List.of(ACTIVE_BY_CLOSE_TIME),
                 String.valueOf(threshold.toEpochMilli()), String.valueOf(batchSize));
-        if (removed != null && removed > 0) {
-            log.info("event=auction.active_index.cleanup removedCount={} threshold={}", removed, threshold);
+        Long endingWindowRemoved = redisTemplate.execute(auctionEndingWindowIndexGcScript, List.of(ENDING_WINDOW_BY_CLOSE_TIME),
+                String.valueOf(batchSize));
+        if ((removed != null && removed > 0) || (endingWindowRemoved != null && endingWindowRemoved > 0)) {
+            log.info("event=auction.active_index.cleanup activeRemovedCount={} endingWindowRemovedCount={} threshold={}",
+                    removed == null ? 0 : removed, endingWindowRemoved == null ? 0 : endingWindowRemoved, threshold);
         }
     }
 }

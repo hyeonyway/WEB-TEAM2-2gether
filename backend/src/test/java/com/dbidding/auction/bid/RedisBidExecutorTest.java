@@ -43,7 +43,7 @@ class RedisBidExecutorTest {
     void Lua가_승인한_입찰의_eventId와_실시간_상태를_응답한다() {
         List<String> keys = List.of(
                 "auction:state:1", "wallet:balance:2", "wallet:hold:1:2",
-                "auction:bid:idempotency:1:2:bid-key", "event:timeline"
+                "auction:bid:idempotency:1:2:bid-key", "event:timeline", "auction:ending-window:by-close-time"
         );
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
                 eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))
@@ -83,5 +83,16 @@ class RedisBidExecutorTest {
 
         assertThat(response.eventData()).isNull();
         verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void ENDING_경매의_입찰_응답은_실제_연장_마감이_아닌_예정_마감을_반환한다() {
+        when(redisTemplate.execute(eq(bidAcceptScript), org.mockito.ArgumentMatchers.anyList(),
+                eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"), eq("2026-08-10T00:00:00Z")))
+                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:01:30Z|LEADING||1|40000|3000|9|ENDING|false|리자몽|10|JP|/thumb.png|7|100000|0|5|2026-08-10T01:00:00Z|false");
+
+        BidExecutionResult response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
+
+        assertThat(response.result().auction().endsAt()).isEqualTo(Instant.parse("2026-08-10T01:00:00Z"));
     }
 }

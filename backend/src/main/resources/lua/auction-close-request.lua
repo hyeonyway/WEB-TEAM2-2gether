@@ -1,4 +1,4 @@
--- KEYS[1] = auction context, KEYS[2] = auction timeline stream
+-- KEYS[1] = auction context, KEYS[2] = auction timeline stream, KEYS[3] = ending-window index
 -- ARGV[1] = auction id, ARGV[2] = occurredAt ISO-8601, ARGV[3] = occurredAt epoch millis
 -- A repeated deadline/backup scheduler invocation must not append a second close request.
 if redis.call('HGET', KEYS[1], 'closeRequestedAt') then
@@ -45,6 +45,7 @@ redis.call('HSET', KEYS[1],
     'closeTimeEpochMillis', ARGV[3],
     'closeRequestedAt', ARGV[2])
 redis.call('ZREM', 'auction:active:by-close-time', ARGV[1])
+redis.call('ZREM', KEYS[3], ARGV[1])
 redis.call('EXPIRE', KEYS[1], 3600 + (tonumber(ARGV[1]) % 18001))
 
 redis.call('XADD', KEYS[2], '*',
