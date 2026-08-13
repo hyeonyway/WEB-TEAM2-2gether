@@ -11,7 +11,6 @@ import com.dbidding.auction.repository.AuctionRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.data.domain.PageRequest;
@@ -27,7 +26,7 @@ class AuctionDeadlineSchedulerTransactionTest {
     void 일정_변경은_커밋_후에만_재예약하고_롤백하면_무시한다() {
         AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor = mock(AuctionCloseSchedulerProcessor.class);
         AuctionRepository auctionRepository = mock(AuctionRepository.class);
-        AuctionEndingTransitionService auctionEndingTransitionService = mock(AuctionEndingTransitionService.class);
+        AuctionEndingTransitionProcessor auctionEndingTransitionProcessor = mock(AuctionEndingTransitionProcessor.class);
         TaskScheduler taskScheduler = mock(TaskScheduler.class);
         Clock clock = Clock.systemUTC();
 
@@ -39,7 +38,7 @@ class AuctionDeadlineSchedulerTransactionTest {
             context.registerBean(AuctionDeadlineScheduler.class, () -> new AuctionDeadlineScheduler(
                     auctionCloseSchedulerProcessor,
                     auctionRepository,
-                    Optional.of(auctionEndingTransitionService),
+                    auctionEndingTransitionProcessor,
                     taskScheduler,
                     clock
             ));
