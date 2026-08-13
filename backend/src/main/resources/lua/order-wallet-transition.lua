@@ -5,7 +5,7 @@ local existing = redis.call('GET', KEYS[3])
 if existing then
     local separator = string.find(existing, '|')
     if string.sub(existing, 1, separator - 1) ~= ARGV[7] then return 'REJECTED|IDEMPOTENCY_CONFLICT' end
-    return string.sub(existing, separator + 1)
+    return string.sub(existing, separator + 1) .. '|true'
 end
 
 local status = redis.call('HGET', KEYS[1], 'status')
@@ -46,5 +46,6 @@ local streamId = redis.call('XADD', KEYS[4], '*',
     'transactionType', transactionType, 'transactionAmount', price,
     'idempotencyKey', ARGV[6], 'occurredAt', ARGV[9])
 local result = 'ACCEPTED|' .. streamId .. '|' .. ARGV[2] .. '|' .. orderVersion .. '|' .. walletVersion
+    .. '|' .. nextAvailable .. '|' .. frozen .. '|' .. walletUserId
 redis.call('SET', KEYS[3], ARGV[7] .. '|' .. result, 'EX', 86400)
-return result
+return result .. '|false'

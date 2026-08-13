@@ -18,6 +18,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import com.dbidding.order.port.OrderEventPort;
 
 /** 주문이 유발하는 지갑 변경만 Redis 승인 경계에서 처리한다. */
 @Service
@@ -31,6 +33,8 @@ public class RedisOrderCommandService {
     private final RedisScript<String> orderStateReadScript;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final OrderEventPort orderEventPort;
+    private final ApplicationEventPublisher eventPublisher;
 
     public RedisOrderCommandService(
             StringRedisTemplate redisTemplate,
@@ -39,7 +43,9 @@ public class RedisOrderCommandService {
             RedisWalletStateSeeder walletStateSeeder,
             @Qualifier("orderStateReadScript") RedisScript<String> orderStateReadScript,
             ObjectMapper objectMapper,
-            Clock clock
+            Clock clock,
+            OrderEventPort orderEventPort,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.redisTemplate = redisTemplate;
         this.orderWalletTransitionScript = orderWalletTransitionScript;
@@ -48,6 +54,8 @@ public class RedisOrderCommandService {
         this.orderStateReadScript = orderStateReadScript;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.orderEventPort = orderEventPort;
+        this.eventPublisher = eventPublisher;
     }
 
     public OrderResponse confirm(Integer orderId, Integer actorId) {
@@ -82,8 +90,36 @@ public class RedisOrderCommandService {
                 requestHash, UUID.randomUUID().toString(), now.toString());
         String[] fields = raw.split("\\|", -1);
         if (!"ACCEPTED".equals(fields[0])) throw rejected(fields.length > 1 ? fields[1] : "STATE_MISSING");
+        if (fields.length != 9) throw new IllegalStateException("Redis 주문 승인 응답이 올바르지 않습니다.");
+        if (!Boolean.parseBoolean(fields[8])) {
+            publishApprovedOrder(orderId, auctionId, actorId, buyerId, sellerId, required(order, "cardName"), targetStatus);
+            long availableBalance = Long.parseLong(fields[5]);
+            long frozenBalance = Long.parseLong(fields[6]);
+            long walletVersion = Long.parseLong(fields[4]);
+            eventPublisher.publishEvent(new com.dbidding.wallet.sse.WalletBalanceChangedEvent(
+                    Integer.valueOf(fields[7]),
+                    new com.dbidding.wallet.dto.WalletBalanceResponse(
+                            availableBalance + frozenBalance, frozenBalance, availableBalance, walletVersion),
+                    walletVersion,
+                    now
+            ));
+        }
         return new OrderResponse(orderId, auctionId, required(order, "cardName"), longValue(order, "price"),
                 OrderStatus.valueOf(fields[2]), Instant.parse(required(order, "createdAt")), fields[1]);
+    }
+
+    private void publishApprovedOrder(Integer orderId, Integer auctionId, Integer actorId, Integer buyerId,
+                                      Integer sellerId, String cardName, OrderStatus status) {
+        if (status == OrderStatus.COMPLETED) {
+            orderEventPort.publishCompleted(new com.dbidding.order.event.OrderCompletedEvent(
+                    orderId, auctionId, buyerId, sellerId, cardName));
+            return;
+        }
+        orderEventPort.publishCancelled(new com.dbidding.order.event.OrderCancelledEvent(
+                orderId, auctionId, buyerId, sellerId, cardName,
+                actorId.equals(buyerId)
+                        ? com.dbidding.order.event.OrderCancelledEvent.CancelledBy.BUYER
+                        : com.dbidding.order.event.OrderCancelledEvent.CancelledBy.SELLER));
     }
 
     private RuntimeException rejected(String reason) {

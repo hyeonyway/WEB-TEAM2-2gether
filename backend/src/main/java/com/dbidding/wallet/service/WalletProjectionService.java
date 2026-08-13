@@ -68,13 +68,8 @@ public class WalletProjectionService {
                             wallet.getId(), event.auctionId(), event.holdAmount(), event.holdStatus(), event.walletVersion(), event.eventId()
                     )));
         }
-        int updated = walletRepository.updateProjectionIfNewer(
+        walletRepository.updateProjectionIfNewer(
                 event.userId(), event.availableBalance() + event.frozenBalance(), event.walletVersion());
-        if (updated > 0) {
-            eventPublisher.publishEvent(new WalletBalanceChangedEvent(event.userId(),
-                    new WalletBalanceResponse(event.availableBalance() + event.frozenBalance(), event.frozenBalance(), event.availableBalance(),
-                            event.walletVersion()),
-                    event.walletVersion(), clock.instant()));
-        }
+        // Redis 승인 직후 이미 wallet SSE를 발행한다. projection은 MySQL 반영만 담당한다.
     }
 }

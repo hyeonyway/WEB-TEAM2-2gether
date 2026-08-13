@@ -23,7 +23,7 @@ if existing then
     if string.sub(existing, 1, separator - 1) ~= ARGV[4] then
         return 'REJECTED|IDEMPOTENCY_CONFLICT'
     end
-    return string.sub(existing, separator + 1)
+    return string.sub(existing, separator + 1) .. '|true'
 end
 
 local status = redis.call('HGET', KEYS[1], 'status')
@@ -37,8 +37,13 @@ local highestHoldAmount = tonumber(redis.call('HGET', KEYS[1], 'highestHoldAmoun
 local requestedPrice = tonumber(ARGV[2])
 local buyNowPrice = tonumber(redis.call('HGET', KEYS[1], 'buyNowPrice'))
 local cardName = redis.call('HGET', KEYS[1], 'cardName') or ''
+local itemId = redis.call('HGET', KEYS[1], 'itemId')
+local startPrice = redis.call('HGET', KEYS[1], 'startPrice')
+local cardPsaGrade = redis.call('HGET', KEYS[1], 'cardPsaGrade') or ''
+local cardLanguage = redis.call('HGET', KEYS[1], 'cardLanguage') or ''
+local cardThumbnailUrl = redis.call('HGET', KEYS[1], 'cardThumbnailUrl') or ''
 
-if not status or not sellerId or not currentPrice or not bidIncrement or not closeTime or not closeTimeEpochMillis then
+if not status or not sellerId or not itemId or not startPrice or not currentPrice or not bidIncrement or not closeTime or not closeTimeEpochMillis then
     return 'REJECTED|STATE_MISSING'
 end
 if status ~= 'OPEN' and status ~= 'ENDING' then return 'REJECTED|NOT_OPEN' end
@@ -63,12 +68,15 @@ redis.call('EXPIRE', KEYS[2], 3600 + (tonumber(ARGV[1]) % 18001))
 redis.call('HSET', KEYS[3], 'amount', price)
 
 local previousBidderId = highestBidderId or ''
+local previousAvailable = ''
+local previousFrozen = ''
+local previousWalletVersion = ''
 if highestBidderId and highestBidderId ~= '' and highestBidderId ~= ARGV[1] then
     local previousBalanceKey = 'wallet:balance:' .. highestBidderId
     local previousHoldKey = 'wallet:hold:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. highestBidderId
-    redis.call('HINCRBY', previousBalanceKey, 'availableBalance', highestHoldAmount)
-    redis.call('HINCRBY', previousBalanceKey, 'frozenBalance', -highestHoldAmount)
-    redis.call('HINCRBY', previousBalanceKey, 'walletVersion', 1)
+    previousAvailable = redis.call('HINCRBY', previousBalanceKey, 'availableBalance', highestHoldAmount)
+    previousFrozen = redis.call('HINCRBY', previousBalanceKey, 'frozenBalance', -highestHoldAmount)
+    previousWalletVersion = redis.call('HINCRBY', previousBalanceKey, 'walletVersion', 1)
     redis.call('EXPIRE', previousBalanceKey, 3600 + (tonumber(highestBidderId) % 18001))
     redis.call('DEL', previousHoldKey)
     redis.call('HSET', 'auction:bidder:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. highestBidderId,
@@ -80,6 +88,7 @@ local bidCount = redis.call('HINCRBY', KEYS[1], 'bidCount', 1)
 local nextCloseTime = closeTime
 local nextCloseTimeEpochMillis = closeTimeEpochMillis
 local nextStatus = status
+local closeTimeExtended = false
 if buyNow then
     nextCloseTime = ARGV[6]
     nextCloseTimeEpochMillis = tonumber(ARGV[5])
@@ -88,6 +97,7 @@ elseif tonumber(ARGV[5]) >= closeTimeEpochMillis - 300000 then
     nextCloseTimeEpochMillis = closeTimeEpochMillis + 300000
     nextCloseTime = iso8601(nextCloseTimeEpochMillis)
     nextStatus = 'ENDING'
+    closeTimeExtended = true
 end
 redis.call('HSET', KEYS[1], 'currentPrice', price, 'highestBidderId', ARGV[1], 'highestHoldAmount', price,
     'closeTime', nextCloseTime, 'closeTimeEpochMillis', nextCloseTimeEpochMillis, 'status', nextStatus)
@@ -131,5 +141,9 @@ end
 local result = 'ACCEPTED|' .. streamId .. '|' .. price .. '|' .. auctionVersion .. '|' .. bidCount
     .. '|' .. newAvailable .. '|' .. newFrozen .. '|' .. bidderWalletVersion .. '|' .. (price + bidIncrement) .. '|' .. nextCloseTime
     .. '|' .. (buyNow and 'WON' or 'LEADING') .. '|' .. pendingOrderStatus
+    .. '|' .. itemId .. '|' .. startPrice .. '|' .. bidIncrement .. '|' .. (previousBidderId == '' and 'null' or previousBidderId)
+    .. '|' .. nextStatus .. '|' .. tostring(closeTimeExtended)
+    .. '|' .. cardName .. '|' .. cardPsaGrade .. '|' .. cardLanguage .. '|' .. cardThumbnailUrl .. '|' .. sellerId
+    .. '|' .. previousAvailable .. '|' .. previousFrozen .. '|' .. previousWalletVersion
 redis.call('SET', KEYS[4], ARGV[4] .. '|' .. result, 'EX', 86400)
-return result
+return result .. '|false'

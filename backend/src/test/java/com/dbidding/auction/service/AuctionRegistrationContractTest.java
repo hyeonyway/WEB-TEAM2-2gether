@@ -114,7 +114,7 @@ class AuctionRegistrationContractTest {
         when(redisCardReader.getCardSnapshot(1)).thenReturn(card(1, "10"));
         when(redisExecutor.execute(any())).thenReturn(new RedisAuctionCreateResult(
                 42, "1720000000000-0", AuctionStatus.OPEN,
-                Instant.parse("2026-08-04T00:00:00Z"), Instant.parse("2026-08-04T12:00:00Z")
+                Instant.parse("2026-08-04T00:00:00Z"), Instant.parse("2026-08-04T12:00:00Z"), false
         ));
 
         var response = auctionCommandService.create(1, new AuctionCreateRequest(

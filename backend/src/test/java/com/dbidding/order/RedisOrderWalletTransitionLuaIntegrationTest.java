@@ -56,8 +56,9 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
                 .containsEntry("availableBalance", "60000").containsEntry("walletVersion", "5");
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
 
+        assertThat(result).endsWith("|false");
         assertThat(execute("1", "COMPLETED", "order.completed.v1", "confirm:100", "hash-confirm"))
-                .isEqualTo(result);
+                .isEqualTo(result.substring(0, result.length() - "false".length()) + "true");
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
     }
 

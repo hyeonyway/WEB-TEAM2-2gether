@@ -64,6 +64,7 @@ class RedisBidLuaIntegrationTest {
                 "highestBidderId", "1", "highestHoldAmount", "40000",
                 "sequence", "6", "bidCount", "2"
         ));
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.of("itemId", "10", "startPrice", "40000"));
         redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
                 "availableBalance", "60000", "frozenBalance", "40000", "walletVersion", "4"
         ));
@@ -106,6 +107,7 @@ class RedisBidLuaIntegrationTest {
                 "highestBidderId", "1", "highestHoldAmount", "40000",
                 "sequence", "6", "bidCount", "2"
         ));
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.of("itemId", "10", "startPrice", "40000"));
         redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
                 "availableBalance", "60000", "frozenBalance", "40000", "walletVersion", "4"
         ));
@@ -127,6 +129,7 @@ class RedisBidLuaIntegrationTest {
                 "closeTime", "2026-08-10T01:00:00Z", "closeTimeEpochMillis", "1786323600000",
                 "highestBidderId", "", "highestHoldAmount", "0", "sequence", "0", "bidCount", "0"
         ));
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.of("itemId", "10", "startPrice", "0"));
         for (int bidderId = 1; bidderId <= 55; bidderId++) {
             redisTemplate.opsForHash().putAll("wallet:balance:" + bidderId, Map.of(
                     "availableBalance", "1000000", "frozenBalance", "0", "walletVersion", "0"
@@ -141,7 +144,7 @@ class RedisBidLuaIntegrationTest {
     @Test
     void 즉시낙찰은_같은_timeline_event와_주문_상태를_원자적으로_생성한다() {
         redisTemplate.opsForHash().putAll("auction:state:1", Map.ofEntries(
-                Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("cardName", "리자몽"),
+                Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"), Map.entry("startPrice", "40000"), Map.entry("cardName", "리자몽"),
                 Map.entry("currentPrice", "40000"), Map.entry("bidIncrement", "3000"), Map.entry("buyNowPrice", "50000"),
                 Map.entry("closeTime", "2026-08-10T01:00:00Z"), Map.entry("closeTimeEpochMillis", "1786323600000"),
                 Map.entry("highestBidderId", "1"), Map.entry("highestHoldAmount", "40000"),

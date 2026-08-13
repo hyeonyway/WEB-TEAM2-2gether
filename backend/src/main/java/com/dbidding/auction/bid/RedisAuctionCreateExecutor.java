@@ -45,11 +45,11 @@ public class RedisAuctionCreateExecutor {
         if (fields.length == 2 && "REJECTED".equals(fields[0]) && "IDEMPOTENCY_CONFLICT".equals(fields[1])) {
             throw AuctionException.idempotencyConflict();
         }
-        if (fields.length != 6 || !"ACCEPTED".equals(fields[0])) {
+        if (fields.length != 7 || !"ACCEPTED".equals(fields[0])) {
             throw AuctionException.invalidRequest("경매 생성 Redis 상태 전이에 실패했습니다.");
         }
         return new RedisAuctionCreateResult(Integer.valueOf(fields[1]), fields[2], AuctionStatus.valueOf(fields[3]),
-                Instant.parse(fields[4]), closeTime);
+                Instant.parse(fields[4]), closeTime, Boolean.parseBoolean(fields[6]));
     }
 
     private String required(String value) {

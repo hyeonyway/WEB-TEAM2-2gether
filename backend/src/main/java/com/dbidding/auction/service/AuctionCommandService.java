@@ -178,11 +178,13 @@ public class AuctionCommandService {
                 userId, request.startPrice(), request.startPrice(), request.bidIncrement(), 0,
                 created.closeTime(), created.status(), now
         );
-        auctionEventPublisher.publishOpened(openedEvent);
-        auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
-        eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
-                created.auctionId(), created.closeTime(), "auction_created"
-        ));
+        if (!created.replayed()) {
+            auctionEventPublisher.publishOpened(openedEvent);
+            auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
+            eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
+                    created.auctionId(), created.closeTime(), "auction_created"
+            ));
+        }
         return AuctionCreateResponse.builder()
                 .id(created.auctionId())
                 .status(created.status())

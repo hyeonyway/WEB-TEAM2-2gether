@@ -35,7 +35,7 @@ class WalletProjectionServiceTest {
     }
 
     @Test
-    void 현재_projection보다_낮은_Stream_이벤트는_지갑_SSE를_발행하지_않는다() {
+    void Redis_Stream_projection은_지갑_SSE를_다시_발행하지_않는다() {
         WalletRepository wallets = mock(WalletRepository.class);
         PointRecordRepository records = mock(PointRecordRepository.class);
         WalletHoldRepository holds = mock(WalletHoldRepository.class);
@@ -43,7 +43,7 @@ class WalletProjectionServiceTest {
         Wallet wallet = mock(Wallet.class);
         when(wallets.findByUserId(1)).thenReturn(Optional.of(wallet));
         when(wallet.getId()).thenReturn(10);
-        when(wallets.updateProjectionIfNewer(1, 10_000L, 2L)).thenReturn(0);
+        when(wallets.updateProjectionIfNewer(1, 10_000L, 2L)).thenReturn(1);
 
         new WalletProjectionService(wallets, records, holds, events,
                 Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC))

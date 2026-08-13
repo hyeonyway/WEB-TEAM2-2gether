@@ -44,10 +44,10 @@ public class RedisBidLuaConfiguration {
     }
 
     @Bean
-    public RedisScript<Long> auctionCloseRequestScript() {
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+    public RedisScript<String> auctionCloseRequestScript() {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/auction-close-request.lua"));
-        script.setResultType(Long.class);
+        script.setResultType(String.class);
         return script;
     }
 
