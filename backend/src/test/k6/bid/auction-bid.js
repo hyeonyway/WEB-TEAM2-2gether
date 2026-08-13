@@ -10,15 +10,22 @@ const preAllocatedVUs = positiveNumber(__ENV.PRE_ALLOCATED_VUS, 100);
 const maxVUs = positiveNumber(__ENV.MAX_VUS, 300);
 const warmupRate = positiveNumber(__ENV.WARMUP_RATE, 20);
 const warmupDuration = __ENV.WARMUP_DURATION || '30s';
-const mainStartTime = __ENV.MAIN_START_TIME || '35s';
+// realAuctionBids는 warmup이 끝나고 5초 뒤에 시작한다(직접 겹치지 않게 여유만 둠).
+const mainStartTime = __ENV.MAIN_START_TIME || formatSecondsAsDuration(parseDurationToSeconds(warmupDuration) + 5);
 const loadTestUserCount = positiveInteger(__ENV.LOAD_TEST_USER_COUNT, 10);
 const loadTestEmailPrefix = __ENV.LOAD_TEST_EMAIL_PREFIX || 'k6-user';
 const loadTestEmailDomain = __ENV.LOAD_TEST_EMAIL_DOMAIN || 'dbidding.local';
 const loadTestPassword = __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!';
 const loginBatchSize = positiveInteger(__ENV.LOGIN_BATCH_SIZE, 10);
 const resultFile = __ENV.K6_RESULT_FILE;
-const sseVUs = positiveInteger(__ENV.SSE_VUS, 300);
-const sseDuration = __ENV.SSE_DURATION || '2m45s';
+// SSE_VUS=0으로 SSE 부하를 완전히 끄고 입찰만 격리해서 볼 수 있어야 하므로
+// positiveInteger(0을 걸러냄)가 아니라 nonNegativeInteger를 쓴다.
+const sseVUs = nonNegativeInteger(__ENV.SSE_VUS, 300);
+// SSE 시나리오는 t=0에 시작하니, realAuctionBids가 끝나는 시점(mainStartTime + duration)에
+// 맞춰서 같이 끝나도록 기본값을 잡는다. 예전엔 2m45s로 고정이라 bids가 다 끝나도 한참
+// 더 돌면서 화면에 진행바가 남았다.
+const sseDuration = __ENV.SSE_DURATION
+  || formatSecondsAsDuration(parseDurationToSeconds(mainStartTime) + parseDurationToSeconds(duration));
 const loadTestUserIdStart = positiveInteger(__ENV.LOAD_TEST_USER_ID_START, 910001);
 const loadTestUserNumberWidth = positiveInteger(__ENV.LOAD_TEST_USER_NUMBER_WIDTH, 5);
 
@@ -37,56 +44,66 @@ const sseNotificationConnectSuccess = new Rate('sse_notification_connect_success
 const sseNotificationConnectionErrors = new Counter('sse_notification_connection_errors');
 const sseNotificationEvents = new Counter('sse_notification_events');
 
+// SSE_VUS=0이면 SSE 시나리오 자체를 scenarios에서 빼서, 입찰 부하만
+// 격리해서 볼 수 있게 한다(k6 constant-vus executor는 vus:0을 허용하지 않음).
+const scenarios = {
+  warmupAuctionBids: {
+    executor: 'ramping-arrival-rate',
+    exec: 'warmup',
+    startRate: 1,
+    timeUnit: '1s',
+    stages: [{target: warmupRate, duration: warmupDuration}],
+    preAllocatedVUs: Math.min(preAllocatedVUs, 20),
+    maxVUs,
+    gracefulStop: '5s',
+  },
+  realAuctionBids: {
+    executor: 'constant-arrival-rate',
+    exec: 'bid',
+    startTime: mainStartTime,
+    rate: requestRate,
+    timeUnit: '1s',
+    duration,
+    preAllocatedVUs,
+    maxVUs,
+    gracefulStop: '10s',
+  },
+};
+if (sseVUs > 0) {
+  scenarios.auctionSseConnections = {
+    executor: 'constant-vus',
+    exec: 'auctionSse',
+    vus: sseVUs,
+    duration: sseDuration,
+    gracefulStop: '5s',
+  };
+  scenarios.notificationSseConnections = {
+    executor: 'constant-vus',
+    exec: 'notificationSse',
+    vus: sseVUs,
+    duration: sseDuration,
+    gracefulStop: '5s',
+  };
+}
+
+const thresholds = {
+  'checks{scenario:realAuctionBids}': ['rate>0.99'],
+  'bid_server_error{scenario:realAuctionBids}': ['rate<0.01'],
+  'http_req_failed{scenario:realAuctionBids}': ['rate<0.01'],
+  'http_req_duration{name:GET /api/auctions/:id/bid-context,scenario:realAuctionBids}': ['p(95)<500'],
+  'http_req_duration{name:POST /api/auctions/:id/bids,scenario:realAuctionBids}': ['p(95)<1000'],
+};
+if (sseVUs > 0) {
+  thresholds['sse_auction_connect_success'] = ['rate>0.99'];
+  thresholds['sse_notification_connect_success'] = ['rate>0.99'];
+}
+
 export const options = {
   setupTimeout: __ENV.SETUP_TIMEOUT || '10m',
   batchPerHost: loginBatchSize,
   summaryTrendStats: ['avg', 'min', 'med', 'p(85)', 'p(95)', 'p(99)', 'max'],
-  scenarios: {
-    auctionSseConnections: {
-      executor: 'constant-vus',
-      exec: 'auctionSse',
-      vus: sseVUs,
-      duration: sseDuration,
-      gracefulStop: '5s',
-    },
-    notificationSseConnections: {
-      executor: 'constant-vus',
-      exec: 'notificationSse',
-      vus: sseVUs,
-      duration: sseDuration,
-      gracefulStop: '5s',
-    },
-    warmupAuctionBids: {
-      executor: 'ramping-arrival-rate',
-      exec: 'warmup',
-      startRate: 1,
-      timeUnit: '1s',
-      stages: [{target: warmupRate, duration: warmupDuration}],
-      preAllocatedVUs: Math.min(preAllocatedVUs, 20),
-      maxVUs,
-      gracefulStop: '5s',
-    },
-    realAuctionBids: {
-      executor: 'constant-arrival-rate',
-      exec: 'bid',
-      startTime: mainStartTime,
-      rate: requestRate,
-      timeUnit: '1s',
-      duration,
-      preAllocatedVUs,
-      maxVUs,
-      gracefulStop: '10s',
-    },
-  },
-  thresholds: {
-    'checks{scenario:realAuctionBids}': ['rate>0.99'],
-    'bid_server_error{scenario:realAuctionBids}': ['rate<0.01'],
-    'http_req_failed{scenario:realAuctionBids}': ['rate<0.01'],
-    'http_req_duration{name:GET /api/auctions/:id/bid-context,scenario:realAuctionBids}': ['p(95)<500'],
-    'http_req_duration{name:POST /api/auctions/:id/bids,scenario:realAuctionBids}': ['p(95)<1000'],
-    'sse_auction_connect_success': ['rate>0.99'],
-    'sse_notification_connect_success': ['rate>0.99'],
-  },
+  scenarios,
+  thresholds,
 };
 
 export function setup() {
@@ -406,9 +423,27 @@ function csv(value) {
   return (value || '').split(',').map(item => item.trim()).filter(Boolean);
 }
 
+function parseDurationToSeconds(value) {
+  const match = String(value).match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (!match || value === '') {
+    throw new Error(`잘못된 duration 형식입니다: ${value}`);
+  }
+  const [, hours, minutes, seconds] = match;
+  return (Number(hours) || 0) * 3600 + (Number(minutes) || 0) * 60 + (Number(seconds) || 0);
+}
+
+function formatSecondsAsDuration(totalSeconds) {
+  return `${totalSeconds}s`;
+}
+
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function nonNegativeInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function positiveInteger(value, fallback) {
