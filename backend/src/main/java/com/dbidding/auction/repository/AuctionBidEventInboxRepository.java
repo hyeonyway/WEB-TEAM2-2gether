@@ -20,5 +20,7 @@ public interface AuctionBidEventInboxRepository extends JpaRepository<AuctionBid
 
     Optional<AuctionBidEventInbox> findFirstByProjectionStatusInOrderByIdAsc(Collection<AuctionBidEventProjectionStatus> statuses);
 
+    Optional<AuctionBidEventInbox> findFirstByProjectionStatusOrderByProcessedAtDesc(AuctionBidEventProjectionStatus status);
+
     Page<AuctionBidEventInbox> findByProjectionStatusInOrderByIdAsc(Collection<AuctionBidEventProjectionStatus> statuses, Pageable pageable);
 }

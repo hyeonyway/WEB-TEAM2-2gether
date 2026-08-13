@@ -3,8 +3,11 @@ import {authenticatedRequest} from './authenticatedRequest';
 export type StreamRecoveryStatusDto={
   pendingCount:number;
   errorCount:number;
+  processedCount:number;
   firstIncompleteStreamId:string|null;
   firstFailureMessage:string|null;
+  latestProcessedStreamId:string|null;
+  latestProcessedAt:string|null;
 };
 
 export type StreamRecoveryEventDto={

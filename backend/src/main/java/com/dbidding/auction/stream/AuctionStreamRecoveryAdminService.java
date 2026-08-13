@@ -22,11 +22,17 @@ public class AuctionStreamRecoveryAdminService {
         AuctionBidEventInbox first = inboxRepository
                 .findFirstByProjectionStatusInOrderByIdAsc(java.util.List.of(AuctionBidEventProjectionStatus.PENDING, AuctionBidEventProjectionStatus.ERROR))
                 .orElse(null);
+        AuctionBidEventInbox latestProcessed = inboxRepository
+                .findFirstByProjectionStatusOrderByProcessedAtDesc(AuctionBidEventProjectionStatus.PROCESSED)
+                .orElse(null);
         return new AuctionStreamRecoveryStatus(
                 inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.PENDING),
                 inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.ERROR),
+                inboxRepository.countByProjectionStatus(AuctionBidEventProjectionStatus.PROCESSED),
                 first == null ? null : first.getStreamId(),
-                first == null ? null : first.getFailureMessage()
+                first == null ? null : first.getFailureMessage(),
+                latestProcessed == null ? null : latestProcessed.getStreamId(),
+                latestProcessed == null ? null : latestProcessed.getProcessedAt()
         );
     }
 
