@@ -97,7 +97,11 @@ public class RedisAuctionRealtimeStateReader {
         Integer bidderId = Integer.valueOf(value(values.get("bidderId")));
         long sequence = Long.parseLong(value(values.get("sequence")));
         Long bidId = nullableLong(values.get("bidId"));
-        return new BidResponses.BidSummary(bidId == null ? Long.MAX_VALUE - sequence : bidId, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
+        // Long.MAX_VALUE - sequence는 JSON으로 프론트에 전달되며 JS Number(double)로 변환될 때
+        // 정밀도가 깨져(그 크기대의 double 표현 간격이 sequence 차이보다 커서) 서로 다른 입찰이
+        // 같은 id로 뭉개진다. 프론트가 이미 "DB에 아직 없는 실시간 입찰"을 음수 id로 표시하는
+        // 관례(-event_id)를 따르므로 여기서도 -sequence를 쓴다.
+        return new BidResponses.BidSummary(bidId == null ? -sequence : bidId, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
                 bidderId.equals(highestBidderId), Instant.parse(value(values.get("occurredAt"))));
     }
 
