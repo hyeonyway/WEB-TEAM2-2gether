@@ -98,12 +98,12 @@ class NotificationServiceTest {
     @Test
     void 여러_경매의_행을_재조회_없이_한번에_INSERT한다() {
         List<NotificationInsertRow> rows = List.of(
-                new NotificationInsertRow(1, 10, "리자몽 EX 카드의 경매가 등록되었습니다."),
-                new NotificationInsertRow(2, 10, "리자몽 EX 카드의 경매가 등록되었습니다."),
-                new NotificationInsertRow(1, 20, "피카츄 카드의 경매가 등록되었습니다.")
+                NotificationInsertRow.of(1, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                NotificationInsertRow.of(2, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
+                NotificationInsertRow.of(1, 20, NotificationType.AUCTION_OPENED, "피카츄 카드의 경매가 등록되었습니다.")
         );
 
-        notificationService.insertAllIgnoringDuplicates(rows, NotificationType.AUCTION_OPENED);
+        notificationService.insertAllIgnoringDuplicates(rows);
 
         then(jdbcTemplate).should().update(
                 eq("INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES "
@@ -117,7 +117,7 @@ class NotificationServiceTest {
 
     @Test
     void 대상_행이_없으면_INSERT를_실행하지_않는다() {
-        notificationService.insertAllIgnoringDuplicates(List.of(), NotificationType.AUCTION_OPENED);
+        notificationService.insertAllIgnoringDuplicates(List.of());
 
         then(jdbcTemplate).shouldHaveNoInteractions();
     }

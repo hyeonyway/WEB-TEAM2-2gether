@@ -64,29 +64,30 @@ public class NotificationService {
     }
 
     /**
-     * 여러 경매의 알림을 한 번에 INSERT로 저장한다(복구 배치 전용, 이슈 #373). 라이브
+     * 여러 경매/후보의 알림을 한 번에 INSERT로 저장한다(복구 배치 전용, 이슈 #373, #414). 라이브
      * 이벤트 경로({@link #saveAllIgnoringDuplicates})와 달리 SSE push가 필요 없어
-     * 재조회 SELECT를 하지 않는다. bid와 무관한 알림 전용이라 bid_id는 항상
-     * {@link Notification#NO_BID}다. 행 1개당 {@code ?} 5개를 쓰므로
-     * {@link #FAN_OUT_CHUNK_SIZE} 단위로 나눠 INSERT한다.
+     * 재조회 SELECT를 하지 않는다. 행마다 type/bid_id가 다를 수 있어(경매종료의
+     * AUCTION_WON/AUCTION_UNSOLD, 상회입찰의 개별 bid_id) 공통 type을 인자로 받지 않고
+     * {@link NotificationInsertRow}에 담아온 값을 그대로 쓴다. 행 1개당 {@code ?} 5개를
+     * 쓰므로 {@link #FAN_OUT_CHUNK_SIZE} 단위로 나눠 INSERT한다.
      */
     @Transactional
-    public void insertAllIgnoringDuplicates(List<NotificationInsertRow> rows, NotificationType type) {
+    public void insertAllIgnoringDuplicates(List<NotificationInsertRow> rows) {
         for (int from = 0; from < rows.size(); from += FAN_OUT_CHUNK_SIZE) {
             List<NotificationInsertRow> chunk = rows.subList(from, Math.min(from + FAN_OUT_CHUNK_SIZE, rows.size()));
-            insertRowsIgnoringDuplicates(chunk, type);
+            insertRowsIgnoringDuplicates(chunk);
         }
     }
 
-    private void insertRowsIgnoringDuplicates(List<NotificationInsertRow> rows, NotificationType type) {
+    private void insertRowsIgnoringDuplicates(List<NotificationInsertRow> rows) {
         String placeholders = String.join(", ", Collections.nCopies(rows.size(), "(?, ?, ?, ?, ?)"));
         String sql = "INSERT IGNORE INTO notification (user_id, auction_id, type, bid_id, message) VALUES " + placeholders;
         List<Object> args = new ArrayList<>(rows.size() * 5);
         for (NotificationInsertRow row : rows) {
             args.add(row.userId());
             args.add(row.auctionId());
-            args.add(type.name());
-            args.add(Notification.NO_BID);
+            args.add(row.type().name());
+            args.add(row.bidId());
             args.add(row.message());
         }
         jdbcTemplate.update(sql, args.toArray());
