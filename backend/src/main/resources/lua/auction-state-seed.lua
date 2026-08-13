@@ -1,4 +1,5 @@
--- KEYS[1]: auction state hash, KEYS[2]: active auction ZSET, KEYS[3]: recent bids stream
+-- KEYS[1]: auction state hash, KEYS[2]: active auction ZSET, KEYS[3]: recent bids stream,
+-- KEYS[4]: OPEN auction ending-window ZSET
 -- ARGV: closeTimeEpochMillis, auctionId, state field count, state field/value pairs,
 --       participant count, (bidderId, status, amount)*, recent bid count,
 --       (bidId, bidderId, bidPrice, sequence, occurredAt)*
@@ -40,4 +41,8 @@ end
 
 redis.call('HSET', KEYS[1], unpack(stateArguments))
 redis.call('ZADD', KEYS[2], ARGV[1], ARGV[2])
+if redis.call('HGET', KEYS[1], 'status') == 'OPEN' then
+    local estimatedCloseTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'estimatedCloseTimeEpochMillis')) or tonumber(ARGV[1])
+    redis.call('ZADD', KEYS[4], estimatedCloseTimeEpochMillis - 300000, ARGV[2])
+end
 return 1

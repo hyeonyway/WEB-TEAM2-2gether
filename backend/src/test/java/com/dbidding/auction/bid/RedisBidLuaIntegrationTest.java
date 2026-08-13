@@ -142,6 +142,30 @@ class RedisBidLuaIntegrationTest {
     }
 
     @Test
+    void 마감_5분_이내_일반_입찰은_상태나_실제_마감시각을_연장하지_않는다() {
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.ofEntries(
+                Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"), Map.entry("startPrice", "40000"),
+                Map.entry("currentPrice", "40000"), Map.entry("bidIncrement", "3000"),
+                Map.entry("closeTime", "2026-08-10T00:01:00Z"), Map.entry("closeTimeEpochMillis", "1786320060000"),
+                Map.entry("highestBidderId", ""), Map.entry("highestHoldAmount", "0"), Map.entry("sequence", "0"), Map.entry("bidCount", "0")
+        ));
+        redisTemplate.opsForZSet().add("auction:active:by-close-time", "1", 1786320060000D);
+        redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "1", 1786319760000D);
+        redisTemplate.opsForHash().putAll("wallet:balance:2", Map.of(
+                "availableBalance", "100000", "frozenBalance", "0", "walletVersion", "0"
+        ));
+
+        executor.execute(new BidCommand(2, 1, 43_000L, "near-close"));
+
+        assertThat(redisTemplate.opsForHash().entries("auction:state:1"))
+                .containsEntry("status", "OPEN")
+                .containsEntry("closeTime", "2026-08-10T00:01:00Z")
+                .containsEntry("closeTimeEpochMillis", "1786320060000");
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-close-time", "1")).isEqualTo(1786320060000D);
+        assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "1")).isEqualTo(1786319760000D);
+    }
+
+    @Test
     void 즉시낙찰은_같은_timeline_event와_주문_상태를_원자적으로_생성한다() {
         redisTemplate.opsForHash().putAll("auction:state:1", Map.ofEntries(
                 Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"), Map.entry("startPrice", "40000"), Map.entry("cardName", "리자몽"),
@@ -153,6 +177,7 @@ class RedisBidLuaIntegrationTest {
         redisTemplate.opsForHash().putAll("wallet:balance:1", Map.of(
                 "availableBalance", "60000", "frozenBalance", "40000", "walletVersion", "4"
         ));
+        redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "1", 1786323300000D);
 
         var response = executor.execute(new BidCommand(1, 1, 99_999L, "buy-now-1"));
 
@@ -172,6 +197,7 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         assertThat(redisTemplate.getExpire("auction:state:1")).isBetween(3600L, 21600L);
         assertThat(redisTemplate.getExpire("wallet:balance:1")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "1")).isNull();
 
         executor.execute(new BidCommand(1, 1, 99_999L, "buy-now-1"));
 

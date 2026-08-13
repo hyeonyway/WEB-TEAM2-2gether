@@ -40,7 +40,7 @@ class RedisAuctionStateSeedLuaIntegrationTest {
 
     @Test
     void 기존_Redis_경매_state는_MySQL_seed로_덮어쓰지_않는다() {
-        List<String> keys = List.of("auction:state:1", "auction:active:by-close-time", "auction:recent-bids:1");
+        List<String> keys = List.of("auction:state:1", "auction:active:by-close-time", "auction:recent-bids:1", "auction:ending-window:by-close-time");
         assertThat(redisTemplate.execute(script, keys,
                 "1000", "1", "2", "status", "OPEN", "currentPrice", "100", "0", "0")).isEqualTo(1L);
         assertThat(redisTemplate.execute(script, keys,
@@ -52,10 +52,10 @@ class RedisAuctionStateSeedLuaIntegrationTest {
 
     @Test
     void state_생성과_함께_사용자_입찰상태와_최근_입찰을_기록한다() {
-        List<String> keys = List.of("auction:state:1", "auction:active:by-close-time", "auction:recent-bids:1");
+        List<String> keys = List.of("auction:state:1", "auction:active:by-close-time", "auction:recent-bids:1", "auction:ending-window:by-close-time");
 
         assertThat(redisTemplate.execute(script, keys,
-                "1000", "1", "1", "status", "OPEN",
+                "1000", "1", "3", "status", "OPEN", "estimatedCloseTime", "1970-01-01T00:00:01Z", "estimatedCloseTimeEpochMillis", "1000",
                 "2", "10", "OUTBID", "40000", "20", "LEADING", "43000",
                 "2", "101", "10", "40000", "101", "2026-08-13T00:00:00Z", "102", "20", "43000", "102", "2026-08-13T00:01:00Z"
         )).isEqualTo(1L);
@@ -64,5 +64,6 @@ class RedisAuctionStateSeedLuaIntegrationTest {
                 .containsEntry("status", "OUTBID").containsEntry("amount", "40000");
         assertThat(redisTemplate.opsForSet().members("auction:dashboard:participating:10")).containsExactly("1");
         assertThat(redisTemplate.opsForStream().size("auction:recent-bids:1")).isEqualTo(2L);
+        assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "1")).isEqualTo(-299000D);
     }
 }

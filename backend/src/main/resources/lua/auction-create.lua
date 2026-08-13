@@ -1,4 +1,4 @@
--- KEYS: auction sequence, seller idempotency result, single timeline stream
+-- KEYS: auction sequence, seller idempotency result, single timeline stream, ending-window index
 -- ARGV: sellerId, itemId, cardName, cardSetName, cardPsaGrade, cardLanguage, cardThumbnailUrl, auctionName, description,
 --       sellerMemo, psaCertification, selfGrade, psaVerified, startPrice, buyNowPrice, deliveryFee, bidPriceUnit,
 --       imagePaths, closeTime, closeTimeEpochMillis, idempotencyKey, idempotencyRequestHash, occurredAt
@@ -37,11 +37,14 @@ redis.call('HSET', stateKey,
     'openTime', ARGV[23],
     'closeTime', ARGV[19],
     'closeTimeEpochMillis', ARGV[20],
+    'estimatedCloseTime', ARGV[19],
+    'estimatedCloseTimeEpochMillis', ARGV[20],
     'highestBidderId', '',
     'highestHoldAmount', '0',
     'sequence', '0',
     'bidCount', '0')
 redis.call('ZADD', 'auction:active:by-close-time', ARGV[20], auctionId)
+redis.call('ZADD', KEYS[4], ARGV[20] - 300000, auctionId)
 
 local streamId = redis.call('XADD', KEYS[3], '*',
     'schemaVersion', '1',
