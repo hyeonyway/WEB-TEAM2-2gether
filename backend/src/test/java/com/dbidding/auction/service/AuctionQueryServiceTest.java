@@ -199,7 +199,7 @@ class AuctionQueryServiceTest {
     }
 
     @Test
-    void 상세_조회는_실제_마감_시각을_반환한다() {
+    void 종료된_경매의_상세는_실제_마감시각을_반환한다() {
         Auction auction = auction(AuctionStatus.ENDED);
         Instant actualCloseTime = Instant.now().minusSeconds(30);
         ReflectionTestUtils.setField(auction, "closeTime", actualCloseTime);
@@ -212,6 +212,35 @@ class AuctionQueryServiceTest {
         var response = auctionQueryService.getDetail(3, 1);
 
         assertThat(response.endsAt()).isEqualTo(actualCloseTime);
+    }
+
+    @Test
+    void ENDING_경매_목록의_endsAt은_실제_closeTime이_아니라_얼린_estimatedCloseTime이다() {
+        Instant estimatedCloseTime = Instant.parse("2026-08-12T10:00:00Z");
+        Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
+        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+                .thenReturn(List.of(auction));
+        when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
+        when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.LATEST, null, null, 20));
+
+        assertThat(response.content().getFirst().endsAt()).isEqualTo(estimatedCloseTime);
+        assertThat(response.content().getFirst().endsAt()).isNotEqualTo(auction.getCloseTime());
+    }
+
+    @Test
+    void ENDING_경매_상세의_endsAt도_얼린_estimatedCloseTime이다() {
+        Instant estimatedCloseTime = Instant.parse("2026-08-12T10:00:00Z");
+        Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
+        when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
+        when(cardService.getCardSnapshot(1)).thenReturn(card(1));
+        when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
+
+        var response = auctionQueryService.getDetail(null, 1);
+
+        assertThat(response.endsAt()).isEqualTo(estimatedCloseTime);
+        assertThat(response.endsAt()).isNotEqualTo(auction.getCloseTime());
     }
 
     @Test
@@ -292,6 +321,19 @@ class AuctionQueryServiceTest {
         ReflectionTestUtils.setField(auction, "status", status);
         ReflectionTestUtils.setField(auction, "currentPrice", currentPrice);
         ReflectionTestUtils.setField(auction, "bidCount", bidCount);
+        return auction;
+    }
+
+    private Auction endingAuction(Instant estimatedCloseTime, Instant realCloseTime) {
+        Auction auction = Auction.builder()
+                .sellerId(2).itemId(1).auctionName("경매 A").description("카드 상태 설명")
+                .startPrice(42_000L).buyNowPrice(100_000L).deliveryFee(3_000L)
+                .openTime(estimatedCloseTime.minus(Duration.ofHours(2)))
+                .estimatedCloseTime(estimatedCloseTime).closeTime(estimatedCloseTime)
+                .bidPriceUnit(1_000L).hyped(false)
+                .build();
+        ReflectionTestUtils.setField(auction, "id", 1);
+        auction.enterEnding(Duration.between(estimatedCloseTime, realCloseTime));
         return auction;
     }
 

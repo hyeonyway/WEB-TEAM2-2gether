@@ -8,7 +8,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class AuctionMetricsTest {
-
     private SimpleMeterRegistry registry;
     private AuctionMetrics metrics;
 
@@ -65,11 +64,9 @@ class AuctionMetricsTest {
     }
 
     @Test
-    void 경매_연장을_카운트한다() {
-        metrics.recordExtension();
+    void ENDING_전환을_기록하면_전용_카운터가_증가한다() {
+        metrics.recordEndingTransition();
 
-        assertThat(registry.get("dbidding.auction.extensions")
-                .counter()
-                .count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.auction.ending.transitions").counter().count()).isEqualTo(1);
     }
 }

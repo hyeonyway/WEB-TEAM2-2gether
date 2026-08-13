@@ -1,6 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import type {AuctionDto,AuctionSort} from '../dto/auctionDto';
-import {sortAuctions} from './auctionStreamCache';
+import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
+import {applyAuctionEvent,sortAuctions} from './auctionStreamCache';
 
 const auction=(id:number,overrides:Partial<AuctionDto>={}):AuctionDto=>({
   id,
@@ -33,5 +34,19 @@ describe('sortAuctions',()=>{
     ],'CHANGE_HIGH');
 
     expect(result.map(item=>item.id)).toEqual([2,1]);
+  });
+});
+
+describe('applyAuctionEvent',()=>{
+  it('AUCTION_ENDING_STARTED 이벤트를 받으면 상태와 공개 마감시각을 갱신한다',()=>{
+    const event={
+      type:'AUCTION_ENDING_STARTED',auction_id:1,start_price:10_000,current_price:10_000,
+      bid_increment:1_000,bid_count:0,ends_at:'2026-08-12T10:00:00.000Z',status:'ENDING',
+      event_id:5,occurred_at:'2026-08-12T10:00:00.000Z',
+    } as AuctionStreamPayload;
+
+    const updated=applyAuctionEvent([auction(1)],event);
+
+    expect(updated[0]).toMatchObject({status:'ENDING',endsAt:'2026-08-12T10:00:00.000Z',eventId:5});
   });
 });

@@ -393,7 +393,7 @@ public class    AuctionQueryService {
                 .bidCount(realtime == null ? auction.getBidCount() : realtime.bidCount())
                 .buyNowPrice(realtime == null ? auction.getBuyNowPrice() : realtime.buyNowPrice())
                 .startsAt(auction.getOpenTime())
-                .endsAt(realtime == null ? auction.getCloseTime() : realtime.closeTime())
+                .endsAt(realtime == null ? publicCloseTime(auction) : realtime.closeTime())
                 .status(realtime == null ? auction.getStatus() : realtime.status())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
@@ -414,6 +414,11 @@ public class    AuctionQueryService {
         );
     }
 
+    private Instant publicCloseTime(Auction auction) {
+        return auction.getStatus() == AuctionStatus.OPEN || auction.getStatus() == AuctionStatus.ENDING
+                ? auction.getEstimatedCloseTime() : auction.getCloseTime();
+    }
+
     private AuctionResponses.AuctionDetail detail(
             Auction auction,
             CardSnapshot card,
@@ -430,7 +435,7 @@ public class    AuctionQueryService {
                 .minimumBid(auction.minimumBid())
                 .bidCount(auction.getBidCount())
                 .startsAt(auction.getOpenTime())
-                .endsAt(auction.getCloseTime())
+                .endsAt(publicCloseTime(auction))
                 .status(auction.getStatus())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())

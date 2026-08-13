@@ -18,7 +18,6 @@ import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -46,9 +45,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class DbBidExecutor implements BidExecutor {
-    private static final Duration BID_EXTENSION_WINDOW = Duration.ofMinutes(5);
-    private static final Duration BID_EXTENSION_DURATION = Duration.ofMinutes(5);
-
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
@@ -94,8 +90,7 @@ public class DbBidExecutor implements BidExecutor {
             }
 
             Instant bidAt = now();
-            Instant previousCloseTime = auction.getCloseTime();
-            boolean closeTimeExtended = placeBid(auction, bidPrice, bidAt);
+            placeBid(auction, bidPrice, bidAt);
             WalletBalanceResponse wallet;
             if (shouldReleasePreviousHoldFirst(previousLeadingBid, userId)) {
                 if (previousLeadingBid != null) {
@@ -117,20 +112,12 @@ public class DbBidExecutor implements BidExecutor {
                     userId, auction, bidPrice, bidAt, command.idempotencyKey(), requestHash
             )));
             AuctionCloseData closeData = buyNow ? closeLockedAuction(auction, bidAt) : null;
-            boolean scheduleExtended = closeTimeExtended && !buyNow;
             log.info(
-                    "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTimeExtended={} previousCloseTime={} currentCloseTime={} status={}",
+                    "event=auction.bid.accepted auctionId={} bidderId={} bidId={} bidPrice={} currentPrice={} bidCount={} previousLeadingBidId={} closeTime={} status={}",
                     auction.getId(), userId, currentLeadingBid.getId(), command.price(), auction.getCurrentPrice(),
                     auction.getBidCount(), previousLeadingBid == null ? null : previousLeadingBid.getId(),
-                    closeTimeExtended, previousCloseTime, auction.getCloseTime(), auction.getStatus()
+                    auction.getCloseTime(), auction.getStatus()
             );
-            if (scheduleExtended) {
-                log.info(
-                        "event=auction.close_time.extended auctionId={} bidId={} bidAt={} previousCloseTime={} extendedCloseTime={} extensionWindowMinutes={} extensionDurationMinutes={}",
-                        auction.getId(), currentLeadingBid.getId(), bidAt, previousCloseTime, auction.getCloseTime(),
-                        BID_EXTENSION_WINDOW.toMinutes(), BID_EXTENSION_DURATION.toMinutes()
-                );
-            }
 
             Timer.Sample flush = auctionMetrics.startBidFlush();
             try {
@@ -145,7 +132,6 @@ public class DbBidExecutor implements BidExecutor {
                     auction.getStartPrice(),
                     auction.getBidPriceUnit(),
                     auction.getStatus(),
-                    scheduleExtended,
                     closeData
             );
             return new BidExecutionResult(bidResult(currentLeadingBid, auction, wallet), eventData);
@@ -211,9 +197,9 @@ public class DbBidExecutor implements BidExecutor {
         return Optional.of(new BidExecutionResult(result, null));
     }
 
-    private boolean placeBid(Auction auction, Long price, Instant bidAt) {
+    private void placeBid(Auction auction, Long price, Instant bidAt) {
         try {
-            return auction.placeBid(price, bidAt, BID_EXTENSION_WINDOW, BID_EXTENSION_DURATION);
+            auction.placeBid(price, bidAt);
         } catch (IllegalArgumentException exception) {
             log.warn(
                     "event=auction.bid.rejected auctionId={} bidPrice={} currentPrice={} minimumBid={} status={} closeTime={} bidAt={} reason=\"{}\"",
@@ -308,7 +294,9 @@ public class DbBidExecutor implements BidExecutor {
                         auction.getCurrentPrice(),
                         auction.minimumBid(),
                         auction.getBidCount(),
-                        auction.getCloseTime()
+                        auction.getStatus() == com.dbidding.auction.domain.AuctionStatus.OPEN
+                                || auction.getStatus() == com.dbidding.auction.domain.AuctionStatus.ENDING
+                                ? auction.getEstimatedCloseTime() : auction.getCloseTime()
                 ),
                 new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance())
         );

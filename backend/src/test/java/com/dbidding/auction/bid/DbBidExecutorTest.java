@@ -134,7 +134,6 @@ class DbBidExecutorTest {
         assertThat(response.eventData().itemId()).isEqualTo(1);
         assertThat(response.eventData().previousBidderId()).isNull();
         assertThat(response.eventData().closeData()).isNull();
-        assertThat(response.eventData().closeTimeExtended()).isFalse();
         assertThat(meterRegistry.get("dbidding.bid.critical_section.duration").timer().count()).isEqualTo(1);
         assertThat(meterRegistry.get("dbidding.bid.step.duration").tag("step", "hold").timer().count())
                 .isEqualTo(1);
@@ -165,6 +164,7 @@ class DbBidExecutorTest {
 
         assertThat(response.result().bid().amount()).isEqualTo(100_000L);
         assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ENDED);
+        assertThat(response.result().auction().endsAt()).isEqualTo(clock.instant());
         verify(walletService).lockWalletsInOrder(2, null, 1);
         verify(walletService).captureAfterHold(2, 1, 100_000L);
         verify(walletService, never()).capture(2, 1, 100_000L);
@@ -172,7 +172,6 @@ class DbBidExecutorTest {
         assertThat(response.eventData().closeData()).isNotNull();
         assertThat(response.eventData().closeData().cardName()).isEqualTo("카드");
         assertThat(response.eventData().closeData().sellerId()).isEqualTo(1);
-        assertThat(response.eventData().closeTimeExtended()).isFalse();
     }
 
     @Test
@@ -260,11 +259,10 @@ class DbBidExecutorTest {
     }
 
     @Test
-    void 마감_임박_입찰로_종료_시간이_연장되면_연장_플래그를_반환한다() {
+    void ENDING_경매에_입찰하면_응답의_ends_at은_실제_closeTime이_아니라_얼린_estimatedCloseTime이다() {
         Auction auction = auction(1);
-        Instant previousCloseTime = clock.instant().plus(Duration.ofMinutes(4));
-        ReflectionTestUtils.setField(auction, "closeTime", previousCloseTime);
-        ReflectionTestUtils.setField(auction, "estimatedCloseTime", previousCloseTime);
+        Instant estimatedCloseTime = clock.instant().plus(Duration.ofHours(1));
+        auction.enterEnding(Duration.ofSeconds(90));
         when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
         when(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(1, BidStatus.LEADING))
                 .thenReturn(Optional.empty());
@@ -274,8 +272,8 @@ class DbBidExecutorTest {
 
         var response = dbBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
-        assertThat(response.eventData().closeTimeExtended()).isTrue();
-        assertThat(response.result().auction().endsAt()).isEqualTo(previousCloseTime.plus(Duration.ofMinutes(5)));
+        assertThat(response.result().auction().endsAt()).isEqualTo(estimatedCloseTime);
+        assertThat(response.result().auction().endsAt()).isNotEqualTo(auction.getCloseTime());
     }
 
     private Auction auction(Integer sellerId) {
