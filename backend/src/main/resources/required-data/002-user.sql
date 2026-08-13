@@ -112,9 +112,14 @@ ON DUPLICATE KEY UPDATE
   `encrypted_password` = VALUES(`encrypted_password`),
   `salt` = VALUES(`salt`);
 
--- Give the primary local account a reproducible wallet balance.
+-- Give the primary local account and local administrator reproducible wallet balances.
 INSERT INTO `wallets` (`user_id`, `point`)
 VALUES (1, 5000000)
+ON DUPLICATE KEY UPDATE
+  `point` = VALUES(`point`);
+
+INSERT INTO `wallets` (`user_id`, `point`)
+VALUES (2, 50000000)
 ON DUPLICATE KEY UPDATE
   `point` = VALUES(`point`);
 
@@ -145,6 +150,24 @@ SELECT
   'seed-user-1-initial-charge'
 FROM `wallets` AS `wallet`
 WHERE `wallet`.`user_id` = 1
+ON DUPLICATE KEY UPDATE
+  `auction_id` = VALUES(`auction_id`),
+  `amount` = VALUES(`amount`),
+  `balance` = VALUES(`balance`),
+  `transaction_type` = VALUES(`transaction_type`);
+
+INSERT INTO `point_records`
+  (`wallet_id`, `auction_id`, `amount`, `balance`,
+   `transaction_type`, `idempotency_key`)
+SELECT
+  `wallet`.`id`,
+  NULL,
+  50000000,
+  50000000,
+  'CHARGE',
+  'seed-admin-initial-charge'
+FROM `wallets` AS `wallet`
+WHERE `wallet`.`user_id` = 2
 ON DUPLICATE KEY UPDATE
   `auction_id` = VALUES(`auction_id`),
   `amount` = VALUES(`amount`),
