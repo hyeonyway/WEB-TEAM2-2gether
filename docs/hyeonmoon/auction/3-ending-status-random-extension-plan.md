@@ -15,6 +15,12 @@
 - 고객에게 노출되는 마감시각(`ends_at`/`endsAt`, REST·SSE 공통)은 ENDING 이후 실제 `closeTime`(랜덤 연장 반영값)을 절대 담지 않는다. 이미 종료된 경매의 `closedAt`류 시각은 예외로, 실제 값을 유지한다.
 - `AuctionCloseScheduleChangedEvent`, `AuctionStreamPublisher`, 기존 두 스케줄러(`AuctionDeadlineScheduler`, `AuctionClosingScheduler`)의 기존 계약(반환 타입, 재시작 시 재스케줄, 백업 폴러 주기)은 유지한다 — 이번 변경은 그 위에 얹는다.
 - 신규 필드·컬럼을 추가하지 않는다. 기존 `estimated_close_time` 컬럼을 그대로 재활용한다.
+- `AuctionEndingTransitionService`는 실제 `closeTime` **전**인 OPEN 경매만 전환한다.
+  마감 시각을 지난 OPEN 경매는 7.1절의 감수한 장애 시나리오대로 기존 종료 처리에
+  맡긴다. 백업 폴러가 이를 ENDING으로 되살려서는 안 된다.
+- `AuctionEndingTransitionService`는 `!redis` 빈이므로, 두 기존 스케줄러는 이를
+  `Optional`로 주입받는다. `redis` 프로필에서는 기존 종료 스케줄만 동작해야 하며
+  애플리케이션 기동이 의존성 주입 실패로 중단되면 안 된다.
 - 설계 문서: [`2-ending-status-random-extension-design.md`](2-ending-status-random-extension-design.md) (이슈 #418)
 
 ---
@@ -392,10 +398,10 @@ Expected: `endsAt`이 실제 `closeTime`으로 나와 값 불일치 FAIL.
 ```bash
 cd backend
 ./gradlew test --tests 'com.dbidding.auction.service.AuctionQueryServiceTest' \
-  --tests 'com.dbidding.auction.service.AuctionCommandServiceTest'
+  --tests 'com.dbidding.auction.service.AuctionCommandServiceBidEventTest'
 ```
 
-Expected: PASS. `AuctionCommandServiceTest`에 `closeTimeExtended`/`AuctionCloseScheduleChangedEvent("close_time_extended")` 발행을 검증하던 테스트가 있으면 삭제한다(그 경로가 이제 없다).
+Expected: PASS. `AuctionCommandServiceBidEventTest`에 `closeTimeExtended`/`AuctionCloseScheduleChangedEvent("close_time_extended")` 발행을 검증하던 테스트가 있으면 삭제한다(그 경로가 이제 없다).
 
 - [ ] **Step 5: 커밋**
 
@@ -403,7 +409,7 @@ Expected: PASS. `AuctionCommandServiceTest`에 `closeTimeExtended`/`AuctionClose
 git add backend/src/main/java/com/dbidding/auction/service/AuctionCommandService.java \
   backend/src/main/java/com/dbidding/auction/service/AuctionQueryService.java \
   backend/src/test/java/com/dbidding/auction/service/AuctionQueryServiceTest.java \
-  backend/src/test/java/com/dbidding/auction/service/AuctionCommandServiceTest.java
+  backend/src/test/java/com/dbidding/auction/service/AuctionCommandServiceBidEventTest.java
 git commit -m "fix: 경매 목록/상세/생성 응답의 ends_at을 estimatedCloseTime으로 통일"
 ```
 
@@ -495,6 +501,7 @@ class AuctionStreamPayloadTest {
                 .estimatedCloseTime(estimatedCloseTime).closeTime(estimatedCloseTime)
                 .bidPriceUnit(1_000L).hyped(false)
                 .build();
+        org.springframework.test.util.ReflectionTestUtils.setField(auction, "id", 1);
         auction.enterEnding(Duration.between(estimatedCloseTime, realCloseTime));
 
         AuctionStreamPayload payload = AuctionStreamPayload.endingStarted(auction, realCloseTime);
@@ -757,6 +764,20 @@ class AuctionEndingTransitionServiceTest {
     }
 
     @Test
+    void 실제_마감시각이_지난_OPEN_경매는_ENDING으로_되살리지_않는다() {
+        Instant closeTime = Instant.parse("2026-08-12T10:00:00Z");
+        Auction auction = openAuction(1, closeTime);
+        when(auctionRepository.findByIdForUpdate(1)).thenReturn(Optional.of(auction));
+
+        boolean transitioned = service.transitionIfDue(1, closeTime.plusSeconds(1));
+
+        assertThat(transitioned).isFalse();
+        assertThat(auction.getStatus()).isEqualTo(AuctionStatus.OPEN);
+        verify(extensionProvider, never()).next();
+        verify(auctionMetrics, never()).recordEndingTransition();
+    }
+
+    @Test
     void 대상_경매가_없으면_아무_일도_안_한다() {
         when(auctionRepository.findByIdForUpdate(99)).thenReturn(Optional.empty());
 
@@ -827,6 +848,7 @@ public class AuctionEndingTransitionService {
     public boolean transitionIfDue(Integer auctionId, Instant now) {
         return auctionRepository.findByIdForUpdate(auctionId)
                 .filter(auction -> auction.getStatus() == AuctionStatus.OPEN)
+                .filter(auction -> now.isBefore(auction.getCloseTime()))
                 .filter(auction -> !auction.getCloseTime().minus(ENDING_WINDOW).isAfter(now))
                 .map(auction -> transition(auction, now))
                 .orElse(false);
@@ -880,7 +902,7 @@ git commit -m "feat: ENDING 전환 핵심 로직(멱등, REQUIRES_NEW) 추가"
 - Modify: `backend/src/test/java/com/dbidding/auction/service/AuctionDeadlineSchedulerTest.java`
 
 **Interfaces:**
-- Consumes: `AuctionRepository.findFirstOpenByCloseTimeAsc(Pageable)`(Task 2), `AuctionEndingTransitionService.transitionIfDue(Integer, Instant)`(Task 8)
+- Consumes: `AuctionRepository.findFirstOpenByCloseTimeAsc(Pageable)`(Task 2), `Optional<AuctionEndingTransitionService>`의 `transitionIfDue(Integer, Instant)`(Task 8)
 - Produces: `scheduleNext(String reason)`, `reschedule(AuctionCloseScheduleChangedEvent)` 기존 공개 계약 유지. `ENDING_WINDOW = Duration.ofMinutes(5)`를 이 클래스에도 상수로 둔다(다음 타겟 계산에 필요).
 
 **설계:** `scheduleNext()`가 "OPEN 중 가장 이른 것의 `closeTime - 5분`"과 "ENDING 중 가장 이른 것의 `closeTime`"을 각각 조회해 더 이른 쪽을 타이머 타겟으로 고른다(설계 문서 10장에서 확정한 방식). 콜백이 발동하면 **기존과 동일하게** `processDueAuctions`를 먼저 호출해 실제 마감을 처리하고, **그 다음** 발동을 유발한 `scheduledAuctionId`에 대해 `transitionIfDue`를 호출해 ENDING 전환이 필요하면 처리한다 — 둘 다 멱등이라 순서를 바꿔도 안전하지만, 실제 마감이 우선순위가 높으므로 먼저 시도한다.
@@ -915,7 +937,7 @@ private final Clock clock = Clock.fixed(
 private final AuctionDeadlineScheduler scheduler = new AuctionDeadlineScheduler(
         auctionCloseSchedulerProcessor,
         auctionRepository,
-        auctionEndingTransitionService,
+        Optional.of(auctionEndingTransitionService),
         taskScheduler,
         clock
 );
@@ -987,18 +1009,19 @@ Expected: 새 생성자 인자·리포지토리 메서드가 없어 컴파일 �
 ```java
 private static final Duration ENDING_WINDOW = Duration.ofMinutes(5);
 
-private final AuctionEndingTransitionService auctionEndingTransitionService;
+private final Optional<AuctionEndingTransitionService> auctionEndingTransitionService;
 
 public AuctionDeadlineScheduler(
         AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor,
         AuctionRepository auctionRepository,
-        AuctionEndingTransitionService auctionEndingTransitionService,
+        Optional<AuctionEndingTransitionService> auctionEndingTransitionService,
         @Qualifier("auctionDeadlineTaskScheduler") TaskScheduler taskScheduler,
         Clock clock
 ) {
     this.auctionCloseSchedulerProcessor = auctionCloseSchedulerProcessor;
     this.auctionRepository = auctionRepository;
-    this.auctionEndingTransitionService = auctionEndingTransitionService;
+    this.auctionEndingTransitionService = auctionEndingTransitionService == null
+            ? Optional.empty() : auctionEndingTransitionService;
     this.taskScheduler = taskScheduler;
     this.clock = clock;
 }
@@ -1066,7 +1089,7 @@ private void closeDueAuctionsAtDeadline() {
                 closedAuctions.size(), closedAuctions
         );
         if (firedAuctionId != null) {
-            auctionEndingTransitionService.transitionIfDue(firedAuctionId, now);
+            auctionEndingTransitionService.ifPresent(service -> service.transitionIfDue(firedAuctionId, now));
         }
     } catch (RuntimeException exception) {
         log.error(
@@ -1109,7 +1132,7 @@ git commit -m "feat: 정밀 스케줄러가 ENDING 진입 시각도 다음 타�
 
 **Files:**
 - Modify: `backend/src/main/java/com/dbidding/auction/service/AuctionClosingScheduler.java`
-- Create: `backend/src/test/java/com/dbidding/auction/service/AuctionClosingSchedulerTest.java`(없으면 새로 생성 — 있으면 아래 테스트를 추가)
+- Modify: `backend/src/test/java/com/dbidding/auction/service/AuctionClosingSchedulerTest.java`
 
 **Interfaces:**
 - Consumes: `AuctionRepository.findOverdueEndingCandidateIds(Instant, Pageable)`(Task 2), `AuctionEndingTransitionService.transitionIfDue`(Task 8, `Optional`로 주입 — redis 프로필에서 빈이 없어도 스케줄러 자체는 살아있어야 하므로)
@@ -1150,7 +1173,7 @@ class AuctionClosingSchedulerTest {
         when(auctionRepository.findOverdueEndingCandidateIds(threshold, PageRequest.of(0, 100)))
                 .thenReturn(List.of(1, 2));
 
-        scheduler.transitionOverdueEndingAuctions();
+        scheduler.closeDueAuctions();
 
         verify(auctionEndingTransitionService).transitionIfDue(1, now);
         verify(auctionEndingTransitionService).transitionIfDue(2, now);
@@ -1160,7 +1183,7 @@ class AuctionClosingSchedulerTest {
     void 후보가_없으면_전환을_시도하지_않는다() {
         when(auctionRepository.findOverdueEndingCandidateIds(any(), any())).thenReturn(List.of());
 
-        scheduler.transitionOverdueEndingAuctions();
+        scheduler.closeDueAuctions();
 
         verify(auctionEndingTransitionService, never()).transitionIfDue(any(), any());
     }
@@ -1231,6 +1254,7 @@ public class AuctionClosingScheduler {
         Instant now = clock.instant();
         log.debug("event=auction.close.backup_scheduler.started now={} batchSize={}", now, CLOSE_BATCH_SIZE);
         try {
+            transitionOverdueEndingAuctions(now);
             var auctionIds = auctionCloseSchedulerProcessor.processDueAuctions(now, CLOSE_BATCH_SIZE);
             if (auctionIds.isEmpty()) {
                 log.debug("event=auction.close.backup_scheduler.empty now={}", now);
@@ -1246,15 +1270,10 @@ public class AuctionClosingScheduler {
         }
     }
 
-    @Scheduled(
-            fixedDelayString = "${auction.closing.scheduler.fixed-delay-ms:60000}",
-            scheduler = "auctionBackupTaskScheduler"
-    )
-    public void transitionOverdueEndingAuctions() {
+    private void transitionOverdueEndingAuctions(Instant now) {
         if (auctionEndingTransitionService.isEmpty()) {
             return;
         }
-        Instant now = clock.instant();
         Instant threshold = now.plus(ENDING_WINDOW);
         List<Integer> auctionIds = auctionRepository.findOverdueEndingCandidateIds(
                 threshold, PageRequest.of(0, CLOSE_BATCH_SIZE)
@@ -1272,7 +1291,9 @@ public class AuctionClosingScheduler {
 }
 ```
 
-`redis` 프로필에서는 `AuctionEndingTransitionService` 빈이 없으므로(Task 8에서 `@Profile("!redis")`) `Optional.empty()`가 주입되고, `transitionOverdueEndingAuctions()`는 즉시 리턴한다 — `closeDueAuctions()`는 이번 변경과 무관하게 그대로 동작한다.
+기존 60초 스케줄 메서드 하나 안에서 먼저 전환 후보를 처리하고 그 다음 실제 마감을 처리한다. 같은 주기로 `@Scheduled` 메서드를 둘 만들면 두 작업의 실행 순서가 보장되지 않아, 마감 직후 OPEN 경매를 전환하려는 불필요한 경합이 생긴다. 실제 마감 시각 이후 전환을 막는 Task 8의 guard와 함께 이 순서로 안전성을 고정한다.
+
+`redis` 프로필에서는 `AuctionEndingTransitionService` 빈이 없으므로(Task 8에서 `@Profile("!redis")`) `Optional.empty()`가 주입되고, 내부 전환 단계는 즉시 리턴한다. 기존 `closeDueAuctions()` 종료 처리는 계속 동작한다.
 
 - [ ] **Step 4: 테스트 재실행**
 
@@ -1320,7 +1341,9 @@ Expected: 이번 변경 범위(auction 패키지) 테스트는 모두 통과. �
 - [ ] **Step 3: 커밋(수정 사항이 있었다면)**
 
 ```bash
-git add -A
+git add backend/src/main/java/com/dbidding/auction \
+  backend/src/test/java/com/dbidding/auction \
+  backend/src/test/java/com/dbidding/dashboard
 git commit -m "test: 마감임박 전환 변경에 따른 잔여 회귀 정리"
 ```
 
@@ -1564,7 +1587,7 @@ Expected: PASS.
 - [ ] **Step 3: 필요 시 정리 커밋**
 
 ```bash
-git add -A
+git add frontend/src/hooks frontend/src/pages/auction frontend/src/queries
 git commit -m "test: 마감임박 프론트 변경 잔여 회귀 정리"
 ```
 
@@ -1581,4 +1604,4 @@ git commit -m "test: 마감임박 프론트 변경 잔여 회귀 정리"
 - Redis 경로(`RedisBidExecutor`, `bid-accept.lua`, `applyStreamBid`, `RedisAuctionCloseSchedulerProcessor`)는 이번 변경으로 손대지 않는다.
 - 백엔드(`./gradlew clean test`)와 프론트(`npm run typecheck`, 관련 컴포넌트 테스트)가 모두 통과한다.
 
-> 이 문서는 Claude의 도움을 받아 작성하였습니다
+> 이 문서는 codex의 도움을 받아 작성하였습니다
