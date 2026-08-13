@@ -5,6 +5,8 @@ import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AuctionBidEventInboxRepository extends JpaRepository<AuctionBidEventInbox, Long> {
@@ -13,4 +15,14 @@ public interface AuctionBidEventInboxRepository extends JpaRepository<AuctionBid
     List<AuctionBidEventInbox> findByStreamIdIn(Collection<String> streamIds);
 
     boolean existsByProjectionStatus(AuctionBidEventProjectionStatus projectionStatus);
+
+    long countByProjectionStatus(AuctionBidEventProjectionStatus projectionStatus);
+
+    Optional<AuctionBidEventInbox> findFirstByProjectionStatusInOrderByIdAsc(Collection<AuctionBidEventProjectionStatus> statuses);
+
+    Optional<AuctionBidEventInbox> findFirstByProjectionStatusOrderByProcessedAtDesc(AuctionBidEventProjectionStatus status);
+
+    Page<AuctionBidEventInbox> findByProjectionStatusInOrderByIdAsc(Collection<AuctionBidEventProjectionStatus> statuses, Pageable pageable);
+
+    Optional<AuctionBidEventInbox> findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus status);
 }

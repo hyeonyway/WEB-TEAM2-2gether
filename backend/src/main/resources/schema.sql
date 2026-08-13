@@ -306,6 +306,8 @@ CREATE TABLE auction_bid_event_inbox
     projection_status VARCHAR(16) NOT NULL,
     failure_message TEXT,
     processed_at    TIMESTAMP(6),
+    attempt_count   INT          NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMP(6),
 
     CONSTRAINT pk_auction_bid_event_inbox PRIMARY KEY (id),
     CONSTRAINT uk_auction_bid_event_inbox_stream_id UNIQUE (stream_id),

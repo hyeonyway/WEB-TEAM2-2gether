@@ -51,6 +51,12 @@ public class AuctionBidEventInbox {
     @Column(name = "processed_at")
     private Instant processedAt;
 
+    @Column(name = "attempt_count", nullable = false)
+    private int attemptCount;
+
+    @Column(name = "last_attempt_at")
+    private Instant lastAttemptAt;
+
     public AuctionBidEventInbox(
             String streamId,
             Integer auctionId,
@@ -69,6 +75,7 @@ public class AuctionBidEventInbox {
         this.payload = payload;
         this.occurredAt = occurredAt;
         this.projectionStatus = AuctionBidEventProjectionStatus.PENDING;
+        this.attemptCount = 0;
         this.processedAt = null;
     }
 
@@ -82,5 +89,17 @@ public class AuctionBidEventInbox {
         this.projectionStatus = AuctionBidEventProjectionStatus.ERROR;
         this.failureMessage = failureMessage;
         this.processedAt = null;
+    }
+
+    /** 운영자가 원인을 조치한 뒤, 같은 이벤트부터 DB inbox 순서로 다시 투영한다. */
+    public void requeueForProjection() {
+        this.projectionStatus = AuctionBidEventProjectionStatus.PENDING;
+        this.failureMessage = null;
+        this.processedAt = null;
+    }
+
+    public void recordAttempt(Instant attemptedAt) {
+        this.attemptCount++;
+        this.lastAttemptAt = attemptedAt;
     }
 }

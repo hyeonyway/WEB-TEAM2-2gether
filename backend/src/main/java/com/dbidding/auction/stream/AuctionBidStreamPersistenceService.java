@@ -52,9 +52,15 @@ public class AuctionBidStreamPersistenceService {
     /** Stream 수신 자체는 projection 실패와 독립적으로 반드시 보존한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event) {
+        return recordPending(event, event.archivePayload());
+    }
+
+    /** Projection worker가 DB만 읽어 재구성할 수 있도록 원본 Stream payload를 함께 보관한다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuctionBidEventInbox recordPending(AuctionWalletTimelineEvent event, String rawPayload) {
         return inboxRepository.findByStreamId(event.streamId())
                 .orElseGet(() -> inboxRepository.save(archive(event, event instanceof BidAcceptedStreamEvent bid ? bid.auctionId() : event instanceof AuctionCloseRequestedStreamEvent close ? close.auctionId() : event instanceof AuctionCreatedStreamEvent created ? created.auctionId() : event instanceof OrderStateChangedStreamEvent order ? order.auctionId() : null,
-                event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : event instanceof OrderStateChangedStreamEvent order ? order.orderVersion() : null)));
+                event instanceof BidAcceptedStreamEvent bid ? bid.auctionVersion() : event instanceof OrderStateChangedStreamEvent order ? order.orderVersion() : null, rawPayload)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -76,6 +82,17 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(readOnly = true)
     public boolean hasProjectionError() {
         return inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
+    }
+
+    /** 첫 오류를 다시 PENDING으로 전환한다. 이후 투영 worker는 DB inbox의 ID 순서대로 처리한다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AuctionBidEventInbox requeueFirstError() {
+        return inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.ERROR)
+                .map(inbox -> {
+                    inbox.requeueForProjection();
+                    return inbox;
+                })
+                .orElse(null);
     }
 
     /** 기존 호출부 및 단위 테스트 호환용 동기 projection 경로. */
@@ -204,6 +221,11 @@ public class AuctionBidStreamPersistenceService {
         return firstError;
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordProjectionAttempt(String streamId) {
+        inboxRepository.findByStreamId(streamId).ifPresent(inbox -> inbox.recordAttempt(clock.instant()));
+    }
+
     private Bid apply(
             BidAcceptedStreamEvent event,
             Auction auction,
@@ -262,10 +284,10 @@ public class AuctionBidStreamPersistenceService {
         ));
     }
 
-    private AuctionBidEventInbox archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion) {
+    private AuctionBidEventInbox archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
         return new AuctionBidEventInbox(
-                event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
-                event.archivePayload(), event.occurredAt(), clock.instant()
+            event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
+                payload, event.occurredAt(), clock.instant()
         );
     }
 

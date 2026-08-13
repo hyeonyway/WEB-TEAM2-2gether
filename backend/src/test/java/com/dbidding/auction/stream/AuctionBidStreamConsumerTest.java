@@ -6,6 +6,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.time.Duration;
 import com.dbidding.auction.domain.AuctionBidEventInbox;
+import com.dbidding.auction.repository.AuctionBidEventInboxRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.RecordId;
@@ -15,7 +17,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 class AuctionBidStreamConsumerTest {
     @Test
     @SuppressWarnings("unchecked")
-    void 처리_완료_이벤트는_ACK만_하고_재구성용_Stream에서는_삭제하지_않는다() {
+    void 처리_완료_이벤트는_ACK_후_Stream에서_삭제한다() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
         MapRecord<String, Object, Object> record = mock(MapRecord.class);
@@ -27,12 +29,14 @@ class AuctionBidStreamConsumerTest {
                 redisTemplate,
                 mock(AuctionBidStreamPersistenceService.class),
                 new AuctionBidStreamProperties(Duration.ofSeconds(1), Duration.ofSeconds(30), 3, Duration.ofMinutes(5), 100),
-                mock(AuctionBidStreamConsumerLeaderLock.class)
+                mock(AuctionBidStreamConsumerLeaderLock.class),
+                mock(AuctionBidEventInboxRepository.class),
+                new ObjectMapper()
         );
 
-        consumer.acknowledge(record);
+        consumer.acknowledgeAndDelete(record);
 
         verify(streamOperations).acknowledge("event:timeline", "auction-timeline-persistence", recordId);
-        verifyNoMoreInteractions(streamOperations);
+        verify(streamOperations).delete("event:timeline", recordId);
     }
 }
