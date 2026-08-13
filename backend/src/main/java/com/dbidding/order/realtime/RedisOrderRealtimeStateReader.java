@@ -50,7 +50,7 @@ public class RedisOrderRealtimeStateReader {
         try {
             return new OrderResponse(nullableInteger(fields.get("orderId")), Integer.valueOf(required(fields, "auctionId")), required(fields, "cardName"),
                     Long.parseLong(required(fields, "price")), OrderStatus.valueOf(required(fields, "status")),
-                    Instant.parse(required(fields, "createdAt")), required(fields, "streamId"));
+                    Instant.parse(required(fields, "createdAt")), nullableString(fields.get("streamId")));
         } catch (IllegalArgumentException exception) {
             return null;
         }
@@ -60,6 +60,10 @@ public class RedisOrderRealtimeStateReader {
         Object value = fields.get(name);
         if (value == null || value.toString().isBlank()) throw new IllegalArgumentException("missing " + name);
         return value.toString();
+    }
+
+    private String nullableString(Object value) {
+        return value == null || value.toString().isBlank() ? null : value.toString();
     }
 
     private Integer nullableInteger(Object value) {
