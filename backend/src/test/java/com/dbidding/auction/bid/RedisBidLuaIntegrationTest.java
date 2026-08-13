@@ -103,7 +103,7 @@ class RedisBidLuaIntegrationTest {
                 .hasMessage("같은 Idempotency-Key로 다른 요청을 보낼 수 없습니다.");
     }
     @Test
-    void 상회입찰은_새_입찰자와_이전_입찰자_지갑에_1시간에서_6시간_사이_idle_TTL을_건다() {
+    void 상회입찰은_새_입찰자와_이전_입찰자_지갑에_TTL을_걸지_않는다() {
         redisTemplate.opsForHash().putAll("auction:state:1", Map.of(
                 "status", "OPEN", "sellerId", "7", "currentPrice", "40000", "bidIncrement", "3000",
                 "closeTime", "2026-08-10T01:00:00Z", "closeTimeEpochMillis", "1786323600000",
@@ -120,8 +120,8 @@ class RedisBidLuaIntegrationTest {
 
         executor.execute(new BidCommand(2, 1, 43_000L, "request-ttl"));
 
-        assertThat(redisTemplate.getExpire("wallet:balance:2")).isBetween(3600L, 21600L);
-        assertThat(redisTemplate.getExpire("wallet:balance:1")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.getExpire("wallet:balance:2")).isEqualTo(-1L);
+        assertThat(redisTemplate.getExpire("wallet:balance:1")).isEqualTo(-1L);
         assertThat(redisTemplate.getExpire("auction:state:1")).isEqualTo(-1L);
     }
 
@@ -202,7 +202,7 @@ class RedisBidLuaIntegrationTest {
         assertThat(redisTemplate.opsForSet().members("order:state:seller:7")).containsExactly("1");
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
         assertThat(redisTemplate.getExpire("auction:state:1")).isBetween(3600L, 21600L);
-        assertThat(redisTemplate.getExpire("wallet:balance:1")).isBetween(3600L, 21600L);
+        assertThat(redisTemplate.getExpire("wallet:balance:1")).isEqualTo(-1L);
         assertThat(redisTemplate.opsForZSet().score("auction:ending-window:by-close-time", "1")).isNull();
         assertThat(redisTemplate.opsForZSet().score("auction:active:by-bid-count", "1")).isNull();
         assertThat(redisTemplate.opsForZSet().score("auction:active:by-price", "1")).isNull();

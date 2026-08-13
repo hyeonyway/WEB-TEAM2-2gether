@@ -28,7 +28,6 @@ local nextAvailable = available + price
 local walletVersion = redis.call('HINCRBY', KEYS[2], 'walletVersion', 1)
 local orderVersion = redis.call('HINCRBY', KEYS[1], 'orderVersion', 1)
 redis.call('HSET', KEYS[2], 'availableBalance', nextAvailable, 'frozenBalance', frozen)
-redis.call('EXPIRE', KEYS[2], 3600 + (tonumber(walletUserId) % 18001))
 redis.call('HSET', KEYS[1], 'status', ARGV[2], 'projectionStatus', 'PENDING', 'lastStreamEventId', ARGV[8])
 -- 완료/취소된 주문은 order:state와 by-order-id 인덱스를 같은 TTL로 만료시켜야
 -- 재조회 시 seedIfAbsent가 만료된 order:state를 by-order-id만 보고 살아있다고 오판하지 않는다.
