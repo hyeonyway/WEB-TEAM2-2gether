@@ -41,7 +41,7 @@ public class AuctionStreamRecoveryAdminService {
         requireAdmin(userId);
         var result = inboxRepository.findByProjectionStatusInOrderByIdAsc(
                 java.util.List.of(AuctionBidEventProjectionStatus.PENDING, AuctionBidEventProjectionStatus.ERROR),
-                PageRequest.of(Math.max(0, page), 50)
+                PageRequest.of(Math.max(0, page), 10)
         );
         return new AuctionStreamRecoveryEventPage(
                 result.getContent().stream().map(AuctionStreamRecoveryEventResponse::from).toList(),
@@ -52,7 +52,7 @@ public class AuctionStreamRecoveryAdminService {
     public AuctionStreamRecoveryEventPage processedEvents(Integer userId, int page) {
         requireAdmin(userId);
         var result = inboxRepository.findByProjectionStatusOrderByProcessedAtDesc(
-                AuctionBidEventProjectionStatus.PROCESSED, PageRequest.of(Math.max(0, page), 20)
+                AuctionBidEventProjectionStatus.PROCESSED, PageRequest.of(Math.max(0, page), 10)
         );
         return new AuctionStreamRecoveryEventPage(
                 result.getContent().stream().map(AuctionStreamRecoveryEventResponse::from).toList(),
