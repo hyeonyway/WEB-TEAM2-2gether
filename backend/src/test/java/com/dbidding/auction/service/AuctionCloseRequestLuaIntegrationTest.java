@@ -40,18 +40,18 @@ class AuctionCloseRequestLuaIntegrationTest {
     static void tearDown() { if (connectionFactory != null) connectionFactory.destroy(); }
 
     @Test
-    void 마감_요청은_auction_state를_ENDED로_바꾸고_1시간에서_6시간_사이_TTL을_건다() {
-        redisTemplate.opsForHash().putAll("auction:state:11", Map.of(
-                "status", "ENDING", "closeTime", "2026-08-12T01:00:00Z", "closeTimeEpochMillis", "1786496400000",
-                "sellerId", "7", "itemId", "10", "startPrice", "40000", "currentPrice", "50000",
-                "bidIncrement", "3000", "bidCount", "3"
+    void 낙찰자_없이_마감하면_auction_state를_ENDED로_바꾸고_1시간에서_6시간_사이_TTL을_건다() {
+        redisTemplate.opsForHash().putAll("auction:state:11", Map.ofEntries(
+                Map.entry("status", "ENDING"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"), Map.entry("cardName", "리자몽"),
+                Map.entry("startPrice", "40000"), Map.entry("currentPrice", "40000"), Map.entry("bidIncrement", "3000"), Map.entry("bidCount", "0"),
+                Map.entry("closeTime", "2026-08-12T01:00:00Z"), Map.entry("closeTimeEpochMillis", "1786496400000")
         ));
         redisTemplate.opsForZSet().add("auction:active:by-close-time", "11", 1786496400000.0);
 
         String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline"),
                 "11", "2026-08-12T01:00:00Z", "1786496400000");
 
-        assertThat(result).startsWith("ACCEPTED|");
+        assertThat(result).startsWith("ACCEPTED||0|7|10|리자몽");
         assertThat(redisTemplate.opsForHash().get("auction:state:11", "status")).isEqualTo("ENDED");
         assertThat(redisTemplate.opsForZSet().score("auction:active:by-close-time", "11")).isNull();
         assertThat(redisTemplate.getExpire("auction:state:11")).isBetween(3600L, 21600L);
@@ -59,7 +59,29 @@ class AuctionCloseRequestLuaIntegrationTest {
     }
 
     @Test
-    void 중복_마감_요청은_무시한다() {
+    void 낙찰자가_있으면_지갑_hold를_정산하고_승자_상태를_WON으로_바꾼다() {
+        redisTemplate.opsForHash().putAll("auction:state:11", Map.ofEntries(
+                Map.entry("status", "ENDING"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"), Map.entry("cardName", "리자몽"),
+                Map.entry("startPrice", "40000"), Map.entry("currentPrice", "50000"), Map.entry("bidIncrement", "3000"), Map.entry("bidCount", "3"),
+                Map.entry("closeTime", "2026-08-12T01:00:00Z"), Map.entry("closeTimeEpochMillis", "1786496400000"),
+                Map.entry("highestBidderId", "2"), Map.entry("highestHoldAmount", "50000")
+        ));
+        redisTemplate.opsForHash().putAll("wallet:balance:2", Map.of(
+                "availableBalance", "40000", "frozenBalance", "50000", "walletVersion", "4"
+        ));
+
+        String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline"),
+                "11", "2026-08-12T01:00:00Z", "1786496400000");
+
+        assertThat(result).startsWith("ACCEPTED|2|50000|7|10|리자몽");
+        assertThat(redisTemplate.opsForHash().get("auction:bidder:11:2", "status")).isEqualTo("WON");
+        assertThat(redisTemplate.opsForHash().get("wallet:balance:2", "frozenBalance")).isEqualTo("0");
+        assertThat(redisTemplate.opsForHash().get("wallet:balance:2", "walletVersion")).isEqualTo("5");
+        assertThat(redisTemplate.hasKey("wallet:hold:11:2")).isFalse();
+    }
+
+    @Test
+    void 중복_마감_요청은_REPLAYED를_반환한다() {
         redisTemplate.opsForHash().putAll("auction:state:11", Map.of(
                 "status", "ENDED", "closeTime", "2026-08-12T01:00:00Z", "closeTimeEpochMillis", "1786496400000",
                 "closeRequestedAt", "2026-08-12T01:00:00Z", "sellerId", "7", "itemId", "10",

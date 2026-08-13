@@ -63,6 +63,11 @@ let sharedEventSource:EventSource|null=null;
 let sharedListeners:ReadonlyArray<readonly[string,EventListener]>=[];
 let hasOpenedSharedEventSource=false;
 let sharedSubscriptionSignature='';
+// REST 스냅샷(bid-context, detail 등)에는 event_id가 없어서 refetch마다 각 화면의 캐시가
+// 이 정보를 잃는다. 구독 컴포넌트의 useRef에 두면 리마운트(모달 닫았다 열기 등)마다 초기화돼
+// 같은 이벤트를 다시 반영할 수 있으므로, 세션 동안 유지되는 모듈 상태로 auction_id별 최대
+// event_id를 추적해 공유 연결의 단일 dispatch 지점에서 한 번만 판별한다.
+const lastAppliedEventIdByAuctionId=new Map<number,number>();
 
 function auctionStreamUrl(auctionIds:readonly number[]){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
@@ -153,7 +158,11 @@ function syncSharedEventSource(){
   sharedListeners=AUCTION_STREAM_EVENT_TYPES.map(type=>{
     const listener:EventListener=event=>{
       const payload=parsePayload(type,event as MessageEvent<string>);
-      if(payload)subscribers.forEach(subscriber=>{
+      if(!payload)return;
+      const lastAppliedEventId=lastAppliedEventIdByAuctionId.get(payload.auction_id)??0;
+      if(payload.event_id<=lastAppliedEventId)return;
+      lastAppliedEventIdByAuctionId.set(payload.auction_id,payload.event_id);
+      subscribers.forEach(subscriber=>{
         if(subscriber.auctionIds.has(payload.auction_id))subscriber.onAuctionUpdated(payload);
       });
     };
