@@ -285,8 +285,9 @@ CREATE TABLE bids
 
     INDEX idx_bids_user_id (user_id),
     INDEX idx_bids_auction_id (auction_id),
-    INDEX idx_bids_auction_price (auction_id, bid_price),
-    INDEX idx_bids_status (status)
+    INDEX idx_bids_status (status),
+    INDEX idx_bids_auction_status (auction_id, status),
+    INDEX idx_bids_auction_created (auction_id, created_at DESC, id DESC)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
