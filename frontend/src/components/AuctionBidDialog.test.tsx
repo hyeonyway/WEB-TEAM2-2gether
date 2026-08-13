@@ -76,6 +76,18 @@ describe('AuctionBidDialog',()=>{
     expect(screen.getByRole('button',{name:'32,000원 입찰하기'})).toBeInTheDocument();
   });
 
+  it('직접 입력을 건드리지 않았으면 SSE로 최소 입찰가가 올라도 오류 없이 계속 따라간다',async()=>{
+    renderDialog();
+    const input=await screen.findByRole('spinbutton');
+    await screen.findByText('100,000P');
+    expect(input).toHaveValue(11_000);
+
+    act(()=>mocks.streamHandler?.(bidEvent));
+
+    await waitFor(()=>expect(input).toHaveValue(32_000));
+    expect(screen.queryByText(/이상 입력해 주세요/)).not.toBeInTheDocument();
+  });
+
   it('SSE 최소 입찰가보다 높은 입력값은 유지한다',async()=>{
     renderDialog();
     const user=userEvent.setup();
