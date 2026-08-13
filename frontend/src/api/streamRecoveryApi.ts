@@ -11,7 +11,7 @@ export type StreamRecoveryStatusDto={
 };
 
 export type StreamRecoveryEventDto={
-  streamId:string;auctionId:number|null;eventType:string;projectionStatus:'PENDING'|'ERROR';attemptCount:number;
+  streamId:string;auctionId:number|null;eventType:string;payload:string;projectionStatus:'PENDING'|'ERROR'|'PROCESSED';attemptCount:number;
   occurredAt:string;lastAttemptAt:string|null;processedAt:string|null;failureMessage:string|null;
 };
 

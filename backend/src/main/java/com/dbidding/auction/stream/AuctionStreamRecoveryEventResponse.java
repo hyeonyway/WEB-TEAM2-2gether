@@ -7,6 +7,7 @@ public record AuctionStreamRecoveryEventResponse(
         String streamId,
         Integer auctionId,
         String eventType,
+        String payload,
         String projectionStatus,
         int attemptCount,
         Instant occurredAt,
@@ -16,7 +17,7 @@ public record AuctionStreamRecoveryEventResponse(
 ) {
     static AuctionStreamRecoveryEventResponse from(AuctionTimelineEvent inbox) {
         return new AuctionStreamRecoveryEventResponse(
-                inbox.getStreamId(), inbox.getAuctionId(), inbox.getEventType(), inbox.getProjectionStatus().name(),
+                inbox.getStreamId(), inbox.getAuctionId(), inbox.getEventType(), inbox.getPayload(), inbox.getProjectionStatus().name(),
                 inbox.getAttemptCount(), inbox.getOccurredAt(), inbox.getLastAttemptAt(), inbox.getProcessedAt(), inbox.getFailureMessage()
         );
     }
