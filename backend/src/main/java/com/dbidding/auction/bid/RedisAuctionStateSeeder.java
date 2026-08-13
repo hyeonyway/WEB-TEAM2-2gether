@@ -81,7 +81,9 @@ public class RedisAuctionStateSeeder {
         put(args, "deliveryFee", auction.getDeliveryFee()); put(args, "bidIncrement", auction.getBidPriceUnit()); put(args, "imagePaths", imagePaths);
         put(args, "openTime", auction.getOpenTime()); put(args, "closeTime", auction.getCloseTime()); put(args, "closeTimeEpochMillis", auction.getCloseTime().toEpochMilli());
         put(args, "highestBidderId", leading == null ? "" : leading.getBidderId()); put(args, "highestHoldAmount", leading == null ? 0 : leading.getBidPrice());
-        put(args, "sequence", auction.getBidCount()); put(args, "bidCount", auction.getBidCount());
+        // bidCount에는 Redis Stream 도입 전의 입찰 이력도 포함될 수 있다. 이벤트 버전은
+        // MySQL projection이 마지막으로 반영한 버전에서 이어야 하므로 별도로 초기화한다.
+        put(args, "sequence", auction.getLastBidEventVersion()); put(args, "bidCount", auction.getBidCount());
         return Long.valueOf(1L).equals(redisTemplate.execute(auctionStateSeedScript, List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME), args.toArray()));
     }
 
