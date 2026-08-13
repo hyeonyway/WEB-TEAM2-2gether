@@ -31,4 +31,5 @@ export type SessionLoginResponseDto = {
 
 export type CurrentAccountResponseDto = {
   userId: number;
+  role: 'USER' | 'ADMIN';
 };
