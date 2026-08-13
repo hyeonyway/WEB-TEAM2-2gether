@@ -23,6 +23,7 @@ import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.service.SignupService;
+import com.dbidding.account.repository.AccountRepository;
 
 @WebMvcTest(AuthController.class)
 class AuthControllerSignupTest {
@@ -41,6 +42,9 @@ class AuthControllerSignupTest {
 
 	@MockitoBean
 	private AuthenticationStrategy authenticationStrategy;
+
+	@MockitoBean
+	private AccountRepository accountRepository;
 
 	@Test
 	void 회원가입하면_201과_공개된_사용자_정보만_반환한다() throws Exception {

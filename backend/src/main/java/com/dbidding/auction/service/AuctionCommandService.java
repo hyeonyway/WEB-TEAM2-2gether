@@ -180,6 +180,9 @@ public class AuctionCommandService {
         );
         auctionEventPublisher.publishOpened(openedEvent);
         auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
+        eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
+                created.auctionId(), created.closeTime(), "auction_created"
+        ));
         return AuctionCreateResponse.builder()
                 .id(created.auctionId())
                 .status(created.status())

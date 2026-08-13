@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +32,9 @@ import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.controller.AuthController;
 import com.dbidding.account.dto.CurrentAccountResponse;
 import com.dbidding.account.domain.AccountRole;
+import com.dbidding.account.domain.Account;
 import com.dbidding.account.exception.InvalidCredentialsException;
+import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.service.SignupService;
 import com.dbidding.global.config.TimeConfig;
 import com.dbidding.global.config.WebConfig;
@@ -73,6 +76,9 @@ class SessionAuthenticationWebMvcTest {
 
 	@MockitoBean
 	private CredentialAuthenticationService credentialAuthenticationService;
+
+	@MockitoBean
+	private AccountRepository accountRepository;
 
 	@Test
 	void 로그인_세션으로_CurrentUser를_사용하고_로그아웃하면_세션과_쿠키를_폐기한다() throws Exception {
@@ -124,6 +130,9 @@ class SessionAuthenticationWebMvcTest {
 				.content(validLoginRequest()))
 			.andReturn();
 		MockHttpSession session = (MockHttpSession)login.getRequest().getSession(false);
+		Account account = org.mockito.Mockito.mock(Account.class);
+		given(account.getRole()).willReturn(AccountRole.USER);
+		given(accountRepository.findById(7)).willReturn(Optional.of(account));
 
 		mockMvc.perform(get("/api/auth/me").session(session))
 			.andExpect(status().isOk())
