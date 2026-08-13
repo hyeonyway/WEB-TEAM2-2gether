@@ -7,6 +7,7 @@ import {useModalFocusTrap} from '../../hooks/useModalFocusTrap';
 import {walletMutations} from '../../queries/walletMutations';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
 import {showToast} from '../Toast';
+import type {WalletBalanceDto} from '../../dto/walletDto';
 
 type WalletRefundDialogProps = {
   totalBalance: number;
@@ -26,6 +27,9 @@ export default function WalletRefundDialog({
   const refundMutation = useMutation({
     ...walletMutations.refund(),
     onSuccess: transaction => {
+      queryClient.setQueryData<WalletBalanceDto>(walletQueryKeys.balance(),current=>current?{
+        ...current,totalBalance:transaction.balance,availableBalance:transaction.balance-current.frozenBalance,
+      }:current);
       void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
       publishWalletChanged();
       showToast(`${Math.abs(transaction.amount).toLocaleString()}P가 환불 처리되었습니다.`);

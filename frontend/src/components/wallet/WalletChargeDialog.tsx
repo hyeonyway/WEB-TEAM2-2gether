@@ -37,6 +37,9 @@ export default function WalletChargeDialog({
   const chargeMutation = useMutation({
     ...walletMutations.charge(),
     onSuccess: transaction => {
+      queryClient.setQueryData<WalletBalanceDto>(walletQueryKeys.balance(),current=>current?{
+        ...current,totalBalance:transaction.balance,availableBalance:transaction.balance-current.frozenBalance,
+      }:current);
       void queryClient.invalidateQueries({queryKey: walletQueryKeys.balance()});
       publishWalletChanged();
       showToast(`${transaction.amount.toLocaleString()}P가 충전되었습니다.`);

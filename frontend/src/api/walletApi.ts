@@ -5,6 +5,7 @@ import type {
   WalletTransactionVariables,
 } from '../dto/walletDto';
 import {authenticatedRequest} from './authenticatedRequest';
+import {isRedisApiProfile} from './apiProfile';
 
 function isSafeBalance(value: unknown): value is number {
   return typeof value === 'number'
@@ -31,8 +32,12 @@ function isWalletTransactionDto(
 ): value is WalletTransactionDto {
   if (typeof value !== 'object' || value === null) return false;
   const transaction = value as Partial<WalletTransactionDto>;
-  return isSafeBalance(transaction.transactionId)
-    && transaction.transactionType === expectedType
+  const transactionType:unknown=transaction.transactionType;
+  const redisTransaction=isRedisApiProfile()
+    && transaction.transactionId===null
+    && transactionType===`wallet.${expectedType==='CHARGE'?'charged':'refunded'}.v1`;
+  return (isSafeBalance(transaction.transactionId)||redisTransaction)
+    && (transactionType === expectedType||redisTransaction)
     && isSafeInteger(transaction.amount)
     && isSafeBalance(transaction.balance);
 }
@@ -58,7 +63,12 @@ async function transactWallet(
   if (!isWalletTransactionDto(transaction, expectedType)) {
     throw new TypeError('Wallet 거래 응답이 올바르지 않습니다.');
   }
-  return transaction;
+  const transactionType:unknown=transaction.transactionType;
+  return {
+    ...transaction,
+    transactionType:transactionType==='wallet.charged.v1'?'CHARGE'
+      :transactionType==='wallet.refunded.v1'?'REFUND':transactionType as WalletTransactionType,
+  };
 }
 
 export function chargeWallet(variables: WalletTransactionVariables) {
