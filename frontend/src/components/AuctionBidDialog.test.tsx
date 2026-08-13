@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
+import {auctionQueryKeys} from '../queries/auctionQueries';
 import {dashboardQueryKey} from '../queries/dashboardQueries';
 import AuctionBidDialog from './AuctionBidDialog';
 import ToastContainer from './Toast';
@@ -120,6 +121,27 @@ describe('AuctionBidDialog',()=>{
     await user.click(submit);
     await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
     expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 낙찰하였습니다.')).not.toHaveLength(0);
+  });
+
+  it('refetch로 캐시가 REST 스냅샷으로 덮어써진 뒤에도 이미 반영한 SSE 입찰을 중복 반영하지 않는다',async()=>{
+    const{queryClient}=renderDialog();
+    await screen.findByRole('spinbutton');
+
+    act(()=>mocks.streamHandler?.(bidEvent));
+    await waitFor(()=>expect(screen.getByText('최근 1건')).toBeInTheDocument());
+
+    // 백그라운드 refetch가 이 입찰을 이미 포함한 REST 스냅샷으로 캐시를 덮어쓴다.
+    // REST 응답에는 eventId 필드가 없으므로 캐시의 eventId도 함께 사라진다.
+    queryClient.setQueryData(auctionQueryKeys.bidContext(1),{
+      ...context,
+      current_price:30_000,minimum_bid:32_000,
+      recent_bids:[{id:100,amount:30_000,bidder_alias:'user-2***',is_highest:true,created_at:'2026-08-04T01:00:00Z'}],
+    });
+
+    act(()=>mocks.streamHandler?.(bidEvent));
+
+    await waitFor(()=>expect(queryClient.getQueryData<BidContextResponseDto>(auctionQueryKeys.bidContext(1))?.recent_bids).toHaveLength(1));
+    expect(screen.getByText('최근 1건')).toBeInTheDocument();
   });
 
   it('즉시 구매가가 없는 경매는 즉시 낙찰 탭을 비활성화한다',async()=>{

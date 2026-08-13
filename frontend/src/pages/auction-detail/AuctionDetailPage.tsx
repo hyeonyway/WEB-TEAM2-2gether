@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useRef,useState} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {ChevronRight,Clock3,Info,Wallet} from 'lucide-react';
 import {Link,useParams} from 'react-router-dom';
@@ -46,11 +46,13 @@ export default function AuctionDetailPage(){
     ...auctionQueries.bids(auctionId),
     enabled:validAuctionId,
   });
+  const lastAppliedEventIdRef=useRef(0);
   useAuctionStream({
     auctionIds:validAuctionId?[auctionId]:[],
     enabled:validAuctionId,
     onAuctionUpdated:event=>{
-      if(event.auction_id!==auctionId)return;
+      if(event.auction_id!==auctionId||event.event_id<=lastAppliedEventIdRef.current)return;
+      lastAppliedEventIdRef.current=event.event_id;
       setLatestStreamEventId(event.event_id);
       queryClient.setQueryData<AuctionDetailResponseDto>(
         auctionQueryKeys.detail(auctionId,viewerScope),
