@@ -61,4 +61,34 @@ class VirtualThreadSseTaskExecutorTest {
         assertThat(registry.get("dbidding.sse.executor.completed")
                 .tag("executor", "notification-sse").tag("thread_type", "virtual").counter().count()).isZero();
     }
+
+    @Test
+    void maxConcurrency_설정시_동시_실행이_상한을_넘지_않는다() throws InterruptedException {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        VirtualThreadSseTaskExecutor executor = new VirtualThreadSseTaskExecutor("test-", registry, "auction-sse", 1);
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+
+        Thread.ofVirtual().start(() -> executor.execute(() -> {
+            firstStarted.countDown();
+            try {
+                releaseFirst.await();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+        }));
+        assertThat(firstStarted.await(1, TimeUnit.SECONDS)).isTrue();
+
+        Thread.ofVirtual().start(() -> executor.execute(secondStarted::countDown));
+
+        // permit이 없어서 첫 번째가 끝날 때까지 두 번째는 실행 자체가 시작되지 않는다.
+        assertThat(secondStarted.await(300, TimeUnit.MILLISECONDS)).isFalse();
+        assertThat(registry.get("dbidding.sse.executor.active")
+                .tag("executor", "auction-sse").tag("thread_type", "virtual").gauge().value()).isEqualTo(1);
+
+        releaseFirst.countDown();
+
+        assertThat(secondStarted.await(1, TimeUnit.SECONDS)).isTrue();
+    }
 }

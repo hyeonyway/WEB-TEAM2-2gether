@@ -28,6 +28,10 @@ public class AuctionSseExecutorConfig {
     @Value("${AUCTION_SSE_QUEUE_CAPACITY:2000}")
     private int queueCapacity;
 
+    /** {@code sse-virtual-threads} 전용 — 0이면 무제한(기본값), 양수면 동시 실행 개수를 이 값으로 제한한다. */
+    @Value("${AUCTION_SSE_VIRTUAL_MAX_CONCURRENCY:0}")
+    private int virtualMaxConcurrency;
+
     /**
      * {@code broadcast()}/{@code heartbeat()}는 DB 접근 없이 순수 네트워크 SSE
      * send만 하는 작업이다.
@@ -55,6 +59,6 @@ public class AuctionSseExecutorConfig {
     @Bean(name = "auctionSseTaskExecutor")
     @Profile("sse-virtual-threads")
     public TaskExecutor auctionSseVirtualTaskExecutor() {
-        return new VirtualThreadSseTaskExecutor("auction-sse-", meterRegistry, "auction-sse");
+        return new VirtualThreadSseTaskExecutor("auction-sse-", meterRegistry, "auction-sse", virtualMaxConcurrency);
     }
 }
