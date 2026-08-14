@@ -55,7 +55,7 @@ public class AuctionCursorCodec {
         if (auctionId == null || auctionId <= 0) {
             throw invalidCursor();
         }
-        if (sort == AuctionSort.LATEST) {
+        if (sort == AuctionSort.LATEST || sort == AuctionSort.ENDING_SOON) {
             if (timeValue == null || value != null) {
                 throw invalidCursor();
             }

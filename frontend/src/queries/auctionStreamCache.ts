@@ -89,6 +89,10 @@ export function sortAuctions(auctions:AuctionDto[],sort:AuctionSort):AuctionDto[
       const rightChange=changeRateBasisPoints(right);
       return rightChange-leftChange||right.id-left.id;
     }
+    if(sort==='ENDING_SOON'){
+      const timeOrder=Date.parse(left.endsAt)-Date.parse(right.endsAt);
+      return (Number.isNaN(timeOrder)?0:timeOrder)||right.id-left.id;
+    }
     return right.bidCount-left.bidCount||right.id-left.id;
   });
 }

@@ -14,6 +14,7 @@ import {useAuth} from '../../auth/useAuth';
 const PAGE_SIZE=12;
 const sorts:Array<[string,AuctionListRequestDto['sort']]>= [
   ['최신순','LATEST'],['입찰 수 높은순','BID_COUNT'],['경매가 높은순','PRICE_HIGH'],['경매가 낮은순','PRICE_LOW'],['상승률 높은순','CHANGE_HIGH'],
+  ['마감 임박순','ENDING_SOON'],
 ];
 type AuctionListCache=InfiniteData<CursorPageResponseDto<AuctionDto>,string|undefined>;
 

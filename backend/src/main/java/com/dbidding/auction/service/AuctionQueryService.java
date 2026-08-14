@@ -78,6 +78,7 @@ public class    AuctionQueryService {
                 priceCursor(cursor),
                 changeRateCursor(cursor),
                 openTimeCursor(cursor),
+                closeTimeCursor(cursor),
                 cursor == null ? null : cursor.auctionId(),
                 activeOnly(request),
                 clock.instant(),
@@ -130,7 +131,7 @@ public class    AuctionQueryService {
             AuctionSearchRequest request, AuctionSort sort, AuctionCursor cursor, int limit
     ) {
         String zsetKey = sortZSetKey(sort);
-        boolean descending = sort != AuctionSort.PRICE_LOW;
+        boolean descending = sort != AuctionSort.PRICE_LOW && sort != AuctionSort.ENDING_SOON;
         Double initialBound = cursor == null ? null : cursorScore(cursor, sort);
         Double bound = initialBound;
         long withinBoundOffset = 0;
@@ -180,24 +181,27 @@ public class    AuctionQueryService {
             case BID_COUNT -> "auction:active:by-bid-count";
             case PRICE_HIGH, PRICE_LOW -> "auction:active:by-price";
             case CHANGE_HIGH -> "auction:active:by-change-rate";
+            case ENDING_SOON -> "auction:active:by-close-time";
         };
     }
 
     private Double cursorScore(AuctionCursor cursor, AuctionSort sort) {
-        return sort == AuctionSort.LATEST ? (double) cursor.timeValue().toEpochMilli() : (double) cursor.value();
+        return (sort == AuctionSort.LATEST || sort == AuctionSort.ENDING_SOON)
+                ? (double) cursor.timeValue().toEpochMilli() : (double) cursor.value();
     }
 
     /** score에 auctionId를 인코딩하지 않으므로, 커서 경계(동점 tie-break 포함)는 여기서 직접 비교한다. */
     private boolean isAfterCursor(RedisAuctionRealtimeStateReader.AuctionState state, AuctionCursor cursor, AuctionSort sort) {
-        if (sort == AuctionSort.LATEST) {
-            int compared = state.openTime().compareTo(cursor.timeValue());
-            if (compared != 0) return compared < 0;
+        if (sort == AuctionSort.LATEST || sort == AuctionSort.ENDING_SOON) {
+            int compared = (sort == AuctionSort.LATEST ? state.openTime() : state.closeTime()).compareTo(cursor.timeValue());
+            if (compared != 0) return sort == AuctionSort.ENDING_SOON ? compared > 0 : compared < 0;
             return state.auctionId() < cursor.auctionId();
         }
         long value = switch (sort) {
             case BID_COUNT -> state.bidCount();
             case PRICE_HIGH, PRICE_LOW -> state.currentPrice();
             case CHANGE_HIGH -> changeRateBasisPoints(state);
+            case ENDING_SOON -> throw new IllegalStateException("unreachable");
             case LATEST -> throw new IllegalStateException("unreachable");
         };
         int compared = Long.compare(value, cursor.value());
@@ -222,6 +226,8 @@ public class    AuctionQueryService {
             case CHANGE_HIGH -> java.util.Comparator.comparingLong(
                             (RedisAuctionRealtimeStateReader.AuctionState state) -> changeRateBasisPoints(state)).reversed()
                     .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId, java.util.Comparator.reverseOrder());
+            case ENDING_SOON -> java.util.Comparator.comparing(RedisAuctionRealtimeStateReader.AuctionState::closeTime)
+                    .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId, java.util.Comparator.reverseOrder());
         };
     }
 
@@ -231,8 +237,11 @@ public class    AuctionQueryService {
             case BID_COUNT -> (long) state.bidCount();
             case PRICE_HIGH, PRICE_LOW -> state.currentPrice();
             case CHANGE_HIGH -> changeRateBasisPoints(state);
+            case ENDING_SOON -> null;
         };
-        return new AuctionCursor(sort, value, sort == AuctionSort.LATEST ? state.openTime() : null, state.auctionId());
+        Instant timeValue = sort == AuctionSort.LATEST ? state.openTime()
+                : sort == AuctionSort.ENDING_SOON ? state.closeTime() : null;
+        return new AuctionCursor(sort, value, timeValue, state.auctionId());
     }
 
     private long changeRateBasisPoints(RedisAuctionRealtimeStateReader.AuctionState state) {
@@ -304,6 +313,10 @@ public class    AuctionQueryService {
                 : null;
     }
 
+    private Instant closeTimeCursor(AuctionCursor cursor) {
+        return cursor != null && cursor.sort() == AuctionSort.ENDING_SOON ? cursor.timeValue() : null;
+    }
+
     private Long changeRateCursor(AuctionCursor cursor) {
         return cursor != null && cursor.sort() == AuctionSort.CHANGE_HIGH
                 ? cursor.value()
@@ -316,8 +329,10 @@ public class    AuctionQueryService {
             case BID_COUNT -> auction.getBidCount().longValue();
             case PRICE_HIGH, PRICE_LOW -> auction.getCurrentPrice();
             case CHANGE_HIGH -> auction.getChangeRateBasisPoints();
+            case ENDING_SOON -> null;
         };
-        Instant timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime() : null;
+        Instant timeValue = sort == AuctionSort.LATEST ? auction.getOpenTime()
+                : sort == AuctionSort.ENDING_SOON ? auction.getCloseTime() : null;
         return new AuctionCursor(sort, value, timeValue, auction.getId());
     }
 

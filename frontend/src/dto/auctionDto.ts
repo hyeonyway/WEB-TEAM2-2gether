@@ -1,7 +1,7 @@
 export type CardTheme='gold'|'water'|'dark'|'multi'|'sketch';
 export type AuctionStatus='OPEN'|'ENDING'|'ENDED'|'CANCELLED'|'FAILED';
 export type MyBidStatus='LEADING'|'OUTBID'|'NONE';
-export type AuctionSort='LATEST'|'BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH';
+export type AuctionSort='LATEST'|'BID_COUNT'|'PRICE_HIGH'|'PRICE_LOW'|'CHANGE_HIGH'|'ENDING_SOON';
 export type CardSort='PRICE'|'FAVORITE'|'REGISTERED'|'NAME';
 
 export type CardListRequestDto={

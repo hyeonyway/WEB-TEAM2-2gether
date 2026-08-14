@@ -46,6 +46,10 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
                         a.changeRateBasisPoints < :changeRateCursor
                         or (a.changeRateBasisPoints = :changeRateCursor and a.id < :cursorId)
                     ))
+                    or (:sort = 'ENDING_SOON' and (
+                        a.closeTime > :closeTimeCursor
+                        or (a.closeTime = :closeTimeCursor and a.id < :cursorId)
+                    ))
               )
             order by
               case when :sort = 'LATEST' then a.openTime end desc,
@@ -53,6 +57,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
               case when :sort = 'PRICE_HIGH' then a.currentPrice end desc,
               case when :sort = 'PRICE_LOW' then a.currentPrice end asc,
               case when :sort = 'CHANGE_HIGH' then a.changeRateBasisPoints end desc,
+              case when :sort = 'ENDING_SOON' then a.closeTime end asc,
               a.id desc
             """)
     List<Auction> searchByCursor(
@@ -64,6 +69,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             @Param("priceCursor") Long priceCursor,
             @Param("changeRateCursor") Long changeRateCursor,
             @Param("openTimeCursor") Instant openTimeCursor,
+            @Param("closeTimeCursor") Instant closeTimeCursor,
             @Param("cursorId") Integer cursorId,
             @Param("activeOnly") boolean activeOnly,
             @Param("now") Instant now,

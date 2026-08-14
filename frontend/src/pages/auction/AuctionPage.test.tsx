@@ -105,6 +105,12 @@ describe('AuctionPage',()=>{
     ));
   });
 
+  it('마감 임박순 정렬을 선택할 수 있다',async()=>{
+    renderPage();
+    await userEvent.setup().click(await screen.findByRole('button',{name:'마감 임박순'}));
+    await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenCalledWith(expect.objectContaining({sort:'ENDING_SOON'}),undefined));
+  });
+
   it('선택한 정렬 기준을 URL에 저장해 새로고침 후에도 복원한다',async()=>{
     const firstRender=renderPage();
     const user=userEvent.setup();
