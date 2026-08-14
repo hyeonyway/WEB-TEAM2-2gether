@@ -1,5 +1,6 @@
 package com.dbidding.auction.stream;
 
+import com.dbidding.global.redis.RedisIntegerValue;
 import com.dbidding.order.OrderStatus;
 import com.dbidding.wallet.domain.PointTransactionType;
 import java.time.Instant;
@@ -17,11 +18,12 @@ public record OrderStateChangedStreamEvent(
         try {
             if (!"1".equals(values.get("schemaVersion"))) throw new InvalidBidStreamEventException("지원하지 않는 주문 상태 Stream 이벤트입니다.");
             return new OrderStateChangedStreamEvent(streamId, UUID.fromString(required(values, "eventId")), required(values, "eventType"),
-                    Integer.valueOf(required(values, "orderId")), Integer.valueOf(required(values, "auctionId")), Long.valueOf(required(values, "orderVersion")),
+                    Integer.valueOf(required(values, "orderId")), Integer.valueOf(required(values, "auctionId")), RedisIntegerValue.parseLongExact(required(values, "orderVersion")),
                     Integer.valueOf(required(values, "actorId")), Integer.valueOf(required(values, "buyerId")), Integer.valueOf(required(values, "sellerId")),
                     OrderStatus.valueOf(required(values, "status")), Integer.valueOf(required(values, "walletUserId")),
-                    Long.valueOf(required(values, "walletVersion")), Long.valueOf(required(values, "availableBalance")), Long.valueOf(required(values, "frozenBalance")),
-                    PointTransactionType.valueOf(required(values, "transactionType")), Long.valueOf(required(values, "transactionAmount")),
+                    RedisIntegerValue.parseLongExact(required(values, "walletVersion")), RedisIntegerValue.parseLongExact(required(values, "availableBalance")),
+                    RedisIntegerValue.parseLongExact(required(values, "frozenBalance")),
+                    PointTransactionType.valueOf(required(values, "transactionType")), RedisIntegerValue.parseLongExact(required(values, "transactionAmount")),
                     required(values, "idempotencyKey"), Instant.parse(required(values, "occurredAt")));
         } catch (IllegalArgumentException exception) {
             throw new InvalidBidStreamEventException("주문 상태 Stream 이벤트 형식이 올바르지 않습니다.", exception);

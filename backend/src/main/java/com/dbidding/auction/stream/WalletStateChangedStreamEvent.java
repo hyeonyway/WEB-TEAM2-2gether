@@ -1,5 +1,6 @@
 package com.dbidding.auction.stream;
 
+import com.dbidding.global.redis.RedisIntegerValue;
 import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointTransactionType;
 import java.time.Instant;
@@ -39,9 +40,9 @@ public record WalletStateChangedStreamEvent(
                     UUID.fromString(required(values, "eventId")),
                     required(values, "eventType"),
                     Integer.valueOf(required(values, "userId")),
-                    Long.valueOf(required(values, "walletVersion")),
-                    Long.valueOf(required(values, "availableBalance")),
-                    Long.valueOf(required(values, "frozenBalance")),
+                    RedisIntegerValue.parseLongExact(required(values, "walletVersion")),
+                    RedisIntegerValue.parseLongExact(required(values, "availableBalance")),
+                    RedisIntegerValue.parseLongExact(required(values, "frozenBalance")),
                     nullableInteger(values.get("auctionId")),
                     nullableLong(values.get("holdAmount")),
                     nullableHoldStatus(values.get("holdStatus")),
@@ -108,7 +109,9 @@ public record WalletStateChangedStreamEvent(
     }
 
     private static Long nullableLong(String value) {
-        return value == null || value.isBlank() || "null".equals(value) ? null : Long.valueOf(value);
+        return value == null || value.isBlank() || "null".equals(value)
+                ? null
+                : RedisIntegerValue.parseLongExact(value);
     }
 
     private static HoldStatus nullableHoldStatus(String value) {

@@ -3,6 +3,7 @@ package com.dbidding.auction.query;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.BidResponses;
+import com.dbidding.global.redis.RedisIntegerValue;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -35,10 +36,10 @@ public class RedisAuctionRealtimeStateReader {
             List<BidResponses.BidSummary> recentBids = recentBids(auctionId, snapshot.highestBidderId());
             Map<Object, Object> myBid = userId == null ? Map.of() : redisTemplate.opsForHash().entries(bidderKey(auctionId, userId));
             MyBidStatus myBidStatus = myBid.isEmpty() ? MyBidStatus.NONE : MyBidStatus.valueOf(required(myBid, "status"));
-            Long myBidAmount = myBid.isEmpty() ? null : Long.valueOf(required(myBid, "amount"));
+            Long myBidAmount = myBid.isEmpty() ? null : RedisIntegerValue.parseLongExact(required(myBid, "amount"));
             return new RealtimeState(snapshot.status(), snapshot.currentPrice(), snapshot.bidIncrement(), snapshot.bidCount(), snapshot.closeTime(), snapshot.buyNowPrice(),
                     myBidStatus, myBidAmount, recentBids);
-        } catch (IllegalArgumentException exception) {
+        } catch (IllegalArgumentException | ArithmeticException exception) {
             return null;
         }
     }
@@ -54,14 +55,16 @@ public class RedisAuctionRealtimeStateReader {
                     nullableString(fields.get("cardLanguage")), nullableString(fields.get("cardThumbnailUrl")), required(fields, "auctionName"),
                     required(fields, "description"), nullableString(fields.get("sellerMemo")), nullableString(fields.get("psaCertification")),
                     nullableString(fields.get("selfGrade")), Boolean.parseBoolean(required(fields, "psaVerified")),
-                    Long.valueOf(required(fields, "startPrice")), Long.valueOf(required(fields, "currentPrice")),
-                    Long.valueOf(required(fields, "bidIncrement")), Integer.valueOf(required(fields, "bidCount")),
-                    nullableLong(fields.get("buyNowPrice")), Long.valueOf(required(fields, "deliveryFee")),
+                    RedisIntegerValue.parseLongExact(required(fields, "startPrice")),
+                    RedisIntegerValue.parseLongExact(required(fields, "currentPrice")),
+                    RedisIntegerValue.parseLongExact(required(fields, "bidIncrement")),
+                    Math.toIntExact(RedisIntegerValue.parseLongExact(required(fields, "bidCount"))),
+                    nullableLong(fields.get("buyNowPrice")), RedisIntegerValue.parseLongExact(required(fields, "deliveryFee")),
                     Instant.parse(required(fields, "openTime")), Instant.parse(required(fields, "closeTime")),
                     splitLines(required(fields, "imagePaths")),
                     optionalInstant(fields.get("estimatedCloseTime")).orElse(Instant.parse(required(fields, "closeTime")))
             );
-        } catch (IllegalArgumentException exception) {
+        } catch (IllegalArgumentException | ArithmeticException exception) {
             return null;
         }
     }
@@ -113,13 +116,14 @@ public class RedisAuctionRealtimeStateReader {
     private BidResponses.BidSummary summary(MapRecord<String, Object, Object> record, Integer highestBidderId) {
         Map<Object, Object> values = record.getValue();
         Integer bidderId = Integer.valueOf(value(values.get("bidderId")));
-        long sequence = Long.parseLong(value(values.get("sequence")));
+        long sequence = RedisIntegerValue.parseLongExact(value(values.get("sequence")));
         Long bidId = nullableLong(values.get("bidId"));
         // Long.MAX_VALUE - sequence는 JSON으로 프론트에 전달되며 JS Number(double)로 변환될 때
         // 정밀도가 깨져(그 크기대의 double 표현 간격이 sequence 차이보다 커서) 서로 다른 입찰이
         // 같은 id로 뭉개진다. 프론트가 이미 "DB에 아직 없는 실시간 입찰"을 음수 id로 표시하는
         // 관례(-event_id)를 따르므로 여기서도 -sequence를 쓴다.
-        return new BidResponses.BidSummary(bidId == null ? -sequence : bidId, Long.valueOf(value(values.get("bidPrice"))), alias(bidderId),
+        return new BidResponses.BidSummary(bidId == null ? -sequence : bidId,
+                RedisIntegerValue.parseLongExact(value(values.get("bidPrice"))), alias(bidderId),
                 bidderId.equals(highestBidderId), Instant.parse(value(values.get("occurredAt"))));
     }
 
@@ -129,7 +133,7 @@ public class RedisAuctionRealtimeStateReader {
         return value;
     }
     private String value(Object value) { return value == null ? null : value.toString(); }
-    private Long nullableLong(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Long.valueOf(text); }
+    private Long nullableLong(Object value) { String text = value(value); return text == null || text.isBlank() ? null : RedisIntegerValue.parseLongExact(text); }
     private Integer nullableInteger(Object value) { String text = value(value); return text == null || text.isBlank() ? null : Integer.valueOf(text); }
     private java.util.Optional<Instant> optionalInstant(Object value) { String text = value(value); return text == null || text.isBlank() ? java.util.Optional.empty() : java.util.Optional.of(Instant.parse(text)); }
     private String nullableString(Object value) { String text = value(value); return text == null || text.isBlank() ? null : text; }
