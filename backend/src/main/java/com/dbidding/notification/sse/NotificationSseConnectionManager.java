@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Supplier;
 import io.micrometer.core.instrument.Timer;
+import com.dbidding.sse.metrics.SseConnectionCloseMetrics.CloseReason;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
@@ -58,14 +59,24 @@ public class NotificationSseConnectionManager {
 
 	SseEmitter register(Integer userId, String sessionId, SseEmitter emitter) {
         Timer.Sample connectSample = metrics.startConnect();
+        metrics.trackConnectionStart(emitter);
         Set<SseEmitter> emitters = emittersByUserId.computeIfAbsent(userId, id -> new CopyOnWriteArraySet<>());
         emitters.add(emitter);
         if (sessionId != null) {
             sessionIdByEmitter.put(emitter, sessionId);
         }
-        emitter.onCompletion(() -> remove(userId, emitter));
-        emitter.onTimeout(() -> removeAndComplete(userId, emitter));
-        emitter.onError(error -> removeAndComplete(userId, emitter));
+        emitter.onCompletion(() -> {
+            metrics.recordConnectionClosed(emitter, CloseReason.COMPLETION);
+            remove(userId, emitter);
+        });
+        emitter.onTimeout(() -> {
+            metrics.recordConnectionClosed(emitter, CloseReason.TIMEOUT);
+            removeAndComplete(userId, emitter);
+        });
+        emitter.onError(error -> {
+            metrics.recordConnectionClosed(emitter, CloseReason.ERROR);
+            removeAndComplete(userId, emitter);
+        });
 		if (sessionId != null && !sessionRegistry.register(sessionId, emitter)) {
 			remove(userId, emitter);
 			return emitter;
@@ -115,6 +126,8 @@ public class NotificationSseConnectionManager {
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
+            metrics.recordSendFailure();
+            metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
             removeAndComplete(userId, emitter);
             return false;
         }

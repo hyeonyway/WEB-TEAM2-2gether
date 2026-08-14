@@ -1,6 +1,7 @@
 package com.dbidding.notification.config;
 
 import com.dbidding.sse.config.CountingCallerRunsPolicy;
+import com.dbidding.sse.config.VirtualThreadSseTaskExecutor;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -84,8 +84,6 @@ public class NotificationExecutorConfig {
     @Bean(name = "notificationFanOutTaskExecutor")
     @Profile("sse-virtual-threads")
     public TaskExecutor notificationFanOutVirtualTaskExecutor() {
-        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("notification-fanout-");
-        executor.setVirtualThreads(true);
-        return executor;
+        return new VirtualThreadSseTaskExecutor("notification-fanout-", meterRegistry, "notification-sse");
     }
 }
