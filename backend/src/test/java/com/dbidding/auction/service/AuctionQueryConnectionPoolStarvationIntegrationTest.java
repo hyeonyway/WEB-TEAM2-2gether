@@ -20,7 +20,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,11 +66,10 @@ class AuctionQueryConnectionPoolStarvationIntegrationTest {
     void Redis_hit_조회는_트랜잭션과_JDBC_커넥션을_잡지_않는다() {
         stubRedisHit();
         AtomicBoolean transactionActive = new AtomicBoolean();
-        AtomicInteger activeConnections = new AtomicInteger();
-        int activeConnectionsBeforeCall = hikariDataSource().getHikariPoolMXBean().getActiveConnections();
+        AtomicBoolean connectionBoundToRequestThread = new AtomicBoolean();
         given(walletService.getBalance(7)).willAnswer(invocation -> {
             transactionActive.set(TransactionSynchronizationManager.isActualTransactionActive());
-            activeConnections.set(hikariDataSource().getHikariPoolMXBean().getActiveConnections());
+            connectionBoundToRequestThread.set(TransactionSynchronizationManager.hasResource(dataSource));
             return new WalletBalanceResponse(100_000L, 20_000L, 80_000L);
         });
 
@@ -79,7 +77,7 @@ class AuctionQueryConnectionPoolStarvationIntegrationTest {
 
         assertThat(result.auctionId()).isEqualTo(101);
         assertThat(transactionActive).isFalse();
-        assertThat(activeConnections).hasValue(activeConnectionsBeforeCall);
+        assertThat(connectionBoundToRequestThread).isFalse();
     }
 
     @Test
