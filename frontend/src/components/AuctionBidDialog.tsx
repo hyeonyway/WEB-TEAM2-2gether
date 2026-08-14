@@ -1,4 +1,4 @@
-import {CheckCircle2,Info,Wallet} from 'lucide-react';
+import {CheckCircle2,Wallet} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
@@ -10,6 +10,7 @@ import {dashboardQueryKey} from '../queries/dashboardQueries';
 import {showToast} from './Toast';
 import './AuctionBidDialog.css';
 import {Tabs,TabsContent,TabsList,TabsTrigger} from './ui/tabs';
+import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger} from './ui/tooltip';
 
 const ANIMATION_DURATION_MS=650;
 // 이 간격보다 빠르게 다음 갱신이 오면, 애니메이션이 끝나기 전에 계속 재시작되며
@@ -94,8 +95,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   return <div className="bid-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><section className="bid-dialog" role="dialog" aria-modal="true" aria-label={`${auction.card.name} 경매 참여`}>
     <button className="bid-close" onClick={onClose} aria-label="닫기">×</button>
     <small>실시간 카드 경매</small><h2>경매 참여</h2><p className="bid-card-name">{auction.card.name}</p>
-    <Tabs value={activeTab} onValueChange={value=>setActiveTab(value as 'bid'|'buy-now')}><TabsList className="bid-tabs" aria-label="경매 방식"><TabsTrigger value="bid" className="bid-tab-bid">일반 경매</TabsTrigger><TabsTrigger value="buy-now" className="bid-tab-buy-now" disabled={buyNowPrice===null}>즉시 구매</TabsTrigger></TabsList>
-    <p className={`bid-buy-now-tooltip${buyNowPrice===null?' unsupported':''}`} role="status"><Info/>{buyNowPrice===null?'이 입찰은 즉시 구매를 지원하지 않습니다.':`${buyNowPrice.toLocaleString()}원에 즉시 구매 가능!`}</p>
+    <TooltipProvider delayDuration={0}><Tabs value={activeTab} onValueChange={value=>setActiveTab(value as 'bid'|'buy-now')}><TabsList className="bid-tabs" aria-label="경매 방식"><TabsTrigger value="bid" className="bid-tab-bid">일반 경매</TabsTrigger><Tooltip defaultOpen><TooltipTrigger asChild><span className="bid-buy-now-tooltip-trigger"><TabsTrigger value="buy-now" className="bid-tab-buy-now" disabled={buyNowPrice===null}>즉시 구매</TabsTrigger></span></TooltipTrigger><TooltipContent>{buyNowPrice===null?'이 입찰은 즉시 구매를 지원하지 않습니다.':`${buyNowPrice.toLocaleString()}원에 즉시 구매 가능!`}</TooltipContent></Tooltip></TabsList>
     {leading&&<div className="bid-leading-notice"><CheckCircle2/><span><b>현재 최고가 입찰 중입니다.</b><small>{activeTab==='buy-now'?'즉시 구매는 진행할 수 있습니다.':'입찰 현황은 확인할 수 있지만 추가 입찰은 제한됩니다.'}</small></span></div>}
     <div className="bid-wallet"><span><Wallet/>전자지갑 포인트</span><strong>{wallet.toLocaleString()}P</strong></div>
     <TabsContent value="bid">
@@ -110,6 +110,6 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       <section className="buy-now-notice"><h3>즉시 구매 안내</h3><p>즉시 구매 시 경매가 바로 종료되며, 이후 취소할 수 없습니다.</p><label className="buy-now-agreement"><input type="checkbox" checked={buyNowAgreed} onChange={event=>setBuyNowAgreed(event.target.checked)}/><span>즉시 구매 시 취소할 수 없음에 동의합니다.</span></label></section>
       <div className="bid-balance"><span>구매 후 잔여 포인트</span><b>{Math.max(0,wallet-buyNowPrice!).toLocaleString()}P</b></div>{insufficientBuyNow&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">즉시 구매하지 못했습니다. 현재 상태와 잔액을 다시 확인해 주세요.</p>}
       <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>{closed?'경매 종료':bidMutation.isPending?'즉시 구매 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 구매하기`}</button>
-    </TabsContent>}</Tabs>
+    </TabsContent>}</Tabs></TooltipProvider>
   </section>{buyNowConfirmationOpen&&<div className="buy-now-confirm-backdrop"><section className="buy-now-confirm" role="dialog" aria-modal="true" aria-label="즉시 구매 확인"><h3>즉시 구매로 진행할까요?</h3><p>입력한 입찰가가 즉시 구매가와 같거나 높습니다. <b>{buyNowPrice!.toLocaleString()}원</b>에 즉시 구매되며 경매가 종료됩니다.</p><div><button type="button" onClick={()=>setBuyNowConfirmationOpen(false)}>취소</button><button type="button" onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>확인</button></div></section></div>}</div>;
 }

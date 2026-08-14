@@ -137,7 +137,7 @@ describe('AuctionBidDialog',()=>{
   it('즉시 구매가가 없는 경매는 즉시 구매 탭과 상시 안내를 표시한다',async()=>{
     render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><AuctionBidDialog auction={{...auction,buyNowPrice:null}} onClose={vi.fn()}/></QueryClientProvider>);
     expect(await screen.findByRole('tab',{name:'즉시 구매'})).toBeDisabled();
-    expect(screen.getByRole('status')).toHaveTextContent('이 입찰은 즉시 구매를 지원하지 않습니다.');
+    expect(await screen.findByText('이 입찰은 즉시 구매를 지원하지 않습니다.')).toBeInTheDocument();
   });
 
   it('일반 입찰가가 즉시 구매가와 같거나 높으면 확인 후 즉시 구매가로 요청한다',async()=>{
