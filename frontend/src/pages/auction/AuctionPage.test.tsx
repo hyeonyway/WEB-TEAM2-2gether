@@ -87,6 +87,7 @@ describe('AuctionPage',()=>{
     ].includes(button.textContent??'')).map(button=>button.textContent)).toEqual([
       '최신순','마감 임박순','입찰 수 높은순','경매가 높은순','경매가 낮은순','상승률 높은순',
     ]);
+    expect(screen.getByText('총 1개 경매')).toBeInTheDocument();
   });
 
   it('목록 하단이 보이면 다음 cursor를 조회해 경매를 누적한다',async()=>{

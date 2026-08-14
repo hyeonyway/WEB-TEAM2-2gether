@@ -89,7 +89,7 @@ export default function AuctionPage(){
       </select></label>
     </div>
     {isPending?<AuctionCatalogSkeleton/>:error&&!data?<p className="form-error">경매 정보를 불러오지 못했습니다.</p>:<>
-      <p className="catalog-count">{auctions.length.toLocaleString()}개 표시 중</p>
+      <p className="catalog-count">총 {auctions.length.toLocaleString()}개 경매</p>
       <AuctionCatalog auctions={auctions} onSubscriptionAuctionIdsChange={onSubscriptionAuctionIdsChange}/>
       {isFetchingNextPage&&<AuctionCatalogSkeleton count={3} label="다음 경매 목록을 불러오는 중"/>}
       {isFetchNextPageError&&<button className="auction-list-retry" type="button" onClick={()=>void queryClient.resetQueries({queryKey:listOptions.queryKey,exact:true})}>목록 새로고침</button>}
