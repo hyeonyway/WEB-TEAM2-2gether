@@ -8,7 +8,6 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
-import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -28,11 +27,10 @@ class AuctionRegistrationDetailContractTest {
         AuctionImageRepository auctionImageRepository = mock(AuctionImageRepository.class);
         BidRepository bidRepository = mock(BidRepository.class);
         CardService cardService = mock(CardService.class);
-        AuctionQueryService service = new AuctionQueryService(
+        DbAuctionQueryService service = new DbAuctionQueryService(
                 auctionRepository,
                 auctionImageRepository,
                 bidRepository,
-                mock(WalletService.class),
                 cardService,
                 new AuctionCursorCodec(),
                 Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
