@@ -5,11 +5,13 @@ import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.card.port.CardAuctionPort;
 import java.time.Clock;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Profile("!redis")
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class CardAuctionAdapter implements CardAuctionPort {
