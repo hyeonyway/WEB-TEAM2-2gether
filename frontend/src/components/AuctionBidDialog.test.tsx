@@ -5,6 +5,7 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {dashboardQueryKey} from '../queries/dashboardQueries';
+import {walletQueryKeys} from '../queries/walletQueryKeys';
 import AuctionBidDialog from './AuctionBidDialog';
 import ToastContainer from './Toast';
 
@@ -132,6 +133,7 @@ describe('AuctionBidDialog',()=>{
   it('입찰 성공 응답으로 참여 경매 대시보드를 최고 입찰 상태로 갱신한다',async()=>{
     const onClose=vi.fn();
     const{queryClient}=renderDialog(onClose);
+    const invalidateQueries=vi.spyOn(queryClient,'invalidateQueries');
     const dialog=await screen.findByRole('dialog',{name:'피카츄 경매 참여'});
     const scrollTo=vi.fn();
     dialog.scrollTo=scrollTo;
@@ -155,6 +157,10 @@ describe('AuctionBidDialog',()=>{
     expect(scrollTo).toHaveBeenCalledWith({top:dialog.scrollHeight,behavior:'smooth'});
     expect(screen.queryByText(/최소 입찰가 .* 이상 입력해 주세요/)).not.toBeInTheDocument();
     expect(screen.queryByText('전자지갑 포인트가 부족합니다.')).not.toBeInTheDocument();
+    expect(queryClient.getQueryData(walletQueryKeys.balance())).toMatchObject({
+      totalBalance:12_000,availableBalance:1_000,frozenBalance:11_000,
+    });
+    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 
   it('즉시 구매는 동의 후에만 가능하고 즉시 구매가로 요청한다',async()=>{

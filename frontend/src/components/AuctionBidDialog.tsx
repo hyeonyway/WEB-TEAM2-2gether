@@ -1,12 +1,13 @@
 import {CheckCircle2,Wallet} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
-import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
+import {useMutation,useQuery,useQueryClient,type InfiniteData} from '@tanstack/react-query';
+import type {AuctionDto,BidContextResponseDto,CursorPageResponseDto} from '../dto/auctionDto';
 import {createAuctionBid} from '../api/auctionApi';
 import {applyBidContextEvent,auctionQueries,auctionQueryKeys} from '../queries/auctionQueries';
 import {useAuctionStream} from '../hooks/useAuctionStream';
 import {walletQueryKeys} from '../queries/walletQueryKeys';
+import type {WalletBalanceDto} from '../dto/walletDto';
 import {dashboardQueryKey} from '../queries/dashboardQueries';
 import {showToast} from './Toast';
 import './AuctionBidDialog.css';
@@ -18,6 +19,7 @@ const ANIMATION_DURATION_MS=650;
 // 실제 값보다 뒤처져 보인다(redis 프로필처럼 SSE가 짧은 간격으로 몰아치는 경우).
 // 그 정도 빈도에서는 애니메이션 대신 값만 즉시 반영해 "실시간 값"으로 보이게 한다.
 const RAPID_UPDATE_THRESHOLD_MS=200;
+type AuctionListCache=InfiniteData<CursorPageResponseDto<AuctionDto>,string|undefined>;
 
 function AnimatedBidValue({value}:{value:number}){
   const[displayValue,setDisplayValue]=useState(value);
@@ -77,13 +79,27 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const bidMutation=useMutation({
     mutationFn:({price}:{price:number;type:'bid'|'buy-now'})=>createAuctionBid(auction.id,price,crypto.randomUUID()),
     onSuccess:async (result,request)=>{
+      const updatedAuction=(item:AuctionDto):AuctionDto=>item.id!==auction.id?item:{
+        ...item,currentPrice:result.auction.current_price,bidCount:result.auction.bid_count,
+        endsAt:result.auction.ends_at,myBidStatus:result.bid.status==='WON'?'NONE':'LEADING',
+        myBidAmount:result.bid.status==='WON'?null:result.bid.amount,
+        card:{...item.card,bidCount:result.auction.bid_count},
+      };
       queryClient.setQueriesData<AuctionDto[]>({queryKey:dashboardQueryKey},current=>current?.map(item=>item.id!==auction.id?item:{...item,currentPrice:result.auction.current_price,bidCount:result.auction.bid_count,endsAt:result.auction.ends_at,myBidStatus:'LEADING',myBidAmount:result.bid.amount,card:{...item.card,bidCount:result.auction.bid_count}}));
+      queryClient.setQueriesData<AuctionListCache>({queryKey:auctionQueryKeys.lists()},current=>current?{
+        ...current,pages:current.pages.map(page=>({...page,content:page.content.map(updatedAuction)})),
+      }:current);
       queryClient.setQueryData<BidContextResponseDto>(auctionQueryKeys.bidContext(auction.id),current=>current?{
         ...current,current_price:result.auction.current_price,minimum_bid:result.auction.minimum_bid,
         my_bid_status:result.bid.status==='WON'?'NONE':'LEADING',my_bid_amount:result.bid.status==='WON'?null:result.bid.amount,
         wallet:result.wallet,
       }:current);
-      await Promise.all([queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()}),...(result.pendingOrder?[queryClient.invalidateQueries({queryKey:['orders']})]:[])]);
+      queryClient.setQueryData<WalletBalanceDto>(walletQueryKeys.balance(),{
+        totalBalance:result.wallet.available_balance+result.wallet.frozen_balance,
+        availableBalance:result.wallet.available_balance,
+        frozenBalance:result.wallet.frozen_balance,
+      });
+      if(result.pendingOrder)void queryClient.invalidateQueries({queryKey:['orders']});
       showToast(request.type==='buy-now'?`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 즉시 구매하였습니다.`:`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 입찰하였습니다.`);
       dialogRef.current?.scrollTo({top:dialogRef.current.scrollHeight,behavior:'smooth'});
     },
