@@ -184,6 +184,28 @@ describe('AuctionPage',()=>{
     });
   });
 
+  it('마감 임박순은 입찰 갱신 뒤에도 기존 ENDING 경매의 순서를 유지한다',async()=>{
+    const first={...auction(1,'첫 번째 마감 임박'),status:'ENDING' as const};
+    const second={...auction(2,'두 번째 마감 임박'),status:'ENDING' as const};
+    const third={...auction(3,'세 번째 마감 임박'),status:'ENDING' as const};
+    apiMocks.fetchAuctions.mockReset().mockResolvedValueOnce({
+      content:[first,second,third],next_cursor:null,has_next:false,total_elements:3,
+    });
+    renderPage('/auction?sort=ENDING_SOON');
+
+    await screen.findByText('첫 번째 마감 임박');
+    const orderBefore=screen.getAllByRole('article').map(card=>within(card).getByRole('heading').textContent);
+
+    await act(async()=>onAuctionUpdated({
+      type:'BID_PLACED',auction_id:2,bidder_id:7,previous_bidder_id:null,
+      start_price:10_000,current_price:15_000,bid_increment:1_000,bid_count:2,
+      ends_at:'2099-08-04T10:00:00Z',status:'ENDING',event_id:2,
+      occurred_at:'2026-08-04T10:00:00Z',
+    }));
+
+    expect(screen.getAllByRole('article').map(card=>within(card).getByRole('heading').textContent)).toEqual(orderBefore);
+  });
+
   it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{
     let rejectNextPage:(reason?:unknown)=>void=()=>{};
     const nextPage=new Promise((_,reject)=>{rejectNextPage=reject;});
