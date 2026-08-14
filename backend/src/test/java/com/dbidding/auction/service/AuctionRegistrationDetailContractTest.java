@@ -11,6 +11,7 @@ import com.dbidding.card.service.CardService;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.wallet.service.WalletService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -27,13 +28,15 @@ class AuctionRegistrationDetailContractTest {
         AuctionImageRepository auctionImageRepository = mock(AuctionImageRepository.class);
         BidRepository bidRepository = mock(BidRepository.class);
         CardService cardService = mock(CardService.class);
+        WalletService walletService = mock(WalletService.class);
         DbAuctionQueryService service = new DbAuctionQueryService(
                 auctionRepository,
                 auctionImageRepository,
                 bidRepository,
                 cardService,
                 new AuctionCursorCodec(),
-                Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC)
+                Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC),
+                walletService
         );
         Auction auction = Auction.builder()
                 .sellerId(1)

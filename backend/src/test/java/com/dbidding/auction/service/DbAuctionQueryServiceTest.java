@@ -23,6 +23,7 @@ import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -46,6 +47,7 @@ class DbAuctionQueryServiceTest {
     @Mock private AuctionImageRepository auctionImageRepository;
     @Mock private BidRepository bidRepository;
     @Mock private CardService cardService;
+    @Mock private WalletService walletService;
 
     private final AuctionCursorCodec cursorCodec = new AuctionCursorCodec();
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-08T00:00:00Z"), ZoneOffset.UTC);
@@ -54,7 +56,8 @@ class DbAuctionQueryServiceTest {
     @BeforeEach
     void setUp() {
         service = new DbAuctionQueryService(
-                auctionRepository, auctionImageRepository, bidRepository, cardService, cursorCodec, clock);
+                auctionRepository, auctionImageRepository, bidRepository, cardService, cursorCodec, clock,
+                walletService);
     }
 
     @Test

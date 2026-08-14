@@ -20,6 +20,7 @@ import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -46,6 +47,7 @@ public class DbAuctionQueryService {
     private final CardService cardService;
     private final AuctionCursorCodec auctionCursorCodec;
     private final Clock clock;
+    private final WalletService walletService;
 
     public AuctionResponses.CursorPage<AuctionResponses.AuctionSummary> search(
             Integer userId, AuctionSearchRequest request
@@ -156,6 +158,10 @@ public class DbAuctionQueryService {
                 .wallet(new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance()))
                 .recentBids(recentBids)
                 .build();
+    }
+
+    public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
+        return getBidContext(userId, auctionId, walletService.getBalance(userId));
     }
 
     private Integer bidCountCursor(AuctionCursor cursor) {

@@ -71,7 +71,8 @@ class AuctionQueryServiceTest {
                         bidRepository,
                         cardService,
                         cursorCodec,
-                        clock
+                        clock,
+                        walletService
                 ),
                 cursorCodec
         );

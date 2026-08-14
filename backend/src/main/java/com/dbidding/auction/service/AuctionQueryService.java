@@ -246,9 +246,12 @@ public class AuctionQueryService {
     }
 
     public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
+        if (realtimeStateReader == null) {
+            return dbAuctionQueryService.getBidContext(userId, auctionId);
+        }
         seedAuctionIfRequired(auctionId);
         WalletBalanceResponse wallet = walletService.getBalance(userId);
-        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader == null ? null : realtimeStateReader.read(auctionId, userId);
+        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(auctionId, userId);
         if (realtime != null) {
             return BidResponses.BidContext.builder()
                     .auctionId(auctionId).status(realtime.status()).currentPrice(realtime.currentPrice())

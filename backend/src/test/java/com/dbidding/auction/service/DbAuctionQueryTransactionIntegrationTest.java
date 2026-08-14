@@ -3,16 +3,25 @@ package com.dbidding.auction.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
+import com.dbidding.wallet.dto.WalletBalanceResponse;
+import com.dbidding.wallet.service.WalletService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -42,8 +51,11 @@ class DbAuctionQueryTransactionIntegrationTest {
     @Autowired private DbAuctionQueryService service;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private DataSource dataSource;
 
     @MockitoBean private CardService cardService;
+    @MockitoBean private WalletService walletService;
+    @MockitoBean private BidRepository bidRepository;
 
     @BeforeEach
     void setUp() {
@@ -97,5 +109,31 @@ class DbAuctionQueryTransactionIntegrationTest {
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
         assertThat(serializedOutsideTransaction).contains("\"id\":" + AUCTION_ID);
         assertThat(serializedOutsideTransaction).contains("\"description\":\"설명\"");
+    }
+
+    @Test
+    void DB_입찰_컨텍스트는_지갑과_경매를_같은_트랜잭션에서_조회한다() {
+        AtomicReference<Object> walletConnectionResource = new AtomicReference<>();
+        AtomicReference<Object> bidConnectionResource = new AtomicReference<>();
+        given(walletService.getBalance(USER_ID)).willAnswer(invocation -> {
+            jdbcTemplate.queryForObject("SELECT 1", Integer.class);
+            walletConnectionResource.set(TransactionSynchronizationManager.getResource(dataSource));
+            return new WalletBalanceResponse(100_000L, 20_000L, 80_000L);
+        });
+        given(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDescIdDesc(
+                AUCTION_ID, USER_ID)).willAnswer(invocation -> {
+            bidConnectionResource.set(TransactionSynchronizationManager.getResource(dataSource));
+            return Optional.empty();
+        });
+        given(bidRepository.findByAuctionIdOrderByCreatedAtDescIdDesc(
+                AUCTION_ID, PageRequest.of(0, 5)))
+                .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 5), 0));
+
+        var response = service.getBidContext(USER_ID, AUCTION_ID);
+
+        assertThat(response.wallet().availableBalance()).isEqualTo(80_000L);
+        assertThat(walletConnectionResource.get()).isNotNull();
+        assertThat(bidConnectionResource.get()).isSameAs(walletConnectionResource.get());
+        assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
     }
 }
