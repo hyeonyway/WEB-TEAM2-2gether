@@ -187,6 +187,7 @@ describe('AuctionBidDialog',()=>{
     expect(screen.getByRole('dialog',{name:'즉시 구매 확인'})).toHaveTextContent('20,000원에 즉시 구매');
     expect(mocks.createBid).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button',{name:'확인'}));
+    expect(screen.queryByRole('dialog',{name:'즉시 구매 확인'})).not.toBeInTheDocument();
     await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
     expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 구매하였습니다.')).not.toHaveLength(0);
   });
