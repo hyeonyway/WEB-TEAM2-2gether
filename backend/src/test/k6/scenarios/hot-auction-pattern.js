@@ -23,7 +23,6 @@ const duration = __ENV.DURATION || '5m';
 const sseRampUp = __ENV.SSE_RAMP_UP || '60s';
 const sseDuration = __ENV.SSE_DURATION || addDurations(duration, '90s');
 const mainStartTime = __ENV.MAIN_START_TIME || addDurations(sseRampUp, '5s');
-const userIdStart = positiveInt(__ENV.LOAD_TEST_USER_ID_START, 910001);
 const loginBatchSize = positiveInt(__ENV.LOGIN_BATCH_SIZE, 25);
 const preAllocatedVUs = positiveInt(__ENV.PRE_ALLOCATED_VUS, 200);
 const maxVUs = positiveInt(__ENV.MAX_VUS, 1000);
@@ -79,8 +78,8 @@ export function setup() {
   const auctionIds = configuredAuctionIds();
   if (auctionIds.length !== 200) throw new Error('AUCTION_IDS에 서로 다른 진행 중 경매 ID 200개를 지정하세요.');
   const hotAuctionIds = configuredHotAuctionIds(auctionIds);
-  const tokens = login(loadTestUsers());
-  return {auctionIds, hotAuctionIds, coldAuctionIds: auctionIds.filter(id => !hotAuctionIds.includes(id)), tokens};
+  const sessions = login(loadTestUsers());
+  return {auctionIds, hotAuctionIds, coldAuctionIds: auctionIds.filter(id => !hotAuctionIds.includes(id)), sessions};
 }
 
 export function auctionSse() {
@@ -92,24 +91,21 @@ export function auctionSse() {
 }
 
 export function notificationSse(data) {
-  const index = (__VU - 1) % data.tokens.length;
-  const ticketResponse = http.post(`${baseUrl}/api/sse/tickets`, null, {
-    headers: {Authorization: `Bearer ${data.tokens[index]}`}, responseCallback: http.expectedStatuses(200), tags: {name: 'POST /api/sse/tickets'},
-  });
-  const ticket = ticketResponse.status === 200 ? ticketResponse.json('ticket') : null;
-  if (typeof ticket !== 'string') { notificationSseConnected.add(false); return; }
-  sse.open(`${baseUrl}/api/users/${userIdStart + index}/notifications/stream?ticket=${encodeURIComponent(ticket)}`, {headers: {Accept: 'text/event-stream'}, tags: {name: 'GET /api/users/:userId/notifications/stream'}}, client => {
+  // 세션 인증(#469 이후): 티켓 발급(POST /api/sse/tickets) 없이 세션 쿠키로 바로 연결한다.
+  // 개인화 여부는 서버가 세션에서 판별하므로 URL에 userId도 필요 없다.
+  const session = sessionOf(data.sessions);
+  sse.open(`${baseUrl}/api/me/notifications/stream`, {headers: {Accept: 'text/event-stream', Cookie: `SESSION=${session.cookie}`}, tags: {name: 'GET /api/me/notifications/stream'}}, client => {
     client.on('open', () => notificationSseConnected.add(true));
     client.on('event', () => notificationSseEvents.add(1));
     client.on('error', () => notificationSseConnected.add(false));
   });
 }
 
-export function waitForSse(data) {
-  const token = data.tokens[0];
+export function waitForSse() {
+  // /api/test/load/sse-status는 인증 불필요(공개 진단 엔드포인트)
   const deadline = Date.now() + durationToSeconds(mainStartTime) * 1000;
   while (true) {
-    const response = http.get(`${baseUrl}/api/test/load/sse-status?expected=${sseUsers}`, {headers: {Authorization: `Bearer ${token}`}, tags: {name: 'GET /api/test/load/sse-status'}});
+    const response = http.get(`${baseUrl}/api/test/load/sse-status?expected=${sseUsers}`, {tags: {name: 'GET /api/test/load/sse-status'}});
     const ready = response.status === 200 && response.json('ready') === true;
     if (ready) { sseBarrierReady.add(true); return; }
     if (Date.now() >= deadline) { sseBarrierReady.add(false); return; }
@@ -133,13 +129,12 @@ export function handleSummary(data) {
 
 function placeBid(data, index, phase, auctionIds = data.hotAuctionIds) {
   const auctionId = auctionIds[index];
-  const token = data.tokens[(__VU - 1) % data.tokens.length];
-  const context = http.get(`${baseUrl}/api/auctions/${auctionId}/bid-context`, {headers: {Authorization: `Bearer ${token}`}, tags: {name: 'GET /api/auctions/:id/bid-context', phase}});
+  const context = http.get(`${baseUrl}/api/auctions/${auctionId}/bid-context`, {headers: authorization(data.sessions), tags: {name: 'GET /api/auctions/:id/bid-context', phase}});
   if (context.status !== 200) { bidServerError.add(context.status >= 500, {phase}); return; }
   const price = Number(context.json('minimum_bid'));
   if (!Number.isSafeInteger(price) || price < 1) return;
   const response = http.post(`${baseUrl}/api/auctions/${auctionId}/bids`, JSON.stringify({price}), {
-    headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey(auctionId)},
+    headers: {...writeHeaders(data.sessions), 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey(auctionId)},
     responseCallback: http.expectedStatuses(201, 400, 409), tags: {name: 'POST /api/auctions/:id/bids', phase},
   });
   bidServerError.add(response.status >= 500, {phase});
@@ -160,15 +155,28 @@ function configuredHotAuctionIds(auctionIds) {
   if (hotIds.length !== hotAuctionCount || hotIds.some(id => !auctionIds.includes(id))) throw new Error(`HOT_AUCTION_IDS에는 AUCTION_IDS에 포함된 경매 ID ${hotAuctionCount}개를 지정하세요.`);
   return hotIds;
 }
+// 세션 인증(#469 이후): 로그인 응답은 accessToken이 아니라 Set-Cookie(SESSION)와
+// csrfToken을 준다. setup()은 VU 컨텍스트 밖이라 응답 쿠키가 어느 VU의 쿠키jar에도
+// 안 들어가므로, 쿠키 값을 직접 뽑아 매 요청에 Cookie 헤더로 수동 첨부한다.
 function login(users) {
-  const tokens = [];
+  const sessions = [];
   for (let start = 0; start < users.length; start += loginBatchSize) {
     const responses = http.batch(users.slice(start, start + loginBatchSize).map(user => ({method: 'POST', url: `${baseUrl}/api/auth/login`, body: JSON.stringify(user), params: {headers: {'Content-Type': 'application/json'}, responseCallback: http.expectedStatuses(200)}})));
-    responses.forEach((response, index) => { if (response.status !== 200) throw new Error(`로그인 실패 (index=${start + index}, status=${response.status})`); tokens.push(response.json('accessToken')); });
+    responses.forEach((response, index) => {
+      if (response.status !== 200) throw new Error(`로그인 실패 (index=${start + index}, status=${response.status})`);
+      const cookie = response.cookies.SESSION && response.cookies.SESSION[0] && response.cookies.SESSION[0].value;
+      if (!cookie) throw new Error(`세션 쿠키를 받지 못했습니다 (index=${start + index})`);
+      sessions.push({cookie, csrfToken: response.json('csrfToken')});
+    });
   }
-  return tokens;
+  return sessions;
 }
 function loadTestUsers() { return Array.from({length: sseUsers}, (_, index) => ({email: `k6-user${String(index + 1).padStart(5, '0')}@dbidding.local`, password: __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!'})); }
+function sessionOf(sessions) { return sessions[(__VU - 1) % sessions.length]; }
+// 조회(GET)는 세션 쿠키만 있으면 된다.
+function authorization(sessions) { return {Cookie: `SESSION=${sessionOf(sessions).cookie}`}; }
+// 상태변경(POST/PUT/PATCH/DELETE)은 SessionCsrfFilter가 쿠키 + X-CSRF-Token을 같이 요구한다.
+function writeHeaders(sessions) { const session = sessionOf(sessions); return {Cookie: `SESSION=${session.cookie}`, 'X-CSRF-Token': session.csrfToken}; }
 function hotCount(value, fallback) { const count = positiveInt(value, fallback); if (![2, 3].includes(count)) throw new Error('HOT_AUCTION_COUNT는 2 또는 3이어야 합니다.'); return count; }
 function positiveInt(value, fallback) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
 function positiveNumber(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback; }
