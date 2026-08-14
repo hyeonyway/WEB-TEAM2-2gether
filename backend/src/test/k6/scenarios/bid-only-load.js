@@ -123,19 +123,23 @@ function loadOpenAuctions(session) {
 // 세션 인증(#469 이후): 로그인 응답은 accessToken이 아니라 Set-Cookie(SESSION)와
 // csrfToken을 준다. setup()은 VU 컨텍스트 밖이라 응답 쿠키가 어느 VU의 쿠키jar에도
 // 안 들어가므로, 쿠키 값을 직접 뽑아 매 요청에 Cookie 헤더로 수동 첨부한다.
-// #500: 동시 신규 로그인 버스트에서 Spring Session Redis 세션 생성 경합으로
-// 가끔 500이 남(일시적, 재시도하면 대부분 성공) — setup 단계에서만 재시도로 완화.
+// #500: 동시 신규 로그인 버스트에서 일부 계정이 손상된 세션 상태에 영구적으로
+// 걸린다(재시도 무의미, TTL 지날 때까지 그 계정은 500만 남). 재시도는 일시적
+// 케이스에만 도움되므로 남겨두되, 그래도 실패하는 슬롯은 버리고 계속 진행한다
+// (세션은 VU끼리 라운드로빈으로 재사용되므로 목표치보다 적어도 QPS 테스트 자체엔 지장 없음).
 function login(users) {
   const sessions = [];
+  let failed = 0;
   for (let start = 0; start < users.length; start += loginBatchSize) {
     const responses = loginBatchWithRetry(users.slice(start, start + loginBatchSize));
     responses.forEach((response, index) => {
-      if (response.status !== 200) throw new Error(`로그인 실패 (index=${start + index}, status=${response.status})`);
-      const cookie = response.cookies.SESSION && response.cookies.SESSION[0] && response.cookies.SESSION[0].value;
-      if (!cookie) throw new Error(`세션 쿠키를 받지 못했습니다 (index=${start + index})`);
+      const cookie = response.status === 200 && response.cookies.SESSION && response.cookies.SESSION[0] && response.cookies.SESSION[0].value;
+      if (!cookie) { failed += 1; return; }
       sessions.push({cookie, csrfToken: response.json('csrfToken')});
     });
   }
+  if (failed > 0) console.warn(`로그인 실패 ${failed}/${users.length}건 스킵함 (#500)`);
+  if (sessions.length === 0) throw new Error('로그인에 전부 실패해 세션이 하나도 없습니다.');
   return sessions;
 }
 
