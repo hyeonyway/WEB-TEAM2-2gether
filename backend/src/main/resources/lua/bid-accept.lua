@@ -32,8 +32,9 @@ local cardPsaGrade = redis.call('HGET', KEYS[1], 'cardPsaGrade') or ''
 local cardLanguage = redis.call('HGET', KEYS[1], 'cardLanguage') or ''
 local cardThumbnailUrl = redis.call('HGET', KEYS[1], 'cardThumbnailUrl') or ''
 local maxBalance = tonumber(ARGV[7])
+local startPriceNumber = tonumber(startPrice)
 
-if not status or not sellerId or not itemId or not startPrice or not currentPrice or not bidIncrement or not closeTime or not closeTimeEpochMillis or not requestedPrice or not maxBalance then
+if not status or not sellerId or not itemId or not startPriceNumber or not currentPrice or not bidIncrement or not closeTime or not closeTimeEpochMillis or not requestedPrice or not maxBalance then
     return 'REJECTED|STATE_MISSING'
 end
 if status ~= 'OPEN' and status ~= 'ENDING' then return 'REJECTED|NOT_OPEN' end
@@ -60,6 +61,8 @@ local newAvailableString = integerString(newAvailable)
 local newFrozenString = integerString(newFrozen)
 local priceString = integerString(price)
 local requestedPriceString = integerString(requestedPrice)
+local startPriceString = integerString(startPriceNumber)
+local bidIncrementString = integerString(bidIncrement)
 local bidderWalletVersionString = integerString(bidderWalletVersion)
 redis.call('HSET', KEYS[2], 'availableBalance', newAvailableString, 'frozenBalance', newFrozenString)
 redis.call('HSET', KEYS[3], 'amount', priceString)
@@ -98,7 +101,9 @@ end
 redis.call('HSET', KEYS[1], 'currentPrice', priceString, 'highestBidderId', ARGV[1], 'highestHoldAmount', priceString,
     'closeTime', nextCloseTime, 'closeTimeEpochMillis', nextCloseTimeEpochMillis, 'status', nextStatus)
 local activeAuctionIndex = 'auction:active:by-close-time'
-local changeRateBasisPoints = math.floor((price - tonumber(startPrice)) * 10000 / tonumber(startPrice))
+-- 나눗셈을 먼저 수행해 (price - startPrice) * 10000 중간값이 Lua double의 안전 정수 범위를
+-- 넘지 않게 한다. ZSET score는 정렬 지표이므로 최종값은 Redis의 double score 계약을 따른다.
+local changeRateBasisPoints = math.floor(((price - startPriceNumber) / startPriceNumber) * 10000)
 if buyNow then
     redis.call('EXPIRE', KEYS[1], 3600 + (tonumber(string.match(KEYS[1], 'auction:state:(.+)')) % 18001))
     redis.call('ZREM', activeAuctionIndex, string.match(KEYS[1], 'auction:state:(.+)'))
@@ -147,7 +152,7 @@ local result = 'ACCEPTED|' .. streamId .. '|' .. priceString .. '|' .. auctionVe
     .. '|' .. newAvailableString .. '|' .. integerString(newFrozen) .. '|' .. bidderWalletVersionString
     .. '|' .. integerString(price + bidIncrement) .. '|' .. nextCloseTime
     .. '|' .. (buyNow and 'WON' or 'LEADING') .. '|' .. pendingOrderStatus
-    .. '|' .. itemId .. '|' .. startPrice .. '|' .. bidIncrement .. '|' .. (previousBidderId == '' and 'null' or previousBidderId)
+    .. '|' .. itemId .. '|' .. startPriceString .. '|' .. bidIncrementString .. '|' .. (previousBidderId == '' and 'null' or previousBidderId)
     .. '|' .. nextStatus .. '|' .. tostring(closeTimeExtended)
     .. '|' .. cardName .. '|' .. cardPsaGrade .. '|' .. cardLanguage .. '|' .. cardThumbnailUrl .. '|' .. sellerId
     .. '|' .. previousAvailable .. '|' .. previousFrozen .. '|' .. previousWalletVersion

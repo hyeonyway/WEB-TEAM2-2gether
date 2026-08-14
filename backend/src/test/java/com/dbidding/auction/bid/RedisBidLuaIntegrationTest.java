@@ -264,4 +264,25 @@ class RedisBidLuaIntegrationTest {
         assertThat(replay.result().bid().amount()).isEqualTo(810_000_000_000L);
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
     }
+
+    @Test
+    void 상한_근처_입찰도_변동률을_계산하고_멱등_응답에_정수_문자열만_기록한다() {
+        redisTemplate.opsForHash().putAll("auction:state:1", Map.ofEntries(
+                Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"),
+                Map.entry("startPrice", "1e+0"), Map.entry("currentPrice", "1"), Map.entry("bidIncrement", "1e+0"),
+                Map.entry("closeTime", "2026-08-10T01:00:00Z"), Map.entry("closeTimeEpochMillis", "1786323600000"),
+                Map.entry("highestBidderId", ""), Map.entry("highestHoldAmount", "0"),
+                Map.entry("sequence", "0"), Map.entry("bidCount", "0")
+        ));
+        redisTemplate.opsForHash().putAll("wallet:balance:2", Map.of(
+                "availableBalance", "1000000000000", "frozenBalance", "0", "walletVersion", "0"
+        ));
+
+        executor.execute(new BidCommand(2, 1, 1_000_000_000_000L, "max-rate"));
+
+        assertThat(redisTemplate.opsForZSet().score("auction:active:by-change-rate", "1"))
+                .isEqualTo(9_999_999_999_990_000D);
+        assertThat(redisTemplate.opsForValue().get("auction:bid:idempotency:1:2:max-rate"))
+                .doesNotContain("e+").doesNotContain("E+");
+    }
 }
