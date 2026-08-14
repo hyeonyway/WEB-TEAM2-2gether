@@ -198,4 +198,3 @@
 - [ ] **Step 6: 최종 마이크로 커밋**
 
   Commit subject: `test: Redis 경매 조회 성능 회귀를 검증`
-

@@ -105,4 +105,3 @@ state hash 응답을 `StoredAuctionState(AuctionState state, Integer highestBidd
 - Redis 오류가 DB fallback으로 바뀌지 않는 테스트를 유지/추가한다.
 - 전체 backend 테스트를 통과시킨다.
 - 로컬 부하 테스트에서 Redis connections, Tomcat busy threads, Hikari active/pending, cache hit ratio, API p95/p99, 오류율을 변경 전과 비교한다.
-
