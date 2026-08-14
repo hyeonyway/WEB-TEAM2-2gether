@@ -4,8 +4,12 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
+import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
+import com.dbidding.dashboard.RedisDashboardStateSeeder;
 import com.dbidding.global.concurrent.RedisStateSingleFlight;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -15,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -23,6 +28,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -31,6 +37,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
@@ -39,6 +46,7 @@ import org.testcontainers.mysql.MySQLContainer;
 @ActiveProfiles("redis")
 @SpringJUnitConfig(classes = {
         RedisAuctionStateSeeder.class,
+        RedisDashboardStateSeeder.class,
         RedisStateSingleFlight.class,
         RedisAuctionStateSeederConnectionPoolIntegrationTest.TransactionTestConfiguration.class
 })
@@ -49,11 +57,13 @@ class RedisAuctionStateSeederConnectionPoolIntegrationTest {
             .withDatabaseName("dbidding");
 
     @Autowired private RedisAuctionStateSeeder stateSeeder;
+    @Autowired private RedisDashboardStateSeeder dashboardStateSeeder;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private HikariDataSource dataSource;
 
     @MockitoBean private StringRedisTemplate redisTemplate;
     @MockitoBean private RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
+    @MockitoBean private BidRepository bidRepository;
     @MockitoBean private RedisAuctionSeedBatchCoordinator batchCoordinator;
     @MockitoBean(name = "auctionStateSeedScript") private RedisScript<Long> auctionStateSeedScript;
 
@@ -92,6 +102,26 @@ class RedisAuctionStateSeederConnectionPoolIntegrationTest {
             requestExecutor.shutdownNow();
             requestExecutor.awaitTermination(2, SECONDS);
         }
+    }
+
+    @Test
+    void dashboard_참여_경매_조회_후에는_트랜잭션_없이_cold_seed를_호출한다() {
+        AtomicBoolean transactionActiveAtSeed = new AtomicBoolean();
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        given(redisTemplate.hasKey("auction:dashboard:seeded:77")).willReturn(false);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(projectionCatchUpVerifier.isCaughtUp()).willAnswer(invocation -> {
+            transactionActiveAtSeed.set(TransactionSynchronizationManager.isActualTransactionActive());
+            return true;
+        });
+        given(bidRepository.findDistinctAuctionByBidderIdAndAuctionStatusIn(
+                77, java.util.List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)))
+                .willReturn(java.util.List.of());
+
+        dashboardStateSeeder.seedIfRequired(77);
+
+        assertThat(transactionActiveAtSeed).isFalse();
     }
 
     private boolean seedAfter(
