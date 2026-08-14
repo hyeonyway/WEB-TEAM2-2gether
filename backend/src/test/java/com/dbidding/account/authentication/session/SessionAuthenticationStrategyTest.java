@@ -6,6 +6,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -111,5 +112,26 @@ class SessionAuthenticationStrategyTest {
 		ResponseEntity<Void> response = strategy.terminate(new MockHttpServletRequest());
 
 		assertThat(response.getStatusCode().value()).isEqualTo(204);
+	}
+
+	@Test
+	void 재로그인은_현재_세션을_제외하고_다른_세션만_종료한다() {
+		var repository = org.mockito.Mockito.mock(FindByIndexNameSessionRepository.class);
+		var provider = org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+		org.mockito.Mockito.when(provider.getIfAvailable()).thenReturn(repository);
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		MockHttpSession session = (MockHttpSession) request.getSession(true);
+		SessionPrincipal.authenticated(new AuthenticatedAccount(7, AccountRole.USER), NOW).writeTo(session);
+		java.util.Map<String, org.springframework.session.Session> sessions = new java.util.HashMap<>();
+		sessions.put(session.getId(), null); sessions.put("other-session", null);
+		org.mockito.Mockito.when(repository.findByPrincipalName("7")).thenReturn(sessions);
+		SessionAuthenticationStrategy withRepository = new SessionAuthenticationStrategy(
+				new SessionProperties(SessionStore.MEMORY, "SESSION", false, "lax", java.time.Duration.ofHours(12)), Clock.fixed(NOW, ZoneOffset.UTC),
+				new SessionCsrfTokenService(), sessionSseTerminationPublisher, provider);
+
+		withRepository.establish(new AuthenticatedAccount(7, AccountRole.USER), request);
+
+		org.mockito.Mockito.verify(repository).deleteById("other-session");
+		org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).deleteById(session.getId());
 	}
 }

@@ -28,7 +28,7 @@
 
 - 로그인 성공 뒤 새 세션의 principal index를 기록하기 전에 `findByPrincipalName(userId.toString())`으로 같은 계정의 기존 Redis 세션을 조회한다.
 - 기존 세션마다 Redis 저장소에서 삭제하고 `SessionSseTerminationPublisher`로 session ID를 발행한다.
-- 이후 현재 요청의 세션 ID를 교체하고, 새 `SessionPrincipal` 및 CSRF 토큰을 기록한다.
+- 현재 요청에 이미 세션이 있으면 먼저 session ID를 교체하고, 교체된 현재 session ID는 삭제 대상에서 제외한다. 따라서 같은 세션의 재로그인은 자기 자신을 삭제하지 않는다.
 - 종료 메시지는 모든 인스턴스의 `SessionSseConnectionRegistry`로 전달된다. 알림·지갑 SSE는 해당 registry에 등록되어 있으므로 기존 브라우저 연결도 닫힌다.
 
 ## 4. 처리 흐름
@@ -81,6 +81,7 @@
 - 같은 계정의 로그인 요청이 동시에 들어오면 Redis principal index 조회와 삭제가 완전한 compare-and-set은 아니다. 최종적으로 마지막 로그인 세션 하나만 남도록 하기 위해 사용자별 로그인 직렬화가 필요하면 별도 Redis lock을 추가해야 한다.
 - 이번 구현에서는 기존 세션 삭제와 새 principal 기록을 순서대로 수행하고, 동시 로그인에 대한 정확한 단일 세션 보장은 Redis repository 계약만으로 단정하지 않는다. 동시 로그인 경쟁 조건은 통합 테스트와 운영 관찰 후 필요 시 후속 이슈로 보강한다.
 - Redis 장애에서는 세션 조회·삭제가 실패하므로 인증은 fail-closed로 처리한다.
+- Redis 연결·명령 timeout은 일반 500이 아니라 인증 인프라 장애인 503으로 매핑한다. 보호 API와 개인화 SSE 신규 연결 모두 같은 정책을 적용한다.
 
 ## 7. 회귀 테스트
 
@@ -90,6 +91,8 @@
 - 다른 기기의 기존 세션이 있으면 새 로그인 시 repository에서 삭제되고 해당 session ID의 SSE 종료가 전파된다.
 - 삭제된 기존 세션으로 보호 API를 호출하면 401이며, 새 세션은 정상 인증된다.
 - 기존 idle timeout·CSRF·로그아웃 동작은 유지된다.
+- 같은 세션에서 재로그인해도 현재 세션은 삭제하지 않고, 다른 기기 세션만 종료한다.
+- Redis 중단·복구 시 보호 API가 fail-closed 503으로 응답하는지 확인한다.
 
 ## 8. 완료 기준
 

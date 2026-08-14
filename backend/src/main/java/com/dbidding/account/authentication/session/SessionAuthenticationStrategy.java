@@ -26,23 +26,23 @@ public class SessionAuthenticationStrategy {
 	private final ObjectProvider<FindByIndexNameSessionRepository<?>> sessionRepositoryProvider;
 
 	public ResponseEntity<?> establish(AuthenticatedAccount account, HttpServletRequest request) {
-		invalidateExistingSessions(account.userId());
 		HttpSession session = request.getSession(false);
 		if (session == null) {
 			session = request.getSession(true);
 		} else {
 			request.changeSessionId();
 		}
+		invalidateExistingSessions(account.userId(), session.getId());
 
 		SessionPrincipal.authenticated(account, clock.instant()).writeTo(session);
 		String csrfToken = csrfTokenService.issue(session);
 		return ResponseEntity.ok(new SessionLoginResponse(csrfToken));
 	}
 
-	private void invalidateExistingSessions(Integer userId) {
+	private void invalidateExistingSessions(Integer userId, String currentSessionId) {
 		FindByIndexNameSessionRepository<?> repository = sessionRepositoryProvider.getIfAvailable();
 		if (repository == null) return;
-		repository.findByPrincipalName(userId.toString()).keySet().forEach(sessionId -> {
+		repository.findByPrincipalName(userId.toString()).keySet().stream().filter(sessionId -> !sessionId.equals(currentSessionId)).forEach(sessionId -> {
 			sessionSseTerminationPublisher.terminate(sessionId);
 			repository.deleteById(sessionId);
 		});
