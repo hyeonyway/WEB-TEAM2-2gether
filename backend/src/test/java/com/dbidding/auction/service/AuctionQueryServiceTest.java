@@ -17,6 +17,7 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.PageRequestDto;
+import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.AuctionCursor;
 import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.auction.dto.AuctionSearchRequest;
@@ -193,6 +194,45 @@ class AuctionQueryServiceTest {
 
         assertThat(response.content()).hasSize(1);
         assertThat(response.content().getFirst().isHighest()).isTrue();
+    }
+
+    @Test
+    void Redis_입찰_내역은_한번_읽은_stored_state를_최근_입찰_조회에_재사용한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        var state = redisState(1, 3, 43_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var stored = new RedisAuctionRealtimeStateReader.StoredAuctionState(state, 7);
+        var recentBid = new BidResponses.BidSummary(
+                11L, 43_000L, "user-7***", true, Instant.parse("2026-08-01T00:10:00Z"));
+        when(reader.readStoredAuctionState(1)).thenReturn(stored);
+        when(reader.read(stored, null)).thenReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
+                AuctionStatus.OPEN, 43_000L, 1_000L, 3, state.closeTime(), null,
+                MyBidStatus.NONE, null, List.of(recentBid)));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.getBids(1, new PageRequestDto(0, 20));
+
+        assertThat(response.content()).containsExactly(recentBid);
+    }
+
+    @Test
+    void Redis_입찰_컨텍스트는_hit한_stored_state를_재사용한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        var state = redisState(1, 3, 43_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var stored = new RedisAuctionRealtimeStateReader.StoredAuctionState(state, 7);
+        when(reader.readStoredAuctionState(1)).thenReturn(stored);
+        when(reader.read(stored, 7)).thenReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
+                AuctionStatus.OPEN, 43_000L, 1_000L, 3, state.closeTime(), null,
+                MyBidStatus.LEADING, 43_000L, List.of()));
+        when(walletService.getBalance(7)).thenReturn(
+                new com.dbidding.wallet.dto.WalletBalanceResponse(100_000L, 43_000L, 57_000L));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.getBidContext(7, 1);
+
+        assertThat(response.currentPrice()).isEqualTo(43_000L);
+        assertThat(response.myBidStatus()).isEqualTo(MyBidStatus.LEADING);
+        assertThat(response.myBidAmount()).isEqualTo(43_000L);
+        assertThat(response.wallet().availableBalance()).isEqualTo(57_000L);
     }
 
     @Test

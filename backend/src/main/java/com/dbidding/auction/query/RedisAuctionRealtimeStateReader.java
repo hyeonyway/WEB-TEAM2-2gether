@@ -32,13 +32,19 @@ public class RedisAuctionRealtimeStateReader {
     }
 
     public RealtimeState read(Integer auctionId, Integer userId) {
-        Snapshot snapshot = readSnapshot(auctionId);
-        if (snapshot == null) return null;
+        StoredAuctionState stored = readStoredAuctionState(auctionId);
+        if (stored == null) return null;
+        return read(stored, userId);
+    }
+
+    public RealtimeState read(StoredAuctionState stored, Integer userId) {
+        Integer auctionId = stored.state().auctionId();
         try {
-            List<BidResponses.BidSummary> recentBids = recentBids(auctionId, snapshot.highestBidderId());
+            AuctionState state = stored.state();
+            List<BidResponses.BidSummary> recentBids = recentBids(auctionId, stored.highestBidderId());
             Map<Object, Object> myBid = userId == null ? Map.of() : redisTemplate.opsForHash().entries(bidderKey(auctionId, userId));
             MyBidState myBidState = parseMyBidState(myBid);
-            return new RealtimeState(snapshot.status(), snapshot.currentPrice(), snapshot.bidIncrement(), snapshot.bidCount(), snapshot.closeTime(), snapshot.buyNowPrice(),
+            return new RealtimeState(state.status(), state.currentPrice(), state.bidIncrement(), state.bidCount(), state.closeTime(), state.buyNowPrice(),
                     myBidState.status(), myBidState.amount(), recentBids);
         } catch (IllegalArgumentException | ArithmeticException exception) {
             return null;
@@ -47,8 +53,19 @@ public class RedisAuctionRealtimeStateReader {
 
     /** MySQL projection 전에도 활성 경매를 응답하기 위한 Redis 원본 상태다. */
     public AuctionState readAuctionState(Integer auctionId) {
+        StoredAuctionState stored = readStoredAuctionState(auctionId);
+        return stored == null ? null : stored.state();
+    }
+
+    public StoredAuctionState readStoredAuctionState(Integer auctionId) {
         Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
-        return parseAuctionState(auctionId, fields);
+        AuctionState state = parseAuctionState(auctionId, fields);
+        if (state == null) return null;
+        try {
+            return new StoredAuctionState(state, nullableInteger(fields.get("highestBidderId")));
+        } catch (IllegalArgumentException | ArithmeticException exception) {
+            return null;
+        }
     }
 
     /** 후보 경매 state를 한 connection의 pipeline으로 읽고 입력 순서대로 유효 state만 반환한다. */
@@ -165,11 +182,11 @@ public class RedisAuctionRealtimeStateReader {
     }
 
     public Snapshot readSnapshot(Integer auctionId) {
-        AuctionState state = readAuctionState(auctionId);
-        if (state == null) return null;
-        Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
+        StoredAuctionState stored = readStoredAuctionState(auctionId);
+        if (stored == null) return null;
+        AuctionState state = stored.state();
         return new Snapshot(state.status(), state.currentPrice(), state.bidIncrement(), state.bidCount(), state.closeTime(),
-                state.buyNowPrice(), nullableInteger(fields.get("highestBidderId")));
+                state.buyNowPrice(), stored.highestBidderId());
     }
 
     private List<BidResponses.BidSummary> recentBids(Integer auctionId, Integer highestBidderId) {
@@ -216,6 +233,7 @@ public class RedisAuctionRealtimeStateReader {
                                 Long myBidAmount, List<BidResponses.BidSummary> recentBids) { }
     public record Snapshot(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                            Instant closeTime, Long buyNowPrice, Integer highestBidderId) { }
+    public record StoredAuctionState(AuctionState state, Integer highestBidderId) { }
     public record MyBidState(MyBidStatus status, Long amount) { }
     public record AuctionState(Integer auctionId, AuctionStatus status, Integer sellerId, Integer itemId, String cardName, String cardSetName,
                                String cardPsaGrade, String cardLanguage, String cardThumbnailUrl, String auctionName, String description, String sellerMemo, String psaCertification,

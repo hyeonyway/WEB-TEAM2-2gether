@@ -2,6 +2,8 @@ package com.dbidding.auction.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
@@ -51,6 +53,7 @@ class RedisAuctionRealtimeStateReaderTest {
         assertThat(state.recentBids()).extracting(item -> item.amount()).containsExactly(43_000L);
         assertThat(state.recentBids()).extracting(item -> item.id()).containsExactly(-7L);
         assertThat(state.recentBids()).extracting(item -> item.isHighest()).containsExactly(true);
+        verify(hashOperations, times(1)).entries("auction:state:10");
         var auction = new RedisAuctionRealtimeStateReader(redisTemplate).readAuctionState(10);
         assertThat(auction.cardSetName()).isEqualTo("base");
         assertThat(auction.startPrice()).isEqualTo(40_000L);

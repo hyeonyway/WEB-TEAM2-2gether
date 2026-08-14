@@ -246,8 +246,10 @@ public class AuctionQueryService {
     }
 
     public AuctionResponses.Page<BidResponses.BidSummary> getBids(Integer auctionId, PageRequestDto request) {
-        if (realtimeStateReader != null && realtimeStateReader.readAuctionState(auctionId) != null) {
-            RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(auctionId, null);
+        RedisAuctionRealtimeStateReader.StoredAuctionState stored = realtimeStateReader == null
+                ? null : realtimeStateReader.readStoredAuctionState(auctionId);
+        if (stored != null) {
+            RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(stored, null);
             if (realtime == null) throw AuctionException.notFound();
             List<BidResponses.BidSummary> content = realtime.recentBids();
             return new AuctionResponses.Page<>(content, 0, request.sizeOrDefault(), content.size(), false);
@@ -259,9 +261,14 @@ public class AuctionQueryService {
         if (realtimeStateReader == null) {
             return dbAuctionQueryService.getBidContext(userId, auctionId);
         }
-        seedAuctionIfRequired(auctionId);
+        RedisAuctionRealtimeStateReader.StoredAuctionState stored = realtimeStateReader.readStoredAuctionState(auctionId);
+        if (stored == null && stateSeeder != null) {
+            stateSeeder.seedIfAbsent(auctionId);
+            stored = realtimeStateReader.readStoredAuctionState(auctionId);
+        }
         WalletBalanceResponse wallet = walletService.getBalance(userId);
-        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(auctionId, userId);
+        RedisAuctionRealtimeStateReader.RealtimeState realtime = stored == null
+                ? null : realtimeStateReader.read(stored, userId);
         if (realtime != null) {
             return BidResponses.BidContext.builder()
                     .auctionId(auctionId).status(realtime.status()).currentPrice(realtime.currentPrice())
