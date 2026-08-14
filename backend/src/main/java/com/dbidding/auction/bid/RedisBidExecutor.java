@@ -66,7 +66,11 @@ public class RedisBidExecutor implements BidExecutor {
                 "wallet:hold:" + command.auctionId() + ":" + command.bidderId(),
                 "auction:bid:idempotency:" + command.auctionId() + ":" + command.bidderId() + ":" + command.idempotencyKey(),
                 "event:timeline",
-                "auction:ending-window:by-close-time"
+                "auction:ending-window:by-close-time",
+                "auction:active:by-bid-count",
+                "auction:active:by-price",
+                "auction:active:by-change-rate",
+                "auction:active:by-open-time"
         );
         String raw = redisTemplate.execute(
                 bidAcceptScript,

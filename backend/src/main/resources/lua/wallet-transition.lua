@@ -20,7 +20,6 @@ if debit and available < amount then return 'REJECTED|INSUFFICIENT_BALANCE' end
 local nextAvailable = debit and (available - amount) or (available + amount)
 local version = redis.call('HINCRBY', KEYS[1], 'walletVersion', 1)
 redis.call('HSET', KEYS[1], 'availableBalance', nextAvailable, 'frozenBalance', frozen)
-redis.call('EXPIRE', KEYS[1], 3600 + (tonumber(ARGV[3]) % 18001))
 
 local streamId = redis.call('XADD', KEYS[3], '*',
     'schemaVersion', '2', 'eventId', ARGV[1], 'eventType', ARGV[2], 'userId', ARGV[3],

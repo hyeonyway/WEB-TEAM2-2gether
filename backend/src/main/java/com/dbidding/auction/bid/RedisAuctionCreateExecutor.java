@@ -29,7 +29,11 @@ public class RedisAuctionCreateExecutor {
                         "auction:sequence",
                         "auction:create:idempotency:" + command.sellerId() + ':' + command.idempotencyKey(),
                         TIMELINE_STREAM,
-                        "auction:ending-window:by-close-time"
+                        "auction:ending-window:by-close-time",
+                        "auction:active:by-bid-count",
+                        "auction:active:by-price",
+                        "auction:active:by-change-rate",
+                        "auction:active:by-open-time"
                 ),
                 command.sellerId().toString(), command.itemId().toString(), required(command.cardName()), required(command.cardSetName()),
                 nullable(command.cardPsaGrade()), nullable(command.cardLanguage()), nullable(command.cardThumbnailUrl()),
@@ -37,7 +41,8 @@ public class RedisAuctionCreateExecutor {
                 nullable(command.psaCertification()), nullable(command.selfGrade()), Boolean.toString(command.psaVerified()),
                 Long.toString(command.startPrice()), nullable(command.buyNowPrice()), Long.toString(command.deliveryFee()),
                 Long.toString(command.bidPriceUnit()), String.join("\n", command.imagePaths()), command.closeTime().toString(),
-                Long.toString(command.closeTime().toEpochMilli()), command.idempotencyKey(), command.idempotencyRequestHash(), occurredAt.toString());
+                Long.toString(command.closeTime().toEpochMilli()), command.idempotencyKey(), command.idempotencyRequestHash(), occurredAt.toString(),
+                Long.toString(occurredAt.toEpochMilli()));
         return parse(raw, command.closeTime());
     }
 

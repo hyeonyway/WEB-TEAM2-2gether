@@ -72,8 +72,12 @@ SELECT
   '오늘 시작한 대시보드 테스트용 진행 경매',
   `seed`.`start_price`,
   `seed`.`start_price` + (`seed`.`number_of_bids` * `seed`.`bid_unit`),
-  -- 부하테스트 중 즉시낙찰로 조기 종료되지 않도록 즉시낙찰가를 아예 안 넣음(009 파일과 동일 방식).
-  NULL,
+  -- 진행 경매의 절반은 즉시 구매를 지원한다.
+  CASE
+    WHEN MOD(`seed`.`item_id`, 2) = 0
+      THEN `seed`.`start_price` + ((`seed`.`number_of_bids` + 10) * `seed`.`bid_unit`)
+    ELSE NULL
+  END,
   3000,
   `seed`.`auction_status`,
   TIMESTAMP(CURDATE(), '00:00:00'),

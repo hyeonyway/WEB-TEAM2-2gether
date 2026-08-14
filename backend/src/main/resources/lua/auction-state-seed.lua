@@ -1,8 +1,10 @@
 -- KEYS[1]: auction state hash, KEYS[2]: active auction ZSET, KEYS[3]: recent bids stream,
--- KEYS[4]: OPEN auction ending-window ZSET
+-- KEYS[4]: OPEN auction ending-window ZSET, KEYS[5]: active-by-bid-count index,
+-- KEYS[6]: active-by-price index, KEYS[7]: active-by-change-rate index, KEYS[8]: active-by-open-time index
 -- ARGV: closeTimeEpochMillis, auctionId, state field count, state field/value pairs,
 --       participant count, (bidderId, status, amount)*, recent bid count,
---       (bidId, bidderId, bidPrice, sequence, occurredAt)*
+--       (bidId, bidderId, bidPrice, sequence, occurredAt)*,
+--       bidCount, currentPrice, changeRateBasisPoints, openTimeEpochMillis
 if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
 
 local position = 3
@@ -45,4 +47,8 @@ if redis.call('HGET', KEYS[1], 'status') == 'OPEN' then
     local estimatedCloseTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'estimatedCloseTimeEpochMillis')) or tonumber(ARGV[1])
     redis.call('ZADD', KEYS[4], estimatedCloseTimeEpochMillis - 300000, ARGV[2])
 end
+redis.call('ZADD', KEYS[5], ARGV[position], ARGV[2])
+redis.call('ZADD', KEYS[6], ARGV[position + 1], ARGV[2])
+redis.call('ZADD', KEYS[7], ARGV[position + 2], ARGV[2])
+redis.call('ZADD', KEYS[8], ARGV[position + 3], ARGV[2])
 return 1

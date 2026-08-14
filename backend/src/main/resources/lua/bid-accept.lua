@@ -1,4 +1,5 @@
--- KEYS: auction state, bidder balance, bidder hold, idempotency result, single timeline stream, ending-window index
+-- KEYS: auction state, bidder balance, bidder hold, idempotency result, single timeline stream, ending-window index,
+--       active-by-bid-count index, active-by-price index, active-by-change-rate index, active-by-open-time index
 -- ARGV: bidderId, price, idempotencyKey, requestHash, nowEpochMillis, nowIsoInstant
 local existing = redis.call('GET', KEYS[4])
 if existing then
@@ -48,7 +49,6 @@ local newAvailable = available - requiredAvailable
 local newFrozen = tonumber(redis.call('HGET', KEYS[2], 'frozenBalance') or '0') + requiredAvailable
 local bidderWalletVersion = redis.call('HINCRBY', KEYS[2], 'walletVersion', 1)
 redis.call('HSET', KEYS[2], 'availableBalance', newAvailable, 'frozenBalance', newFrozen)
-redis.call('EXPIRE', KEYS[2], 3600 + (tonumber(ARGV[1]) % 18001))
 redis.call('HSET', KEYS[3], 'amount', price)
 
 local previousBidderId = highestBidderId or ''
@@ -61,7 +61,6 @@ if highestBidderId and highestBidderId ~= '' and highestBidderId ~= ARGV[1] then
     previousAvailable = redis.call('HINCRBY', previousBalanceKey, 'availableBalance', highestHoldAmount)
     previousFrozen = redis.call('HINCRBY', previousBalanceKey, 'frozenBalance', -highestHoldAmount)
     previousWalletVersion = redis.call('HINCRBY', previousBalanceKey, 'walletVersion', 1)
-    redis.call('EXPIRE', previousBalanceKey, 3600 + (tonumber(highestBidderId) % 18001))
     redis.call('DEL', previousHoldKey)
     redis.call('HSET', 'auction:bidder:' .. string.match(KEYS[1], 'auction:state:(.+)') .. ':' .. highestBidderId,
         'status', 'OUTBID', 'amount', highestHoldAmount)
@@ -81,12 +80,20 @@ end
 redis.call('HSET', KEYS[1], 'currentPrice', price, 'highestBidderId', ARGV[1], 'highestHoldAmount', price,
     'closeTime', nextCloseTime, 'closeTimeEpochMillis', nextCloseTimeEpochMillis, 'status', nextStatus)
 local activeAuctionIndex = 'auction:active:by-close-time'
+local changeRateBasisPoints = math.floor((price - tonumber(startPrice)) * 10000 / tonumber(startPrice))
 if buyNow then
     redis.call('EXPIRE', KEYS[1], 3600 + (tonumber(string.match(KEYS[1], 'auction:state:(.+)')) % 18001))
     redis.call('ZREM', activeAuctionIndex, string.match(KEYS[1], 'auction:state:(.+)'))
     redis.call('ZREM', KEYS[6], string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZREM', KEYS[7], string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZREM', KEYS[8], string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZREM', KEYS[9], string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZREM', KEYS[10], string.match(KEYS[1], 'auction:state:(.+)'))
 else
     redis.call('ZADD', activeAuctionIndex, nextCloseTimeEpochMillis, string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZADD', KEYS[7], bidCount, string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZADD', KEYS[8], price, string.match(KEYS[1], 'auction:state:(.+)'))
+    redis.call('ZADD', KEYS[9], changeRateBasisPoints, string.match(KEYS[1], 'auction:state:(.+)'))
 end
 
 redis.call('XADD', 'auction:recent-bids:' .. string.match(KEYS[1], 'auction:state:(.+)'), 'MAXLEN', 50, '*',

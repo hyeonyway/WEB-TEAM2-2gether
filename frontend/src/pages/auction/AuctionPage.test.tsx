@@ -77,6 +77,19 @@ describe('AuctionPage',()=>{
     expect(apiMocks.fetchAuctions).not.toHaveBeenCalled();
   });
 
+  it('처음 진입하면 최신순으로 조회하고 정렬 버튼을 최신순부터 배치한다',async()=>{
+    renderPage();
+
+    await screen.findByText('피카츄');
+    expect(apiMocks.fetchAuctions).toHaveBeenCalledWith(expect.objectContaining({sort:'LATEST'}),undefined);
+    expect(screen.getAllByRole('button').filter(button=>[
+      '최신순','마감 임박순','입찰 수 높은순','경매가 높은순','경매가 낮은순','상승률 높은순',
+    ].includes(button.textContent??'')).map(button=>button.textContent)).toEqual([
+      '최신순','마감 임박순','입찰 수 높은순','경매가 높은순','경매가 낮은순','상승률 높은순',
+    ]);
+    expect(screen.getByText('1개 표시 중')).toBeInTheDocument();
+  });
+
   it('목록 하단이 보이면 다음 cursor를 조회해 경매를 누적한다',async()=>{
     renderPage();
 
@@ -87,7 +100,7 @@ describe('AuctionPage',()=>{
 
     await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenCalledTimes(2));
     expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
-      expect.objectContaining({sort:'BID_COUNT',size:12}),
+      expect.objectContaining({sort:'LATEST',size:12}),
       'next-token',
     );
     expect(await screen.findByText('리자몽')).toBeInTheDocument();
@@ -103,6 +116,12 @@ describe('AuctionPage',()=>{
       expect.objectContaining({sort:'LATEST'}),
       undefined,
     ));
+  });
+
+  it('마감 임박순 정렬을 선택할 수 있다',async()=>{
+    renderPage();
+    await userEvent.setup().click(await screen.findByRole('button',{name:'마감 임박순'}));
+    await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenCalledWith(expect.objectContaining({sort:'ENDING_SOON'}),undefined));
   });
 
   it('선택한 정렬 기준을 URL에 저장해 새로고침 후에도 복원한다',async()=>{
@@ -139,7 +158,7 @@ describe('AuctionPage',()=>{
 
     expect(apiMocks.fetchAuctions).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData<{pages:{content:AuctionDto[]}[]}>(
-      auctionQueryKeys.list({keyword:'',psaGrade:null,sort:'BID_COUNT',size:12},'public'),
+      auctionQueryKeys.list({keyword:'',psaGrade:null,sort:'LATEST',size:12},'public'),
     )?.pages[0].content[0].currentPrice).toBe(15_000);
   });
 
@@ -165,6 +184,28 @@ describe('AuctionPage',()=>{
     });
   });
 
+  it('마감 임박순은 입찰 갱신 뒤에도 기존 ENDING 경매의 순서를 유지한다',async()=>{
+    const first={...auction(1,'첫 번째 마감 임박'),status:'ENDING' as const};
+    const second={...auction(2,'두 번째 마감 임박'),status:'ENDING' as const};
+    const third={...auction(3,'세 번째 마감 임박'),status:'ENDING' as const};
+    apiMocks.fetchAuctions.mockReset().mockResolvedValueOnce({
+      content:[first,second,third],next_cursor:null,has_next:false,
+    });
+    renderPage('/auction?sort=ENDING_SOON');
+
+    await screen.findByText('첫 번째 마감 임박');
+    const orderBefore=screen.getAllByRole('article').map(card=>within(card).getByRole('heading').textContent);
+
+    await act(async()=>onAuctionUpdated({
+      type:'BID_PLACED',auction_id:2,bidder_id:7,previous_bidder_id:null,
+      start_price:10_000,current_price:15_000,bid_increment:1_000,bid_count:2,
+      ends_at:'2099-08-04T10:00:00Z',status:'ENDING',event_id:2,
+      occurred_at:'2026-08-04T10:00:00Z',
+    }));
+
+    expect(screen.getAllByRole('article').map(card=>within(card).getByRole('heading').textContent)).toEqual(orderBefore);
+  });
+
   it('다음 페이지 조회가 실패해도 기존 목록과 재시작 버튼을 유지한다',async()=>{
     let rejectNextPage:(reason?:unknown)=>void=()=>{};
     const nextPage=new Promise((_,reject)=>{rejectNextPage=reject;});
@@ -188,7 +229,7 @@ describe('AuctionPage',()=>{
     expect(observeCount).toBe(observeCountBeforeFailure);
     await user.click(retry);
     await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
-      expect.objectContaining({sort:'BID_COUNT'}),
+      expect.objectContaining({sort:'LATEST'}),
       undefined,
     ));
   });

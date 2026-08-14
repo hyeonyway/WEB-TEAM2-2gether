@@ -3,6 +3,7 @@ package com.dbidding.auction.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +45,10 @@ class RedisAuctionEndingTransitionProcessorTest {
         when(hashOperations.get("auction:state:2", "closeTime")).thenReturn("2026-08-10T00:05:00Z");
         when(hashOperations.get("auction:state:1", "estimatedCloseTime")).thenReturn("2026-08-10T00:05:00Z");
         when(hashOperations.get("auction:state:2", "estimatedCloseTime")).thenReturn("2026-08-10T00:05:00Z");
+        when(hashOperations.get("auction:state:1", "startPrice")).thenReturn("40000");
+        when(hashOperations.get("auction:state:1", "currentPrice")).thenReturn("43000");
+        when(hashOperations.get("auction:state:1", "bidIncrement")).thenReturn("3000");
+        when(hashOperations.get("auction:state:1", "bidCount")).thenReturn("2");
         when(extensionProvider.next()).thenReturn(Duration.ofSeconds(90));
         when(redisTemplate.execute(eq(script), anyList(), eq("1"), eq("1786320000000"), eq("2026-08-10T00:00:00Z"),
                 eq("2026-08-10T00:06:30Z"), eq("1786320390000"))).thenReturn("TRANSITIONED|1-0|2026-08-10T00:06:30Z");
@@ -54,5 +59,15 @@ class RedisAuctionEndingTransitionProcessorTest {
 
         verify(auctionMetrics).recordEndingTransition();
         verify(eventPublisher).publishEvent(new AuctionCloseScheduleChangedEvent(1, Instant.parse("2026-08-10T00:06:30Z"), "ending_transition"));
+        verify(auctionStreamPublisher).publish(argThat(payload ->
+                payload.type() == com.dbidding.auction.sse.AuctionStreamEventType.AUCTION_ENDING_STARTED
+                        && payload.auctionId().equals(1)
+                        && payload.startPrice().equals(40_000L)
+                        && payload.currentPrice().equals(43_000L)
+                        && payload.bidIncrement().equals(3_000L)
+                        && payload.bidCount().equals(2)
+                        && payload.endsAt().equals(Instant.parse("2026-08-10T00:05:00Z"))
+                        && payload.status() == com.dbidding.auction.domain.AuctionStatus.ENDING
+        ));
     }
 }

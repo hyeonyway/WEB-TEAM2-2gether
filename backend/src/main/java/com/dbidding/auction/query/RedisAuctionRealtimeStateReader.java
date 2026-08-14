@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
 
 /**
@@ -69,6 +70,22 @@ public class RedisAuctionRealtimeStateReader {
         java.util.Set<String> ids = redisTemplate.opsForZSet().range("auction:active:by-close-time", 0, -1);
         if (ids == null) return List.of();
         return ids.stream().map(Integer::valueOf).toList();
+    }
+
+    /**
+     * 정렬 기준별 ZSET에서 bound 이후 batchSize개만 가져온다. bound가 null이면 처음부터다.
+     * withinBoundOffset은 같은 score(bound)에 batchSize를 넘는 동점이 있을 때, 그 동점 구간 안에서
+     * 얼마나 건너뛸지를 나타낸다 — Redis 자체의 동일 score 내 lex 순서(멤버 문자열 기준)는 우리가
+     * 원하는 숫자 auctionId tie-break와 다르므로, 호출부가 반환된 값을 직접 재정렬/비교해서
+     * 정확한 순서와 경계를 만든다(이 메서드는 범위만 좁혀줄 뿐 정확한 순서를 보장하지 않음).
+     */
+    public List<ZSetOperations.TypedTuple<String>> activeIdsBatch(String zsetKey, boolean descending, Double bound, long withinBoundOffset, int batchSize) {
+        java.util.Set<ZSetOperations.TypedTuple<String>> tuples = descending
+                ? redisTemplate.opsForZSet().reverseRangeByScoreWithScores(zsetKey, Double.NEGATIVE_INFINITY,
+                        bound == null ? Double.POSITIVE_INFINITY : bound, withinBoundOffset, batchSize)
+                : redisTemplate.opsForZSet().rangeByScoreWithScores(zsetKey, bound == null ? Double.NEGATIVE_INFINITY : bound,
+                        Double.POSITIVE_INFINITY, withinBoundOffset, batchSize);
+        return tuples == null ? List.of() : List.copyOf(tuples);
     }
 
     public List<Integer> participatingAuctionIds(Integer userId) {

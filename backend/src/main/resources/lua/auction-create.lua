@@ -1,7 +1,9 @@
--- KEYS: auction sequence, seller idempotency result, single timeline stream, ending-window index
+-- KEYS: auction sequence, seller idempotency result, single timeline stream, ending-window index,
+--       active-by-bid-count index, active-by-price index, active-by-change-rate index, active-by-open-time index
 -- ARGV: sellerId, itemId, cardName, cardSetName, cardPsaGrade, cardLanguage, cardThumbnailUrl, auctionName, description,
 --       sellerMemo, psaCertification, selfGrade, psaVerified, startPrice, buyNowPrice, deliveryFee, bidPriceUnit,
---       imagePaths, closeTime, closeTimeEpochMillis, idempotencyKey, idempotencyRequestHash, occurredAt
+--       imagePaths, closeTime, closeTimeEpochMillis, idempotencyKey, idempotencyRequestHash, occurredAt,
+--       occurredAtEpochMillis
 local existing = redis.call('GET', KEYS[2])
 if existing then
     local separator = string.find(existing, '|')
@@ -45,6 +47,10 @@ redis.call('HSET', stateKey,
     'bidCount', '0')
 redis.call('ZADD', 'auction:active:by-close-time', ARGV[20], auctionId)
 redis.call('ZADD', KEYS[4], ARGV[20] - 300000, auctionId)
+redis.call('ZADD', KEYS[5], 0, auctionId)
+redis.call('ZADD', KEYS[6], ARGV[14], auctionId)
+redis.call('ZADD', KEYS[7], 0, auctionId)
+redis.call('ZADD', KEYS[8], ARGV[24], auctionId)
 
 local streamId = redis.call('XADD', KEYS[3], '*',
     'schemaVersion', '1',

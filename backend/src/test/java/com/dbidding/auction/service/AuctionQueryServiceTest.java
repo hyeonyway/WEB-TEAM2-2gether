@@ -40,6 +40,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.DefaultTypedTuple;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -79,7 +81,7 @@ class AuctionQueryServiceTest {
         Auction extra = auction(1, AuctionStatus.OPEN, 40_000L, 3);
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(Instant.class),
+                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(Instant.class),
                 eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(first, second, extra));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -98,25 +100,18 @@ class AuctionQueryServiceTest {
     }
 
     @Test
-    void Redis_활성_경매_snapshot으로_목록의_변경_필드를_overlay한다() {
+    void Redis_리더가_없으면_DB_목록을_반환한다() {
         Instant estimatedCloseTime = Instant.parse("2026-08-08T01:00:00Z");
         Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
-        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of(auction));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
-        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
-        when(reader.activeAuctionIds()).thenReturn(null);
-        when(reader.readSnapshot(1)).thenReturn(new RedisAuctionRealtimeStateReader.Snapshot(
-                AuctionStatus.ENDING, 43_000L, 3_000L, 7, Instant.parse("2026-08-08T01:00:00Z"), 100_000L, 2
-        ));
-        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
-
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.LATEST, null, null, 20));
 
         assertThat(response.content().getFirst())
                 .extracting(item -> item.currentPrice(), item -> item.bidCount(), item -> item.status(), item -> item.endsAt())
-                .containsExactly(43_000L, 7, AuctionStatus.ENDING, Instant.parse("2026-08-08T01:00:00Z"));
+                .containsExactly(42_000L, 0, AuctionStatus.ENDING, estimatedCloseTime);
     }
 
     @Test
@@ -145,7 +140,7 @@ class AuctionQueryServiceTest {
         Auction next = auction(1, AuctionStatus.OPEN, 40_000L, 1);
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.PRICE_HIGH.name()), eq(null), eq(45_000L), eq(null), eq(null), eq(2), eq(true),
+                eq(AuctionSort.PRICE_HIGH.name()), eq(null), eq(45_000L), eq(null), eq(null), eq(null), eq(2), eq(true),
                 any(Instant.class), eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(next));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -167,7 +162,7 @@ class AuctionQueryServiceTest {
         ReflectionTestUtils.setField(first, "changeRateBasisPoints", 5_000L);
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
+                eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
                 any(Instant.class), eq(PageRequest.of(0, 2))
         )).thenReturn(List.of(first, extra));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -239,7 +234,7 @@ class AuctionQueryServiceTest {
     void ENDING_경매_목록의_endsAt은_실제_closeTime이_아니라_얼린_estimatedCloseTime이다() {
         Instant estimatedCloseTime = Instant.parse("2026-08-12T10:00:00Z");
         Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
-        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of(auction));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
@@ -312,6 +307,133 @@ class AuctionQueryServiceTest {
         assertThat(response.getFirst().cardName()).isEqualTo("Mock Card");
         assertThat(response.getFirst().startPrice()).isEqualTo(42_000L);
         assertThat(response.getFirst().closedAt()).isEqualTo(failed.getCloseTime());
+    }
+
+    @Test
+    void Redis_활성_경매_목록은_BID_COUNT_기준_내림차순으로_정렬한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 5), tuple(2, 10), tuple(3, 1)));
+        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionState(2)).thenReturn(redisState(2, 10, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionState(3)).thenReturn(redisState(3, 1, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20));
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(2, 1, 3);
+    }
+
+    @Test
+    void Redis_활성_경매_목록_커서_이후_페이지는_이전_항목을_반복하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(2, 10), tuple(1, 5), tuple(3, 1)));
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 5), tuple(3, 1)));
+        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionState(2)).thenReturn(redisState(2, 10, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionState(3)).thenReturn(redisState(3, 1, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var firstPage = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 2));
+        assertThat(firstPage.content()).extracting(item -> item.id()).containsExactly(2, 1);
+        assertThat(firstPage.hasNext()).isTrue();
+
+        var secondPage = auctionQueryService.search(null,
+                new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, firstPage.nextCursor(), 2));
+
+        assertThat(secondPage.content()).extracting(item -> item.id()).containsExactly(3);
+        assertThat(secondPage.hasNext()).isFalse();
+    }
+
+    @Test
+    void PRICE_LOW_정렬은_동점일_때_auctionId_내림차순으로_tie_break한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeIdsBatch(eq("auction:active:by-price"), eq(false), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(3, 40_000), tuple(5, 40_000)));
+        when(reader.readAuctionState(3)).thenReturn(redisState(3, 0, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionState(5)).thenReturn(redisState(5, 0, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.PRICE_LOW, null, null, 20));
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(5, 3);
+    }
+
+    @Test
+    void Redis_활성_경매_목록은_psaGrade_필터를_적용한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 5), tuple(2, 3)));
+        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionState(2)).thenReturn(redisState(2, 3, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "9"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", "10", AuctionSort.BID_COUNT, null, null, 20));
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(1);
+    }
+
+    @Test
+    void 한_배치가_필터로_다_걸러지면_다음_배치를_추가로_가져온다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        List<ZSetOperations.TypedTuple<String>> firstBatch = new java.util.ArrayList<>();
+        for (int id = 100; id < 150; id++) firstBatch.add(tuple(id, 200 - id));
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(firstBatch);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(51.0), eq(1L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 5)));
+        for (int id = 100; id < 150; id++) when(reader.readAuctionState(id)).thenReturn(null);
+        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20));
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(1);
+    }
+
+    @Test
+    void 배치_크기를_넘는_동점이_있어도_중복_없이_전부_가져온다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        // Redis는 동점 구간에서 멤버 문자열 lex 순서로 반환하므로, 숫자 auctionId 순서와 다른
+        // 임의의 순서로 50개(1번째 배치)와 나머지 10개(2번째 배치)를 나눠 돌려주도록 시뮬레이션한다.
+        List<ZSetOperations.TypedTuple<String>> firstBatch = new java.util.ArrayList<>();
+        for (int id = 60; id > 10; id--) firstBatch.add(tuple(id, 5));
+        List<ZSetOperations.TypedTuple<String>> secondBatch = new java.util.ArrayList<>();
+        for (int id = 10; id >= 1; id--) secondBatch.add(tuple(id, 5));
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(firstBatch);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(50L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(secondBatch);
+        for (int id = 1; id <= 60; id++) {
+            when(reader.readAuctionState(id)).thenReturn(redisState(id, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        }
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 60));
+
+        assertThat(response.content()).hasSize(60);
+        assertThat(response.content()).extracting(item -> item.id()).doesNotHaveDuplicates();
+        List<Integer> expectedDescending = new java.util.ArrayList<>();
+        for (int id = 60; id >= 1; id--) expectedDescending.add(id);
+        assertThat(response.content()).extracting(item -> item.id()).containsExactlyElementsOf(expectedDescending);
+        assertThat(response.hasNext()).isFalse();
+    }
+
+    private ZSetOperations.TypedTuple<String> tuple(Integer auctionId, double score) {
+        return new DefaultTypedTuple<>(String.valueOf(auctionId), score);
+    }
+
+    private RedisAuctionRealtimeStateReader.AuctionState redisState(
+            Integer auctionId, int bidCount, long currentPrice, long startPrice, Instant openTime, String psaGrade
+    ) {
+        return new RedisAuctionRealtimeStateReader.AuctionState(
+                auctionId, AuctionStatus.OPEN, 2, 1, "카드 " + auctionId, "세트", psaGrade, "JP", "/thumb.png",
+                "경매 " + auctionId, "설명", null, null, null, false,
+                startPrice, currentPrice, 1_000L, bidCount, null, 3_000L,
+                openTime, openTime.plus(Duration.ofHours(1)), List.of()
+        );
     }
 
     private CardSnapshot card(Integer itemId) {

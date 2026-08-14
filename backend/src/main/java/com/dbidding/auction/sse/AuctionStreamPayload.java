@@ -72,10 +72,18 @@ public record AuctionStreamPayload(
         );
     }
 
-    public static AuctionStreamPayload endingStarted(Integer auctionId, Instant estimatedCloseTime, Instant occurredAt) {
+    public static AuctionStreamPayload endingStarted(
+            Integer auctionId,
+            Long startPrice,
+            Long currentPrice,
+            Long bidIncrement,
+            Integer bidCount,
+            Instant estimatedCloseTime,
+            Instant occurredAt
+    ) {
         return new AuctionStreamPayload(
                 AuctionStreamEventType.AUCTION_ENDING_STARTED, auctionId, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, estimatedCloseTime,
+                null, null, null, startPrice, currentPrice, null, bidIncrement, bidCount, estimatedCloseTime,
                 AuctionStatus.ENDING, null, occurredAt, null
         );
     }

@@ -29,6 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RedisAuctionStateSeeder {
     private static final String ACTIVE_BY_CLOSE_TIME = "auction:active:by-close-time";
+    private static final String ACTIVE_BY_BID_COUNT = "auction:active:by-bid-count";
+    private static final String ACTIVE_BY_PRICE = "auction:active:by-price";
+    private static final String ACTIVE_BY_CHANGE_RATE = "auction:active:by-change-rate";
+    private static final String ACTIVE_BY_OPEN_TIME = "auction:active:by-open-time";
     private final AuctionRepository auctionRepository;
     private final BidRepository bidRepository;
     private final AuctionImageRepository auctionImageRepository;
@@ -36,6 +40,7 @@ public class RedisAuctionStateSeeder {
     private final StringRedisTemplate redisTemplate;
     private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     private final RedisStateSingleFlight singleFlight;
+    private final RedisAuctionSeedBatchCoordinator batchCoordinator;
     @Qualifier("auctionStateSeedScript") private final RedisScript<Long> auctionStateSeedScript;
 
     @Transactional(readOnly = true)
@@ -45,17 +50,18 @@ public class RedisAuctionStateSeeder {
         return singleFlight.execute(key, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
             if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
-            return auctionRepository.findByIdAndStatusNot(auctionId, AuctionStatus.ENDED)
-                    .filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus()))
-                    .map(this::seed).orElse(false);
+            return batchCoordinator.requestSeedData(auctionId).join()
+                    .map(data -> seed(data.auction(), data.leading(), data.card(), data.imagePaths(), data.latestBids(), data.recentBids()))
+                    .orElse(false);
         });
     }
 
+    /** @return warm-up된 경매들의 현재 낙찰 후보(HELD 지갑을 가진) userId 목록 - 지갑 warm-up 범위 결정에 사용 */
     @Transactional(readOnly = true)
-    public void seedAllIfAbsent(List<Auction> auctions) {
-        if (!projectionCatchUpVerifier.isCaughtUp()) return;
+    public List<Integer> seedAllIfAbsent(List<Auction> auctions) {
+        if (!projectionCatchUpVerifier.isCaughtUp()) return List.of();
         List<Auction> active = auctions.stream().filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus())).toList();
-        if (active.isEmpty()) return;
+        if (active.isEmpty()) return List.of();
         List<Integer> auctionIds = active.stream().map(Auction::getId).toList();
         java.util.Map<Integer, Bid> leading = bidRepository.findByAuctionIdInAndStatus(auctionIds, BidStatus.LEADING).stream()
                 .collect(java.util.stream.Collectors.toMap(bid -> bid.getAuction().getId(), bid -> bid, (first, ignored) -> first));
@@ -68,13 +74,7 @@ public class RedisAuctionStateSeeder {
                 .collect(java.util.stream.Collectors.groupingBy(image -> image.getAuction().getId(), java.util.stream.Collectors.mapping(image -> image.getImagePath(), java.util.stream.Collectors.toList())));
         active.forEach(auction -> seed(auction, leading.get(auction.getId()), cards.get(auction.getItemId()), imagePaths.getOrDefault(auction.getId(), List.of()),
                 latestBidsByAuction.getOrDefault(auction.getId(), List.of()), recentBidsByAuction.getOrDefault(auction.getId(), List.of())));
-    }
-
-    private boolean seed(Auction auction) {
-        Bid leading = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING).orElse(null);
-        CardSnapshot card = cardStateReader.getCardSnapshot(auction.getItemId());
-        return seed(auction, leading, card, auctionImageRepository.findByAuctionIdOrderById(auction.getId()).stream().map(image -> image.getImagePath()).toList(),
-                bidRepository.findLatestBidPerBidderByAuctionIdIn(List.of(auction.getId())), bidRepository.findRecentFiveByAuctionIdIn(List.of(auction.getId())));
+        return leading.values().stream().map(Bid::getBidderId).distinct().toList();
     }
 
     private boolean seed(Auction auction, Bid leading, CardSnapshot card, List<String> imagePathList, List<Bid> latestBids, List<Bid> recentBids) {
@@ -99,8 +99,18 @@ public class RedisAuctionStateSeeder {
         List<Bid> chronologicalRecentBids = recentBids.stream().sorted(Comparator.comparing(Bid::getCreatedAt).thenComparing(Bid::getId)).toList();
         args.add(String.valueOf(chronologicalRecentBids.size()));
         chronologicalRecentBids.forEach(bid -> { args.add(String.valueOf(bid.getId())); args.add(String.valueOf(bid.getBidderId())); args.add(String.valueOf(bid.getBidPrice())); args.add(String.valueOf(bid.getId())); args.add(bid.getCreatedAt().toString()); });
+        args.add(String.valueOf(auction.getBidCount()));
+        args.add(String.valueOf(auction.getCurrentPrice()));
+        args.add(String.valueOf(changeRateBasisPoints(auction)));
+        args.add(String.valueOf(auction.getOpenTime().toEpochMilli()));
         return Long.valueOf(1L).equals(redisTemplate.execute(auctionStateSeedScript,
-                List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME, "auction:recent-bids:" + auction.getId(), "auction:ending-window:by-close-time"), args.toArray()));
+                List.of("auction:state:" + auction.getId(), ACTIVE_BY_CLOSE_TIME, "auction:recent-bids:" + auction.getId(), "auction:ending-window:by-close-time",
+                        ACTIVE_BY_BID_COUNT, ACTIVE_BY_PRICE, ACTIVE_BY_CHANGE_RATE, ACTIVE_BY_OPEN_TIME),
+                args.toArray()));
+    }
+
+    private long changeRateBasisPoints(Auction auction) {
+        return (auction.getCurrentPrice() - auction.getStartPrice()) * 10_000L / auction.getStartPrice();
     }
 
     private String redisBidStatus(Bid bid) { return bid.getStatus() == BidStatus.LEADING || bid.getStatus() == BidStatus.WON ? "LEADING" : "OUTBID"; }

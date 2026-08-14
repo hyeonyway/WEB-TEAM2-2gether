@@ -56,6 +56,25 @@ class RedisAuctionActiveIndexGcLuaIntegrationTest {
     }
 
     @Test
+    void 형제_정렬_인덱스도_같이_전달하면_함께_정리한다() {
+        redisTemplate.opsForZSet().add("auction:active:by-close-time", "1", 1_000);
+        redisTemplate.opsForZSet().add("auction:active:by-close-time", "2", 1_000);
+        redisTemplate.opsForZSet().add("auction:active:by-bid-count", "1", 5);
+        redisTemplate.opsForZSet().add("auction:active:by-bid-count", "2", 5);
+        redisTemplate.opsForZSet().add("auction:active:by-price", "1", 40000);
+        redisTemplate.opsForZSet().add("auction:active:by-price", "2", 40000);
+        redisTemplate.opsForHash().put("auction:state:1", "status", "ENDED");
+        redisTemplate.opsForHash().put("auction:state:2", "status", "OPEN");
+
+        Long removed = redisTemplate.execute(script, List.of("auction:active:by-close-time",
+                "auction:active:by-bid-count", "auction:active:by-price"), "2000", "100");
+
+        assertThat(removed).isEqualTo(1L);
+        assertThat(redisTemplate.opsForZSet().range("auction:active:by-bid-count", 0, -1)).containsExactly("2");
+        assertThat(redisTemplate.opsForZSet().range("auction:active:by-price", 0, -1)).containsExactly("2");
+    }
+
+    @Test
     void ending_window에서는_OPEN이_아닌_상태와_상태없는_경매만_제거한다() {
         redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "1", 1_000);
         redisTemplate.opsForZSet().add("auction:ending-window:by-close-time", "2", 2_000);

@@ -56,9 +56,14 @@ class RedisAuctionCloseRequestLuaIntegrationTest {
         template.opsForHash().put("wallet:hold:11:2", "amount", "50000");
         template.opsForZSet().add("auction:active:by-close-time", "11", 1786496400000D);
         template.opsForZSet().add("auction:ending-window:by-close-time", "11", 1786496100000D);
+        template.opsForZSet().add("auction:active:by-bid-count", "11", 3D);
+        template.opsForZSet().add("auction:active:by-price", "11", 50000D);
+        template.opsForZSet().add("auction:active:by-change-rate", "11", 2500D);
+        template.opsForZSet().add("auction:active:by-open-time", "11", 1786490000000D);
 
-        String result = template.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time"),
-                "11", "2026-08-12T01:00:00Z", "1786496400000");
+        List<String> keys = List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time",
+                "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate", "auction:active:by-open-time");
+        String result = template.execute(script, keys, "11", "2026-08-12T01:00:00Z", "1786496400000");
 
         assertThat(result).isEqualTo("ACCEPTED|2|50000|7|10|리자몽|10|JP|/thumb.png|40000|50000|3000|3|50000|0|6");
         assertThat(template.opsForHash().entries("auction:state:11"))
@@ -70,8 +75,11 @@ class RedisAuctionCloseRequestLuaIntegrationTest {
         assertThat(template.opsForStream().size("event:timeline")).isEqualTo(1L);
         assertThat(template.opsForZSet().score("auction:active:by-close-time", "11")).isNull();
         assertThat(template.opsForZSet().score("auction:ending-window:by-close-time", "11")).isNull();
-        assertThat(template.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time"),
-                "11", "2026-08-12T01:00:00Z", "1786496400000")).isEqualTo("REPLAYED");
+        assertThat(template.opsForZSet().score("auction:active:by-bid-count", "11")).isNull();
+        assertThat(template.opsForZSet().score("auction:active:by-price", "11")).isNull();
+        assertThat(template.opsForZSet().score("auction:active:by-change-rate", "11")).isNull();
+        assertThat(template.opsForZSet().score("auction:active:by-open-time", "11")).isNull();
+        assertThat(template.execute(script, keys, "11", "2026-08-12T01:00:00Z", "1786496400000")).isEqualTo("REPLAYED");
         assertThat(template.opsForStream().size("event:timeline")).isEqualTo(1L);
     }
 }
