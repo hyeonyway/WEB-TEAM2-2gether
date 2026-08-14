@@ -114,7 +114,8 @@ mysql -u root -p dbidding < src/main/resources/schema.sql
 3. 구조가 다르면 기존 DB를 SQL gzip 스냅샷으로 저장하고 검증한다.
 4. 스냅샷이 정상일 때만 실제 DB를 현재 `schema.sql`로 초기화한다.
 5. `required-data/*.sql`을 파일명 오름차순으로 스키마 생성 후 모두 실행한다.
-6. 어느 단계든 실패하면 애플리케이션을 시작하지 않는다.
+6. 초기화와 초기 데이터 적용이 모두 성공한 뒤 Redis DB에 `FLUSHDB`를 실행한다.
+7. 어느 단계든 실패하면 애플리케이션을 시작하지 않는다.
 
 관련 환경변수:
 
@@ -125,6 +126,15 @@ mysql -u root -p dbidding < src/main/resources/schema.sql
 | `DB_SNAPSHOT_DIR` | `/app/db-snapshots` | 스냅샷 저장 경로 |
 | `SCHEMA_FILE` | `/app/db/resources/schema.sql` | 기준 스키마 파일 |
 | `INITIAL_DATA_DIR` | `/app/db/resources/required-data` | 필수 초기 데이터 SQL 디렉터리 |
+| `REDIS_HOST` | 없음 | 스키마 초기화 후 비울 Redis 호스트 |
+| `REDIS_PORT` | 없음 | 스키마 초기화 후 비울 Redis 포트 |
+| `REDIS_USERNAME` | 없음 | Redis ACL 사용자 |
+| `REDIS_PASSWORD` | 없음 | Redis ACL 비밀번호 |
+| `REDIS_SSL_ENABLED` | `false` | Redis TLS 연결 여부 |
+
+Redis 환경변수는 DB 스키마가 실제로 초기화된 경우에만 필수입니다. `validate` 모드나
+스키마 일치 상태에서는 Redis에 연결하지 않습니다. `FLUSHDB`는 지정 Redis 논리 DB만
+비우며, 연결 또는 flush에 실패하면 애플리케이션을 시작하지 않습니다.
 
 초기 데이터는 실행 순서를 파일명 접두사로 관리한다.
 
