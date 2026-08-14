@@ -117,6 +117,14 @@ collaborator이므로 controller와 API 계약은 바뀌지 않는다. entity와
 DB 서비스 내부의 DB 전용 helper를 사용한다. 이를 통해 fallback 도중 Redis 분기가 다시
 실행되거나 트랜잭션 경계가 우연히 바뀌는 것을 막는다.
 
+비-Redis 프로필의 `getBidContext()`는 지갑 잔액과 경매·입찰 상태를 모두
+`DbAuctionQueryService`의 동일한 read-only 트랜잭션에서 조회한다. 기존 구현이 보장하던
+하나의 MySQL snapshot을 유지해, 두 조회 사이에 입찰이 커밋되더라도 이전 지갑과 이후 경매
+상태가 한 응답에 섞이지 않게 한다. Redis 프로필에서는 요청 스레드가 cold-seed batch를
+기다리며 JDBC 커넥션을 점유하지 않아야 하므로, 지갑 Redis 조회와 경매 Redis 조회를 계속
+트랜잭션 밖에서 수행한다. Redis state 복구 후에도 DB fallback이 필요한 예외 경로는 이미
+조회한 Redis 지갑 DTO를 DB 서비스에 전달해 새 DB 지갑 조회를 만들지 않는다.
+
 ### 5.3 cold-seed DB loader의 트랜잭션을 batch thread에 배치
 
 `RedisAuctionStateSeeder.seedIfAbsent()`의 `@Transactional`을 제거한다. Redis 확인,
@@ -195,6 +203,8 @@ timeout되는 형태로 실패해야 하며, 변경 후 통과해야 한다.
 - 동일 호출 전후 Hikari active가 증가하지 않음을 확인한다.
 - Redis가 비활성 또는 fallback 상태일 때 `DbAuctionQueryService` 안에서는 실제
   read-only 트랜잭션이 활성화되어 있음을 확인한다.
+- 비-Redis 프로필의 `getBidContext()`에서 지갑 조회와 경매 조회가 동일한 read-only
+  트랜잭션에 참여함을 확인한다.
 - DB fallback DTO를 트랜잭션 밖에서 직렬화해도 lazy loading 예외가 발생하지 않음을
   확인한다.
 
