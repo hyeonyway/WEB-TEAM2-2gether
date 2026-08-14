@@ -39,6 +39,7 @@ function AnimatedBidValue({value}:{value:number}){
 
 export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;onClose:()=>void}){
   const queryClient=useQueryClient();
+  const dialogRef=useRef<HTMLElement>(null);
   const contextQuery=useQuery({...auctionQueries.bidContext(auction.id),refetchOnMount:'always'});
   const context=contextQuery.data;
   const wallet=context?.wallet.available_balance??0;
@@ -78,10 +79,11 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       }:current);
       await Promise.all([queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()}),...(result.pendingOrder?[queryClient.invalidateQueries({queryKey:['orders']})]:[])]);
       showToast(request.type==='buy-now'?`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 즉시 구매하였습니다.`:`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 입찰하였습니다.`);
+      dialogRef.current?.scrollTo({top:dialogRef.current.scrollHeight,behavior:'smooth'});
     },
   });
 
-  return <div className="bid-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><section className="bid-dialog" role="dialog" aria-modal="true" aria-label={`${auction.card.name} 경매 참여`}>
+  return <div className="bid-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><section ref={dialogRef} className="bid-dialog" role="dialog" aria-modal="true" aria-label={`${auction.card.name} 경매 참여`}>
     <button className="bid-close" onClick={onClose} aria-label="닫기">×</button>
     <small>실시간 카드 경매</small><h2>경매 참여</h2><p className="bid-card-name">{auction.card.name}</p>
     <TooltipProvider delayDuration={0}><Tabs value={activeTab} onValueChange={value=>setActiveTab(value as 'bid'|'buy-now')}><Tooltip open><div className="bid-tabs-tooltip-anchor"><TabsList className="bid-tabs" aria-label="경매 방식"><TabsTrigger value="bid" className="bid-tab-bid">일반 경매</TabsTrigger><TooltipTrigger asChild><span className="bid-buy-now-tooltip-trigger"><TabsTrigger value="buy-now" className="bid-tab-buy-now" disabled={buyNowPrice===null}>즉시 구매</TabsTrigger></span></TooltipTrigger></TabsList><TooltipContent side="top" align="end">{buyNowPrice===null?'이 경매는 즉시 구매를 지원하지 않습니다.':`${buyNowPrice.toLocaleString()}원에 즉시 구매 가능!`}</TooltipContent></div></Tooltip>

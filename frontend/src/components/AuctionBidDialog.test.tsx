@@ -107,6 +107,9 @@ describe('AuctionBidDialog',()=>{
   it('입찰 성공 응답으로 참여 경매 대시보드를 최고 입찰 상태로 갱신한다',async()=>{
     const onClose=vi.fn();
     const{queryClient}=renderDialog(onClose);
+    const dialog=await screen.findByRole('dialog',{name:'피카츄 경매 참여'});
+    const scrollTo=vi.fn();
+    dialog.scrollTo=scrollTo;
     mocks.createBid.mockResolvedValue({
       bid:{id:10,amount:11_000,status:'LEADING',created_at:'2026-08-04T01:00:00Z'},
       auction:{id:1,current_price:11_000,minimum_bid:12_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},
@@ -123,7 +126,8 @@ describe('AuctionBidDialog',()=>{
     }));
     expect(await screen.findByText('피카츄 카드를 11,000원에 입찰하였습니다.')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog',{name:'피카츄 경매 참여'})).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    expect(scrollTo).toHaveBeenCalledWith({top:dialog.scrollHeight,behavior:'smooth'});
     expect(screen.queryByText(/최소 입찰가 .* 이상 입력해 주세요/)).not.toBeInTheDocument();
   });
 
