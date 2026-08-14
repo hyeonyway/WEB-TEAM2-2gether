@@ -7,23 +7,21 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
-import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.dto.SessionLoginResponse;
-import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.session.SessionSseTerminationPublisher;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class SessionAuthenticationStrategy implements AuthenticationStrategy {
+public class SessionAuthenticationStrategy {
 
 	private final SessionProperties properties;
 	private final Clock clock;
 	private final SessionCsrfTokenService csrfTokenService;
-	private final SessionSseConnectionRegistry sessionSseConnectionRegistry;
+	private final SessionSseTerminationPublisher sessionSseTerminationPublisher;
 
-	@Override
 	public ResponseEntity<?> establish(AuthenticatedAccount account, HttpServletRequest request) {
 		HttpSession session = request.getSession(false);
 		if (session == null) {
@@ -37,11 +35,10 @@ public class SessionAuthenticationStrategy implements AuthenticationStrategy {
 		return ResponseEntity.ok(new SessionLoginResponse(csrfToken));
 	}
 
-	@Override
 	public ResponseEntity<Void> terminate(HttpServletRequest request) {
 		HttpSession session = request.getSession(false);
 		if (session != null) {
-			sessionSseConnectionRegistry.disconnect(session.getId());
+			sessionSseTerminationPublisher.terminate(session.getId());
 			session.invalidate();
 		}
 

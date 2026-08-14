@@ -11,7 +11,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
-import com.dbidding.account.authentication.jwt.AuthenticationRepository;
 import com.dbidding.account.service.SignupService;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.repository.AccountRepository;
@@ -29,9 +28,6 @@ class SignupTransactionTest extends AccountMySqlIntegrationTest {
 
 	@Autowired
 	private WalletRepository walletRepository;
-
-	@Autowired
-	private AuthenticationRepository authenticationRepository;
 
 	@MockitoSpyBean
 	private WalletRepository walletRepositorySpy;
@@ -54,7 +50,6 @@ class SignupTransactionTest extends AccountMySqlIntegrationTest {
 			.hasSize(64);
 		assertThat(account.getSalt()).hasSize(32);
 		assertThat(wallet.getPoint()).isZero();
-		assertThat(authenticationRepository.findByUserId(response.id())).isEmpty();
 	}
 
 	@Test

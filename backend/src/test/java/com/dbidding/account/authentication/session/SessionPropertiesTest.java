@@ -64,9 +64,12 @@ class SessionPropertiesTest {
 	}
 
 	@Test
-	void 이번_단계에서_지원하지_않는_저장소는_애플리케이션_시작에_실패한다() {
+	void Redis_저장소를_명시하면_애플리케이션_시작에_성공한다() {
 		contextRunner.withPropertyValues("app.session.store=redis")
-			.run(context -> assertThat(context).hasFailed());
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				assertThat(context.getBean(SessionProperties.class).store()).isEqualTo(SessionStore.REDIS);
+			});
 	}
 
 	@Configuration(proxyBeanMethods = false)

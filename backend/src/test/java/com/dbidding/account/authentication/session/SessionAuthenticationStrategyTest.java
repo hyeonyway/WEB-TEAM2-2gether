@@ -13,14 +13,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.session.FindByIndexNameSessionRepository;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.dto.SessionLoginResponse;
-import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.session.SessionSseTerminationPublisher;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 class SessionAuthenticationStrategyTest {
@@ -28,17 +27,17 @@ class SessionAuthenticationStrategyTest {
 	private static final Instant NOW = Instant.parse("2026-08-06T01:30:00Z");
 
 	private SessionAuthenticationStrategy strategy;
-	private SessionSseConnectionRegistry sessionSseConnectionRegistry;
+	private SessionSseTerminationPublisher sessionSseTerminationPublisher;
 
 	@BeforeEach
 	void setUp() {
 		SessionProperties properties = new SessionProperties(SessionStore.MEMORY, "SESSION", false, "lax");
-		sessionSseConnectionRegistry = new SessionSseConnectionRegistry();
+		sessionSseTerminationPublisher = org.mockito.Mockito.mock(SessionSseTerminationPublisher.class);
 		strategy = new SessionAuthenticationStrategy(
 			properties,
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			new SessionCsrfTokenService(),
-			sessionSseConnectionRegistry
+			sessionSseTerminationPublisher
 		);
 	}
 
@@ -61,12 +60,15 @@ class SessionAuthenticationStrategyTest {
 				SessionPrincipal.USER_ID_ATTRIBUTE,
 				SessionPrincipal.ROLE_ATTRIBUTE,
 				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE,
+				FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME,
 				SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE
 			);
 		assertThat(session.getAttribute(SessionPrincipal.USER_ID_ATTRIBUTE)).isEqualTo(7);
 		assertThat(session.getAttribute(SessionPrincipal.ROLE_ATTRIBUTE)).isEqualTo("USER");
 		assertThat(session.getAttribute(SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE))
 			.isEqualTo(NOW.getEpochSecond());
+		assertThat(session.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME))
+			.isEqualTo("7");
 	}
 
 	@Test
@@ -94,15 +96,13 @@ class SessionAuthenticationStrategyTest {
 	}
 
 	@Test
-	void 로그아웃하면_현재_세션의_SSE_연결을_종료한다() {
+	void 로그아웃하면_현재_세션의_SSE_종료를_모든_인스턴스에_전파한다() {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		MockHttpSession session = (MockHttpSession)request.getSession(true);
-		SseEmitter emitter = mock(SseEmitter.class);
-		sessionSseConnectionRegistry.register(session.getId(), emitter);
 
 		strategy.terminate(request);
 
-		verify(emitter).complete();
+		verify(sessionSseTerminationPublisher).terminate(session.getId());
 	}
 
 	@Test

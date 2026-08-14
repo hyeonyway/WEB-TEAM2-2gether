@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-import {clearAccessToken,setAccessToken} from './accessTokenStore';
 import {createAuction,uploadSellImages} from './sellApi';
+import {clearCsrfToken, setCsrfToken} from '../auth/session/csrfTokenStore';
 import {HttpError} from './httpClient';
 import type {AuctionPayload,SellPhoto} from '../dto/sellDto';
 
@@ -16,8 +16,7 @@ describe('sellApi',()=>{
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
     vi.stubEnv('VITE_LOCAL_UPLOAD','false');
-    clearAccessToken();
-    setAccessToken('seller-access-token');
+    clearCsrfToken();
   });
 
   it('presigned URL에 이미지를 업로드하고 업로드 토큰을 반환한다',async()=>{
@@ -73,7 +72,8 @@ describe('sellApi',()=>{
     } satisfies Partial<HttpError>);
   });
 
-  it('기존 카드 ID와 업로드 토큰으로 JWT 경매 생성 요청을 보낸다',async()=>{
+  it('기존 카드 ID와 업로드 토큰으로 세션 경매 생성 요청을 보낸다',async()=>{
+    setCsrfToken('seller-csrf-token');
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({id:20},201));
     const payload:AuctionPayload={
       itemId:1,
@@ -90,7 +90,9 @@ describe('sellApi',()=>{
     await createAuction(payload,'registration-key');
 
     const [,options]=fetchMock.mock.calls[0];
-    expect(new Headers(options?.headers).get('Authorization')).toBe('Bearer seller-access-token');
+    expect(new Headers(options?.headers).get('Authorization')).toBeNull();
+    expect(new Headers(options?.headers).get('X-CSRF-Token')).toBe('seller-csrf-token');
+    expect(options?.credentials).toBe('include');
     expect(new Headers(options?.headers).get('Idempotency-Key')).toBe('registration-key');
     expect(JSON.parse(String(options?.body))).toEqual({
       itemId:1,
@@ -111,6 +113,7 @@ describe('sellApi',()=>{
   });
 
   it('즉시 구매를 설정하지 않으면 null과 등록 메타데이터를 전송한다',async()=>{
+    setCsrfToken('seller-csrf-token');
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({id:20},201));
     const payload:AuctionPayload={
       itemId:1,

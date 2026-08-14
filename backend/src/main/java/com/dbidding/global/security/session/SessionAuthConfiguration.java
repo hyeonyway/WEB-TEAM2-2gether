@@ -2,7 +2,6 @@ package com.dbidding.global.security.session;
 
 import java.time.Clock;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +14,6 @@ import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.FilterErrorResponseWriter;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "app.auth.mode", havingValue = "session")
 @EnableConfigurationProperties(SessionProperties.class)
 public class SessionAuthConfiguration {
 
@@ -24,9 +22,9 @@ public class SessionAuthConfiguration {
 		SessionProperties properties,
 		Clock clock,
 		SessionCsrfTokenService csrfTokenService,
-		SessionSseConnectionRegistry sessionSseConnectionRegistry
+		SessionSseTerminationPublisher sessionSseTerminationPublisher
 	) {
-		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseConnectionRegistry);
+		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseTerminationPublisher);
 	}
 
 	@Bean
@@ -43,9 +41,14 @@ public class SessionAuthConfiguration {
 	}
 
 	@Bean
-	ServletListenerRegistrationBean<SessionSseCleanupListener> sessionSseCleanupListener(
+	SessionSseCleanupListener sessionSseCleanupListener(
 		SessionSseConnectionRegistry registry
-	) { return new ServletListenerRegistrationBean<>(new SessionSseCleanupListener(registry)); }
+	) { return new SessionSseCleanupListener(registry); }
+
+	@Bean
+	ServletListenerRegistrationBean<SessionSseCleanupListener> sessionSseCleanupListenerRegistration(
+		SessionSseCleanupListener sessionSseCleanupListener
+	) { return new ServletListenerRegistrationBean<>(sessionSseCleanupListener); }
 
 	@Bean
 	SessionCsrfFilter sessionCsrfFilter(

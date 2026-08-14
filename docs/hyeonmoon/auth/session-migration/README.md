@@ -83,9 +83,9 @@ JWT 또는 세션을 미리 승자로 정하지 않고 다음 순서로 검증�
 | 2 | [`2-in-memory-session.md`](2-in-memory-session.md) | [#216](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/216) | 단일 인스턴스 세션 인증 |
 | 3a | [`3a-session-browser-auth.md`](3a-session-browser-auth.md) | [#235](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/235) | 브라우저 세션 인증과 CSRF |
 | 3b | [`3b-session-personalized-sse.md`](3b-session-personalized-sse.md) | [#236](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/236) | 세션 기반 개인화 SSE |
-| 4 | [`4-redis-session-multi-instance.md`](4-redis-session-multi-instance.md) | 후속 이슈 4 | Redis 세션과 다중 인스턴스 운영 |
-| 5 | [`5-benchmark-and-failure-test.md`](5-benchmark-and-failure-test.md) | 후속 이슈 5 | 비교 수치와 장애 실험 결과 |
-| 6 | [`6-final-selection-and-cleanup.md`](6-final-selection-and-cleanup.md) | 후속 이슈 6 | 최종 선택과 미선택 구현 제거 |
+| 4 | [`4-redis-session-multi-instance.md`](4-redis-session-multi-instance.md) | (미착수, `#469`로 구현) | Redis 세션과 다중 인스턴스 운영 — 정식 이슈 없이 `#469`에 포함되어 진행됨 |
+| 5 | [`5-benchmark-and-failure-test.md`](5-benchmark-and-failure-test.md) | (미착수) | 비교 수치와 장애 실험 결과 — **수행하지 않음**, `7-final-decision-and-implementation-plan.md` 2절에 사유 기록 |
+| 6 | [`6-final-selection-and-cleanup.md`](6-final-selection-and-cleanup.md) / [`7-final-decision-and-implementation-plan.md`](7-final-decision-and-implementation-plan.md) | [#469](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/469) | 최종 선택(세션)과 JWT 제거 — 성능 측정 없이 기능·보안 요구사항 근거로 결정, 7번 문서에 상세 |
 
 후속 이슈가 생성되면 이 표의 임시 표기만 실제 이슈 링크로 바꾼다. 각 구현 문서의 범위와 이슈의 작업 항목·완료 기준은 동일하게 유지한다.
 

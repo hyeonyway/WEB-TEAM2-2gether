@@ -6,7 +6,6 @@ import {fetchWalletBalance} from '../api/walletApi';
 import {walletQueryKeys} from '../queries/walletQueryKeys';
 import {useWalletStream} from './useWalletStream';
 
-vi.mock('../api/notificationTicketApi',()=>({issueSseTicket:vi.fn().mockResolvedValue({ticket:'wallet-ticket'})}));
 vi.mock('../api/walletApi',()=>({fetchWalletBalance:vi.fn()}));
 
 class EventSourceMock extends EventTarget{

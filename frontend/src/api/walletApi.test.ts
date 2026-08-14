@@ -1,8 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {
-  clearAccessToken,
-  setAccessToken,
-} from './accessTokenStore';
+import {clearCsrfToken, setCsrfToken} from '../auth/session/csrfTokenStore';
 import {
   chargeWallet,
   fetchWalletBalance,
@@ -12,10 +9,10 @@ import {
 describe('walletApi', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    clearAccessToken();
+    clearCsrfToken();
   });
 
-  it('Access Token으로 Wallet 총액·동결액·가용액을 조회한다', async () => {
+  it('세션 cookie로 Wallet 총액·동결액·가용액을 조회한다', async () => {
     const balance = {
       totalBalance: 850_000,
       frozenBalance: 120_000,
@@ -26,7 +23,6 @@ describe('walletApi', () => {
         status: 200,
         headers: {'Content-Type': 'application/json'},
       }));
-    setAccessToken('wallet-access-token');
 
     await expect(fetchWalletBalance()).resolves.toEqual(balance);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -34,8 +30,7 @@ describe('walletApi', () => {
       expect.objectContaining({headers: expect.any(Headers)}),
     );
     const requestOptions = fetchMock.mock.calls[0]?.[1];
-    expect(new Headers(requestOptions?.headers).get('Authorization'))
-      .toBe('Bearer wallet-access-token');
+    expect(requestOptions?.credentials).toBe('include');
   });
 
   it('안전한 정수가 아닌 Wallet 금액 응답을 거부한다', async () => {
@@ -48,7 +43,6 @@ describe('walletApi', () => {
         status: 200,
         headers: {'Content-Type': 'application/json'},
       }));
-    setAccessToken('wallet-access-token');
 
     await expect(fetchWalletBalance())
       .rejects.toThrow('Wallet 잔액 응답이 안전한 정수가 아닙니다.');
@@ -66,7 +60,7 @@ describe('walletApi', () => {
         status: 200,
         headers: {'Content-Type': 'application/json'},
       }));
-    setAccessToken('wallet-access-token');
+    setCsrfToken('wallet-csrf-token');
 
     await expect(chargeWallet({
       amount: 50_000,
@@ -81,8 +75,8 @@ describe('walletApi', () => {
         body: JSON.stringify({amount: 50_000}),
       }),
     );
-    expect(new Headers(options?.headers).get('Authorization'))
-      .toBe('Bearer wallet-access-token');
+    expect(new Headers(options?.headers).get('X-CSRF-Token')).toBe('wallet-csrf-token');
+    expect(options?.credentials).toBe('include');
     expect(new Headers(options?.headers).get('Idempotency-Key'))
       .toBe('charge-attempt-id');
   });
@@ -98,7 +92,7 @@ describe('walletApi', () => {
         status: 200,
         headers: {'Content-Type': 'application/json'},
       }));
-    setAccessToken('wallet-access-token');
+    setCsrfToken('wallet-csrf-token');
 
     await expect(chargeWallet({
       amount: 1_000,
@@ -123,7 +117,7 @@ describe('walletApi', () => {
         status: 200,
         headers: {'Content-Type': 'application/json'},
       }));
-    setAccessToken('wallet-access-token');
+    setCsrfToken('wallet-csrf-token');
 
     await expect(refundWallet({
       amount: 10_000,
@@ -138,8 +132,8 @@ describe('walletApi', () => {
         body: JSON.stringify({amount: 10_000}),
       }),
     );
-    expect(new Headers(options?.headers).get('Authorization'))
-      .toBe('Bearer wallet-access-token');
+    expect(new Headers(options?.headers).get('X-CSRF-Token')).toBe('wallet-csrf-token');
+    expect(options?.credentials).toBe('include');
     expect(new Headers(options?.headers).get('Idempotency-Key'))
       .toBe('refund-attempt-id');
   });
@@ -155,7 +149,7 @@ describe('walletApi', () => {
         status: 200,
         headers: {'Content-Type': 'application/json'},
       }));
-    setAccessToken('wallet-access-token');
+    setCsrfToken('wallet-csrf-token');
 
     await expect(chargeWallet({
       amount: 1_000,

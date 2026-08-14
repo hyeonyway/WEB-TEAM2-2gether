@@ -2,7 +2,7 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {setAccessToken} from '../../api/accessTokenStore';
+import {clearCsrfToken, setCsrfToken} from '../../auth/session/csrfTokenStore';
 import ToastContainer from '../Toast';
 import WalletRefundDialog from './WalletRefundDialog';
 
@@ -52,7 +52,8 @@ describe('WalletRefundDialog', () => {
     vi.restoreAllMocks();
     BroadcastChannelMock.instances = [];
     vi.stubGlobal('BroadcastChannel', BroadcastChannelMock);
-    setAccessToken('wallet-access-token');
+    clearCsrfToken();
+    setCsrfToken('wallet-csrf-token');
     vi.spyOn(globalThis.crypto, 'randomUUID')
       .mockReturnValue('22222222-2222-4222-8222-222222222222');
   });
