@@ -16,7 +16,7 @@ type SignupErrors = Partial<Record<
 // Keep in sync with backend SignupRequest.EMAIL_PATTERN and LoginRequest.
 const emailPattern = /^[A-Za-z0-9](?:[A-Za-z0-9._%+-]*[A-Za-z0-9])?@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,}$/;
 const nicknamePattern = /^[가-힣a-zA-Z0-9]+$/;
-const passwordKinds = (value: string) => [/[\p{L}]/u.test(value), /[\p{N}]/u.test(value), /[^\p{L}\p{N}]/u.test(value)].filter(Boolean).length;
+const passwordKinds = (value: string) => [/[\p{L}]/u.test(value), /[\p{Nd}]/u.test(value), /[^\p{L}\p{Nd}]/u.test(value)].filter(Boolean).length;
 
 function validateSignup(
   values: SignupRequestDto & {passwordConfirmation: string},
@@ -70,7 +70,7 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
       {
         email: values.email,
         password: values.password,
-        nickname: values.nickname.trim(),
+        nickname: values.nickname,
       },
       {
         onSuccess: () => onSuccess(values.email),
@@ -92,6 +92,7 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
         <input
           type="email"
           autoComplete="email"
+          aria-label="이메일"
           value={values.email}
           onChange={event => updateValue('email', event.target.value)}
           onFocus={() => setFocusedField('email')} onBlur={() => setFocusedField(null)}
@@ -110,6 +111,7 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
         <input
           type="password"
           autoComplete="new-password"
+          aria-label="비밀번호"
           value={values.password}
           onChange={event => updateValue('password', event.target.value)}
           onFocus={() => setFocusedField('password')} onBlur={() => setFocusedField(null)}
@@ -128,6 +130,7 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
         <input
           type="password"
           autoComplete="new-password"
+          aria-label="비밀번호 확인"
           value={values.passwordConfirmation}
           onChange={event => updateValue('passwordConfirmation', event.target.value)}
           aria-invalid={Boolean(errors.passwordConfirmation)}
@@ -149,6 +152,7 @@ export default function SignupForm({onSuccess}: SignupFormProps) {
         닉네임
         <input
           autoComplete="nickname"
+          aria-label="닉네임"
           value={values.nickname}
           onChange={event => updateValue('nickname', event.target.value)}
           onFocus={() => setFocusedField('nickname')} onBlur={() => setFocusedField(null)}
