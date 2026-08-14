@@ -1,4 +1,5 @@
 import {useSyncExternalStore} from 'react';
+import {createPortal} from 'react-dom';
 
 const TOAST_EVENT='app-toast';
 const TOAST_DURATION_MS=2400;
@@ -39,7 +40,7 @@ export default function ToastContainer(){
   const currentToasts=useSyncExternalStore(subscribe,getSnapshot,getSnapshot);
 
   if(!currentToasts.length)return null;
-  return <div className="toast-stack" aria-live="polite">
+  return createPortal(<div className="toast-stack" aria-live="polite">
     {currentToasts.map(toast=><div className="toast" key={toast.id}>{toast.message}</div>)}
-  </div>;
+  </div>,document.body);
 }
