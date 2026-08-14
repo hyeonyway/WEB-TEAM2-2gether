@@ -77,6 +77,18 @@ describe('AuctionPage',()=>{
     expect(apiMocks.fetchAuctions).not.toHaveBeenCalled();
   });
 
+  it('처음 진입하면 최신순으로 조회하고 정렬 버튼을 최신순부터 배치한다',async()=>{
+    renderPage();
+
+    await screen.findByText('피카츄');
+    expect(apiMocks.fetchAuctions).toHaveBeenCalledWith(expect.objectContaining({sort:'LATEST'}),undefined);
+    expect(screen.getAllByRole('button').filter(button=>[
+      '최신순','마감 임박순','입찰 수 높은순','경매가 높은순','경매가 낮은순','상승률 높은순',
+    ].includes(button.textContent??'')).map(button=>button.textContent)).toEqual([
+      '최신순','마감 임박순','입찰 수 높은순','경매가 높은순','경매가 낮은순','상승률 높은순',
+    ]);
+  });
+
   it('목록 하단이 보이면 다음 cursor를 조회해 경매를 누적한다',async()=>{
     renderPage();
 
@@ -87,7 +99,7 @@ describe('AuctionPage',()=>{
 
     await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenCalledTimes(2));
     expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
-      expect.objectContaining({sort:'BID_COUNT',size:12}),
+      expect.objectContaining({sort:'LATEST',size:12}),
       'next-token',
     );
     expect(await screen.findByText('리자몽')).toBeInTheDocument();
@@ -145,7 +157,7 @@ describe('AuctionPage',()=>{
 
     expect(apiMocks.fetchAuctions).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData<{pages:{content:AuctionDto[]}[]}>(
-      auctionQueryKeys.list({keyword:'',psaGrade:null,sort:'BID_COUNT',size:12},'public'),
+      auctionQueryKeys.list({keyword:'',psaGrade:null,sort:'LATEST',size:12},'public'),
     )?.pages[0].content[0].currentPrice).toBe(15_000);
   });
 
@@ -194,7 +206,7 @@ describe('AuctionPage',()=>{
     expect(observeCount).toBe(observeCountBeforeFailure);
     await user.click(retry);
     await waitFor(()=>expect(apiMocks.fetchAuctions).toHaveBeenLastCalledWith(
-      expect.objectContaining({sort:'BID_COUNT'}),
+      expect.objectContaining({sort:'LATEST'}),
       undefined,
     ));
   });
