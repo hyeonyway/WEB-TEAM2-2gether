@@ -5,11 +5,13 @@ import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.global.redis.RedisIntegerValue;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
@@ -66,6 +68,28 @@ public class RedisAuctionRealtimeStateReader {
     /** MySQL projection 전에도 활성 경매를 응답하기 위한 Redis 원본 상태다. */
     public AuctionState readAuctionState(Integer auctionId) {
         Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
+        return parseAuctionState(auctionId, fields);
+    }
+
+    /** 후보 경매 state를 한 connection의 pipeline으로 읽고 입력 순서대로 유효 state만 반환한다. */
+    public Map<Integer, AuctionState> readAuctionStates(List<Integer> auctionIds) {
+        if (auctionIds.isEmpty()) return Map.of();
+        List<Object> responses = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            for (Integer auctionId : auctionIds) {
+                connection.hashCommands().hGetAll(redisTemplate.getStringSerializer().serialize(stateKey(auctionId)));
+            }
+            return null;
+        });
+        Map<Integer, AuctionState> states = new LinkedHashMap<>();
+        for (int index = 0; index < auctionIds.size(); index++) {
+            Map<Object, Object> fields = hashResponse(responses.get(index));
+            AuctionState state = parseAuctionState(auctionIds.get(index), fields);
+            if (state != null) states.put(auctionIds.get(index), state);
+        }
+        return states;
+    }
+
+    private AuctionState parseAuctionState(Integer auctionId, Map<Object, Object> fields) {
         if (fields.isEmpty()) return null;
         try {
             return new AuctionState(
@@ -86,6 +110,11 @@ public class RedisAuctionRealtimeStateReader {
         } catch (IllegalArgumentException | ArithmeticException exception) {
             return null;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Object, Object> hashResponse(Object response) {
+        return response instanceof Map<?, ?> ? (Map<Object, Object>) response : Map.of();
     }
 
     public List<Integer> activeAuctionIds() {
