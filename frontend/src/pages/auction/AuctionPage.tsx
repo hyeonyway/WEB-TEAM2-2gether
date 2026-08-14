@@ -41,7 +41,10 @@ export default function AuctionPage(){
   const auctions=useMemo(()=>{
     const unique=new Map<number,AuctionDto>();
     data?.pages.flatMap(page=>page.content).forEach(auction=>unique.set(auction.id,auction));
-    return sortAuctions([...unique.values()],sort);
+    const loaded=[...unique.values()];
+    const endingRanks=new Map(loaded.filter(auction=>auction.status==='ENDING')
+      .sort(()=>Math.random()-.5).map((auction,index)=>[auction.id,index]));
+    return sortAuctions(loaded,sort,endingRanks);
   },[data,sort]);
   const[subscriptionAuctionIds,setSubscriptionAuctionIds]=useState<readonly number[]>([]);
   const onSubscriptionAuctionIdsChange=useCallback((auctionIds:readonly number[])=>{

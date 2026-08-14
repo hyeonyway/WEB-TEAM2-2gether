@@ -76,7 +76,7 @@ export function eventToAuction(event:AuctionStreamPayload):AuctionDto{
   };
 }
 
-export function sortAuctions(auctions:AuctionDto[],sort:AuctionSort):AuctionDto[]{
+export function sortAuctions(auctions:AuctionDto[],sort:AuctionSort,endingRanks:ReadonlyMap<number,number>=new Map()):AuctionDto[]{
   return [...auctions].sort((left,right)=>{
     if(sort==='LATEST'){
       const timeOrder=Date.parse(right.startsAt??'')-Date.parse(left.startsAt??'');
@@ -90,8 +90,10 @@ export function sortAuctions(auctions:AuctionDto[],sort:AuctionSort):AuctionDto[
       return rightChange-leftChange||right.id-left.id;
     }
     if(sort==='ENDING_SOON'){
-      const timeOrder=Date.parse(left.endsAt)-Date.parse(right.endsAt);
-      return (Number.isNaN(timeOrder)?0:timeOrder)||right.id-left.id;
+      const leftEnding=left.status==='ENDING',rightEnding=right.status==='ENDING';
+      if(leftEnding!==rightEnding)return leftEnding?-1:1;
+      if(leftEnding)return (endingRanks.get(left.id)??0)-(endingRanks.get(right.id)??0);
+      return right.id-left.id;
     }
     return right.bidCount-left.bidCount||right.id-left.id;
   });

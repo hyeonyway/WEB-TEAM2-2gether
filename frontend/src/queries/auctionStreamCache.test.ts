@@ -27,8 +27,14 @@ describe('sortAuctions',()=>{
     expect(sortAuctions([auction(1),auction(3),auction(2)],sort).map(item=>item.id)).toEqual([3,2,1]);
   });
 
-  it('마감 임박순은 종료 시각이 이른 경매부터 정렬한다',()=>{
-    expect(sortAuctions([auction(1,{endsAt:'2026-08-05T10:00:00Z'}),auction(2,{endsAt:'2026-08-04T10:00:00Z'})],'ENDING_SOON').map(item=>item.id)).toEqual([2,1]);
+  it('마감 임박순은 ENDING 상태를 먼저 두고 종료 시각은 사용하지 않는다',()=>{
+    const result=sortAuctions([
+      auction(1,{status:'OPEN',endsAt:'2026-08-04T10:00:00Z'}),
+      auction(2,{status:'ENDING',endsAt:'2026-08-05T10:00:00Z'}),
+      auction(3,{status:'ENDING',endsAt:'2026-08-06T10:00:00Z'}),
+    ],'ENDING_SOON',new Map([[3,0],[2,1]]));
+
+    expect(result.map(item=>item.id)).toEqual([3,2,1]);
   });
 
   it('상승률순은 서버와 같은 basis point 단위로 비교한다',()=>{
