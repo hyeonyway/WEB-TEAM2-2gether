@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,29 @@ class RedisAuctionRealtimeStateReaderPipelineIntegrationTest {
         assertThat(states.keySet()).containsExactly(2, 1);
         assertThat(states.get(2).auctionName()).isEqualTo("경매 2");
         assertThat(states.get(1).auctionName()).isEqualTo("경매 1");
+    }
+
+    @Test
+    void 참여한_경매의_bidder_state만_읽어_미참여_key_miss를_만들지_않는다() {
+        int userId = 100;
+        redisTemplate.opsForSet().add("auction:dashboard:participating:" + userId, "2");
+        redisTemplate.opsForHash().putAll("auction:bidder:2:" + userId,
+                Map.of("status", "LEADING", "amount", "43000"));
+        redisTemplate.getConnectionFactory().getConnection().serverCommands().resetConfigStats();
+
+        Map<Integer, RedisAuctionRealtimeStateReader.MyBidState> states =
+                reader.readMyBidStates(List.of(1, 2, 3), userId);
+
+        assertThat(states).containsOnlyKeys(2);
+        assertThat(states.get(2).status().name()).isEqualTo("LEADING");
+        assertThat(states.get(2).amount()).isEqualTo(43_000L);
+        Properties stats = redisTemplate.getConnectionFactory().getConnection().serverCommands().info("stats");
+        assertThat(stats.getProperty("keyspace_misses")).isEqualTo("0");
+    }
+
+    @Test
+    void 익명_목록은_bidder_state를_조회하지_않는다() {
+        assertThat(reader.readMyBidStates(List.of(1, 2, 3), null)).isEmpty();
     }
 
     private Map<String, String> validState(String auctionName) {
