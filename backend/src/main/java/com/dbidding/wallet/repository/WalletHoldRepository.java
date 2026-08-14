@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,4 +36,13 @@ public interface WalletHoldRepository extends JpaRepository<WalletHold, Long> {
 		GROUP BY w.user_id, wh.auction_id
 		""", nativeQuery = true)
 	List<WalletHeldHoldRow> findHeldRowsForUsers(@Param("userIds") Collection<Integer> userIds);
+
+	/** 기동 시 지갑 warm-up 대상 선정용 — 현재 자금이 묶여있는(HELD) 유저만 제한적으로 가져온다. */
+	@Query(value = """
+		SELECT DISTINCT w.user_id
+		FROM wallet_holds wh JOIN wallets w ON w.id = wh.wallet_id
+		WHERE wh.status = 'HELD'
+		ORDER BY w.user_id
+		""", nativeQuery = true)
+	List<Integer> findDistinctHeldUserIds(Pageable pageable);
 }

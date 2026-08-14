@@ -38,3 +38,15 @@ auction:
       enabled: ${AUCTION_STATE_WARM_UP_ENABLED:true}
       closing-window-minutes: ${AUCTION_STATE_WARM_UP_CLOSING_WINDOW_MINUTES:30}
       recent-limit: ${AUCTION_STATE_WARM_UP_RECENT_LIMIT:100}
+    wallet-cold-batch:
+      # 서로 다른 userId의 동시 콜드시드를 이 시간(ms) 동안 모아 배치 쿼리 1회로 묶는다.
+      # 경합이 없는 단독 요청도 이 시간만큼은 기다리게 되는 지연 하한선이다.
+      window-ms: ${WALLET_COLD_SEED_BATCH_WINDOW_MS:5}
+      # 윈도우가 끝나기 전이라도 이 크기에 도달하면 즉시 flush한다.
+      max-batch-size: ${WALLET_COLD_SEED_MAX_BATCH_SIZE:200}
+    wallet-warm-up:
+      # 기동 시 현재 자금이 묶여있는(HELD) 지갑만 제한적으로 미리 Redis에 올려,
+      # 재기동 직후 첫 요청에서 콜드시드가 몰리는 것을 줄인다. 신규 유저 버스트는
+      # 이 warm-up 대상이 아니므로 wallet-cold-batch가 그 몫을 담당한다.
+      enabled: ${WALLET_STATE_WARM_UP_ENABLED:true}
+      recent-limit: ${WALLET_STATE_WARM_UP_RECENT_LIMIT:200}
