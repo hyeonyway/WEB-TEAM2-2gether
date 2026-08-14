@@ -15,7 +15,7 @@ ENV TZ=UTC
 ENV JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends default-mysql-client gzip \
+    && apt-get install -y --no-install-recommends default-mysql-client redis-tools gzip \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/build/libs/*.jar app.jar

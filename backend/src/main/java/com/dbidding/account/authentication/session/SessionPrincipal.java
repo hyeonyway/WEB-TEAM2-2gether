@@ -7,6 +7,7 @@ import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.domain.AccountRole;
 
 import jakarta.servlet.http.HttpSession;
+import org.springframework.session.FindByIndexNameSessionRepository;
 
 public record SessionPrincipal(
 	Integer userId,
@@ -42,6 +43,7 @@ public record SessionPrincipal(
 		session.setAttribute(USER_ID_ATTRIBUTE, userId);
 		session.setAttribute(ROLE_ATTRIBUTE, role);
 		session.setAttribute(AUTHENTICATED_AT_ATTRIBUTE, authenticatedAt);
+		session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, userId.toString());
 	}
 
 	private static boolean isKnownRole(String role) {

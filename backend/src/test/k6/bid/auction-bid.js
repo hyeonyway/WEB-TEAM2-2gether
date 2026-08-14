@@ -28,6 +28,8 @@ const sseDuration = __ENV.SSE_DURATION
   || formatSecondsAsDuration(parseDurationToSeconds(mainStartTime) + parseDurationToSeconds(duration));
 const loadTestUserIdStart = positiveInteger(__ENV.LOAD_TEST_USER_ID_START, 910001);
 const loadTestUserNumberWidth = positiveInteger(__ENV.LOAD_TEST_USER_NUMBER_WIDTH, 5);
+// AuctionSseController#stream의 auctionIds Set은 @Size(max=16)이라 VU당 이 이상 못 붙인다.
+const maxAuctionSseSubscriptions = 16;
 
 const bidAccepted = new Rate('bid_accepted');
 const bidAcceptedOrContended = new Rate('bid_accepted_or_contended');
@@ -130,8 +132,9 @@ export function bid(data) {
   performBid(data);
 }
 
-export function auctionSse() {
-  sse.open(`${baseUrl}/api/auctions/stream`, {
+export function auctionSse({auctionIds}) {
+  const query = subscribedAuctionIds(auctionIds).map(id => `auctionIds=${id}`).join('&');
+  sse.open(`${baseUrl}/api/auctions/stream?${query}`, {
     headers: {Accept: 'text/event-stream'},
     tags: {name: 'GET /api/auctions/stream'},
   }, client => {
@@ -421,6 +424,20 @@ function idempotencyKey(auctionId) {
 
 function csv(value) {
   return (value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+// VU마다 서로 다른 auctionIds 구간을 구독하게 해서(회전 window) 실제 목록 화면처럼
+// 전체 경매에 SSE 부하를 분산시킨다. 대상이 max 이하면 전부 그대로 구독한다.
+function subscribedAuctionIds(auctionIds) {
+  if (auctionIds.length <= maxAuctionSseSubscriptions) {
+    return auctionIds;
+  }
+  const start = (__VU - 1) % auctionIds.length;
+  const picked = [];
+  for (let i = 0; i < maxAuctionSseSubscriptions; i++) {
+    picked.push(auctionIds[(start + i) % auctionIds.length]);
+  }
+  return picked;
 }
 
 function parseDurationToSeconds(value) {

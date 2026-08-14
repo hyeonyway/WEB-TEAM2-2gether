@@ -63,7 +63,7 @@ class RedisAuctionCloseRequestLuaIntegrationTest {
 
         List<String> keys = List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time",
                 "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate", "auction:active:by-open-time");
-        String result = template.execute(script, keys, "11", "2026-08-12T01:00:00Z", "1786496400000");
+        String result = execute(keys);
 
         assertThat(result).isEqualTo("ACCEPTED|2|50000|7|10|리자몽|10|JP|/thumb.png|40000|50000|3000|3|50000|0|6");
         assertThat(template.opsForHash().entries("auction:state:11"))
@@ -79,7 +79,67 @@ class RedisAuctionCloseRequestLuaIntegrationTest {
         assertThat(template.opsForZSet().score("auction:active:by-price", "11")).isNull();
         assertThat(template.opsForZSet().score("auction:active:by-change-rate", "11")).isNull();
         assertThat(template.opsForZSet().score("auction:active:by-open-time", "11")).isNull();
-        assertThat(template.execute(script, keys, "11", "2026-08-12T01:00:00Z", "1786496400000")).isEqualTo("REPLAYED");
+        assertThat(execute(keys)).isEqualTo("REPLAYED");
         assertThat(template.opsForStream().size("event:timeline")).isEqualTo(1L);
+    }
+
+    @Test
+    void 큰_낙찰액과_지갑_버전도_Hash와_응답에_정수_문자열로_유지한다() {
+        template.opsForHash().putAll("auction:state:11", Map.ofEntries(
+                Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"),
+                Map.entry("cardName", "리자몽"), Map.entry("startPrice", "800000000000"),
+                Map.entry("currentPrice", "900000000000"), Map.entry("bidIncrement", "100000000000"),
+                Map.entry("bidCount", "3"), Map.entry("highestBidderId", "2"),
+                Map.entry("highestHoldAmount", "900000000000")
+        ));
+        template.opsForHash().putAll("wallet:balance:2", Map.of(
+                "availableBalance", "100000000000", "frozenBalance", "900000000000",
+                "walletVersion", "99999999999999"));
+        template.opsForHash().put("wallet:hold:11:2", "amount", "900000000000");
+        template.opsForZSet().add("auction:active:by-close-time", "11", 1786496400000D);
+        List<String> keys = closeKeys();
+
+        String result = execute(keys);
+
+        assertThat(result).doesNotContain("e+").doesNotContain("E+")
+                .contains("|900000000000|").endsWith("|100000000000|0|100000000000000");
+        assertThat(template.opsForHash().entries("wallet:balance:2"))
+                .containsEntry("availableBalance", "100000000000")
+                .containsEntry("frozenBalance", "0")
+                .containsEntry("walletVersion", "100000000000000");
+        assertThat(template.hasKey("wallet:hold:11:2")).isFalse();
+    }
+
+    @Test
+    void 낙찰액이_정책_상한을_넘으면_경매와_지갑을_변경하지_않는다() {
+        template.opsForHash().putAll("auction:state:11", Map.ofEntries(
+                Map.entry("status", "OPEN"), Map.entry("sellerId", "7"), Map.entry("itemId", "10"),
+                Map.entry("cardName", "리자몽"), Map.entry("startPrice", "1000000000000"),
+                Map.entry("currentPrice", "1000000000001"), Map.entry("bidIncrement", "1"),
+                Map.entry("bidCount", "1"), Map.entry("highestBidderId", "2"),
+                Map.entry("highestHoldAmount", "1000000000001")
+        ));
+        template.opsForHash().putAll("wallet:balance:2", Map.of(
+                "availableBalance", "0", "frozenBalance", "1000000000001", "walletVersion", "5"));
+        template.opsForHash().put("wallet:hold:11:2", "amount", "1000000000001");
+
+        String result = execute(closeKeys());
+
+        assertThat(result).isEqualTo("REJECTED|AMOUNT_LIMIT_EXCEEDED");
+        assertThat(template.opsForHash().get("auction:state:11", "status")).isEqualTo("OPEN");
+        assertThat(template.opsForHash().entries("wallet:balance:2"))
+                .containsEntry("frozenBalance", "1000000000001").containsEntry("walletVersion", "5");
+        assertThat(template.hasKey("wallet:hold:11:2")).isTrue();
+        assertThat(template.opsForStream().size("event:timeline")).isZero();
+    }
+
+    private List<String> closeKeys() {
+        return List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time",
+                "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate",
+                "auction:active:by-open-time");
+    }
+
+    private String execute(List<String> keys) {
+        return template.execute(script, keys, "11", "2026-08-12T01:00:00Z", "1786496400000", "1000000000000");
     }
 }

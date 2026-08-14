@@ -17,6 +17,7 @@ import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointRecord;
 import com.dbidding.wallet.domain.PointTransactionType;
 import com.dbidding.wallet.domain.Wallet;
+import com.dbidding.wallet.domain.WalletAmountPolicy;
 import com.dbidding.wallet.domain.WalletHold;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
@@ -112,6 +113,7 @@ public class WalletService {
 			return replayOrThrow(existing.get(), PointTransactionType.CHARGE, amount);
 		}
 
+		WalletAmountPolicy.validateBalanceAfterCredit(wallet.getPoint(), amount);
 		wallet.credit(amount);
 		PointRecord record = pointRecordRepository.save(
 			PointRecord.charge(wallet.getId(), amount, wallet.getPoint(), idempotencyKey)
@@ -123,6 +125,7 @@ public class WalletService {
 	@Transactional
 	public WalletTransactionResponse refund(Integer userId, long amount, String idempotencyKey) {
 		validatePositive(amount);
+		WalletAmountPolicy.validateTransactionAmount(amount);
 		validateIdempotencyKey(idempotencyKey);
 		Wallet wallet = lockWallet(userId);
 		Optional<PointRecord> existing = findReplay(wallet, idempotencyKey);
@@ -237,7 +240,9 @@ public class WalletService {
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
 		validatePositive(amount);
+		WalletAmountPolicy.validateBalanceAmount(amount);
 		Wallet wallet = lockWallet(sellerId);
+		WalletAmountPolicy.validateBalanceAfterCredit(wallet.getPoint(), amount);
 		wallet.credit(amount);
 		PointRecord record = pointRecordRepository.save(
 			PointRecord.orderSettlement(wallet.getId(), auctionId, amount, wallet.getPoint())
@@ -249,7 +254,9 @@ public class WalletService {
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletTransactionResponse cancelRefund(Integer buyerId, Integer auctionId, long amount) {
 		validatePositive(amount);
+		WalletAmountPolicy.validateBalanceAmount(amount);
 		Wallet wallet = lockWallet(buyerId);
+		WalletAmountPolicy.validateBalanceAfterCredit(wallet.getPoint(), amount);
 		wallet.credit(amount);
 		PointRecord record = pointRecordRepository.save(
 			PointRecord.orderCancelRefund(wallet.getId(), auctionId, amount, wallet.getPoint())
@@ -374,6 +381,7 @@ public class WalletService {
 		if (amount < MINIMUM_CHARGE_AMOUNT) {
 			throw new InvalidWalletAmountException("충전 금액은 1,000원 이상이어야 합니다.");
 		}
+		WalletAmountPolicy.validateTransactionAmount(amount);
 	}
 
 	private void validatePositive(long amount) {

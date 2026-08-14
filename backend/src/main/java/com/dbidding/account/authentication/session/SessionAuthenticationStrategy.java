@@ -5,25 +5,26 @@ import java.time.Clock;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.session.FindByIndexNameSessionRepository;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
-import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.dto.SessionLoginResponse;
-import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.session.SessionSseTerminationPublisher;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class SessionAuthenticationStrategy implements AuthenticationStrategy {
+public class SessionAuthenticationStrategy {
 
 	private final SessionProperties properties;
 	private final Clock clock;
 	private final SessionCsrfTokenService csrfTokenService;
-	private final SessionSseConnectionRegistry sessionSseConnectionRegistry;
+	private final SessionSseTerminationPublisher sessionSseTerminationPublisher;
+	private final ObjectProvider<FindByIndexNameSessionRepository<?>> sessionRepositoryProvider;
 
-	@Override
 	public ResponseEntity<?> establish(AuthenticatedAccount account, HttpServletRequest request) {
 		HttpSession session = request.getSession(false);
 		if (session == null) {
@@ -31,17 +32,26 @@ public class SessionAuthenticationStrategy implements AuthenticationStrategy {
 		} else {
 			request.changeSessionId();
 		}
+		invalidateExistingSessions(account.userId(), session.getId());
 
 		SessionPrincipal.authenticated(account, clock.instant()).writeTo(session);
 		String csrfToken = csrfTokenService.issue(session);
 		return ResponseEntity.ok(new SessionLoginResponse(csrfToken));
 	}
 
-	@Override
+	private void invalidateExistingSessions(Integer userId, String currentSessionId) {
+		FindByIndexNameSessionRepository<?> repository = sessionRepositoryProvider.getIfAvailable();
+		if (repository == null) return;
+		repository.findByPrincipalName(userId.toString()).keySet().stream().filter(sessionId -> !sessionId.equals(currentSessionId)).forEach(sessionId -> {
+			sessionSseTerminationPublisher.terminate(sessionId);
+			repository.deleteById(sessionId);
+		});
+	}
+
 	public ResponseEntity<Void> terminate(HttpServletRequest request) {
 		HttpSession session = request.getSession(false);
 		if (session != null) {
-			sessionSseConnectionRegistry.disconnect(session.getId());
+			sessionSseTerminationPublisher.terminate(session.getId());
 			session.invalidate();
 		}
 

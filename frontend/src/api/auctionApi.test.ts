@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-import {clearAccessToken,setAccessToken} from './accessTokenStore';
 import {createAuctionBid,fetchAuctionBidContext,fetchAuctionBids,fetchAuctionDetail,fetchAuctions,fetchFailedAuctions} from './auctionApi';
+import {clearCsrfToken, setCsrfToken} from '../auth/session/csrfTokenStore';
 
 const auctionResponse={
   id:10,
@@ -36,12 +36,10 @@ function jsonResponse(body:unknown,status=200){
 describe('auctionApi',()=>{
   beforeEach(()=>{
     vi.restoreAllMocks();
-    clearAccessToken();
-    setAccessToken('auction-access-token');
+    clearCsrfToken();
   });
 
   it('인증 헤더 없이 경매 목록을 cursor로 조회한다',async()=>{
-    clearAccessToken();
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({
       content:[auctionResponse],
       next_cursor:'next-token',
@@ -66,7 +64,8 @@ describe('auctionApi',()=>{
     expect(headers.get('Authorization')).toBeNull();
   });
 
-  it('JWT와 멱등성 키로 입찰한다',async()=>{
+  it('세션 CSRF token과 멱등성 키로 입찰한다',async()=>{
+    setCsrfToken('auction-csrf-token');
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse({
       bid:{id:1,amount:13000,status:'LEADING',created_at:'2026-07-31T11:00:00'},
       auction:{id:10,version:2,current_price:13000,minimum_bid:14000,bid_count:3,ends_at:'2026-07-31T20:00:00'},
@@ -77,11 +76,13 @@ describe('auctionApi',()=>{
 
     const [,options]=fetchMock.mock.calls[0];
     const headers=new Headers(options?.headers);
-    expect(headers.get('Authorization')).toBe('Bearer auction-access-token');
+    expect(headers.get('Authorization')).toBeNull();
+    expect(headers.get('X-CSRF-Token')).toBe('auction-csrf-token');
+    expect(options?.credentials).toBe('include');
     expect(headers.get('Idempotency-Key')).toBe('bid-key');
   });
 
-  it('JWT로 판매자 본인의 유찰 경매 목록을 조회한다',async()=>{
+  it('세션 cookie로 판매자 본인의 유찰 경매 목록을 조회한다',async()=>{
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(jsonResponse([
       {id:1,card_name:'리자몽',start_price:42000,closed_at:'2026-07-31T03:00:00Z'},
     ]));
@@ -89,15 +90,13 @@ describe('auctionApi',()=>{
     const failedAuctions=await fetchFailedAuctions();
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/auctions/mine/failed');
-    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization'))
-      .toBe('Bearer auction-access-token');
+    expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe('include');
     expect(failedAuctions).toEqual([
       {id:1,cardName:'리자몽',startPrice:42000,closedAt:'2026-07-31T03:00:00Z'},
     ]);
   });
 
-  it('경매 상세와 입찰 이력은 공개로, 입찰 컨텍스트는 JWT로 조회한다',async()=>{
-    clearAccessToken();
+  it('경매 상세와 입찰 이력은 공개로, 입찰 컨텍스트는 세션 cookie로 조회한다',async()=>{
     const fetchMock=vi.spyOn(globalThis,'fetch')
       .mockResolvedValueOnce(jsonResponse({
         ...auctionResponse,
@@ -126,12 +125,10 @@ describe('auctionApi',()=>{
 
     await fetchAuctionDetail(10);
     await fetchAuctionBids(10);
-    setAccessToken('auction-access-token');
     await fetchAuctionBidContext(10);
 
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBeNull();
     expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get('Authorization')).toBeNull();
-    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get('Authorization'))
-      .toBe('Bearer auction-access-token');
+    expect(fetchMock.mock.calls[2]?.[1]?.credentials).toBe('include');
   });
 });

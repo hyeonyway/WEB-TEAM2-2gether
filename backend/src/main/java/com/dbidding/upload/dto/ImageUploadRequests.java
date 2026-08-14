@@ -11,7 +11,7 @@ public final class ImageUploadRequests {
     }
 
     public record PresignedUrlRequest(
-            @NotEmpty @Size(max = 10) @Valid List<FileMeta> files
+            @NotEmpty @Size(max = 10) List<@Valid FileMeta> files
     ) {
     }
 

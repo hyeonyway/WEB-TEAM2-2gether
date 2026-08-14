@@ -81,6 +81,13 @@ describe('NotificationToastStack',()=>{
     expect(screen.getByText(second.message)).toBeInTheDocument();
   });
 
+  it('어느 화면 레이아웃에서도 보이도록 document body 레이어에 렌더링한다',()=>{
+    renderStack([notification]);
+
+    expect(screen.getByText(notification.message).closest('.notification-toast-stack')?.parentElement)
+      .toBe(document.body);
+  });
+
   it('isDismissing인 토스트에는 dismissing 클래스가 붙는다',()=>{
     const queryClient=new QueryClient({defaultOptions:{mutations:{retry:false},queries:{retry:false}}});
     render(

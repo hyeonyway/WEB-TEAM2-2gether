@@ -56,7 +56,7 @@ public class RedisCardStateReader {
         if (missingIds.isEmpty()) return snapshots;
 
         Map<Integer, CardMetadata> metadataById = new HashMap<>();
-        cardMetadataRepository.findAllById(missingIds).forEach(card -> metadataById.put(card.getId(), card));
+        cardMetadataRepository.findAllWithCardSetByIdIn(missingIds).forEach(card -> metadataById.put(card.getId(), card));
         for (Integer cardId : missingIds) {
             CardMetadata card = metadataById.get(cardId);
             if (card == null) throw CardException.notFound();

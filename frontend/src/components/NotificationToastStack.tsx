@@ -1,4 +1,5 @@
 import {useMutation,useQueryClient} from '@tanstack/react-query';
+import {createPortal} from 'react-dom';
 import {useNavigate} from 'react-router-dom';
 import type {NotificationDto} from '../dto/notificationDto';
 import type {ToastState} from '../hooks/useNotificationToasts';
@@ -23,7 +24,7 @@ export default function NotificationToastStack({toasts,onDismiss}:NotificationTo
     navigate(getNotificationPath(notification));
   };
 
-  return <div className="notification-toast-stack" aria-live="polite">
+  return createPortal(<div className="notification-toast-stack" aria-live="polite">
     {toasts.map(notification=>
       <div key={notification.id} className={`notification-toast${notification.isDismissing?' dismissing':''}`}>
         <button type="button" className="notification-toast-body" onClick={()=>handleOpen(notification)}>
@@ -37,5 +38,5 @@ export default function NotificationToastStack({toasts,onDismiss}:NotificationTo
         >×</button>
       </div>,
     )}
-  </div>;
+  </div>,document.body);
 }

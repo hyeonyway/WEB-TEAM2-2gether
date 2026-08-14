@@ -15,9 +15,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.dbidding.account.authentication.jwt.RefreshCookieFactory;
-import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
+import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
@@ -35,13 +34,10 @@ class AuthControllerSignupTest {
 	private SignupService signupService;
 
 	@MockitoBean
-	private RefreshCookieFactory refreshCookieFactory;
-
-	@MockitoBean
 	private CredentialAuthenticationService credentialAuthenticationService;
 
 	@MockitoBean
-	private AuthenticationStrategy authenticationStrategy;
+	private SessionAuthenticationStrategy sessionAuthenticationStrategy;
 
 	@MockitoBean
 	private AccountRepository accountRepository;

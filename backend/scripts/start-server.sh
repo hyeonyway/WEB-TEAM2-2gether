@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-JWT_SECRET="${JWT_SECRET:?JWT_SECRET 환경변수가 필요합니다.}"
 DB_HOST="${DB_HOST:?DB_HOST 환경변수가 필요합니다.}"
 DB_PORT="${DB_PORT:?DB_PORT 환경변수가 필요합니다.}"
 DB_NAME="${DB_NAME:?DB_NAME 환경변수가 필요합니다.}"
@@ -14,6 +13,7 @@ SCHEMA_FILE="${SCHEMA_FILE:-/app/db/resources/schema.sql}"
 INITIAL_DATA_DIR="${INITIAL_DATA_DIR:-/app/db/resources/required-data}"
 MYSQL_BIN="${MYSQL_BIN:-mysql}"
 MYSQLDUMP_BIN="${MYSQLDUMP_BIN:-mysqldump}"
+REDIS_CLI="${REDIS_CLI:-redis-cli}"
 
 if [[ ! "$DB_NAME" =~ ^[A-Za-z0-9_]+$ ]]; then
   echo "[db-startup] DB_NAME에는 영문, 숫자, 밑줄만 사용할 수 있습니다." >&2
@@ -111,6 +111,24 @@ reset_database() {
   done < <(find "$INITIAL_DATA_DIR" -maxdepth 1 -type f -name '*.sql' -size +0c | LC_ALL=C sort)
 }
 
+flush_redis_database() {
+  local redis_cli_args
+
+  : "${REDIS_HOST:?DB 스키마 초기화 후 Redis를 비우려면 REDIS_HOST 환경변수가 필요합니다.}"
+  : "${REDIS_PORT:?DB 스키마 초기화 후 Redis를 비우려면 REDIS_PORT 환경변수가 필요합니다.}"
+  : "${REDIS_USERNAME:?DB 스키마 초기화 후 Redis를 비우려면 REDIS_USERNAME 환경변수가 필요합니다.}"
+  : "${REDIS_PASSWORD:?DB 스키마 초기화 후 Redis를 비우려면 REDIS_PASSWORD 환경변수가 필요합니다.}"
+
+  redis_cli_args=("$REDIS_CLI" --no-auth-warning --host="$REDIS_HOST" --port="$REDIS_PORT" --user="$REDIS_USERNAME")
+  if [[ "${REDIS_SSL_ENABLED:-false}" == "true" ]]; then
+    redis_cli_args+=(--tls)
+  fi
+
+  echo "[db-startup] DB 초기화에 맞춰 Redis DB를 비웁니다."
+  REDISCLI_AUTH="$REDIS_PASSWORD" "${redis_cli_args[@]}" FLUSHDB
+  echo "[db-startup] Redis DB flush가 완료됐습니다."
+}
+
 compare_and_sync_schema() {
   local temporary_database temporary_directory actual_dump expected_dump
   temporary_database="${DB_NAME}_schema_check_$$"
@@ -151,7 +169,8 @@ compare_and_sync_schema() {
 
   snapshot_database
   reset_database
-  echo "[db-startup] DB 스키마 초기화가 완료됐습니다."
+  flush_redis_database
+  echo "[db-startup] DB 스키마 초기화와 Redis DB flush가 완료됐습니다."
   cleanup "$temporary_database" "$temporary_directory"
   trap - EXIT
 }

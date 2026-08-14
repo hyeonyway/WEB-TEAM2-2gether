@@ -5,6 +5,8 @@ import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.IdempotencyKeys;
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
+import com.dbidding.wallet.domain.WalletAmountPolicy;
+import com.dbidding.global.redis.RedisIntegerValue;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -56,6 +58,9 @@ public class RedisBidExecutor implements BidExecutor {
 
     @Override
     public BidExecutionResult execute(BidCommand command) {
+        if (command.price() > WalletAmountPolicy.MAX_BALANCE) {
+            throw AuctionException.invalidBidRequest("입찰 금액은 1조 원 이하여야 합니다.");
+        }
         if (auctionStateSeeder != null) auctionStateSeeder.seedIfAbsent(command.auctionId());
         if (walletStateSeeder != null) walletStateSeeder.seedIfAbsent(command.bidderId());
         Instant now = clock.instant();
@@ -76,7 +81,7 @@ public class RedisBidExecutor implements BidExecutor {
                 bidAcceptScript,
                 keys,
                 String.valueOf(command.bidderId()), String.valueOf(command.price()), command.idempotencyKey(), requestHash,
-                String.valueOf(now.toEpochMilli()), now.toString()
+                String.valueOf(now.toEpochMilli()), now.toString(), String.valueOf(WalletAmountPolicy.MAX_BALANCE)
         );
         String[] fields = raw.split("\\|", -1);
         if (!"ACCEPTED".equals(fields[0])) {
@@ -87,10 +92,12 @@ public class RedisBidExecutor implements BidExecutor {
         }
         Instant publicCloseTime = Instant.parse(fields.length == 28 ? fields[26] : fields[9]);
         BidResponses.BidResult result = new BidResponses.BidResult(
-                new BidResponses.BidDetail(null, Long.valueOf(fields[2]), BidStatus.valueOf(fields[10]), now, fields[1]),
-                new BidResponses.AuctionSnapshot(command.auctionId(), Long.valueOf(fields[2]), Long.valueOf(fields[8]),
+                new BidResponses.BidDetail(null, RedisIntegerValue.parseLongExact(fields[2]), BidStatus.valueOf(fields[10]), now, fields[1]),
+                new BidResponses.AuctionSnapshot(command.auctionId(), RedisIntegerValue.parseLongExact(fields[2]),
+                        RedisIntegerValue.parseLongExact(fields[8]),
                         Integer.valueOf(fields[4]), publicCloseTime),
-                new BidResponses.WalletSummary(Long.parseLong(fields[5]), Long.parseLong(fields[6])),
+                new BidResponses.WalletSummary(RedisIntegerValue.parseLongExact(fields[5]),
+                        RedisIntegerValue.parseLongExact(fields[6])),
                 fields[11].isBlank() ? null : new BidResponses.PendingOrder(command.auctionId(), fields[11], fields[1])
         );
         boolean replayed = Boolean.parseBoolean(fields[fields.length - 1]);
@@ -108,9 +115,9 @@ public class RedisBidExecutor implements BidExecutor {
         return new BidExecutionResult(result, new BidEventData(
                 Integer.valueOf(fields[12]),
                 "null".equals(fields[15]) ? null : Integer.valueOf(fields[15]),
-                "null".equals(fields[15]) ? null : Long.valueOf(fields[3]),
-                Long.valueOf(fields[13]),
-                Long.valueOf(fields[14]),
+                "null".equals(fields[15]) ? null : RedisIntegerValue.parseLongExact(fields[3]),
+                RedisIntegerValue.parseLongExact(fields[13]),
+                RedisIntegerValue.parseLongExact(fields[14]),
                 com.dbidding.auction.domain.AuctionStatus.valueOf(fields[16]),
                 Boolean.parseBoolean(fields[17]),
                 closeData
@@ -118,13 +125,13 @@ public class RedisBidExecutor implements BidExecutor {
     }
 
     private void publishWalletChanged(Integer userId, String available, String frozen, String version, Instant occurredAt) {
-        long availableBalance = Long.parseLong(available);
-        long frozenBalance = Long.parseLong(frozen);
-        long walletVersion = Long.parseLong(version);
+        long availableBalance = RedisIntegerValue.parseLongExact(available);
+        long frozenBalance = RedisIntegerValue.parseLongExact(frozen);
+        long walletVersion = RedisIntegerValue.parseLongExact(version);
         eventPublisher.publishEvent(new com.dbidding.wallet.sse.WalletBalanceChangedEvent(
                 userId,
                 new com.dbidding.wallet.dto.WalletBalanceResponse(
-                        availableBalance + frozenBalance, frozenBalance, availableBalance, walletVersion),
+                        Math.addExact(availableBalance, frozenBalance), frozenBalance, availableBalance, walletVersion),
                 walletVersion,
                 occurredAt
         ));
@@ -138,6 +145,8 @@ public class RedisBidExecutor implements BidExecutor {
         return switch (reason) {
             case "IDEMPOTENCY_CONFLICT" -> AuctionException.idempotencyConflict();
             case "INSUFFICIENT_BALANCE" -> new InsufficientAvailableBalanceException();
+            case "AMOUNT_LIMIT_EXCEEDED" -> AuctionException.invalidBidRequest("입찰 금액은 1조 원 이하여야 합니다.");
+            case "BALANCE_LIMIT_EXCEEDED" -> AuctionException.invalidBidRequest("지갑 총 보유액은 1조 원 이하여야 합니다.");
             case "SELLER" -> AuctionException.sellerBidForbidden();
             case "LEADING_BIDDER" -> AuctionException.leadingBidderConflict();
             default -> AuctionException.invalidBidRequest("Redis 입찰 조건을 만족하지 않습니다.");

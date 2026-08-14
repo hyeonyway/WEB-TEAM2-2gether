@@ -184,17 +184,18 @@ describe('AuctionPage',()=>{
     });
   });
 
-  it('마감 임박순은 입찰 갱신 뒤에도 기존 ENDING 경매의 순서를 유지한다',async()=>{
-    const first={...auction(1,'첫 번째 마감 임박'),status:'ENDING' as const};
-    const second={...auction(2,'두 번째 마감 임박'),status:'ENDING' as const};
-    const third={...auction(3,'세 번째 마감 임박'),status:'ENDING' as const};
+  it('마감 임박순은 서버가 준 ZSET 순서를 입찰 갱신 뒤에도 유지한다',async()=>{
+    const first={...auction(1,'첫 번째 ZSET 경매'),status:'OPEN' as const};
+    const second={...auction(3,'두 번째 ZSET 경매'),status:'ENDING' as const};
+    const third={...auction(2,'세 번째 ZSET 경매'),status:'OPEN' as const};
     apiMocks.fetchAuctions.mockReset().mockResolvedValueOnce({
       content:[first,second,third],next_cursor:null,has_next:false,
     });
     renderPage('/auction?sort=ENDING_SOON');
 
-    await screen.findByText('첫 번째 마감 임박');
+    await screen.findByText('첫 번째 ZSET 경매');
     const orderBefore=screen.getAllByRole('article').map(card=>within(card).getByRole('heading').textContent);
+    expect(orderBefore).toEqual(['첫 번째 ZSET 경매','두 번째 ZSET 경매','세 번째 ZSET 경매']);
 
     await act(async()=>onAuctionUpdated({
       type:'BID_PLACED',auction_id:2,bidder_id:7,previous_bidder_id:null,

@@ -2,14 +2,10 @@ import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {act,renderHook,waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {clearAccessToken,setAccessToken} from '../api/accessTokenStore';
-import {setSessionUserId} from '../auth/session/sessionAuthStore';
+import {getSessionUserId,setSessionUserId} from '../auth/session/sessionAuthStore';
 import type {NotificationDto} from '../dto/notificationDto';
 import {notificationQueryKeys} from '../queries/notificationQueries';
 import {useNotificationStream} from './useNotificationStream';
-
-const{issueSseTicketMock}=vi.hoisted(()=>({issueSseTicketMock:vi.fn()}));
-vi.mock('../api/notificationTicketApi',()=>({issueSseTicket:issueSseTicketMock}));
 
 class EventSourceMock extends EventTarget{
   static instances:EventSourceMock[]=[];
@@ -24,11 +20,6 @@ class EventSourceMock extends EventTarget{
 		this.options=options;
     EventSourceMock.instances.push(this);
   }
-}
-
-function fakeAccessToken(userId:number):string{
-  const payload=btoa(JSON.stringify({sub:String(userId)}));
-  return `header.${payload}.signature`;
 }
 
 function publish(eventSource:EventSourceMock,data:object|string){
@@ -53,38 +44,22 @@ describe('useNotificationStream',()=>{
   beforeEach(()=>{
     EventSourceMock.instances=[];
     vi.stubGlobal('EventSource',EventSourceMock);
-    issueSseTicketMock.mockReset();
-    issueSseTicketMock.mockResolvedValue({ticket:'ticket-1',expiresInSeconds:30});
-    setAccessToken(fakeAccessToken(42));
+    setSessionUserId(42);
   });
 
   afterEach(()=>{
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
-    clearAccessToken();
     setSessionUserId(null);
   });
 
-  it('티켓을 발급받아 유저별 알림 스트림에 연결한다',async()=>{
-    const{Wrapper}=createWrapper();
-    const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
-
-    await waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
-    expect(EventSourceMock.instances[0]?.url).toContain('/api/users/42/notifications/stream?ticket=ticket-1');
-    unmount();
-  });
-
-  it('세션 모드에서는 ticket 없이 내 알림 스트림에 연결한다',async()=>{
-    vi.stubEnv('VITE_AUTH_MODE','session');
-    clearAccessToken();
-    setSessionUserId(42);
+  it('세션 cookie로 내 알림 스트림에 연결한다',async()=>{
     const{Wrapper}=createWrapper();
     const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
 
     await waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
     expect(EventSourceMock.instances[0]?.url).toContain('/api/me/notifications/stream');
 		expect(EventSourceMock.instances[0]?.options).toEqual({withCredentials:true});
-    expect(issueSseTicketMock).not.toHaveBeenCalled();
     unmount();
   });
 
@@ -155,7 +130,7 @@ describe('useNotificationStream',()=>{
     unmount();
   });
 
-  it('연결 오류가 나면 고정 지연 후 재연결한다',async()=>{
+  it('연결 오류가 나면 지연 후 재연결한다',async()=>{
     vi.useFakeTimers();
     const{Wrapper}=createWrapper();
     const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
@@ -171,23 +146,65 @@ describe('useNotificationStream',()=>{
     vi.useRealTimers();
   });
 
+  it('연속 실패할수록 재연결 지연이 지수적으로 늘어난다',async()=>{
+    vi.useFakeTimers();
+    const{Wrapper}=createWrapper();
+    const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
+    await vi.waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
+
+    EventSourceMock.instances[0]?.onerror?.();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(EventSourceMock.instances).toHaveLength(2);
+
+    EventSourceMock.instances[1]?.onerror?.();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(EventSourceMock.instances).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(EventSourceMock.instances).toHaveLength(3);
+
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('연속 5회 실패하면 세션을 재검증하고, 만료된 상태면 로그인 상태를 비운다',async()=>{
+    vi.useFakeTimers();
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(
+      new Response(JSON.stringify({code:'SESSION_EXPIRED'}),{status:401,headers:{'Content-Type':'application/json'}}),
+    );
+    const{Wrapper}=createWrapper();
+    const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
+    await vi.waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
+
+    let delay=2_000;
+    for(let i=0;i<5;i++){
+      EventSourceMock.instances[EventSourceMock.instances.length-1]?.onerror?.();
+      await vi.advanceTimersByTimeAsync(delay);
+      delay=Math.min(delay*2,30_000);
+    }
+
+    await vi.waitFor(()=>expect(fetchMock).toHaveBeenCalled());
+    expect(fetchMock.mock.calls.some(([path])=>path==='/api/auth/me')).toBe(true);
+    expect(getSessionUserId()).toBeNull();
+
+    unmount();
+    vi.useRealTimers();
+  });
+
   it('enabled가 false면 연결하지 않는다',()=>{
     const{Wrapper}=createWrapper();
     const{unmount}=renderHook(()=>useNotificationStream({enabled:false}),{wrapper:Wrapper});
 
-    expect(issueSseTicketMock).not.toHaveBeenCalled();
     expect(EventSourceMock.instances).toHaveLength(0);
     unmount();
   });
 
-  it('로그인 상태가 아니면 티켓을 요청하지 않는다',async()=>{
-    clearAccessToken();
+  it('로그인 상태가 아니면 스트림에 연결하지 않는다',async()=>{
+    setSessionUserId(null);
     const{Wrapper}=createWrapper();
     const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
 
     await new Promise(resolve=>setTimeout(resolve,0));
 
-    expect(issueSseTicketMock).not.toHaveBeenCalled();
     expect(EventSourceMock.instances).toHaveLength(0);
     unmount();
   });

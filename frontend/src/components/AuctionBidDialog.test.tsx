@@ -1,10 +1,11 @@
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
-import {act,render,screen,waitFor} from '@testing-library/react';
+import {act,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import type {AuctionStreamPayload} from '../hooks/useAuctionStream';
 import {dashboardQueryKey} from '../queries/dashboardQueries';
+import {walletQueryKeys} from '../queries/walletQueryKeys';
 import AuctionBidDialog from './AuctionBidDialog';
 import ToastContainer from './Toast';
 
@@ -44,10 +45,10 @@ const bidEvent:AuctionStreamPayload={
   ends_at:'2099-08-04T11:00:00Z',status:'OPEN',event_id:2,occurred_at:'2026-08-04T01:00:00Z',
 };
 
-function renderDialog(){
+function renderDialog(onClose=vi.fn()){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   return {queryClient,...render(<QueryClientProvider client={queryClient}>
-    <AuctionBidDialog auction={auction} onClose={vi.fn()}/><ToastContainer/>
+    <AuctionBidDialog auction={auction} onClose={onClose}/><ToastContainer/>
   </QueryClientProvider>)};
 }
 
@@ -59,7 +60,7 @@ describe('AuctionBidDialog',()=>{
     vi.stubGlobal('matchMedia',vi.fn().mockReturnValue({matches:true}));
   });
 
-  it('SSE 최소 입찰가보다 낮은 입력값과 제출 버튼을 새 최소 입찰가로 올린다',async()=>{
+  it('SSE 최소 입찰가가 올라가도 직접 입력한 금액은 유지하고 제출을 막는다',async()=>{
     renderDialog();
     const user=userEvent.setup();
     const input=await screen.findByRole('spinbutton');
@@ -72,11 +73,12 @@ describe('AuctionBidDialog',()=>{
 
     act(()=>mocks.streamHandler?.(bidEvent));
 
-    await waitFor(()=>expect(input).toHaveValue(32_000));
-    expect(screen.getByRole('button',{name:'32,000원 입찰하기'})).toBeInTheDocument();
+    await waitFor(()=>expect(input).toHaveValue(25_000));
+    expect(screen.getByRole('button',{name:'25,000원 입찰하기'})).toBeDisabled();
+    expect(screen.getByText('최소 입찰가 32,000원 이상 입력해 주세요.')).toBeInTheDocument();
   });
 
-  it('직접 입력을 건드리지 않았으면 SSE로 최소 입찰가가 올라도 오류 없이 계속 따라간다',async()=>{
+  it('기본 입찰가는 SSE 최소 입찰가가 올라가도 바꾸지 않고 제출을 막는다',async()=>{
     renderDialog();
     const input=await screen.findByRole('spinbutton');
     await screen.findByText('100,000P');
@@ -84,8 +86,34 @@ describe('AuctionBidDialog',()=>{
 
     act(()=>mocks.streamHandler?.(bidEvent));
 
-    await waitFor(()=>expect(input).toHaveValue(32_000));
-    expect(screen.queryByText(/이상 입력해 주세요/)).not.toBeInTheDocument();
+    await waitFor(()=>expect(input).toHaveValue(11_000));
+    expect(screen.getByRole('button',{name:'11,000원 입찰하기'})).toBeDisabled();
+    expect(screen.getByText('최소 입찰가 32,000원 이상 입력해 주세요.')).toBeInTheDocument();
+  });
+
+  it('Esc 키를 누르면 모달을 닫는다',async()=>{
+    const onClose=vi.fn();
+    renderDialog(onClose);
+    await screen.findByRole('dialog',{name:'피카츄 경매 참여'});
+
+    fireEvent.keyDown(window,{key:'Escape'});
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('페이지 스크롤 컨테이너 밖의 뷰포트 레이어에 표시하고 배경 클릭으로 닫는다',async()=>{
+    const onClose=vi.fn();
+    const{container}=renderDialog(onClose);
+    const dialog=await screen.findByRole('dialog',{name:'피카츄 경매 참여'});
+    const backdrop=dialog.parentElement!;
+
+    expect(backdrop).toHaveClass('bid-backdrop');
+    expect(backdrop.parentElement).toBe(document.body);
+    expect(container.contains(dialog)).toBe(false);
+
+    fireEvent.mouseDown(backdrop);
+
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('SSE 최소 입찰가보다 높은 입력값은 유지한다',async()=>{
@@ -103,11 +131,16 @@ describe('AuctionBidDialog',()=>{
   });
 
   it('입찰 성공 응답으로 참여 경매 대시보드를 최고 입찰 상태로 갱신한다',async()=>{
-    const{queryClient}=renderDialog();
+    const onClose=vi.fn();
+    const{queryClient}=renderDialog(onClose);
+    const invalidateQueries=vi.spyOn(queryClient,'invalidateQueries');
+    const dialog=await screen.findByRole('dialog',{name:'피카츄 경매 참여'});
+    const scrollTo=vi.fn();
+    dialog.scrollTo=scrollTo;
     mocks.createBid.mockResolvedValue({
       bid:{id:10,amount:11_000,status:'LEADING',created_at:'2026-08-04T01:00:00Z'},
       auction:{id:1,current_price:11_000,minimum_bid:12_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},
-      wallet:{available_balance:89_000,frozen_balance:11_000},
+      wallet:{available_balance:1_000,frozen_balance:11_000},
     });
     const dashboardKey=[...dashboardQueryKey,'participating-auctions','ENDING_SOON'];
     queryClient.setQueryData(dashboardKey,[auction]);
@@ -119,6 +152,15 @@ describe('AuctionBidDialog',()=>{
       currentPrice:11_000,bidCount:2,myBidStatus:'LEADING',myBidAmount:11_000,
     }));
     expect(await screen.findByText('피카츄 카드를 11,000원에 입찰하였습니다.')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialog).toBeInTheDocument();
+    expect(scrollTo).toHaveBeenCalledWith({top:dialog.scrollHeight,behavior:'smooth'});
+    expect(screen.queryByText(/최소 입찰가 .* 이상 입력해 주세요/)).not.toBeInTheDocument();
+    expect(screen.queryByText('전자지갑 포인트가 부족합니다.')).not.toBeInTheDocument();
+    expect(queryClient.getQueryData(walletQueryKeys.balance())).toMatchObject({
+      totalBalance:12_000,availableBalance:1_000,frozenBalance:11_000,
+    });
+    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 
   it('즉시 구매는 동의 후에만 가능하고 즉시 구매가로 요청한다',async()=>{
@@ -132,6 +174,17 @@ describe('AuctionBidDialog',()=>{
     await user.click(submit);
     await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
     expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 구매하였습니다.')).not.toHaveLength(0);
+  });
+
+  it('최고 입찰 상태에서는 즉시 구매 탭에 최고 입찰 안내를 표시하지 않는다',async()=>{
+    mocks.fetchContext.mockResolvedValue({...context,my_bid_status:'LEADING'});
+    renderDialog();
+    const user=userEvent.setup();
+
+    expect(await screen.findByText('현재 최고가 입찰 중입니다.')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab',{name:'즉시 구매'}));
+
+    expect(screen.queryByText('현재 최고가 입찰 중입니다.')).not.toBeInTheDocument();
   });
 
   it('즉시 구매가가 없는 경매는 즉시 구매 탭과 상시 안내를 표시한다',async()=>{
@@ -151,6 +204,7 @@ describe('AuctionBidDialog',()=>{
     expect(screen.getByRole('dialog',{name:'즉시 구매 확인'})).toHaveTextContent('20,000원에 즉시 구매');
     expect(mocks.createBid).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button',{name:'확인'}));
+    expect(screen.queryByRole('dialog',{name:'즉시 구매 확인'})).not.toBeInTheDocument();
     await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
     expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 구매하였습니다.')).not.toHaveLength(0);
   });

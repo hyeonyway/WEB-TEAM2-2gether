@@ -1,5 +1,6 @@
 package com.dbidding.account.authentication.session;
 
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("app.session")
@@ -11,8 +12,9 @@ public final class SessionProperties {
 	private final String cookieName;
 	private final boolean secureCookie;
 	private final String sameSite;
+	private final Duration absoluteTimeout;
 
-	public SessionProperties(SessionStore store, String cookieName, Boolean secureCookie, String sameSite) {
+	public SessionProperties(SessionStore store, String cookieName, Boolean secureCookie, String sameSite, Duration absoluteTimeout) {
 		if (store == null) {
 			throw new IllegalArgumentException("Session store must be explicitly configured");
 		}
@@ -20,10 +22,14 @@ public final class SessionProperties {
 		this.cookieName = cookieName == null || cookieName.isBlank() ? DEFAULT_COOKIE_NAME : cookieName;
 		this.secureCookie = secureCookie == null || secureCookie;
 		this.sameSite = sameSite == null || sameSite.isBlank() ? "Lax" : normalizeSameSite(sameSite);
+		this.absoluteTimeout = absoluteTimeout == null ? Duration.ofHours(12) : absoluteTimeout;
+		if (this.absoluteTimeout.isZero() || this.absoluteTimeout.isNegative()) throw new IllegalArgumentException("Session absolute timeout must be positive");
 		if ("None".equals(this.sameSite) && !this.secureCookie) {
 			throw new IllegalArgumentException("SameSite=None requires a secure cookie");
 		}
 	}
+
+	public Duration absoluteTimeout() { return absoluteTimeout; }
 
 	public SessionStore store() {
 		return store;

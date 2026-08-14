@@ -45,9 +45,9 @@ class RedisAuctionEndingTransitionProcessorTest {
         when(hashOperations.get("auction:state:2", "closeTime")).thenReturn("2026-08-10T00:05:00Z");
         when(hashOperations.get("auction:state:1", "estimatedCloseTime")).thenReturn("2026-08-10T00:05:00Z");
         when(hashOperations.get("auction:state:2", "estimatedCloseTime")).thenReturn("2026-08-10T00:05:00Z");
-        when(hashOperations.get("auction:state:1", "startPrice")).thenReturn("40000");
-        when(hashOperations.get("auction:state:1", "currentPrice")).thenReturn("43000");
-        when(hashOperations.get("auction:state:1", "bidIncrement")).thenReturn("3000");
+        when(hashOperations.get("auction:state:1", "startPrice")).thenReturn("4.0000e+4");
+        when(hashOperations.get("auction:state:1", "currentPrice")).thenReturn("4.3000e+4");
+        when(hashOperations.get("auction:state:1", "bidIncrement")).thenReturn("3.000e+3");
         when(hashOperations.get("auction:state:1", "bidCount")).thenReturn("2");
         when(extensionProvider.next()).thenReturn(Duration.ofSeconds(90));
         when(redisTemplate.execute(eq(script), anyList(), eq("1"), eq("1786320000000"), eq("2026-08-10T00:00:00Z"),

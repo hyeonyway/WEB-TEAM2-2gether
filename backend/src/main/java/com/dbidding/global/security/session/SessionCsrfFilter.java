@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Set;
 
-import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.session.web.http.SessionRepositoryFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.account.authentication.session.SessionCsrfTokenService;
@@ -19,7 +19,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 
-@Order(Ordered.HIGHEST_PRECEDENCE + 11)
+@Order(SessionRepositoryFilter.DEFAULT_ORDER + 2)
 @RequiredArgsConstructor
 public class SessionCsrfFilter extends OncePerRequestFilter {
 

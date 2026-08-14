@@ -1,10 +1,11 @@
 package com.dbidding.global.security.session;
 
 import java.io.IOException;
+import java.time.Clock;
 
-import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.session.web.http.SessionRepositoryFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.dbidding.account.authentication.session.SessionPrincipal;
@@ -19,7 +20,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 
-@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+@Order(SessionRepositoryFilter.DEFAULT_ORDER + 1)
 @RequiredArgsConstructor
 public class SessionAuthFilter extends OncePerRequestFilter {
 
@@ -28,6 +29,9 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
 	private final RequestUserIdWriter requestUserIdWriter;
 	private final FilterErrorResponseWriter errorResponseWriter;
+	private final com.dbidding.account.authentication.session.SessionProperties properties;
+	private final Clock clock;
+	private final SessionSseTerminationPublisher terminationPublisher;
 
 	@Override
 	protected void doFilterInternal(
@@ -42,8 +46,12 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 		}
 
 		try {
-			SessionPrincipal.readFrom(session)
-				.ifPresent(principal -> requestUserIdWriter.write(request, principal.userId()));
+			var principal = SessionPrincipal.readFrom(session);
+			if (principal.isPresent() && !clock.instant().isBefore(java.time.Instant.ofEpochSecond(principal.get().authenticatedAt()).plus(properties.absoluteTimeout()))) {
+				terminationPublisher.terminate(session.getId()); session.invalidate();
+				errorResponseWriter.write(response, HttpStatus.UNAUTHORIZED, UNAUTHORIZED, UNAUTHORIZED_MESSAGE); return;
+			}
+			principal.ifPresent(value -> requestUserIdWriter.write(request, value.userId()));
 			filterChain.doFilter(request, response);
 		} catch (UnauthorizedException exception) {
 			errorResponseWriter.write(response, HttpStatus.UNAUTHORIZED, UNAUTHORIZED, UNAUTHORIZED_MESSAGE);

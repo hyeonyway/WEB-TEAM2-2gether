@@ -1,6 +1,7 @@
 package com.dbidding.auction.sse.config;
 
 import com.dbidding.sse.config.CountingCallerRunsPolicy;
+import com.dbidding.sse.config.VirtualThreadSseTaskExecutor;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -27,6 +27,10 @@ public class AuctionSseExecutorConfig {
 
     @Value("${AUCTION_SSE_QUEUE_CAPACITY:2000}")
     private int queueCapacity;
+
+    /** {@code sse-virtual-threads} 전용 — 0이면 무제한(기본값), 양수면 동시 실행 개수를 이 값으로 제한한다. */
+    @Value("${AUCTION_SSE_VIRTUAL_MAX_CONCURRENCY:0}")
+    private int virtualMaxConcurrency;
 
     /**
      * {@code broadcast()}/{@code heartbeat()}는 DB 접근 없이 순수 네트워크 SSE
@@ -55,8 +59,6 @@ public class AuctionSseExecutorConfig {
     @Bean(name = "auctionSseTaskExecutor")
     @Profile("sse-virtual-threads")
     public TaskExecutor auctionSseVirtualTaskExecutor() {
-        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("auction-sse-");
-        executor.setVirtualThreads(true);
-        return executor;
+        return new VirtualThreadSseTaskExecutor("auction-sse-", meterRegistry, "auction-sse", virtualMaxConcurrency);
     }
 }

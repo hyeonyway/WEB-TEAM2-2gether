@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -44,13 +45,12 @@ import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
 import com.dbidding.global.security.session.SessionCsrfController;
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.session.SessionSseTerminationPublisher;
 import com.dbidding.global.security.FilterErrorResponseWriter;
 
 @WebMvcTest(
 	controllers = {AuthController.class, SessionCurrentUserTestController.class},
 	properties = {
-		"app.auth.mode=session",
-		"app.auth.session-enabled=true",
 		"app.session.store=memory",
 		"app.session.cookie-name=SESSION",
 		"app.session.secure-cookie=false"
@@ -80,6 +80,9 @@ class SessionAuthenticationWebMvcTest {
 	@MockitoBean
 	private AccountRepository accountRepository;
 
+	@MockitoBean
+	private SessionSseTerminationPublisher sessionSseTerminationPublisher;
+
 	@Test
 	void 로그인_세션으로_CurrentUser를_사용하고_로그아웃하면_세션과_쿠키를_폐기한다() throws Exception {
 		given(credentialAuthenticationService.authenticate(any(), any()))
@@ -99,6 +102,7 @@ class SessionAuthenticationWebMvcTest {
 				SessionPrincipal.USER_ID_ATTRIBUTE,
 				SessionPrincipal.ROLE_ATTRIBUTE,
 				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE,
+				FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME,
 				SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE
 			);
 

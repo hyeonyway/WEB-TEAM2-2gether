@@ -1,25 +1,28 @@
 package com.dbidding.order;
 
 import com.dbidding.auction.exception.AuctionException;
+import com.dbidding.global.redis.RedisIntegerValue;
 import com.dbidding.order.dto.OrderResponse;
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
+import com.dbidding.order.port.OrderEventPort;
+import com.dbidding.wallet.domain.WalletAmountPolicy;
+import com.dbidding.wallet.exception.InvalidWalletAmountException;
+import com.dbidding.wallet.service.RedisWalletStateSeeder;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.dbidding.wallet.service.RedisWalletStateSeeder;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
-import org.springframework.context.ApplicationEventPublisher;
-import com.dbidding.order.port.OrderEventPort;
 
 /** 주문이 유발하는 지갑 변경만 Redis 승인 경계에서 처리한다. */
 @Service
@@ -87,19 +90,20 @@ public class RedisOrderCommandService {
                         stateKey(auctionId), balanceKey(walletUserId), "order:idempotency:" + orderId + ':' + idempotencyKey, TIMELINE_STREAM,
                         "order:state:by-order-id:" + orderId
                 ), actorId.toString(), targetStatus.name(), eventType, orderId.toString(), auctionId.toString(), idempotencyKey,
-                requestHash, UUID.randomUUID().toString(), now.toString());
+                requestHash, UUID.randomUUID().toString(), now.toString(),
+                Long.toString(WalletAmountPolicy.MAX_BALANCE));
         String[] fields = raw.split("\\|", -1);
         if (!"ACCEPTED".equals(fields[0])) throw rejected(fields.length > 1 ? fields[1] : "STATE_MISSING");
         if (fields.length != 9) throw new IllegalStateException("Redis 주문 승인 응답이 올바르지 않습니다.");
         if (!Boolean.parseBoolean(fields[8])) {
             publishApprovedOrder(orderId, auctionId, actorId, buyerId, sellerId, required(order, "cardName"), targetStatus);
-            long availableBalance = Long.parseLong(fields[5]);
-            long frozenBalance = Long.parseLong(fields[6]);
-            long walletVersion = Long.parseLong(fields[4]);
+            long availableBalance = RedisIntegerValue.parseLongExact(fields[5]);
+            long frozenBalance = RedisIntegerValue.parseLongExact(fields[6]);
+            long walletVersion = RedisIntegerValue.parseLongExact(fields[4]);
             eventPublisher.publishEvent(new com.dbidding.wallet.sse.WalletBalanceChangedEvent(
                     Integer.valueOf(fields[7]),
                     new com.dbidding.wallet.dto.WalletBalanceResponse(
-                            availableBalance + frozenBalance, frozenBalance, availableBalance, walletVersion),
+                            Math.addExact(availableBalance, frozenBalance), frozenBalance, availableBalance, walletVersion),
                     walletVersion,
                     now
             ));
@@ -128,6 +132,8 @@ public class RedisOrderCommandService {
             case "INVALID_STATUS" -> new InvalidOrderStatusException();
             case "IDEMPOTENCY_CONFLICT" -> AuctionException.idempotencyConflict();
             case "STATE_MISSING" -> new OrderNotFoundException();
+            case "AMOUNT_LIMIT_EXCEEDED", "BALANCE_LIMIT_EXCEEDED" ->
+                    new InvalidWalletAmountException("지갑 및 주문 금액이 허용 상한을 초과했습니다.");
             default -> new IllegalStateException("Redis 주문 상태 전이에 실패했습니다: " + reason);
         };
     }
@@ -155,7 +161,7 @@ public class RedisOrderCommandService {
 
     private String required(Map<Object, Object> values, String field) { Object value = values.get(field); if (value == null || value.toString().isBlank()) throw new OrderNotFoundException(); return value.toString(); }
     private Integer integer(Map<Object, Object> values, String field) { return Integer.valueOf(required(values, field)); }
-    private long longValue(Map<Object, Object> values, String field) { return Long.parseLong(required(values, field)); }
+    private long longValue(Map<Object, Object> values, String field) { return RedisIntegerValue.parseLongExact(required(values, field)); }
     private String stateKey(Integer auctionId) { return "order:state:" + auctionId; }
     private String balanceKey(Integer userId) { return "wallet:balance:" + userId; }
 }
