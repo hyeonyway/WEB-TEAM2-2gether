@@ -44,10 +44,10 @@ const bidEvent:AuctionStreamPayload={
   ends_at:'2099-08-04T11:00:00Z',status:'OPEN',event_id:2,occurred_at:'2026-08-04T01:00:00Z',
 };
 
-function renderDialog(){
+function renderDialog(onClose=vi.fn()){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   return {queryClient,...render(<QueryClientProvider client={queryClient}>
-    <AuctionBidDialog auction={auction} onClose={vi.fn()}/><ToastContainer/>
+    <AuctionBidDialog auction={auction} onClose={onClose}/><ToastContainer/>
   </QueryClientProvider>)};
 }
 
@@ -105,7 +105,8 @@ describe('AuctionBidDialog',()=>{
   });
 
   it('입찰 성공 응답으로 참여 경매 대시보드를 최고 입찰 상태로 갱신한다',async()=>{
-    const{queryClient}=renderDialog();
+    const onClose=vi.fn();
+    const{queryClient}=renderDialog(onClose);
     mocks.createBid.mockResolvedValue({
       bid:{id:10,amount:11_000,status:'LEADING',created_at:'2026-08-04T01:00:00Z'},
       auction:{id:1,current_price:11_000,minimum_bid:12_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},
@@ -121,6 +122,8 @@ describe('AuctionBidDialog',()=>{
       currentPrice:11_000,bidCount:2,myBidStatus:'LEADING',myBidAmount:11_000,
     }));
     expect(await screen.findByText('피카츄 카드를 11,000원에 입찰하였습니다.')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog',{name:'피카츄 경매 참여'})).toBeInTheDocument();
   });
 
   it('즉시 구매는 동의 후에만 가능하고 즉시 구매가로 요청한다',async()=>{

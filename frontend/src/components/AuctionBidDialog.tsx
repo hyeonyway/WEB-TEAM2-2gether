@@ -78,7 +78,6 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       }:current);
       await Promise.all([queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()}),...(result.pendingOrder?[queryClient.invalidateQueries({queryKey:['orders']})]:[])]);
       showToast(request.type==='buy-now'?`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 즉시 구매하였습니다.`:`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 입찰하였습니다.`);
-      onClose();
     },
   });
 
