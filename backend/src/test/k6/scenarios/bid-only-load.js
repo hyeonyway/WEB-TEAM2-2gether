@@ -10,7 +10,12 @@ const baseUrl = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 // (같은 행에 대한 순수 락 경합 한계 측정용). 안 주면 기존처럼 풀 전체에 분산.
 const hotAuctionId = positiveIntOrNull(__ENV.HOT_AUCTION_ID);
 const stageDuration = __ENV.STAGE_DURATION || '2m';
-const qpsStages = qpsStageTargets(__ENV.QPS_STAGES).map(rate => ({target: rate, duration: stageDuration}));
+// REST_DURATION을 지정하면 각 QPS 단계 사이에 낮은 target(기본 0)으로 쉬는
+// 구간을 끼워넣는다(예: 30초 유지 + 5초 휴식 반복). 안 주면 기존처럼 계단이
+// 바로 이어진다.
+const restDuration = __ENV.REST_DURATION || null;
+const restTarget = positiveInt(__ENV.REST_TARGET, 0);
+const qpsStages = buildQpsStages(qpsStageTargets(__ENV.QPS_STAGES));
 const userCount = positiveInt(__ENV.LOAD_TEST_USER_COUNT, 500);
 const loginBatchSize = positiveInt(__ENV.LOGIN_BATCH_SIZE, 25);
 const preAllocatedVUs = positiveInt(__ENV.PRE_ALLOCATED_VUS, 200);
@@ -118,10 +123,12 @@ function loadOpenAuctions(session) {
 // 세션 인증(#469 이후): 로그인 응답은 accessToken이 아니라 Set-Cookie(SESSION)와
 // csrfToken을 준다. setup()은 VU 컨텍스트 밖이라 응답 쿠키가 어느 VU의 쿠키jar에도
 // 안 들어가므로, 쿠키 값을 직접 뽑아 매 요청에 Cookie 헤더로 수동 첨부한다.
+// #500: 동시 신규 로그인 버스트에서 Spring Session Redis 세션 생성 경합으로
+// 가끔 500이 남(일시적, 재시도하면 대부분 성공) — setup 단계에서만 재시도로 완화.
 function login(users) {
   const sessions = [];
   for (let start = 0; start < users.length; start += loginBatchSize) {
-    const responses = http.batch(users.slice(start, start + loginBatchSize).map(user => ({method: 'POST', url: `${baseUrl}/api/auth/login`, body: JSON.stringify(user), params: {headers: {'Content-Type': 'application/json'}, responseCallback: http.expectedStatuses(200)}})));
+    const responses = loginBatchWithRetry(users.slice(start, start + loginBatchSize));
     responses.forEach((response, index) => {
       if (response.status !== 200) throw new Error(`로그인 실패 (index=${start + index}, status=${response.status})`);
       const cookie = response.cookies.SESSION && response.cookies.SESSION[0] && response.cookies.SESSION[0].value;
@@ -130,6 +137,15 @@ function login(users) {
     });
   }
   return sessions;
+}
+
+function loginBatchWithRetry(users, attempt = 0) {
+  const responses = http.batch(users.map(user => ({method: 'POST', url: `${baseUrl}/api/auth/login`, body: JSON.stringify(user), params: {headers: {'Content-Type': 'application/json'}, responseCallback: http.expectedStatuses(200, 500)}})));
+  const failedIndexes = responses.reduce((acc, response, index) => { if (response.status === 500) acc.push(index); return acc; }, []);
+  if (failedIndexes.length === 0 || attempt >= 3) return responses;
+  const retried = loginBatchWithRetry(failedIndexes.map(index => users[index]), attempt + 1);
+  failedIndexes.forEach((originalIndex, i) => { responses[originalIndex] = retried[i]; });
+  return responses;
 }
 
 function loadTestUsers() { return Array.from({length: userCount}, (_, index) => ({email: `k6-user${String(index + 1).padStart(5, '0')}@dbidding.local`, password: __ENV.LOAD_TEST_PASSWORD || 'K6LoadTest123!'})); }
@@ -147,5 +163,14 @@ function positiveInt(value, fallback) { const parsed = Number(value); return Num
 function qpsStageTargets(value) {
   const parsed = csv(value).map(Number).filter(n => Number.isFinite(n) && n > 0);
   return parsed.length > 0 ? parsed : [50, 100, 150, 200, 300, 400];
+}
+function buildQpsStages(targets) {
+  if (!restDuration) return targets.map(rate => ({target: rate, duration: stageDuration}));
+  const stages = [];
+  targets.forEach((rate, index) => {
+    if (index > 0) stages.push({target: restTarget, duration: restDuration});
+    stages.push({target: rate, duration: stageDuration});
+  });
+  return stages;
 }
 function summaryText(data) { const values = data.metrics.http_reqs?.values || {}; return `\n=== BID-ONLY (NO SSE) SUMMARY ===\nHTTP 요청: ${values.count || 0} (${(values.rate || 0).toFixed(2)} req/s)\n`; }
