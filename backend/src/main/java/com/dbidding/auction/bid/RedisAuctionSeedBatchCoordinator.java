@@ -1,8 +1,6 @@
 package com.dbidding.auction.bid;
 
-import com.dbidding.auction.repository.AuctionImageRepository;
-import com.dbidding.auction.repository.AuctionRepository;
-import com.dbidding.auction.repository.BidRepository;
+import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,9 +30,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("redis")
 public class RedisAuctionSeedBatchCoordinator {
-    private final AuctionRepository auctionRepository;
-    private final BidRepository bidRepository;
-    private final AuctionImageRepository auctionImageRepository;
+    private final AuctionSeedDataLoader dataLoader;
     private final RedisCardStateReader cardStateReader;
     private final long batchWindowMillis;
     private final int maxBatchSize;
@@ -50,16 +46,12 @@ public class RedisAuctionSeedBatchCoordinator {
 
     @Autowired
     public RedisAuctionSeedBatchCoordinator(
-            AuctionRepository auctionRepository,
-            BidRepository bidRepository,
-            AuctionImageRepository auctionImageRepository,
+            AuctionSeedDataLoader dataLoader,
             RedisCardStateReader cardStateReader,
             @Value("${auction.state-seeding.auction-cold-batch.window-ms:5}") long batchWindowMillis,
             @Value("${auction.state-seeding.auction-cold-batch.max-batch-size:200}") int maxBatchSize
     ) {
-        this.auctionRepository = auctionRepository;
-        this.bidRepository = bidRepository;
-        this.auctionImageRepository = auctionImageRepository;
+        this.dataLoader = dataLoader;
         this.cardStateReader = cardStateReader;
         this.batchWindowMillis = batchWindowMillis;
         this.maxBatchSize = maxBatchSize;
@@ -98,10 +90,19 @@ public class RedisAuctionSeedBatchCoordinator {
 
     private void flush(Batch batch) {
         try {
-            Map<Integer, AuctionSeedData> resolved = AuctionSeedData.resolveBatch(
-                    batch.auctionIds(), auctionRepository, bidRepository, auctionImageRepository, cardStateReader
-            );
-            batch.complete(auctionId -> Optional.ofNullable(resolved.get(auctionId)));
+            Map<Integer, AuctionSeedDbData> dbData = dataLoader.load(batch.auctionIds());
+            if (dbData.isEmpty()) {
+                batch.complete(auctionId -> Optional.empty());
+                return;
+            }
+            Map<Integer, CardSnapshot> cards = cardStateReader.getCardSnapshots(dbData.values().stream()
+                    .map(data -> data.auction().getItemId())
+                    .distinct()
+                    .toList());
+            batch.complete(auctionId -> Optional.ofNullable(dbData.get(auctionId))
+                    .map(data -> new AuctionSeedData(
+                            data.auction(), data.leading(), cards.get(data.auction().getItemId()),
+                            data.imagePaths(), data.latestBids(), data.recentBids())));
         } catch (Throwable throwable) {
             batch.completeExceptionally(throwable);
         }
