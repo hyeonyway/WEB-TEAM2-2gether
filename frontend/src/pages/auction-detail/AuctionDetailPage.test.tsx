@@ -121,14 +121,15 @@ describe('AuctionDetailPage',()=>{
 
     expect(await screen.findByRole('heading',{name:'피카츄'})).toBeInTheDocument();
     expect(screen.getByText('즉시 구매가 없음')).toBeInTheDocument();
+    expect(screen.getAllByText('없음')).not.toHaveLength(0);
   });
 
   it('현재 입찰가 영역에 즉시 구매가를 함께 표시한다',async()=>{
     const{container}=renderAnonymousDetail();
 
     await screen.findByRole('heading',{name:'피카츄'});
-    expect(container.querySelector('.auction-current-price .auction-buy-now-price'))
-      .toHaveTextContent('즉시 구매가 20,000원');
+    expect(container.querySelector('.auction-current-price.has-buy-now'))
+      .toHaveTextContent('현재 입찰가12,000원+20.0%즉시 구매가20,000원');
   });
 
   it('상세 정보를 기다리는 동안 실제 레이아웃 스켈레톤을 표시한다',()=>{
