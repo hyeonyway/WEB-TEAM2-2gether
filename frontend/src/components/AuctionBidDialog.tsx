@@ -1,5 +1,6 @@
 import {CheckCircle2,Wallet} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
 import {createAuctionBid} from '../api/auctionApi';
@@ -88,7 +89,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
     },
   });
 
-  return <div className="bid-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><section ref={dialogRef} className="bid-dialog" role="dialog" aria-modal="true" aria-label={`${auction.card.name} 경매 참여`}>
+  return createPortal(<div className="bid-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><section ref={dialogRef} className="bid-dialog" role="dialog" aria-modal="true" aria-label={`${auction.card.name} 경매 참여`}>
     <button className="bid-close" onClick={onClose} aria-label="닫기">×</button>
     <small>실시간 카드 경매</small><h2>경매 참여</h2><p className="bid-card-name">{auction.card.name}</p>
     <TooltipProvider delayDuration={0}><Tabs value={activeTab} onValueChange={value=>setActiveTab(value as 'bid'|'buy-now')}><Tooltip open><div className="bid-tabs-tooltip-anchor"><TabsList className="bid-tabs" aria-label="경매 방식"><TabsTrigger value="bid" className="bid-tab-bid">일반 경매</TabsTrigger><TooltipTrigger asChild><span className="bid-buy-now-tooltip-trigger"><TabsTrigger value="buy-now" className="bid-tab-buy-now" disabled={buyNowPrice===null}>즉시 구매</TabsTrigger></span></TooltipTrigger></TabsList><TooltipContent side="top" align="end">{buyNowPrice===null?'이 경매는 즉시 구매를 지원하지 않습니다.':`${buyNowPrice.toLocaleString()}원에 즉시 구매 가능!`}</TooltipContent></div></Tooltip>
@@ -107,5 +108,5 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       <div className="bid-balance"><span>구매 후 잔여 포인트</span><b>{Math.max(0,wallet-buyNowPrice!).toLocaleString()}P</b></div>{insufficientBuyNow&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">즉시 구매하지 못했습니다. 현재 상태와 잔액을 다시 확인해 주세요.</p>}
       <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>{closed?'경매 종료':bidMutation.isPending?'즉시 구매 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 구매하기`}</button>
     </TabsContent>}</Tabs></TooltipProvider>
-  </section>{buyNowConfirmationOpen&&<div className="buy-now-confirm-backdrop"><section className="buy-now-confirm" role="dialog" aria-modal="true" aria-label="즉시 구매 확인"><h3>즉시 구매로 진행할까요?</h3><p>입력한 입찰가가 즉시 구매가와 같거나 높습니다. <b>{buyNowPrice!.toLocaleString()}원</b>에 즉시 구매되며 경매가 종료됩니다.</p><div><button type="button" onClick={()=>setBuyNowConfirmationOpen(false)}>취소</button><button type="button" onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>확인</button></div></section></div>}</div>;
+  </section>{buyNowConfirmationOpen&&<div className="buy-now-confirm-backdrop"><section className="buy-now-confirm" role="dialog" aria-modal="true" aria-label="즉시 구매 확인"><h3>즉시 구매로 진행할까요?</h3><p>입력한 입찰가가 즉시 구매가와 같거나 높습니다. <b>{buyNowPrice!.toLocaleString()}원</b>에 즉시 구매되며 경매가 종료됩니다.</p><div><button type="button" onClick={()=>setBuyNowConfirmationOpen(false)}>취소</button><button type="button" onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>확인</button></div></section></div>}</div>,document.body);
 }

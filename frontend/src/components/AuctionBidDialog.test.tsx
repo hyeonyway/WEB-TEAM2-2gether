@@ -100,6 +100,21 @@ describe('AuctionBidDialog',()=>{
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('페이지 스크롤 컨테이너 밖의 뷰포트 레이어에 표시하고 배경 클릭으로 닫는다',async()=>{
+    const onClose=vi.fn();
+    const{container}=renderDialog(onClose);
+    const dialog=await screen.findByRole('dialog',{name:'피카츄 경매 참여'});
+    const backdrop=dialog.parentElement!;
+
+    expect(backdrop).toHaveClass('bid-backdrop');
+    expect(backdrop.parentElement).toBe(document.body);
+    expect(container.contains(dialog)).toBe(false);
+
+    fireEvent.mouseDown(backdrop);
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('SSE 최소 입찰가보다 높은 입력값은 유지한다',async()=>{
     renderDialog();
     const user=userEvent.setup();
