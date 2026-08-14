@@ -124,6 +124,7 @@ describe('AuctionBidDialog',()=>{
     expect(await screen.findByText('피카츄 카드를 11,000원에 입찰하였습니다.')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog',{name:'피카츄 경매 참여'})).toBeInTheDocument();
+    expect(screen.queryByText(/최소 입찰가 .* 이상 입력해 주세요/)).not.toBeInTheDocument();
   });
 
   it('즉시 구매는 동의 후에만 가능하고 즉시 구매가로 요청한다',async()=>{

@@ -62,10 +62,10 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
     onReconnected:()=>{void Promise.all([queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),queryClient.invalidateQueries({queryKey:auctionQueryKeys.bids(auction.id)})]);},
   });
   const amountValue=Number(amount);
-  const belowMinimum=amount===''||amountValue<minimum;
+  const leading=(context?.my_bid_status??auction.myBidStatus)==='LEADING';
+  const belowMinimum=!leading&&(amount===''||amountValue<minimum);
   const insufficient=amountValue>wallet;
   const insufficientBuyNow=buyNowPrice!==null&&buyNowPrice>wallet;
-  const leading=(context?.my_bid_status??auction.myBidStatus)==='LEADING';
   const closed=!['OPEN','ENDING'].includes(context?.status??auction.status);
   const bidMutation=useMutation({
     mutationFn:({price}:{price:number;type:'bid'|'buy-now'})=>createAuctionBid(auction.id,price,crypto.randomUUID()),
