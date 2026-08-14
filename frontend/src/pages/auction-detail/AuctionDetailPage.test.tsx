@@ -123,6 +123,14 @@ describe('AuctionDetailPage',()=>{
     expect(screen.getByText('즉시 구매가 없음')).toBeInTheDocument();
   });
 
+  it('현재 입찰가 영역에 즉시 구매가를 함께 표시한다',async()=>{
+    const{container}=renderAnonymousDetail();
+
+    await screen.findByRole('heading',{name:'피카츄'});
+    expect(container.querySelector('.auction-current-price .auction-buy-now-price'))
+      .toHaveTextContent('즉시 구매가 20,000원');
+  });
+
   it('상세 정보를 기다리는 동안 실제 레이아웃 스켈레톤을 표시한다',()=>{
     apiMocks.detail.mockReturnValue(new Promise(()=>{}));
     apiMocks.bids.mockReturnValue(new Promise(()=>{}));
