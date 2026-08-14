@@ -57,6 +57,11 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const[initialAmount,setInitialAmount]=useState<number|null>(null);
   if(contextQuery.isSuccess&&initialAmount===null)setInitialAmount(minimum);
   const amount=manualAmount??initialAmount??minimum;
+  useEffect(()=>{
+    const handleKeyDown=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose();};
+    window.addEventListener('keydown',handleKeyDown);
+    return()=>window.removeEventListener('keydown',handleKeyDown);
+  },[onClose]);
   useAuctionStream({
     auctionIds:[auction.id],
     onAuctionUpdated:event=>{if(event.auction_id!==auction.id)return;queryClient.setQueryData<BidContextResponseDto>(auctionQueryKeys.bidContext(auction.id),current=>applyBidContextEvent(current,event));},

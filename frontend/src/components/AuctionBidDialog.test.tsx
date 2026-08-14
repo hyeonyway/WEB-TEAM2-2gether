@@ -1,5 +1,5 @@
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
-import {act,render,screen,waitFor} from '@testing-library/react';
+import {act,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
@@ -88,6 +88,16 @@ describe('AuctionBidDialog',()=>{
     await waitFor(()=>expect(input).toHaveValue(11_000));
     expect(screen.getByRole('button',{name:'11,000원 입찰하기'})).toBeDisabled();
     expect(screen.getByText('최소 입찰가 32,000원 이상 입력해 주세요.')).toBeInTheDocument();
+  });
+
+  it('Esc 키를 누르면 모달을 닫는다',async()=>{
+    const onClose=vi.fn();
+    renderDialog(onClose);
+    await screen.findByRole('dialog',{name:'피카츄 경매 참여'});
+
+    fireEvent.keyDown(window,{key:'Escape'});
+
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('SSE 최소 입찰가보다 높은 입력값은 유지한다',async()=>{
