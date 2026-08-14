@@ -86,6 +86,7 @@ JWT 또는 세션을 미리 승자로 정하지 않고 다음 순서로 검증�
 | 4 | [`4-redis-session-multi-instance.md`](4-redis-session-multi-instance.md) | (미착수, `#469`로 구현) | Redis 세션과 다중 인스턴스 운영 — 정식 이슈 없이 `#469`에 포함되어 진행됨 |
 | 5 | [`5-benchmark-and-failure-test.md`](5-benchmark-and-failure-test.md) | (미착수) | 비교 수치와 장애 실험 결과 — **수행하지 않음**, `7-final-decision-and-implementation-plan.md` 2절에 사유 기록 |
 | 6 | [`6-final-selection-and-cleanup.md`](6-final-selection-and-cleanup.md) / [`7-final-decision-and-implementation-plan.md`](7-final-decision-and-implementation-plan.md) | [#469](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/469) | 최종 선택(세션)과 JWT 제거 — 성능 측정 없이 기능·보안 요구사항 근거로 결정, 7번 문서에 상세 |
+| 7 | [`8-session-lifetime-single-login-design.md`](8-session-lifetime-single-login-design.md) | [#472](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/472) | 절대 세션 수명 12시간과 계정당 단일 활성 세션 |
 
 후속 이슈가 생성되면 이 표의 임시 표기만 실제 이슈 링크로 바꾼다. 각 구현 문서의 범위와 이슈의 작업 항목·완료 기준은 동일하게 유지한다.
 
