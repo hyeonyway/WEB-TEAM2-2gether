@@ -24,6 +24,7 @@ class AuctionRepositoryTest {
                 Long.class,
                 Long.class,
                 Instant.class,
+                Instant.class,
                 Integer.class,
                 boolean.class,
                 Instant.class,
@@ -44,6 +45,7 @@ class AuctionRepositoryTest {
                 .contains("a.changeRateBasisPoints = :changeRateCursor and a.id < :cursorId")
                 .contains("a.openTime < :openTimeCursor")
                 .contains("a.openTime = :openTimeCursor and a.id < :cursorId")
+                .contains("case when :sort = 'ENDING_SOON' then a.closeTime end asc")
                 .contains("case when :sort = 'LATEST' then a.openTime end desc")
                 .contains("case when :sort = 'CHANGE_HIGH' then a.changeRateBasisPoints end desc")
                 .contains("a.id < :cursorId");
