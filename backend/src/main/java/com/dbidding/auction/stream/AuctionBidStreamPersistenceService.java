@@ -193,7 +193,10 @@ public class AuctionBidStreamPersistenceService {
         Auction auction = auctionRepository.findByIdForUpdate(event.auctionId())
                 .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 종료 대상 경매입니다: " + event.auctionId()));
         if ((auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.OPEN && auction.getStatus() != com.dbidding.auction.domain.AuctionStatus.ENDING)
-                || auction.getCloseTime().isAfter(event.occurredAt())) throw new InvalidBidStreamEventException("아직 종료할 수 없는 경매입니다: " + event.auctionId());
+                || auction.getCloseTime().truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
+                .isAfter(event.occurredAt().truncatedTo(java.time.temporal.ChronoUnit.MILLIS))) {
+            throw new InvalidBidStreamEventException("아직 종료할 수 없는 경매입니다: " + event.auctionId());
+        }
         java.util.Optional<Bid> winning = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING);
         if (winning.isEmpty()) { auction.closeWithoutTrade(event.occurredAt()); return; }
         Bid winner = winning.get();

@@ -165,12 +165,12 @@ class AuctionBidStreamPersistenceServiceTest {
                 inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService,
                 orderService, orderRepository, java.util.Optional.of(orderRealtimeStateProjection), cardService, auctionEventPublisher, Clock.systemUTC()
         );
-        AuctionCloseRequestedStreamEvent event = new AuctionCloseRequestedStreamEvent("close-1", 10, Instant.parse("2026-08-10T12:00:00Z"));
+        AuctionCloseRequestedStreamEvent event = new AuctionCloseRequestedStreamEvent("close-1", 10, Instant.parse("2026-08-10T12:00:00.632101Z"));
         Bid winner = org.mockito.Mockito.mock(Bid.class);
         Order order = org.mockito.Mockito.mock(Order.class);
         given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.of(auction));
         given(auction.getStatus()).willReturn(com.dbidding.auction.domain.AuctionStatus.OPEN);
-        given(auction.getCloseTime()).willReturn(Instant.parse("2026-08-09T12:00:00Z"));
+        given(auction.getCloseTime()).willReturn(Instant.parse("2026-08-10T12:00:00.632834Z"));
         given(auction.getId()).willReturn(10);
         given(auction.getSellerId()).willReturn(1);
         given(auction.getItemId()).willReturn(3);
@@ -184,6 +184,22 @@ class AuctionBidStreamPersistenceServiceTest {
         service.project(event);
 
         verify(orderRealtimeStateProjection).markCreatedOrderAfterCommit(order, "close-1");
+    }
+
+    @Test
+    void 마감_시각보다_이전_밀리초의_종료_요청은_거부한다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService,
+                orderService, orderRepository, java.util.Optional.empty(), cardService, auctionEventPublisher, Clock.systemUTC()
+        );
+        given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.of(auction));
+        given(auction.getStatus()).willReturn(com.dbidding.auction.domain.AuctionStatus.ENDING);
+        given(auction.getCloseTime()).willReturn(Instant.parse("2026-08-10T12:00:00.632834Z"));
+
+        assertThatThrownBy(() -> service.project(new AuctionCloseRequestedStreamEvent(
+                "close-early", 10, Instant.parse("2026-08-10T12:00:00.631999Z")
+        ))).isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("아직 종료할 수 없는 경매입니다");
     }
 
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {
