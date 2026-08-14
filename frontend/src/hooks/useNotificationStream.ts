@@ -2,12 +2,13 @@ import {useEffect,useRef} from 'react';
 import type {InfiniteData} from '@tanstack/react-query';
 import {useQueryClient} from '@tanstack/react-query';
 import {getSessionUserId} from '../auth/session/sessionAuthStore';
+import {revalidateSession} from '../auth/session/sessionRevalidation';
 import {isMockApiEnabled} from '../api/mockApiConfig';
 import type {NotificationDto,NotificationPageDto} from '../dto/notificationDto';
 import {applyNotificationCreated} from '../queries/notificationStreamCache';
 import {notificationQueryKeys} from '../queries/notificationQueries';
+import {nextSseReconnectDelayMs,shouldRevalidateSession} from './sseReconnectPolicy';
 
-const RECONNECT_DELAY_MS=2_000;
 const NOTIFICATION_CREATED_EVENT='notification-created';
 
 function sessionNotificationStreamUrl():string{
@@ -51,6 +52,7 @@ export function useNotificationStream({
     let eventSource:EventSource|null=null;
     let reconnectTimer:ReturnType<typeof setTimeout>|null=null;
     let stopped=false;
+    let consecutiveFailures=0;
 
     const handleNotificationCreated=(event:Event)=>{
       const notification=parsePayload((event as MessageEvent<string>).data);
@@ -77,10 +79,17 @@ export function useNotificationStream({
 
     const scheduleReconnect=()=>{
       if(stopped||reconnectTimer)return;
+      const delay=nextSseReconnectDelayMs(consecutiveFailures);
       reconnectTimer=setTimeout(()=>{
         reconnectTimer=null;
         void connect();
-      },RECONNECT_DELAY_MS);
+      },delay);
+    };
+
+    const handleFailure=()=>{
+      consecutiveFailures+=1;
+      if(shouldRevalidateSession(consecutiveFailures))void revalidateSession();
+      scheduleReconnect();
     };
 
     const connect=async()=>{
@@ -92,11 +101,14 @@ export function useNotificationStream({
       if(stopped)return;
       eventSource=new EventSource(sessionNotificationStreamUrl(),{withCredentials:true});
       eventSource.addEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);
+      eventSource.onopen=()=>{
+        consecutiveFailures=0;
+      };
       eventSource.onerror=()=>{
         eventSource?.removeEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);
         eventSource?.close();
         eventSource=null;
-        scheduleReconnect();
+        handleFailure();
       };
     };
 

@@ -2,10 +2,10 @@ import {useEffect,useRef} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {isMockApiEnabled} from '../api/mockApiConfig';
 import {fetchWalletBalance} from '../api/walletApi';
+import {revalidateSession} from '../auth/session/sessionRevalidation';
 import type {WalletBalanceDto} from '../dto/walletDto';
 import {walletQueryKeys} from '../queries/walletQueryKeys';
-
-const RECONNECT_DELAY_MS=2_000;
+import {nextSseReconnectDelayMs,shouldRevalidateSession} from './sseReconnectPolicy';
 
 type WalletSsePayload={
   wallet_version:number;
@@ -43,9 +43,16 @@ export function useWalletStream(enabled:boolean){
     let reconnectTimer:ReturnType<typeof setTimeout>|null=null;
     let stopped=false;
     let opened=false;
+    let consecutiveFailures=0;
     const reconnect=()=>{
       if(stopped||reconnectTimer)return;
-      reconnectTimer=setTimeout(()=>{reconnectTimer=null;void connect();},RECONNECT_DELAY_MS);
+      const delay=nextSseReconnectDelayMs(consecutiveFailures);
+      reconnectTimer=setTimeout(()=>{reconnectTimer=null;void connect();},delay);
+    };
+    const handleFailure=()=>{
+      consecutiveFailures+=1;
+      if(shouldRevalidateSession(consecutiveFailures))void revalidateSession();
+      reconnect();
     };
     const receive=(event:Event)=>{
       const payload=parsePayload((event as MessageEvent<string>).data);
@@ -79,14 +86,15 @@ export function useWalletStream(enabled:boolean){
         eventSource=new EventSource(streamUrl(),{withCredentials:true});
         eventSource.addEventListener('wallet-state-changed',receive);
         eventSource.onopen=()=>{
+          consecutiveFailures=0;
           if(opened)void recoverBalance();
           opened=true;
         };
         eventSource.onerror=()=>{
           eventSource?.removeEventListener('wallet-state-changed',receive);
-          eventSource?.close();eventSource=null;reconnect();
+          eventSource?.close();eventSource=null;handleFailure();
         };
-      }catch{reconnect();}
+      }catch{handleFailure();}
     };
     void connect();
     return()=>{stopped=true;if(reconnectTimer)clearTimeout(reconnectTimer);eventSource?.close();};
