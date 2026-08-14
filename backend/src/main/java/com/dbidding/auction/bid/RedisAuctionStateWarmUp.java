@@ -38,8 +38,8 @@ public class RedisAuctionStateWarmUp {
     ApplicationRunner redisAuctionStateWarmUpRunner(
             @Value("${auction.state-seeding.warm-up.enabled:true}") boolean enabled,
             @Value("${auction.state-seeding.warm-up.closing-window-minutes:30}") long closingWindowMinutes,
-            @Value("${auction.state-seeding.warm-up.recent-limit:100}") int recentLimit,
-            @Value("${auction.state-seeding.warm-up.list-coverage-limit:50}") int listCoverageLimit,
+            @Value("${auction.state-seeding.warm-up.recent-limit:500}") int recentLimit,
+            @Value("${auction.state-seeding.warm-up.list-coverage-limit:500}") int listCoverageLimit,
             @Value("${auction.state-seeding.warm-up.ending-window-repair-limit:1000}") int endingWindowRepairLimit
     ) {
         return arguments -> {
