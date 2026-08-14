@@ -67,4 +67,15 @@ class RedisWalletServiceTest {
 
         verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
     }
+
+    @Test
+    void Redis_잔액_합계가_long_범위를_넘으면_음수로_반환하지_않는다() {
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(hashOperations.get("wallet:balance:7", "availableBalance")).thenReturn(Long.toString(Long.MAX_VALUE));
+        when(hashOperations.get("wallet:balance:7", "frozenBalance")).thenReturn("1");
+        when(hashOperations.get("wallet:balance:7", "walletVersion")).thenReturn("1");
+
+        assertThatThrownBy(() -> walletService.getBalance(7))
+                .isInstanceOf(ArithmeticException.class);
+    }
 }

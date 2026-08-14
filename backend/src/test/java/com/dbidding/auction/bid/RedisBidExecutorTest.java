@@ -125,4 +125,16 @@ class RedisBidExecutorTest {
 
         verifyNoInteractions(redisTemplate);
     }
+
+    @Test
+    void Redis_입찰_응답의_지갑_합계가_long_범위를_넘으면_이벤트를_발행하지_않는다() {
+        when(redisTemplate.execute(eq(bidAcceptScript), org.mockito.ArgumentMatchers.anyList(),
+                eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"),
+                eq("2026-08-10T00:00:00Z"), eq("1000000000000")))
+                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|9223372036854775807|1|1|46000|2026-08-10T01:00:00Z|LEADING||1|40000|3000|null|OPEN|false|리자몽|10|JP|/thumb.png|7||||false");
+
+        assertThatThrownBy(() -> redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key")))
+                .isInstanceOf(ArithmeticException.class);
+        verifyNoInteractions(eventPublisher);
+    }
 }

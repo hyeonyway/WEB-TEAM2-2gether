@@ -131,7 +131,7 @@ public class RedisBidExecutor implements BidExecutor {
         eventPublisher.publishEvent(new com.dbidding.wallet.sse.WalletBalanceChangedEvent(
                 userId,
                 new com.dbidding.wallet.dto.WalletBalanceResponse(
-                        availableBalance + frozenBalance, frozenBalance, availableBalance, walletVersion),
+                        Math.addExact(availableBalance, frozenBalance), frozenBalance, availableBalance, walletVersion),
                 walletVersion,
                 occurredAt
         ));

@@ -60,7 +60,7 @@ public class RedisWalletService extends WalletService {
         }
         long availableBalance = RedisIntegerValue.parseLongExact(available.toString());
         long frozenBalance = RedisIntegerValue.parseLongExact(frozen.toString());
-        return new WalletBalanceResponse(availableBalance + frozenBalance, frozenBalance, availableBalance,
+        return new WalletBalanceResponse(Math.addExact(availableBalance, frozenBalance), frozenBalance, availableBalance,
                 RedisIntegerValue.parseLongExact(version.toString()));
     }
 
