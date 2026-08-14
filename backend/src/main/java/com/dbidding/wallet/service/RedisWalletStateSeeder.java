@@ -25,6 +25,7 @@ public class RedisWalletStateSeeder {
     private final StringRedisTemplate redisTemplate;
     private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     private final RedisStateSingleFlight singleFlight;
+    private final RedisWalletSeedBatchCoordinator batchCoordinator;
     @Qualifier("walletBootstrapScript")
     private final RedisScript<Long> walletBootstrapScript;
 
@@ -34,9 +35,19 @@ public class RedisWalletStateSeeder {
         singleFlight.execute(key, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
             if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
-            List<WalletHeldHoldRow> holds = walletHoldRepository.findHeldRowsForUsers(List.of(userId));
-            walletRepository.findBootstrapRowsForUsers(List.of(userId)).stream().findFirst().ifPresent(wallet -> seed(wallet, holds));
+            batchCoordinator.requestSeedData(userId).join()
+                    .ifPresent(seedData -> seed(seedData.wallet(), seedData.holds()));
             return true;
+        });
+    }
+
+    /** 기동 시 warm-up처럼, 호출자가 이미 들고 있는 userId 목록을 배치 조회 1회로 시딩한다. */
+    public void seedAllIfAbsent(List<Integer> userIds) {
+        if (userIds.isEmpty() || !projectionCatchUpVerifier.isCaughtUp()) return;
+        java.util.Map<Integer, WalletSeedData> resolved = WalletSeedData.resolveBatch(userIds, walletHoldRepository, walletRepository);
+        userIds.forEach(userId -> {
+            WalletSeedData seedData = resolved.get(userId);
+            if (seedData != null) seed(seedData.wallet(), seedData.holds());
         });
     }
 
