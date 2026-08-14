@@ -1,6 +1,7 @@
 package com.dbidding.auction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -43,6 +44,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.DefaultTypedTuple;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -372,6 +374,23 @@ class AuctionQueryServiceTest {
         assertThat(response.content().getFirst().myBidAmount()).isEqualTo(43_000L);
         assertThat(response.content().get(1).myBidStatus()).isEqualTo(MyBidStatus.NONE);
         assertThat(response.content().get(1).myBidAmount()).isNull();
+    }
+
+    @Test
+    void Redis_목록_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 5)));
+        when(reader.readAuctionStates(List.of(1)))
+                .thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.search(
+                7, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20)))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService);
     }
 
     @Test

@@ -1,7 +1,14 @@
 package com.dbidding.auction.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
+import com.dbidding.auction.domain.AuctionSort;
+import com.dbidding.auction.dto.AuctionCursorCodec;
+import com.dbidding.auction.dto.AuctionSearchRequest;
+import com.dbidding.auction.service.AuctionQueryService;
+import com.dbidding.auction.service.DbAuctionQueryService;
+import com.dbidding.wallet.service.WalletService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -77,6 +85,31 @@ class RedisAuctionRealtimeStateReaderPipelineIntegrationTest {
     @Test
     void 익명_목록은_bidder_state를_조회하지_않는다() {
         assertThat(reader.readMyBidStates(List.of(1, 2, 3), null)).isEmpty();
+    }
+
+    @Test
+    void 로그인_목록은_후보당_state를_한번만_읽고_recent_bids를_조회하지_않는다() {
+        for (int auctionId = 1; auctionId <= 20; auctionId++) {
+            redisTemplate.opsForHash().putAll("auction:state:" + auctionId, validState("경매 " + auctionId));
+            redisTemplate.opsForZSet().add("auction:active:by-bid-count", String.valueOf(auctionId), auctionId);
+        }
+        int userId = 100;
+        redisTemplate.opsForSet().add("auction:dashboard:participating:" + userId, "999");
+        redisTemplate.getConnectionFactory().getConnection().serverCommands().resetConfigStats();
+        AuctionQueryService service = new AuctionQueryService(
+                mock(WalletService.class), mock(DbAuctionQueryService.class), new AuctionCursorCodec());
+        ReflectionTestUtils.setField(service, "realtimeStateReader", reader);
+
+        var response = service.search(
+                userId, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20));
+
+        assertThat(response.content()).hasSize(20);
+        Properties commandStats = redisTemplate.getConnectionFactory().getConnection().serverCommands().info("commandstats");
+        assertThat(commandStats.getProperty("cmdstat_hgetall")).startsWith("calls=20,");
+        assertThat(commandStats.getProperty("cmdstat_smismember")).startsWith("calls=1,");
+        assertThat(commandStats.getProperty("cmdstat_xrevrange")).isNull();
+        Properties keyspaceStats = redisTemplate.getConnectionFactory().getConnection().serverCommands().info("stats");
+        assertThat(keyspaceStats.getProperty("keyspace_misses")).isEqualTo("0");
     }
 
     private Map<String, String> validState(String auctionName) {
