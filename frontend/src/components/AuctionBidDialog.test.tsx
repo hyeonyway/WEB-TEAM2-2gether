@@ -170,6 +170,17 @@ describe('AuctionBidDialog',()=>{
     expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 구매하였습니다.')).not.toHaveLength(0);
   });
 
+  it('최고 입찰 상태에서는 즉시 구매 탭에 최고 입찰 안내를 표시하지 않는다',async()=>{
+    mocks.fetchContext.mockResolvedValue({...context,my_bid_status:'LEADING'});
+    renderDialog();
+    const user=userEvent.setup();
+
+    expect(await screen.findByText('현재 최고가 입찰 중입니다.')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab',{name:'즉시 구매'}));
+
+    expect(screen.queryByText('현재 최고가 입찰 중입니다.')).not.toBeInTheDocument();
+  });
+
   it('즉시 구매가가 없는 경매는 즉시 구매 탭과 상시 안내를 표시한다',async()=>{
     render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><AuctionBidDialog auction={{...auction,buyNowPrice:null}} onClose={vi.fn()}/></QueryClientProvider>);
     expect(await screen.findByRole('tab',{name:'즉시 구매'})).toBeDisabled();

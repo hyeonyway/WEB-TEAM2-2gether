@@ -93,7 +93,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
     <button className="bid-close" onClick={onClose} aria-label="닫기">×</button>
     <small>실시간 카드 경매</small><h2>경매 참여</h2><p className="bid-card-name">{auction.card.name}</p>
     <TooltipProvider delayDuration={0}><Tabs value={activeTab} onValueChange={value=>setActiveTab(value as 'bid'|'buy-now')}><Tooltip open><div className="bid-tabs-tooltip-anchor"><TabsList className="bid-tabs" aria-label="경매 방식"><TabsTrigger value="bid" className="bid-tab-bid">일반 경매</TabsTrigger><TooltipTrigger asChild><span className="bid-buy-now-tooltip-trigger"><TabsTrigger value="buy-now" className="bid-tab-buy-now" disabled={buyNowPrice===null}>즉시 구매</TabsTrigger></span></TooltipTrigger></TabsList><TooltipContent side="top" align="end">{buyNowPrice===null?'이 경매는 즉시 구매를 지원하지 않습니다.':`${buyNowPrice.toLocaleString()}원에 즉시 구매 가능!`}</TooltipContent></div></Tooltip>
-    {leading&&<div className="bid-leading-notice"><CheckCircle2/><span><b>현재 최고가 입찰 중입니다.</b><small>{activeTab==='buy-now'?'즉시 구매는 진행할 수 있습니다.':'입찰 현황은 확인할 수 있지만 추가 입찰은 제한됩니다.'}</small></span></div>}
+    {leading&&activeTab==='bid'&&<div className="bid-leading-notice"><CheckCircle2/><span><b>현재 최고가 입찰 중입니다.</b><small>입찰 현황은 확인할 수 있지만 추가 입찰은 제한됩니다.</small></span></div>}
     <div className="bid-wallet"><span><Wallet/>전자지갑 포인트</span><strong>{wallet.toLocaleString()}P</strong></div>
     <TabsContent value="bid">
       <div className="bid-current"><span>현재 경매가<b><AnimatedBidValue value={currentPrice}/></b></span><span>최소 입찰가<b><AnimatedBidValue value={minimum}/></b></span></div>
