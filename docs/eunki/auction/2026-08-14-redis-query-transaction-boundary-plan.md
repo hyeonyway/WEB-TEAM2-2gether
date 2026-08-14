@@ -795,6 +795,123 @@
   그 task에 명시된 production/test 파일만 수정·검증·커밋한다. 모든 합격 기준을 만족하면
   빈 커밋 없이 최종 상태 검토로 진행한다.
 
+### Task 7: DB 입찰 컨텍스트의 단일 스냅샷을 복구
+
+**Files:**
+- Modify: `backend/src/main/java/com/dbidding/auction/service/AuctionQueryService.java:248-260`
+- Modify: `backend/src/main/java/com/dbidding/auction/service/DbAuctionQueryService.java:42-48,141-158`
+- Modify: `backend/src/test/java/com/dbidding/auction/service/DbAuctionQueryTransactionIntegrationTest.java`
+- Modify: `backend/src/test/java/com/dbidding/auction/service/DbAuctionQueryServiceTest.java`
+- Modify: `backend/src/test/java/com/dbidding/auction/service/AuctionQueryServiceTest.java`
+- Modify: `backend/src/test/java/com/dbidding/auction/service/AuctionRegistrationDetailContractTest.java`
+
+**Interfaces:**
+- Consumes: `WalletService#getBalance(Integer)`와 기존 `getBidContext(Integer, Integer, WalletBalanceResponse)` Redis fallback 진입점
+- Produces: `BidContext getBidContext(Integer userId, Integer auctionId)` DB 전용 동일 스냅샷 진입점
+
+- [ ] **Step 1: 지갑과 경매 조회의 동일 트랜잭션 회귀 테스트를 작성한다**
+
+  `DbAuctionQueryTransactionIntegrationTest`에서 `WalletService`와 `BidRepository`를
+  `@MockitoBean`으로 교체한다. 지갑 answer는 `JdbcTemplate`로 `SELECT 1`을 실행해 실제
+  connection resource를 획득하고, 입찰 repository answer와 동일 resource인지 비교한다.
+
+  ```java
+  AtomicReference<Object> walletConnectionResource = new AtomicReference<>();
+  AtomicReference<Object> bidConnectionResource = new AtomicReference<>();
+  given(walletService.getBalance(USER_ID)).willAnswer(invocation -> {
+      jdbcTemplate.queryForObject("SELECT 1", Integer.class);
+      walletConnectionResource.set(TransactionSynchronizationManager.getResource(dataSource));
+      return new WalletBalanceResponse(100_000L, 20_000L, 80_000L);
+  });
+  given(bidRepository.findFirstByAuctionIdAndBidderIdOrderByCreatedAtDescIdDesc(
+          AUCTION_ID, USER_ID)).willAnswer(invocation -> {
+      bidConnectionResource.set(TransactionSynchronizationManager.getResource(dataSource));
+      return Optional.empty();
+  });
+
+  BidResponses.BidContext response = service.getBidContext(USER_ID, AUCTION_ID);
+
+  assertThat(response.wallet().availableBalance()).isEqualTo(80_000L);
+  assertThat(walletConnectionResource.get()).isNotNull();
+  assertThat(bidConnectionResource.get()).isSameAs(walletConnectionResource.get());
+  ```
+
+- [ ] **Step 2: 새 테스트가 현재 구현에서 실패하는지 확인한다**
+
+  Run:
+
+  ```bash
+  cd backend
+  ./gradlew test --tests '*DbAuctionQueryTransactionIntegrationTest.DB_입찰_컨텍스트*'
+  ```
+
+  Expected: wallet을 내부에서 조회하는 2-argument `getBidContext`가 없어 compilation failure.
+
+- [ ] **Step 3: DB 전용 진입점을 최소 구현한다**
+
+  `DbAuctionQueryService`에 `WalletService`를 주입하고 아래 overload를 추가한다. 클래스의
+  `@Transactional(readOnly = true)` proxy가 시작된 뒤 wallet 조회가 실행되므로 기본
+  `PROPAGATION_REQUIRED`가 동일 transaction에 참여한다.
+
+  ```java
+  public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
+      return getBidContext(userId, auctionId, walletService.getBalance(userId));
+  }
+  ```
+
+  `AuctionQueryService`는 Redis reader가 없을 때 이 overload로 즉시 위임하고, Redis reader가
+  있을 때만 기존처럼 cold seed와 Redis wallet 조회를 트랜잭션 밖에서 수행한다.
+
+  ```java
+  public BidResponses.BidContext getBidContext(Integer userId, Integer auctionId) {
+      if (realtimeStateReader == null) {
+          return dbAuctionQueryService.getBidContext(userId, auctionId);
+      }
+      seedAuctionIfRequired(auctionId);
+      WalletBalanceResponse wallet = walletService.getBalance(userId);
+      // 기존 Redis hit와 Redis 복구 후 DB fallback 로직 유지
+  }
+  ```
+
+- [ ] **Step 4: 생성자 기반 테스트 fixture에 WalletService를 전달한다**
+
+  `new DbAuctionQueryService(...)`를 사용하는 세 테스트에서 기존 `walletService` mock을 마지막
+  생성자 인수로 전달한다. DB 응답 계약 테스트의 3-argument fallback 검증은 그대로 유지해
+  Redis fallback이 지갑을 두 번 읽지 않는 계약도 보존한다.
+
+- [ ] **Step 5: RED 테스트와 조회 계약 테스트를 통과시킨다**
+
+  Run:
+
+  ```bash
+  cd backend
+  ./gradlew test --tests '*DbAuctionQueryTransactionIntegrationTest' --tests '*DbAuctionQueryServiceTest' --tests '*AuctionQueryServiceTest' --tests '*AuctionRegistrationDetailContractTest'
+  ```
+
+  Expected: 모든 테스트 PASS, 동일 connection resource assertion PASS.
+
+- [ ] **Step 6: Redis 커넥션 기아 회귀와 전체 테스트를 실행한다**
+
+  Run:
+
+  ```bash
+  cd backend
+  ./gradlew test --rerun-tasks
+  ```
+
+  Expected: `BUILD SUCCESSFUL`; Redis hit/cold-seed 경로의 transaction/Hikari assertion과 전체
+  API 계약 테스트가 모두 PASS.
+
+- [ ] **Step 7: 정합성 수정과 테스트를 커밋한다**
+
+  ```bash
+  git add backend/src/main/java/com/dbidding/auction/service/AuctionQueryService.java backend/src/main/java/com/dbidding/auction/service/DbAuctionQueryService.java backend/src/test/java/com/dbidding/auction/service/AuctionQueryServiceTest.java backend/src/test/java/com/dbidding/auction/service/DbAuctionQueryServiceTest.java backend/src/test/java/com/dbidding/auction/service/AuctionRegistrationDetailContractTest.java backend/src/test/java/com/dbidding/auction/service/DbAuctionQueryTransactionIntegrationTest.java
+  git commit -m "fix: DB 입찰 컨텍스트 조회 스냅샷을 통일" -m "- 지갑과 경매 조회를 하나의 read-only 트랜잭션에 참여시킨다
+  - Redis cold seed와 fallback의 비트랜잭션 경계를 유지한다
+
+  관련 이슈: #501"
+  ```
+
 ---
 
 ## 완료 조건
@@ -806,3 +923,4 @@
 - 관련 테스트와 backend 전체 테스트가 통과한다.
 - 50~400 QPS 혼합 부하에서 Hikari 30개 장기 점유와 Tomcat thread 고갈이 재현되지 않는다.
 - Redis N+1 및 hit ratio 개선은 이번 commit에 섞이지 않는다.
+- 비-Redis 프로필의 입찰 컨텍스트는 지갑과 경매·입찰을 동일한 read-only MySQL snapshot에서 조회한다.
