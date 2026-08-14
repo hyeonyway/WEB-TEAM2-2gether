@@ -31,10 +31,11 @@ describe('ToastContainer', () => {
   it('토스트를 헤더 아래 가로 중앙에 표시한다', () => {
     vi.useFakeTimers();
     showToast('로그인이 필요합니다');
-    const {container} = render(<ToastContainer/>);
+    render(<ToastContainer/>);
 
-    const stack = container.querySelector('.toast-stack');
+    const stack = document.body.querySelector('.toast-stack');
     expect(stack).not.toBeNull();
+    expect(stack?.parentElement).toBe(document.body);
     expect(getComputedStyle(stack!).top).toBe('81px');
     expect(getComputedStyle(stack!).left).toBe('50%');
     expect(getComputedStyle(stack!).transform).toBe('translateX(-50%)');
