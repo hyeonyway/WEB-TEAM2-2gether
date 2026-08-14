@@ -24,6 +24,7 @@ dependencies {
 	implementation 'net.javacrumbs.shedlock:shedlock-spring:7.7.0'
 	implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.7.0'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.session:spring-session-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'

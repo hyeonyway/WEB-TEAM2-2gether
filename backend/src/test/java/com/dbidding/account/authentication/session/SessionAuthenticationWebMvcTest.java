@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -99,6 +100,7 @@ class SessionAuthenticationWebMvcTest {
 				SessionPrincipal.USER_ID_ATTRIBUTE,
 				SessionPrincipal.ROLE_ATTRIBUTE,
 				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE,
+				FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME,
 				SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE
 			);
 

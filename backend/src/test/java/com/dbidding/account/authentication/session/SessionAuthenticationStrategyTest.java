@@ -13,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
@@ -61,12 +62,15 @@ class SessionAuthenticationStrategyTest {
 				SessionPrincipal.USER_ID_ATTRIBUTE,
 				SessionPrincipal.ROLE_ATTRIBUTE,
 				SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE,
+				FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME,
 				SessionCsrfTokenService.CSRF_TOKEN_ATTRIBUTE
 			);
 		assertThat(session.getAttribute(SessionPrincipal.USER_ID_ATTRIBUTE)).isEqualTo(7);
 		assertThat(session.getAttribute(SessionPrincipal.ROLE_ATTRIBUTE)).isEqualTo("USER");
 		assertThat(session.getAttribute(SessionPrincipal.AUTHENTICATED_AT_ATTRIBUTE))
 			.isEqualTo(NOW.getEpochSecond());
+		assertThat(session.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME))
+			.isEqualTo("7");
 	}
 
 	@Test
