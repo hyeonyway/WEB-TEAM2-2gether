@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -266,7 +267,7 @@ public class Auction {
         if (requestedPrice != bidPrice || (incomingStatus != AuctionStatus.OPEN && incomingStatus != AuctionStatus.ENDING)) {
             throw new IllegalArgumentException("진행 중인 경매 입찰 이벤트만 처리할 수 있습니다.");
         }
-        if (closeTime.isBefore(this.closeTime)) {
+        if (closeTime.truncatedTo(ChronoUnit.MILLIS).isBefore(this.closeTime.truncatedTo(ChronoUnit.MILLIS))) {
             throw new IllegalArgumentException("일반 입찰은 경매 마감 시각을 앞당길 수 없습니다.");
         }
     }

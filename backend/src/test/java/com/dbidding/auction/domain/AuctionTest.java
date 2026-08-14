@@ -87,6 +87,16 @@ class AuctionTest {
         assertThat(auction.applyEndingTransition(estimatedCloseTime.plusSeconds(120))).isFalse();
     }
 
+    @Test
+    void Redis_나노초_마감시각과_MySQL_반올림_마감시각이_같은_밀리초면_스트림_입찰을_허용한다() {
+        Instant mysqlCloseTime = Instant.parse("2026-08-14T18:05:39.281822Z");
+        Instant redisCloseTime = Instant.parse("2026-08-14T18:05:39.281821965Z");
+        Auction auction = auction(mysqlCloseTime);
+
+        auction.validateStreamBid(2, 43_000L, 43_000L, 43_000L, 1,
+                redisCloseTime, mysqlCloseTime.minusSeconds(1), AuctionStatus.OPEN, false);
+    }
+
     private Auction auction(Instant closeTime) {
         return Auction.builder()
                 .sellerId(1)
