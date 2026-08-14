@@ -49,11 +49,13 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const[activeTab,setActiveTab]=useState<'bid'|'buy-now'>('bid');
   const[buyNowAgreed,setBuyNowAgreed]=useState(false);
   const[buyNowConfirmationOpen,setBuyNowConfirmationOpen]=useState(false);
-  // 아직 금액을 선택하거나 직접 입력하지 않은 경우에만 최소 입찰가를 기본값으로 보여 준다.
-  // 실시간 입찰로 minimum이 올라가도 사용자가 정한 금액을 바꾸면 의도보다 높은 금액으로
-  // 제출될 수 있으므로, 그 값은 유지하고 현재 최소가 미만이라는 오류로만 알려 준다.
+  // 모달을 열어 조회한 최초 최소 입찰가를 제출 금액의 기본값으로 고정한다. 이후 실시간
+  // 입찰로 minimum이 올라가도 버튼·입력값을 바꾸면 의도보다 높은 금액으로 제출될 수 있다.
+  // 갱신된 minimum은 현재가 표시와 유효성 검사에만 사용한다.
   const[manualAmount,setManualAmount]=useState<number|string|null>(null);
-  const amount=manualAmount===null?minimum:manualAmount;
+  const[initialAmount,setInitialAmount]=useState<number|null>(null);
+  if(contextQuery.isSuccess&&initialAmount===null)setInitialAmount(minimum);
+  const amount=manualAmount??initialAmount??minimum;
   useAuctionStream({
     auctionIds:[auction.id],
     onAuctionUpdated:event=>{if(event.auction_id!==auction.id)return;queryClient.setQueryData<BidContextResponseDto>(auctionQueryKeys.bidContext(auction.id),current=>applyBidContextEvent(current,event));},
