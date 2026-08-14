@@ -157,7 +157,6 @@ export type CursorPageResponseDto<T>={
   content:T[];
   next_cursor:string|null;
   has_next:boolean;
-  total_elements:number;
 };
 
 export type BidCreateResponseDto={

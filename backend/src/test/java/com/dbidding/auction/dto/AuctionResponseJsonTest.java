@@ -33,7 +33,7 @@ class AuctionResponseJsonTest {
                 MyBidStatus.LEADING,
                 12_000L
         );
-        var response = new AuctionResponses.CursorPage<>(List.of(summary), "next-token", true, 20);
+        var response = new AuctionResponses.CursorPage<>(List.of(summary), "next-token", true);
 
         JsonNode json = objectMapper.valueToTree(response);
 
@@ -41,7 +41,7 @@ class AuctionResponseJsonTest {
         assertThat(json.has("has_next")).isTrue();
         assertThat(json.has("page")).isFalse();
         assertThat(json.has("size")).isFalse();
-        assertThat(json.path("total_elements").asLong()).isEqualTo(20);
+        assertThat(json.has("total_elements")).isFalse();
         JsonNode item = json.path("content").get(0);
         assertThat(item.has("current_price")).isTrue();
         assertThat(item.has("minimum_bid")).isTrue();
