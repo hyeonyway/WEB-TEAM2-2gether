@@ -1,5 +1,6 @@
 package com.dbidding.wallet.sse;
 
+import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
@@ -20,26 +22,49 @@ public class WalletSseConnectionManager {
     public static final String WALLET_STATE_CHANGED = "wallet-state-changed";
     private static final long CONNECTION_TIMEOUT_MILLIS = 30 * 60 * 1000L;
     private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
+    private final SessionSseConnectionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
     private final TaskExecutor sendExecutor;
 
+    @Autowired
     public WalletSseConnectionManager(
+            SessionSseConnectionRegistry sessionRegistry,
             ObjectMapper objectMapper,
             @Qualifier("walletSseTaskExecutor") TaskExecutor sendExecutor
     ) {
+        this.sessionRegistry = sessionRegistry;
         this.objectMapper = objectMapper;
         this.sendExecutor = sendExecutor;
     }
 
+    /** 기존 단위 테스트의 생성자 계약을 유지한다. */
+    WalletSseConnectionManager(ObjectMapper objectMapper, TaskExecutor sendExecutor) {
+        this(new SessionSseConnectionRegistry(), objectMapper, sendExecutor);
+    }
+
     public SseEmitter connect(Integer userId) {
-        return register(userId, new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
+        return connect(userId, null);
+    }
+
+    public SseEmitter connect(Integer userId, String sessionId) {
+        return register(userId, sessionId, new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
     }
 
     SseEmitter register(Integer userId, SseEmitter emitter) {
+        return register(userId, null, emitter);
+    }
+
+    SseEmitter register(Integer userId, String sessionId, SseEmitter emitter) {
         emittersByUserId.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(emitter);
+        if (sessionId != null) sessionIdByEmitter.put(emitter, sessionId);
         emitter.onCompletion(() -> remove(userId, emitter));
         emitter.onTimeout(() -> removeAndComplete(userId, emitter));
         emitter.onError(error -> removeAndComplete(userId, emitter));
+        if (sessionId != null && !sessionRegistry.register(sessionId, emitter)) {
+            remove(userId, emitter);
+            return emitter;
+        }
         send(userId, emitter, SseEmitter.event().name("connected").reconnectTime(3_000L).data("connected"));
         return emitter;
     }
@@ -85,6 +110,8 @@ public class WalletSseConnectionManager {
     }
 
     private void remove(Integer userId, SseEmitter emitter) {
+        String sessionId = sessionIdByEmitter.remove(emitter);
+        if (sessionId != null) sessionRegistry.unregister(sessionId, emitter);
         emittersByUserId.computeIfPresent(userId, (ignored, emitters) -> {
             emitters.remove(emitter);
             return emitters.isEmpty() ? null : emitters;

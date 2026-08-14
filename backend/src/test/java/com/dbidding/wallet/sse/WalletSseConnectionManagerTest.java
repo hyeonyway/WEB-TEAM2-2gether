@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -43,6 +44,19 @@ class WalletSseConnectionManagerTest {
         manager.push(1, payload(10));
 
         verify(executor).execute(any(Runnable.class));
+    }
+
+    @Test
+    void 세션_종료_시_해당_세션의_지갑_SSE_연결도_종료한다() {
+        SessionSseConnectionRegistry registry = new SessionSseConnectionRegistry();
+        WalletSseConnectionManager manager = new WalletSseConnectionManager(
+                registry, objectMapper(), new SyncTaskExecutor());
+        SseEmitter emitter = mock(SseEmitter.class);
+
+        manager.register(1, "session-a", emitter);
+        registry.disconnect("session-a");
+
+        verify(emitter).complete();
     }
 
     private WalletSsePayload payload(long version) {
