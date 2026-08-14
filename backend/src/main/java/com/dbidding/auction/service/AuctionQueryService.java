@@ -230,7 +230,12 @@ public class    AuctionQueryService {
             case CHANGE_HIGH -> java.util.Comparator.comparingLong(
                             (RedisAuctionRealtimeStateReader.AuctionState state) -> changeRateBasisPoints(state)).reversed()
                     .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId, java.util.Comparator.reverseOrder());
-            case ENDING_SOON -> java.util.Comparator.comparing(RedisAuctionRealtimeStateReader.AuctionState::closeTime)
+            case ENDING_SOON -> java.util.Comparator.comparing(
+                            (RedisAuctionRealtimeStateReader.AuctionState state) -> state.status() != AuctionStatus.ENDING
+                    )
+                    .thenComparing(
+                            state -> state.status() == AuctionStatus.OPEN ? state.closeTime() : Instant.EPOCH
+                    )
                     .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId, java.util.Comparator.reverseOrder());
         };
     }

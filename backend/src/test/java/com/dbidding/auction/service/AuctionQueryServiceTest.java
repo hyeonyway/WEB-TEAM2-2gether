@@ -376,6 +376,26 @@ class AuctionQueryServiceTest {
     }
 
     @Test
+    void 마감_임박순은_ENDING을_먼저_두고_OPEN만_마감시각순으로_정렬한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeIdsBatch(eq("auction:active:by-close-time"), eq(false), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 10), tuple(2, 20), tuple(3, 30), tuple(4, 40)));
+        var endingFirst = redisState(1, AuctionStatus.ENDING, Instant.parse("2026-08-01T03:00:00Z"));
+        var earlierOpen = redisState(2, AuctionStatus.OPEN, Instant.parse("2026-08-01T01:00:00Z"));
+        var laterOpen = redisState(3, AuctionStatus.OPEN, Instant.parse("2026-08-01T02:00:00Z"));
+        var endingSecond = redisState(4, AuctionStatus.ENDING, Instant.parse("2026-08-01T04:00:00Z"));
+        when(reader.readAuctionState(1)).thenReturn(endingFirst);
+        when(reader.readAuctionState(2)).thenReturn(earlierOpen);
+        when(reader.readAuctionState(3)).thenReturn(laterOpen);
+        when(reader.readAuctionState(4)).thenReturn(endingSecond);
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.ENDING_SOON, null, null, 20));
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(4, 1, 2, 3);
+    }
+
+    @Test
     void 한_배치가_필터로_다_걸러지면_다음_배치를_추가로_가져온다() {
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         List<ZSetOperations.TypedTuple<String>> firstBatch = new java.util.ArrayList<>();
@@ -433,6 +453,18 @@ class AuctionQueryServiceTest {
                 "경매 " + auctionId, "설명", null, null, null, false,
                 startPrice, currentPrice, 1_000L, bidCount, null, 3_000L,
                 openTime, openTime.plus(Duration.ofHours(1)), List.of()
+        );
+    }
+
+    private RedisAuctionRealtimeStateReader.AuctionState redisState(
+            Integer auctionId, AuctionStatus status, Instant closeTime
+    ) {
+        Instant openTime = closeTime.minus(Duration.ofHours(1));
+        return new RedisAuctionRealtimeStateReader.AuctionState(
+                auctionId, status, 2, 1, "카드 " + auctionId, "세트", "10", "JP", "/thumb.png",
+                "경매 " + auctionId, "설명", null, null, null, false,
+                40_000L, 40_000L, 1_000L, 0, null, 3_000L,
+                openTime, closeTime, List.of()
         );
     }
 
