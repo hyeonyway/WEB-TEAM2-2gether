@@ -49,6 +49,25 @@
 - `AuctionRepository.java` (`findByIdInAndStatusNot` 추가)
 - `application-redis.yml` (`auction.state-seeding.auction-cold-batch.*`)
 
+## 후속: 경매 warm-up과 지갑 warm-up 통합
+
+`RedisWalletStateWarmUp`(HELD 지갑을 독립적으로 스캔해 기동 시 warm-up)과
+`RedisAuctionStateWarmUp`(마감임박/최근 활성 경매를 warm-up)이 서로 무관하게
+각자 다른 후보 집합을 골라서, "지금 warm-up한 경매의 낙찰 후보 지갑이 warm-up
+안 됐을 수도 있는" 정렬 불일치가 있었다. 재기동 직후 입찰에 실제로 영향을 주는
+건 "이 경매의 현재 낙찰자 지갑"이지 "아무 HELD 지갑 상위 N개"가 아니므로, 둘을
+합쳤다:
+
+- `RedisAuctionStateSeeder.seedAllIfAbsent`가 `void` 대신 이번에 warm-up한
+  경매들의 **낙찰 후보(LEADING) userId 목록**을 반환하도록 변경
+- `RedisAuctionStateWarmUp`이 그 목록을 그대로 `RedisWalletStateSeeder.
+  seedAllIfAbsent(leadingBidderIds)`에 넘겨 같은 실행 안에서 지갑까지 시딩
+- 독립적으로 HELD 지갑을 스캔하던 `RedisWalletStateWarmUp`/
+  `WalletHoldRepository.findDistinctHeldUserIds`는 삭제 — warm-up 대상에 없는
+  경매(캡을 넘는 경매)의 낙찰자 지갑은 어차피 그 경매 자체도 warm-up 안 됐으니,
+  해당 경매를 처음 열람/입찰하는 순간 경매·지갑 둘 다 온디맨드 배치 코디네이터로
+  콜드시드되는 것으로 충분하다(별도 안전망이 필요 없음)
+
 ## 검증
 
 - `RedisAuctionSeedBatchCoordinatorTest`: 동시 콜드미스 시 배치 1회 수행, 배치

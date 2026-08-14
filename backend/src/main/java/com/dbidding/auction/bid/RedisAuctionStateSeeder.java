@@ -56,11 +56,12 @@ public class RedisAuctionStateSeeder {
         });
     }
 
+    /** @return warm-up된 경매들의 현재 낙찰 후보(HELD 지갑을 가진) userId 목록 - 지갑 warm-up 범위 결정에 사용 */
     @Transactional(readOnly = true)
-    public void seedAllIfAbsent(List<Auction> auctions) {
-        if (!projectionCatchUpVerifier.isCaughtUp()) return;
+    public List<Integer> seedAllIfAbsent(List<Auction> auctions) {
+        if (!projectionCatchUpVerifier.isCaughtUp()) return List.of();
         List<Auction> active = auctions.stream().filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus())).toList();
-        if (active.isEmpty()) return;
+        if (active.isEmpty()) return List.of();
         List<Integer> auctionIds = active.stream().map(Auction::getId).toList();
         java.util.Map<Integer, Bid> leading = bidRepository.findByAuctionIdInAndStatus(auctionIds, BidStatus.LEADING).stream()
                 .collect(java.util.stream.Collectors.toMap(bid -> bid.getAuction().getId(), bid -> bid, (first, ignored) -> first));
@@ -73,6 +74,7 @@ public class RedisAuctionStateSeeder {
                 .collect(java.util.stream.Collectors.groupingBy(image -> image.getAuction().getId(), java.util.stream.Collectors.mapping(image -> image.getImagePath(), java.util.stream.Collectors.toList())));
         active.forEach(auction -> seed(auction, leading.get(auction.getId()), cards.get(auction.getItemId()), imagePaths.getOrDefault(auction.getId(), List.of()),
                 latestBidsByAuction.getOrDefault(auction.getId(), List.of()), recentBidsByAuction.getOrDefault(auction.getId(), List.of())));
+        return leading.values().stream().map(Bid::getBidderId).distinct().toList();
     }
 
     private boolean seed(Auction auction, Bid leading, CardSnapshot card, List<String> imagePathList, List<Bid> latestBids, List<Bid> recentBids) {

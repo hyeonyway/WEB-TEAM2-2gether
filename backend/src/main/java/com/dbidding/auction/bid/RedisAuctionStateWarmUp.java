@@ -3,6 +3,7 @@ package com.dbidding.auction.bid;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.service.AuctionEndingPolicy;
+import com.dbidding.wallet.service.RedisWalletStateSeeder;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -23,6 +24,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 public class RedisAuctionStateWarmUp {
     private final AuctionRepository auctionRepository;
     private final RedisAuctionStateSeeder stateSeeder;
+    private final RedisWalletStateSeeder walletStateSeeder;
     private final StringRedisTemplate redisTemplate;
     private final Clock clock;
 
@@ -44,7 +46,10 @@ public class RedisAuctionStateWarmUp {
                 if (candidates.size() < recentLimit) auctionRepository.findByStatusInOrderByOpenTimeDesc(
                         List.of(AuctionStatus.OPEN, AuctionStatus.ENDING), PageRequest.of(0, recentLimit)
                 ).forEach(auction -> candidates.putIfAbsent(auction.getId(), auction));
-                stateSeeder.seedAllIfAbsent(candidates.values().stream().limit(recentLimit).toList());
+                List<Integer> leadingBidderIds = stateSeeder.seedAllIfAbsent(candidates.values().stream().limit(recentLimit).toList());
+                // 지금 warm-up한 경매들의 낙찰 후보 지갑도 함께 올려서, 재기동 직후 첫 입찰이
+                // 경매/지갑 어느 쪽이든 콜드미스 없이 바로 처리되게 한다.
+                walletStateSeeder.seedAllIfAbsent(leadingBidderIds);
             }
             repairEndingWindow(Math.max(endingWindowRepairLimit, 0));
         };

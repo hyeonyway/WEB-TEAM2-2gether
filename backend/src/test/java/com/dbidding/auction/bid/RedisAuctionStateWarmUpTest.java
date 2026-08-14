@@ -20,6 +20,7 @@ class RedisAuctionStateWarmUpTest {
     void warmUp이_비활성이어도_기존_OPEN_상태의_ending_인덱스를_보정한다() throws Exception {
         var auctionRepository = mock(com.dbidding.auction.repository.AuctionRepository.class);
         var stateSeeder = mock(RedisAuctionStateSeeder.class);
+        var walletStateSeeder = mock(com.dbidding.wallet.service.RedisWalletStateSeeder.class);
         var redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked") ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
         @SuppressWarnings("unchecked") HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
@@ -31,7 +32,7 @@ class RedisAuctionStateWarmUpTest {
                 "status", "OPEN", "closeTime", "2026-08-10T01:00:00Z", "closeTimeEpochMillis", String.valueOf(closeTimeEpochMillis)
         ));
         RedisAuctionStateWarmUp warmUp = new RedisAuctionStateWarmUp(
-                auctionRepository, stateSeeder, redisTemplate, Clock.fixed(Instant.parse("2026-08-10T00:00:00Z"), ZoneOffset.UTC)
+                auctionRepository, stateSeeder, walletStateSeeder, redisTemplate, Clock.fixed(Instant.parse("2026-08-10T00:00:00Z"), ZoneOffset.UTC)
         );
 
         warmUp.redisAuctionStateWarmUpRunner(false, 30, 100, 1).run(null);
@@ -40,5 +41,31 @@ class RedisAuctionStateWarmUpTest {
         verify(zSetOperations).add(
                 "auction:ending-window:by-close-time", "1", closeTimeEpochMillis - AuctionEndingPolicy.WINDOW.toMillis()
         );
+    }
+
+    @Test
+    void warmUp된_경매의_낙찰_후보_지갑도_함께_시딩한다() throws Exception {
+        var auctionRepository = mock(com.dbidding.auction.repository.AuctionRepository.class);
+        var stateSeeder = mock(RedisAuctionStateSeeder.class);
+        var walletStateSeeder = mock(com.dbidding.wallet.service.RedisWalletStateSeeder.class);
+        var redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked") ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
+        @SuppressWarnings("unchecked") HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(auctionRepository.findActiveForWarmUp(
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()
+        )).thenReturn(java.util.List.of());
+        when(auctionRepository.findByStatusInOrderByOpenTimeDesc(
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any()
+        )).thenReturn(java.util.List.of());
+        when(stateSeeder.seedAllIfAbsent(org.mockito.ArgumentMatchers.anyList())).thenReturn(java.util.List.of(2, 5));
+        RedisAuctionStateWarmUp warmUp = new RedisAuctionStateWarmUp(
+                auctionRepository, stateSeeder, walletStateSeeder, redisTemplate, Clock.fixed(Instant.parse("2026-08-10T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        warmUp.redisAuctionStateWarmUpRunner(true, 30, 100, 0).run(null);
+
+        verify(walletStateSeeder).seedAllIfAbsent(java.util.List.of(2, 5));
     }
 }
