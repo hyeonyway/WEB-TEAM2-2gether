@@ -1,4 +1,4 @@
-import {CheckCircle2,Wallet} from 'lucide-react';
+import {CheckCircle2,Info,Wallet} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
 import type {AuctionDto,BidContextResponseDto} from '../dto/auctionDto';
@@ -86,7 +86,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
         wallet:result.wallet,
       }:current);
       await Promise.all([queryClient.invalidateQueries({queryKey:auctionQueryKeys.all}),queryClient.invalidateQueries({queryKey:auctionQueryKeys.bidContext(auction.id)}),queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()}),...(result.pendingOrder?[queryClient.invalidateQueries({queryKey:['orders']})]:[])]);
-      showToast(request.type==='buy-now'?`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 즉시 낙찰하였습니다.`:`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 입찰하였습니다.`);
+      showToast(request.type==='buy-now'?`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 즉시 구매하였습니다.`:`${auction.card.name} 카드를 ${result.bid.amount.toLocaleString()}원에 입찰하였습니다.`);
       onClose();
     },
   });
@@ -94,8 +94,9 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   return <div className="bid-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><section className="bid-dialog" role="dialog" aria-modal="true" aria-label={`${auction.card.name} 경매 참여`}>
     <button className="bid-close" onClick={onClose} aria-label="닫기">×</button>
     <small>실시간 카드 경매</small><h2>경매 참여</h2><p className="bid-card-name">{auction.card.name}</p>
-    <Tabs value={activeTab} onValueChange={value=>setActiveTab(value as 'bid'|'buy-now')}><TabsList className="bid-tabs" aria-label="경매 방식"><TabsTrigger value="bid" className="bid-tab-bid">일반 경매</TabsTrigger><TabsTrigger value="buy-now" className="bid-tab-buy-now" disabled={buyNowPrice===null}>즉시 낙찰</TabsTrigger></TabsList>
-    {leading&&<div className="bid-leading-notice"><CheckCircle2/><span><b>현재 최고가 입찰 중입니다.</b><small>{activeTab==='buy-now'?'즉시 낙찰은 진행할 수 있습니다.':'입찰 현황은 확인할 수 있지만 추가 입찰은 제한됩니다.'}</small></span></div>}
+    <Tabs value={activeTab} onValueChange={value=>setActiveTab(value as 'bid'|'buy-now')}><TabsList className="bid-tabs" aria-label="경매 방식"><TabsTrigger value="bid" className="bid-tab-bid">일반 경매</TabsTrigger><TabsTrigger value="buy-now" className="bid-tab-buy-now" disabled={buyNowPrice===null}>즉시 구매</TabsTrigger></TabsList>
+    <p className={`bid-buy-now-tooltip${buyNowPrice===null?' unsupported':''}`} role="status"><Info/>{buyNowPrice===null?'이 입찰은 즉시 구매를 지원하지 않습니다.':`${buyNowPrice.toLocaleString()}원에 즉시 구매 가능!`}</p>
+    {leading&&<div className="bid-leading-notice"><CheckCircle2/><span><b>현재 최고가 입찰 중입니다.</b><small>{activeTab==='buy-now'?'즉시 구매는 진행할 수 있습니다.':'입찰 현황은 확인할 수 있지만 추가 입찰은 제한됩니다.'}</small></span></div>}
     <div className="bid-wallet"><span><Wallet/>전자지갑 포인트</span><strong>{wallet.toLocaleString()}P</strong></div>
     <TabsContent value="bid">
       <div className="bid-current"><span>현재 경매가<b><AnimatedBidValue value={currentPrice}/></b></span><span>최소 입찰가<b><AnimatedBidValue value={minimum}/></b></span></div>
@@ -105,10 +106,10 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
       <div className="bid-balance"><span>입찰 후 잔여 포인트</span><b>{Math.max(0,wallet-(amountValue||0)).toLocaleString()}P</b></div>{insufficient&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">입찰하지 못했습니다. 현재 가격과 잔액을 다시 확인해 주세요.</p>}
       <button className="bid-submit" disabled={contextQuery.isPending||belowMinimum||insufficient||closed||leading||bidMutation.isPending} onClick={()=>buyNowPrice!==null&&amountValue>=buyNowPrice?setBuyNowConfirmationOpen(true):bidMutation.mutate({price:amountValue,type:'bid'})}>{closed?'경매 종료':leading?'현재 최고가 입찰 중':bidMutation.isPending?'입찰 처리 중...':`${amountValue.toLocaleString()}원 입찰하기`}</button>
     </TabsContent>{buyNowPrice!==null&&<TabsContent value="buy-now">
-      <div className="bid-current"><span>현재 경매가<b><AnimatedBidValue value={currentPrice}/></b></span><span>즉시 낙찰가<b><AnimatedBidValue value={buyNowPrice!}/></b></span></div>
-      <section className="buy-now-notice"><h3>즉시 낙찰 안내</h3><p>즉시 낙찰 시 경매가 바로 종료되며, 이후 취소할 수 없습니다.</p><label className="buy-now-agreement"><input type="checkbox" checked={buyNowAgreed} onChange={event=>setBuyNowAgreed(event.target.checked)}/><span>즉시 낙찰 시 취소할 수 없음에 동의합니다.</span></label></section>
-      <div className="bid-balance"><span>낙찰 후 잔여 포인트</span><b>{Math.max(0,wallet-buyNowPrice!).toLocaleString()}P</b></div>{insufficientBuyNow&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">즉시 낙찰하지 못했습니다. 현재 상태와 잔액을 다시 확인해 주세요.</p>}
-      <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>{closed?'경매 종료':bidMutation.isPending?'즉시 낙찰 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 낙찰하기`}</button>
+      <div className="bid-current"><span>현재 경매가<b><AnimatedBidValue value={currentPrice}/></b></span><span>즉시 구매가<b><AnimatedBidValue value={buyNowPrice!}/></b></span></div>
+      <section className="buy-now-notice"><h3>즉시 구매 안내</h3><p>즉시 구매 시 경매가 바로 종료되며, 이후 취소할 수 없습니다.</p><label className="buy-now-agreement"><input type="checkbox" checked={buyNowAgreed} onChange={event=>setBuyNowAgreed(event.target.checked)}/><span>즉시 구매 시 취소할 수 없음에 동의합니다.</span></label></section>
+      <div className="bid-balance"><span>구매 후 잔여 포인트</span><b>{Math.max(0,wallet-buyNowPrice!).toLocaleString()}P</b></div>{insufficientBuyNow&&<p className="bid-error">전자지갑 포인트가 부족합니다.</p>}{bidMutation.isError&&<p className="bid-error">즉시 구매하지 못했습니다. 현재 상태와 잔액을 다시 확인해 주세요.</p>}
+      <button className="bid-submit" disabled={contextQuery.isPending||!buyNowAgreed||insufficientBuyNow||closed||bidMutation.isPending} onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>{closed?'경매 종료':bidMutation.isPending?'즉시 구매 처리 중...':`${buyNowPrice!.toLocaleString()}원 즉시 구매하기`}</button>
     </TabsContent>}</Tabs>
-  </section>{buyNowConfirmationOpen&&<div className="buy-now-confirm-backdrop"><section className="buy-now-confirm" role="dialog" aria-modal="true" aria-label="즉시 낙찰 확인"><h3>즉시 낙찰로 진행할까요?</h3><p>입력한 입찰가가 즉시 낙찰가와 같거나 높습니다. <b>{buyNowPrice!.toLocaleString()}원</b>에 즉시 낙찰되며 경매가 종료됩니다.</p><div><button type="button" onClick={()=>setBuyNowConfirmationOpen(false)}>취소</button><button type="button" onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>확인</button></div></section></div>}</div>;
+  </section>{buyNowConfirmationOpen&&<div className="buy-now-confirm-backdrop"><section className="buy-now-confirm" role="dialog" aria-modal="true" aria-label="즉시 구매 확인"><h3>즉시 구매로 진행할까요?</h3><p>입력한 입찰가가 즉시 구매가와 같거나 높습니다. <b>{buyNowPrice!.toLocaleString()}원</b>에 즉시 구매되며 경매가 종료됩니다.</p><div><button type="button" onClick={()=>setBuyNowConfirmationOpen(false)}>취소</button><button type="button" onClick={()=>bidMutation.mutate({price:buyNowPrice!,type:'buy-now'})}>확인</button></div></section></div>}</div>;
 }

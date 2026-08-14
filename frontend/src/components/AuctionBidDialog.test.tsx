@@ -121,25 +121,26 @@ describe('AuctionBidDialog',()=>{
     expect(await screen.findByText('피카츄 카드를 11,000원에 입찰하였습니다.')).toBeInTheDocument();
   });
 
-  it('즉시 낙찰은 동의 후에만 가능하고 즉시 구매가로 요청한다',async()=>{
+  it('즉시 구매는 동의 후에만 가능하고 즉시 구매가로 요청한다',async()=>{
     mocks.createBid.mockResolvedValue({bid:{id:11,amount:20_000,status:'WON',created_at:'2026-08-04T01:00:00Z'},auction:{id:1,current_price:20_000,minimum_bid:20_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},wallet:{available_balance:80_000,frozen_balance:0}});
     renderDialog();
     const user=userEvent.setup();
-    await user.click(await screen.findByRole('tab',{name:'즉시 낙찰'}));
-    const submit=screen.getByRole('button',{name:'20,000원 즉시 낙찰하기'});
+    await user.click(await screen.findByRole('tab',{name:'즉시 구매'}));
+    const submit=screen.getByRole('button',{name:'20,000원 즉시 구매하기'});
     expect(submit).toBeDisabled();
-    await user.click(screen.getByRole('checkbox',{name:'즉시 낙찰 시 취소할 수 없음에 동의합니다.'}));
+    await user.click(screen.getByRole('checkbox',{name:'즉시 구매 시 취소할 수 없음에 동의합니다.'}));
     await user.click(submit);
     await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
-    expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 낙찰하였습니다.')).not.toHaveLength(0);
+    expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 구매하였습니다.')).not.toHaveLength(0);
   });
 
-  it('즉시 구매가가 없는 경매는 즉시 낙찰 탭을 비활성화한다',async()=>{
+  it('즉시 구매가가 없는 경매는 즉시 구매 탭과 상시 안내를 표시한다',async()=>{
     render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><AuctionBidDialog auction={{...auction,buyNowPrice:null}} onClose={vi.fn()}/></QueryClientProvider>);
-    expect(await screen.findByRole('tab',{name:'즉시 낙찰'})).toBeDisabled();
+    expect(await screen.findByRole('tab',{name:'즉시 구매'})).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('이 입찰은 즉시 구매를 지원하지 않습니다.');
   });
 
-  it('일반 입찰가가 즉시 낙찰가와 같거나 높으면 확인 후 즉시 낙찰가로 요청한다',async()=>{
+  it('일반 입찰가가 즉시 구매가와 같거나 높으면 확인 후 즉시 구매가로 요청한다',async()=>{
     mocks.createBid.mockResolvedValue({bid:{id:12,amount:20_000,status:'WON',created_at:'2026-08-04T01:00:00Z'},auction:{id:1,current_price:20_000,minimum_bid:20_000,bid_count:2,ends_at:'2099-08-04T10:00:00Z'},wallet:{available_balance:80_000,frozen_balance:0}});
     renderDialog();
     const user=userEvent.setup();
@@ -147,10 +148,10 @@ describe('AuctionBidDialog',()=>{
     await user.clear(input);
     await user.type(input,'20000');
     await user.click(screen.getByRole('button',{name:'20,000원 입찰하기'}));
-    expect(screen.getByRole('dialog',{name:'즉시 낙찰 확인'})).toHaveTextContent('20,000원에 즉시 낙찰');
+    expect(screen.getByRole('dialog',{name:'즉시 구매 확인'})).toHaveTextContent('20,000원에 즉시 구매');
     expect(mocks.createBid).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button',{name:'확인'}));
     await waitFor(()=>expect(mocks.createBid).toHaveBeenCalledWith(1,20_000,expect.any(String)));
-    expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 낙찰하였습니다.')).not.toHaveLength(0);
+    expect(await screen.findAllByText('피카츄 카드를 20,000원에 즉시 구매하였습니다.')).not.toHaveLength(0);
   });
 });
