@@ -107,7 +107,7 @@ class AuctionQueryConnectionPoolStarvationIntegrationTest {
 
             assertThat(requests).allSatisfy(request ->
                     assertThat(request.get(3, SECONDS).auctionId()).isIn(101, 102));
-            assertThat(hikariDataSource().getHikariPoolMXBean().getThreadsAwaitingConnection()).isZero();
+            awaitNoPendingConnections();
         } finally {
             requestExecutor.shutdownNow();
             batchExecutor.shutdownNow();
@@ -141,5 +141,14 @@ class AuctionQueryConnectionPoolStarvationIntegrationTest {
 
     private HikariDataSource hikariDataSource() {
         return dataSource;
+    }
+
+    private void awaitNoPendingConnections() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+        while (hikariDataSource().getHikariPoolMXBean().getThreadsAwaitingConnection() != 0
+                && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertThat(hikariDataSource().getHikariPoolMXBean().getThreadsAwaitingConnection()).isZero();
     }
 }
