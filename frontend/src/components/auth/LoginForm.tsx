@@ -1,7 +1,11 @@
-import {useMutation} from '@tanstack/react-query';
+import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {type FormEvent, useState} from 'react';
 import {HttpError} from '../../api/httpClient';
 import {authMutations} from '../../queries/authMutations';
+import {dashboardQueryKey} from '../../queries/dashboardQueries';
+import {notificationQueryKeys} from '../../queries/notificationQueries';
+import {walletQueryKeys} from '../../queries/walletQueryKeys';
+import {wishlistQueryKeys} from '../../queries/wishlistQueries';
 
 type LoginFormProps = {
   initialEmail?: string;
@@ -13,6 +17,7 @@ type LoginErrors = Partial<Record<'email' | 'password' | 'submit', string>>;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginForm({initialEmail = '', onSuccess}: LoginFormProps) {
+  const queryClient = useQueryClient();
   const [values, setValues] = useState({
     email: initialEmail,
     password: '',
@@ -44,7 +49,15 @@ export default function LoginForm({initialEmail = '', onSuccess}: LoginFormProps
     }
 
     loginMutation.mutate(values, {
-      onSuccess,
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({queryKey: walletQueryKeys.all}),
+          queryClient.invalidateQueries({queryKey: wishlistQueryKeys.all}),
+          queryClient.invalidateQueries({queryKey: notificationQueryKeys.all}),
+          queryClient.invalidateQueries({queryKey: dashboardQueryKey}),
+        ]);
+        onSuccess();
+      },
       onError: error => {
         setErrors({
           submit: error instanceof HttpError && error.status === 401

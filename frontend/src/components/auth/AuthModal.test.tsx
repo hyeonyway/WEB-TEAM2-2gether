@@ -12,6 +12,9 @@ import {HttpError} from '../../api/httpClient';
 import {AuthContext, AuthProvider} from '../../auth/AuthProvider';
 import {useAuth} from '../../auth/useAuth';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
+import {wishlistQueryKeys} from '../../queries/wishlistQueries';
+import {notificationQueryKeys} from '../../queries/notificationQueries';
+import {dashboardQueryKey} from '../../queries/dashboardQueries';
 import '../../tailwind.css';
 import Header from '../Header';
 
@@ -609,6 +612,23 @@ describe('AuthModal 로그인', () => {
     await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(window.location.pathname).toBe('/auction/7');
+  });
+
+  it('로그인 성공 후 개인화 query를 무효화한다', async () => {
+    loginMock.mockResolvedValue({accessToken: 'access-token'});
+    const {queryClient} = renderHeader();
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', {name: '로그인'}));
+    const dialog = screen.getByRole('dialog', {name: '계정 로그인'});
+    await fillValidLogin(user, dialog);
+
+    await user.click(within(dialog).getByRole('button', {name: '로그인'}));
+
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({queryKey: walletQueryKeys.all}));
+    expect(invalidateQueries).toHaveBeenCalledWith({queryKey: wishlistQueryKeys.all});
+    expect(invalidateQueries).toHaveBeenCalledWith({queryKey: notificationQueryKeys.all});
+    expect(invalidateQueries).toHaveBeenCalledWith({queryKey: dashboardQueryKey});
   });
 
   it('요청 중에는 제출 버튼을 비활성화해 중복 요청을 막는다', async () => {
