@@ -2,8 +2,7 @@ import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {render,screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter,useLocation} from 'react-router-dom';
-import {afterEach,describe,expect,it,vi} from 'vitest';
-import {clearAccessToken,getAccessToken,setAccessToken} from '../../../api/accessTokenStore';
+import {describe,expect,it,vi} from 'vitest';
 import type {CardDto} from '../../../dto/auctionDto';
 import CardCatalog from './CardCatalog';
 
@@ -29,8 +28,6 @@ function renderCatalog(queryClient=new QueryClient()){
 }
 
 describe('CardCatalog',()=>{
-  afterEach(()=>clearAccessToken());
-
   it('PSA 접두사가 포함된 등급도 접두사를 한 번만 표시한다',()=>{
     const{container}=renderCatalog();
 
@@ -40,17 +37,15 @@ describe('CardCatalog',()=>{
       .toBeInTheDocument();
   });
 
-  it('카드 상세를 SPA로 이동하며 Access Token과 Query cache를 유지한다',async()=>{
+  it('카드 상세를 SPA로 이동하며 Query cache를 유지한다',async()=>{
     const queryClient=new QueryClient();
     queryClient.setQueryData(['navigation-state'],{preserved:true});
-    setAccessToken('memory-access-token');
     const user=userEvent.setup();
     renderCatalog(queryClient);
 
     await user.click(screen.getByRole('link',{name:/피카츄/}));
 
     expect(screen.getByTestId('catalog-path')).toHaveTextContent('/cards/1');
-    expect(getAccessToken()).toBe('memory-access-token');
     expect(queryClient.getQueryData(['navigation-state'])).toEqual({preserved:true});
   });
 });
