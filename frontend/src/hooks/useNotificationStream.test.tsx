@@ -2,7 +2,7 @@ import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {act,renderHook,waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {setSessionUserId} from '../auth/session/sessionAuthStore';
+import {getSessionUserId,setSessionUserId} from '../auth/session/sessionAuthStore';
 import type {NotificationDto} from '../dto/notificationDto';
 import {notificationQueryKeys} from '../queries/notificationQueries';
 import {useNotificationStream} from './useNotificationStream';
@@ -130,7 +130,7 @@ describe('useNotificationStream',()=>{
     unmount();
   });
 
-  it('연결 오류가 나면 고정 지연 후 재연결한다',async()=>{
+  it('연결 오류가 나면 지연 후 재연결한다',async()=>{
     vi.useFakeTimers();
     const{Wrapper}=createWrapper();
     const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
@@ -142,6 +142,50 @@ describe('useNotificationStream',()=>{
     await vi.advanceTimersByTimeAsync(2_000);
 
     expect(EventSourceMock.instances).toHaveLength(2);
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('연속 실패할수록 재연결 지연이 지수적으로 늘어난다',async()=>{
+    vi.useFakeTimers();
+    const{Wrapper}=createWrapper();
+    const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
+    await vi.waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
+
+    EventSourceMock.instances[0]?.onerror?.();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(EventSourceMock.instances).toHaveLength(2);
+
+    EventSourceMock.instances[1]?.onerror?.();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(EventSourceMock.instances).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(EventSourceMock.instances).toHaveLength(3);
+
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('연속 5회 실패하면 세션을 재검증하고, 만료된 상태면 로그인 상태를 비운다',async()=>{
+    vi.useFakeTimers();
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(
+      new Response(JSON.stringify({code:'SESSION_EXPIRED'}),{status:401,headers:{'Content-Type':'application/json'}}),
+    );
+    const{Wrapper}=createWrapper();
+    const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
+    await vi.waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
+
+    let delay=2_000;
+    for(let i=0;i<5;i++){
+      EventSourceMock.instances[EventSourceMock.instances.length-1]?.onerror?.();
+      await vi.advanceTimersByTimeAsync(delay);
+      delay=Math.min(delay*2,30_000);
+    }
+
+    await vi.waitFor(()=>expect(fetchMock).toHaveBeenCalled());
+    expect(fetchMock.mock.calls.some(([path])=>path==='/api/auth/me')).toBe(true);
+    expect(getSessionUserId()).toBeNull();
+
     unmount();
     vi.useRealTimers();
   });
