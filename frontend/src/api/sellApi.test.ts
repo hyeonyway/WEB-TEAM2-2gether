@@ -15,6 +15,7 @@ describe('sellApi',()=>{
   beforeEach(()=>{
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    vi.stubEnv('VITE_LOCAL_UPLOAD','false');
     clearAccessToken();
     setAccessToken('seller-access-token');
   });
