@@ -22,9 +22,10 @@ public class SessionAuthConfiguration {
 		SessionProperties properties,
 		Clock clock,
 		SessionCsrfTokenService csrfTokenService,
-		SessionSseTerminationPublisher sessionSseTerminationPublisher
+		SessionSseTerminationPublisher sessionSseTerminationPublisher,
+		org.springframework.beans.factory.ObjectProvider<org.springframework.session.FindByIndexNameSessionRepository<?>> sessionRepositoryProvider
 	) {
-		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseTerminationPublisher);
+		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseTerminationPublisher, sessionRepositoryProvider);
 	}
 
 	@Bean

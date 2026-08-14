@@ -5,6 +5,8 @@ import java.time.Clock;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.session.FindByIndexNameSessionRepository;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
 import com.dbidding.account.dto.SessionLoginResponse;
@@ -21,8 +23,10 @@ public class SessionAuthenticationStrategy {
 	private final Clock clock;
 	private final SessionCsrfTokenService csrfTokenService;
 	private final SessionSseTerminationPublisher sessionSseTerminationPublisher;
+	private final ObjectProvider<FindByIndexNameSessionRepository<?>> sessionRepositoryProvider;
 
 	public ResponseEntity<?> establish(AuthenticatedAccount account, HttpServletRequest request) {
+		invalidateExistingSessions(account.userId());
 		HttpSession session = request.getSession(false);
 		if (session == null) {
 			session = request.getSession(true);
@@ -33,6 +37,15 @@ public class SessionAuthenticationStrategy {
 		SessionPrincipal.authenticated(account, clock.instant()).writeTo(session);
 		String csrfToken = csrfTokenService.issue(session);
 		return ResponseEntity.ok(new SessionLoginResponse(csrfToken));
+	}
+
+	private void invalidateExistingSessions(Integer userId) {
+		FindByIndexNameSessionRepository<?> repository = sessionRepositoryProvider.getIfAvailable();
+		if (repository == null) return;
+		repository.findByPrincipalName(userId.toString()).keySet().forEach(sessionId -> {
+			sessionSseTerminationPublisher.terminate(sessionId);
+			repository.deleteById(sessionId);
+		});
 	}
 
 	public ResponseEntity<Void> terminate(HttpServletRequest request) {

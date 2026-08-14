@@ -37,7 +37,8 @@ class SessionAuthenticationStrategyTest {
 			properties,
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			new SessionCsrfTokenService(),
-			sessionSseTerminationPublisher
+			sessionSseTerminationPublisher,
+			org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class)
 		);
 	}
 
