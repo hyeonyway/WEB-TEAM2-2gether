@@ -132,7 +132,7 @@ export default function AuctionDetailPage(){
           <p>{detail.card.set_name} · {detail.card.language}</p>
           <small>경매번호 AUCTION-{String(detail.id).padStart(4,'0')}</small>
         </div>
-        <div className="auction-live-label"><i/> {ended?'종료된 경매':'LIVE 경매'} <span className={`auction-countdown${detail.status==='ENDING'?' ending':''}`}><Clock3/>{displayedRemaining}</span></div>
+        <div className={`auction-live-label${ended?' ended':''}`}><i/> {ended?'종료된 경매':'LIVE 경매'} <span className={`auction-countdown${detail.status==='ENDING'?' ending':''}`}><Clock3/>{displayedRemaining}</span></div>
         <div className="auction-current-price"><small>현재 입찰가</small><strong key={latestStreamEventId??'initial'} className={latestStreamEventId===null?'':'auction-detail-price-live'}>{currentPrice.toLocaleString()}원</strong><em>+{increaseRate.toFixed(1)}%</em>{detail.buy_now_price!==null&&<span className="auction-buy-now-price">즉시 구매가 <b>{detail.buy_now_price.toLocaleString()}원</b></span>}</div>
         <div className="auction-bid-summary">
           <span>다음 최소 입찰가<b>{minimumBid.toLocaleString()}원</b></span>
