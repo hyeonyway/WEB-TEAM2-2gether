@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
@@ -38,6 +39,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
@@ -60,6 +62,7 @@ class RedisAuctionStateSeederConnectionPoolIntegrationTest {
     @Autowired private RedisDashboardStateSeeder dashboardStateSeeder;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private HikariDataSource dataSource;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     @MockitoBean private StringRedisTemplate redisTemplate;
     @MockitoBean private RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
@@ -105,23 +108,39 @@ class RedisAuctionStateSeederConnectionPoolIntegrationTest {
     }
 
     @Test
-    void dashboard_참여_경매_조회_후에는_트랜잭션_없이_cold_seed를_호출한다() {
-        AtomicBoolean transactionActiveAtSeed = new AtomicBoolean();
+    void dashboard_DB_조회_트랜잭션은_cold_seed_batch_전에_종료된다() {
+        AtomicBoolean transactionActiveDuringLookup = new AtomicBoolean();
+        AtomicBoolean batchObserved = new AtomicBoolean();
+        AtomicBoolean transactionActiveAtBatch = new AtomicBoolean();
+        AtomicBoolean connectionBoundAtBatch = new AtomicBoolean();
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        Auction auction = mock(Auction.class);
         given(redisTemplate.hasKey("auction:dashboard:seeded:77")).willReturn(false);
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
-        given(projectionCatchUpVerifier.isCaughtUp()).willAnswer(invocation -> {
-            transactionActiveAtSeed.set(TransactionSynchronizationManager.isActualTransactionActive());
-            return true;
-        });
+        given(projectionCatchUpVerifier.isCaughtUp()).willReturn(true);
+        given(auction.getId()).willReturn(101);
+        given(auction.getStatus()).willReturn(AuctionStatus.OPEN);
         given(bidRepository.findDistinctAuctionByBidderIdAndAuctionStatusIn(
                 77, java.util.List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)))
-                .willReturn(java.util.List.of());
+                .willAnswer(invocation -> new TransactionTemplate(transactionManager).execute(status -> {
+                    transactionActiveDuringLookup.set(TransactionSynchronizationManager.isActualTransactionActive());
+                    jdbcTemplate.queryForObject("SELECT 1", Integer.class);
+                    return java.util.List.of(auction);
+                }));
+        given(batchCoordinator.requestSeedData(101)).willAnswer(invocation -> {
+            batchObserved.set(true);
+            transactionActiveAtBatch.set(TransactionSynchronizationManager.isActualTransactionActive());
+            connectionBoundAtBatch.set(TransactionSynchronizationManager.hasResource(dataSource));
+            return CompletableFuture.completedFuture(Optional.empty());
+        });
 
         dashboardStateSeeder.seedIfRequired(77);
 
-        assertThat(transactionActiveAtSeed).isFalse();
+        assertThat(transactionActiveDuringLookup).isTrue();
+        assertThat(batchObserved).isTrue();
+        assertThat(transactionActiveAtBatch).isFalse();
+        assertThat(connectionBoundAtBatch).isFalse();
     }
 
     private boolean seedAfter(
