@@ -64,13 +64,17 @@ class AuctionQueryServiceTest {
     @BeforeEach
     void setUp() {
         auctionQueryService = new AuctionQueryService(
-                auctionRepository,
-                auctionImageRepository,
-                bidRepository,
                 walletService,
-                cardService,
-                cursorCodec,
-                clock
+                new DbAuctionQueryService(
+                        auctionRepository,
+                        auctionImageRepository,
+                        bidRepository,
+                        cardService,
+                        cursorCodec,
+                        clock,
+                        walletService
+                ),
+                cursorCodec
         );
     }
 
@@ -115,15 +119,11 @@ class AuctionQueryServiceTest {
     }
 
     @Test
-    void Redis_실시간_상태를_병합한_상세도_ENDING의_예정_마감을_반환한다() {
+    void Redis_state가_없으면_DB_상세의_ENDING_예정_마감을_반환한다() {
         Instant estimatedCloseTime = Instant.parse("2026-08-08T01:00:00Z");
         Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         when(reader.readAuctionState(1)).thenReturn(null);
-        when(reader.read(1, null)).thenReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
-                AuctionStatus.ENDING, 43_000L, 3_000L, 7, estimatedCloseTime.plusSeconds(90), 100_000L,
-                MyBidStatus.NONE, null, List.of()
-        ));
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
         when(cardService.getCardSnapshot(1)).thenReturn(card(1));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
