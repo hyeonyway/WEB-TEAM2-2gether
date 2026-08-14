@@ -40,13 +40,16 @@ describe('sortAuctions',()=>{
 describe('applyAuctionEvent',()=>{
   it('AUCTION_ENDING_STARTED 이벤트를 받으면 상태와 공개 마감시각을 갱신한다',()=>{
     const event={
-      type:'AUCTION_ENDING_STARTED',auction_id:1,start_price:10_000,current_price:10_000,
-      bid_increment:1_000,bid_count:0,ends_at:'2026-08-12T10:00:00.000Z',status:'ENDING',
+      type:'AUCTION_ENDING_STARTED',auction_id:1,start_price:40_000,current_price:43_000,
+      bid_increment:3_000,bid_count:2,ends_at:'2026-08-12T10:00:00.000Z',status:'ENDING',
       event_id:5,occurred_at:'2026-08-12T10:00:00.000Z',
     } as AuctionStreamPayload;
 
     const updated=applyAuctionEvent([auction(1)],event);
 
-    expect(updated[0]).toMatchObject({status:'ENDING',endsAt:'2026-08-12T10:00:00.000Z',eventId:5});
+    expect(updated[0]).toMatchObject({
+      currentPrice:43_000,bidIncrement:3_000,bidCount:2,
+      status:'ENDING',endsAt:'2026-08-12T10:00:00.000Z',eventId:5,
+    });
   });
 });

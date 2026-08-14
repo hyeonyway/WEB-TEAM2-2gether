@@ -61,12 +61,32 @@ class RedisAuctionEndingTransitionProcessor implements AuctionEndingTransitionPr
         auctionMetrics.recordEndingTransition();
         transitioned.add(auctionId);
         eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(auctionId, newCloseTime, "ending_transition"));
-        auctionStreamPublisher.publish(AuctionStreamPayload.endingStarted(auctionId, estimatedCloseTime, now));
+        auctionStreamPublisher.publish(AuctionStreamPayload.endingStarted(
+                auctionId,
+                longField(auctionId, "startPrice"),
+                longField(auctionId, "currentPrice"),
+                longField(auctionId, "bidIncrement"),
+                intField(auctionId, "bidCount"),
+                estimatedCloseTime,
+                now
+        ));
         log.info("event=auction.ending.transitioned auctionId={} estimatedCloseTime={} realCloseTime={} extensionSeconds={}",
                 auctionId, closeTimeValue, newCloseTime, java.time.Duration.between(Instant.parse(closeTimeValue.toString()), newCloseTime).toSeconds());
     }
 
     private String stateKey(Integer auctionId) {
         return "auction:state:" + auctionId;
+    }
+
+    private long longField(Integer auctionId, String field) {
+        Object value = redisTemplate.opsForHash().get(stateKey(auctionId), field);
+        if (value == null) throw new IllegalStateException("Redis 경매 상태 필드가 없습니다: " + field);
+        return Long.parseLong(value.toString());
+    }
+
+    private int intField(Integer auctionId, String field) {
+        Object value = redisTemplate.opsForHash().get(stateKey(auctionId), field);
+        if (value == null) throw new IllegalStateException("Redis 경매 상태 필드가 없습니다: " + field);
+        return Integer.parseInt(value.toString());
     }
 }
