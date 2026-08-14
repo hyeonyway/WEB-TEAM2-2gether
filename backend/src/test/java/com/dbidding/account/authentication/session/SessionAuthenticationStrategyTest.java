@@ -133,5 +133,6 @@ class SessionAuthenticationStrategyTest {
 
 		org.mockito.Mockito.verify(repository).deleteById("other-session");
 		org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).deleteById(session.getId());
+		org.mockito.Mockito.verify(sessionSseTerminationPublisher).terminate("other-session");
 	}
 }
