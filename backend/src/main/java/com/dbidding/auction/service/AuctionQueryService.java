@@ -154,7 +154,7 @@ public class    AuctionQueryService {
                             || state.auctionName().toLowerCase().contains(request.keywordOrDefault().toLowerCase())
                             || state.cardName().toLowerCase().contains(request.keywordOrDefault().toLowerCase()))
                     .filter(state -> request.psaGrade() == null || request.psaGrade().isBlank()
-                            || request.psaGrade().equalsIgnoreCase(state.cardPsaGrade()))
+                            || normalizedPsaGrade(request.psaGrade()).equals(normalizedPsaGrade(state.cardPsaGrade())))
                     .sorted(redisComparator(sort))
                     .filter(state -> cursorForFilter == null || isAfterCursor(state, cursorForFilter, sort))
                     .toList();
@@ -173,6 +173,10 @@ public class    AuctionQueryService {
             if (raw.size() < SORT_ZSET_FETCH_BATCH_SIZE) exhausted = true;
         }
         return collected.size() > limit ? collected.subList(0, limit) : collected;
+    }
+
+    private String normalizedPsaGrade(String psaGrade) {
+        return psaGrade == null ? "" : psaGrade.trim().replaceFirst("(?i)^PSA\\s+", "").trim();
     }
 
     private String sortZSetKey(AuctionSort sort) {

@@ -366,7 +366,7 @@ class AuctionQueryServiceTest {
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(tuple(1, 5), tuple(2, 3)));
-        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "PSA 10"));
         when(reader.readAuctionState(2)).thenReturn(redisState(2, 3, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "9"));
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
