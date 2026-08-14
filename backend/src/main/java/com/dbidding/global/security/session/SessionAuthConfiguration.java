@@ -22,17 +22,18 @@ public class SessionAuthConfiguration {
 		SessionProperties properties,
 		Clock clock,
 		SessionCsrfTokenService csrfTokenService,
-		SessionSseTerminationPublisher sessionSseTerminationPublisher
+		SessionSseTerminationPublisher sessionSseTerminationPublisher,
+		org.springframework.beans.factory.ObjectProvider<org.springframework.session.FindByIndexNameSessionRepository<?>> sessionRepositoryProvider
 	) {
-		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseTerminationPublisher);
+		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseTerminationPublisher, sessionRepositoryProvider);
 	}
 
 	@Bean
 	SessionAuthFilter sessionAuthFilter(
 		RequestUserIdWriter requestUserIdWriter,
-		FilterErrorResponseWriter errorResponseWriter
+		FilterErrorResponseWriter errorResponseWriter, SessionProperties properties, Clock clock, SessionSseTerminationPublisher publisher
 	) {
-		return new SessionAuthFilter(requestUserIdWriter, errorResponseWriter);
+		return new SessionAuthFilter(requestUserIdWriter, errorResponseWriter, properties, clock, publisher);
 	}
 
 	@Bean

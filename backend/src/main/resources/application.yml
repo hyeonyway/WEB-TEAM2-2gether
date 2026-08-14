@@ -119,3 +119,4 @@ app:
     cookie-name: ${SESSION_COOKIE_NAME:SESSION}
     secure-cookie: ${SESSION_SECURE_COOKIE:true}
     same-site: ${SESSION_COOKIE_SAME_SITE:lax}
+    absolute-timeout: ${SESSION_ABSOLUTE_TIMEOUT:12h}

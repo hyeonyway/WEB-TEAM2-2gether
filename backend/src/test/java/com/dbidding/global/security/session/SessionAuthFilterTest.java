@@ -25,7 +25,9 @@ class SessionAuthFilterTest {
 	void setUp() {
 		filter = new SessionAuthFilter(
 			new RequestUserIdWriter(),
-			new FilterErrorResponseWriter(objectMapper)
+			new FilterErrorResponseWriter(objectMapper),
+			new com.dbidding.account.authentication.session.SessionProperties(com.dbidding.account.authentication.session.SessionStore.MEMORY, "SESSION", false, "lax", java.time.Duration.ofHours(12)),
+			java.time.Clock.fixed(java.time.Instant.ofEpochSecond(1_786_000_001L), java.time.ZoneOffset.UTC), org.mockito.Mockito.mock(SessionSseTerminationPublisher.class)
 		);
 	}
 
@@ -88,6 +90,21 @@ class SessionAuthFilterTest {
 		Order order = SessionAuthFilter.class.getAnnotation(Order.class);
 
 		assertThat(order.value()).isGreaterThan(SessionRepositoryFilter.DEFAULT_ORDER);
+	}
+
+	@Test
+	void 활동_중이어도_절대_수명을_넘으면_세션을_폐기하고_401을_반환한다() throws Exception {
+		var publisher = org.mockito.Mockito.mock(SessionSseTerminationPublisher.class);
+		filter = new SessionAuthFilter(new RequestUserIdWriter(), new FilterErrorResponseWriter(objectMapper),
+				new com.dbidding.account.authentication.session.SessionProperties(com.dbidding.account.authentication.session.SessionStore.MEMORY, "SESSION", false, "lax", java.time.Duration.ofHours(12)),
+				java.time.Clock.fixed(java.time.Instant.ofEpochSecond(1_786_000_000L).plus(java.time.Duration.ofHours(12)), java.time.ZoneOffset.UTC), publisher);
+		MockHttpServletRequest request = authenticatedRequest(7); MockHttpSession session = (MockHttpSession) request.getSession(false);
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter.doFilter(request, response, new MockFilterChain());
+
+		assertThat(response.getStatus()).isEqualTo(401); assertThat(session.isInvalid()).isTrue();
+		org.mockito.Mockito.verify(publisher).terminate(session.getId());
 	}
 
 	private MockHttpServletRequest authenticatedRequest(int userId) {
