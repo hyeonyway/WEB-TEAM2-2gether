@@ -143,8 +143,14 @@ function login(users) {
   return sessions;
 }
 
+// setup()은 VU 하나로 취급되어 쿠키jar를 공유한다. 배치 안의 서로 다른 유저
+// 로그인이 이 jar를 같이 쓰면, 응답 순서가 뒤섞이면서 한 유저의 로그인 요청에
+// 다른 유저의 Set-Cookie가 실려 나갈 수 있다(먼저 끝난 요청이 jar를 갱신하고,
+// 아직 안 나간 요청이 그 갱신된 값을 집어서 보냄) — 서버 입장에선 "이미 유효한
+// 세션이 있는 요청"으로 보여 changeSessionId 경로를 타게 되고, 이게 세션 손상의
+// 실제 트리거였다. 요청마다 독립된 빈 jar를 줘서 이 공유 자체를 차단한다.
 function loginBatchWithRetry(users, attempt = 0) {
-  const responses = http.batch(users.map(user => ({method: 'POST', url: `${baseUrl}/api/auth/login`, body: JSON.stringify(user), params: {headers: {'Content-Type': 'application/json'}, responseCallback: http.expectedStatuses(200, 500)}})));
+  const responses = http.batch(users.map(user => ({method: 'POST', url: `${baseUrl}/api/auth/login`, body: JSON.stringify(user), params: {headers: {'Content-Type': 'application/json'}, jar: new http.CookieJar(), responseCallback: http.expectedStatuses(200, 500)}})));
   const failedIndexes = responses.reduce((acc, response, index) => { if (response.status === 500) acc.push(index); return acc; }, []);
   if (failedIndexes.length === 0 || attempt >= 3) return responses;
   const retried = loginBatchWithRetry(failedIndexes.map(index => users[index]), attempt + 1);
