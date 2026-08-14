@@ -4,7 +4,7 @@
 
 **Goal:** Redis 조회 및 cold-seed 대기 중 요청 스레드가 JDBC 커넥션을 보유하지 않게 하여 #501의 HikariCP 커넥션 기아를 제거한다.
 
-**Architecture:** `AuctionQueryService`는 트랜잭션 없는 Redis facade로 축소하고, DB fallback과 entity 기반 DTO 조립은 `DbAuctionQueryService`의 짧은 read-only 트랜잭션으로 옮긴다. 경매 cold-seed의 DB 조회도 `AuctionSeedDataLoader`를 통해 batch thread에서만 트랜잭션을 시작하며, Redis 확인·future 대기·Lua 쓰기는 트랜잭션 밖에 둔다.
+**Architecture:** `AuctionQueryService`는 트랜잭션 없는 Redis/DB 조회 조정 서비스로 축소하고, DB fallback과 entity 기반 DTO 조립은 `DbAuctionQueryService`의 짧은 read-only 트랜잭션으로 옮긴다. 경매 cold-seed의 DB 조회도 `AuctionSeedDataLoader`를 통해 batch thread에서만 트랜잭션을 시작하며, Redis 확인·future 대기·Lua 쓰기는 트랜잭션 밖에 둔다.
 
 **Tech Stack:** Java 21, Spring Boot 4.1, Spring Data JPA, Spring Data Redis, HikariCP, MySQL 8.4 Testcontainers, Redis 7.4 Testcontainers, JUnit 5, AssertJ, Mockito
 
@@ -25,7 +25,7 @@
 ## 파일 구조
 
 - `backend/src/main/java/com/dbidding/auction/service/AuctionQueryService.java`
-  - 트랜잭션 없는 public facade와 Redis 조회/Redis DTO 변환만 담당한다.
+  - 트랜잭션 없는 public 조회 조정과 Redis 조회/Redis DTO 변환만 담당한다.
 - `backend/src/main/java/com/dbidding/auction/service/DbAuctionQueryService.java`
   - repository 조회, card 조회, entity 기반 DTO 변환, DB fallback을 하나의 read-only 경계에서 담당한다.
 - `backend/src/main/java/com/dbidding/auction/bid/AuctionSeedDbData.java`
@@ -43,7 +43,7 @@
 - `backend/src/test/java/com/dbidding/auction/service/DbAuctionQueryServiceTest.java`
   - 기존 DB 조회 응답 계약을 분리된 서비스에서 검증한다.
 - `backend/src/test/java/com/dbidding/auction/service/AuctionQueryServiceTest.java`
-  - Redis facade의 routing, cursor, Redis DTO 계약만 검증한다.
+  - Redis/DB 조회 조정, cursor, Redis DTO 계약만 검증한다.
 - `backend/src/test/java/com/dbidding/auction/service/DbAuctionQueryTransactionIntegrationTest.java`
   - DB collaborator의 실제 read-only 트랜잭션과 DTO 완결성을 검증한다.
 - `backend/src/test/java/com/dbidding/auction/bid/AuctionSeedDataLoaderTest.java`
@@ -270,7 +270,7 @@
 
 - [ ] **Step 5: 등록 상세 계약 테스트를 새 구성으로 변경한다**
 
-  test fixture에서 `DbAuctionQueryService`를 생성하고 facade 대신 DB collaborator의
+  test fixture에서 `DbAuctionQueryService`를 생성하고 조회 조정 서비스 대신 DB collaborator의
   `getDetail(null, 1)`을 호출한다. seller memo, PSA certification, nullable buy-now assertion은
   그대로 유지한다.
 
@@ -286,7 +286,7 @@
 
 ---
 
-### Task 3: `AuctionQueryService`를 트랜잭션 없는 Redis facade로 축소
+### Task 3: `AuctionQueryService`를 트랜잭션 없는 Redis/DB 조회 조정 서비스로 축소
 
 **Files:**
 - Modify: `backend/src/main/java/com/dbidding/auction/service/AuctionQueryService.java`
@@ -297,7 +297,7 @@
 - Consumes: Task 2의 `DbAuctionQueryService` public methods, `WalletService`, optional Redis reader/seeder
 - Produces: 기존 controller가 호출하는 `AuctionQueryService` public API를 동일 signature로 유지
 
-- [ ] **Step 1: facade delegation 실패 테스트를 작성한다**
+- [ ] **Step 1: 조회 경로 분기 실패 테스트를 작성한다**
 
   Redis reader가 없을 때 각 public method가 정확히 DB collaborator로 위임되는지 검증한다.
 
@@ -313,14 +313,14 @@
   ```
 
   `search`, `getDashboardAuctions`, `getFailedAuctions`, `getDetail`, `getBids`에도 같은 위임
-  assertion을 둔다. `getBidContext`는 wallet을 facade에서 먼저 조회한 후 아래 signature로
+  assertion을 둔다. `getBidContext`는 wallet을 조회 조정 서비스에서 먼저 조회한 후 아래 signature로
   전달하는지 확인한다.
 
   ```java
   then(dbAuctionQueryService).should().getBidContext(7, 101, walletBalance);
   ```
 
-- [ ] **Step 2: facade 테스트가 현재 constructor와 직접 repository 사용 때문에 실패하는지 확인한다**
+- [ ] **Step 2: 조회 조정 테스트가 현재 constructor와 직접 repository 사용 때문에 실패하는지 확인한다**
 
   Run:
 
@@ -333,7 +333,7 @@
 
 - [ ] **Step 3: 클래스 트랜잭션과 repository 의존성을 제거한다**
 
-  facade field를 아래 범위로 줄인다.
+  조회 조정 서비스의 field를 아래 범위로 줄인다.
 
   ```java
   @Service
@@ -387,7 +387,7 @@
   `dbAuctionQueryService.getDetail`을 호출한다. dashboard/failed는 항상 DB collaborator로
   위임한다.
 
-- [ ] **Step 5: facade와 pool starvation 테스트를 실행한다**
+- [ ] **Step 5: 조회 조정 서비스와 pool starvation 테스트를 실행한다**
 
   Run:
 
@@ -396,13 +396,13 @@
   ./gradlew test --tests '*AuctionQueryServiceTest' --tests '*AuctionQueryConnectionPoolStarvationIntegrationTest'
   ```
 
-  Expected: Redis facade 계약 PASS, transaction active false, Hikari active 0, pool size 2 동시 request PASS.
+  Expected: Redis 조회 조정 계약 PASS, transaction active false, Hikari active 0, pool size 2 동시 request PASS.
 
-- [ ] **Step 6: facade 분리를 커밋한다**
+- [ ] **Step 6: 조회 조정 서비스 분리를 커밋한다**
 
   ```bash
   git add backend/src/main/java/com/dbidding/auction/service/AuctionQueryService.java backend/src/test/java/com/dbidding/auction/service/AuctionQueryServiceTest.java backend/src/test/java/com/dbidding/auction/service/AuctionQueryConnectionPoolStarvationIntegrationTest.java
-  git commit -m "fix: Redis 조회 중 DB 커넥션 선점을 제거" -m "- 경매 조회 facade의 클래스 트랜잭션을 제거한다
+  git commit -m "fix: Redis 조회 중 DB 커넥션 선점을 제거" -m "- 경매 조회 조정 서비스의 클래스 트랜잭션을 제거한다
   - DB fallback을 별도 read-only 조회 서비스에 위임한다
 
   관련 이슈: #501"

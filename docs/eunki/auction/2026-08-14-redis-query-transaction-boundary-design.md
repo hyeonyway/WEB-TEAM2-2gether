@@ -108,12 +108,12 @@ DTO 조립을 이동한다.
 - 입찰 컨텍스트 fallback
 - 위 기능이 사용하는 auction, bid, image, card 조회와 entity 기반 DTO 변환
 
-외부 API는 계속 `AuctionQueryService`를 호출한다. DB 서비스는 facade 뒤의 내부
+외부 API는 계속 `AuctionQueryService`를 호출한다. DB 서비스는 조회 조정 서비스 뒤의 내부
 collaborator이므로 controller와 API 계약은 바뀌지 않는다. entity와 lazy association을
 사용하는 DTO 조립은 DB 서비스 트랜잭션 안에서 완료하고 entity를 Redis 라우터로 반환하지
 않는다.
 
-`getBidContext()` fallback에서 입찰 내역을 다시 facade의 `getBids()`로 호출하지 않고,
+`getBidContext()` fallback에서 입찰 내역을 다시 조회 조정 서비스의 `getBids()`로 호출하지 않고,
 DB 서비스 내부의 DB 전용 helper를 사용한다. 이를 통해 fallback 도중 Redis 분기가 다시
 실행되거나 트랜잭션 경계가 우연히 바뀌는 것을 막는다.
 
