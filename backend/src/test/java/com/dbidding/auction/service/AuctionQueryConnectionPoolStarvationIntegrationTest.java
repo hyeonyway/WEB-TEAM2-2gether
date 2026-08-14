@@ -68,6 +68,7 @@ class AuctionQueryConnectionPoolStarvationIntegrationTest {
         stubRedisHit();
         AtomicBoolean transactionActive = new AtomicBoolean();
         AtomicInteger activeConnections = new AtomicInteger();
+        int activeConnectionsBeforeCall = hikariDataSource().getHikariPoolMXBean().getActiveConnections();
         given(walletService.getBalance(7)).willAnswer(invocation -> {
             transactionActive.set(TransactionSynchronizationManager.isActualTransactionActive());
             activeConnections.set(hikariDataSource().getHikariPoolMXBean().getActiveConnections());
@@ -78,7 +79,7 @@ class AuctionQueryConnectionPoolStarvationIntegrationTest {
 
         assertThat(result.auctionId()).isEqualTo(101);
         assertThat(transactionActive).isFalse();
-        assertThat(activeConnections).hasValue(0);
+        assertThat(activeConnections).hasValue(activeConnectionsBeforeCall);
     }
 
     @Test
