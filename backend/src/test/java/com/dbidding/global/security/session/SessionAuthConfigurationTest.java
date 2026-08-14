@@ -34,6 +34,7 @@ class SessionAuthConfigurationTest {
 			assertThat(context).hasSingleBean(SessionAuthenticationStrategy.class);
 			assertThat(context).hasSingleBean(SessionAuthFilter.class);
 			assertThat(context).hasSingleBean(SessionCsrfFilter.class);
+			assertThat(context).hasSingleBean(SessionSseCleanupListener.class);
 		});
 	}
 

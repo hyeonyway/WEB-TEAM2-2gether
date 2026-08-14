@@ -41,9 +41,14 @@ public class SessionAuthConfiguration {
 	}
 
 	@Bean
-	ServletListenerRegistrationBean<SessionSseCleanupListener> sessionSseCleanupListener(
+	SessionSseCleanupListener sessionSseCleanupListener(
 		SessionSseConnectionRegistry registry
-	) { return new ServletListenerRegistrationBean<>(new SessionSseCleanupListener(registry)); }
+	) { return new SessionSseCleanupListener(registry); }
+
+	@Bean
+	ServletListenerRegistrationBean<SessionSseCleanupListener> sessionSseCleanupListenerRegistration(
+		SessionSseCleanupListener sessionSseCleanupListener
+	) { return new ServletListenerRegistrationBean<>(sessionSseCleanupListener); }
 
 	@Bean
 	SessionCsrfFilter sessionCsrfFilter(

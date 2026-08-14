@@ -51,8 +51,6 @@ import com.dbidding.global.security.FilterErrorResponseWriter;
 @WebMvcTest(
 	controllers = {AuthController.class, SessionCurrentUserTestController.class},
 	properties = {
-		"app.auth.mode=session",
-		"app.auth.session-enabled=true",
 		"app.session.store=memory",
 		"app.session.cookie-name=SESSION",
 		"app.session.secure-cookie=false"
