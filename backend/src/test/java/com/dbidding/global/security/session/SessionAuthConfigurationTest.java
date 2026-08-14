@@ -1,6 +1,7 @@
 package com.dbidding.global.security.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.time.Clock;
 
@@ -22,6 +23,7 @@ class SessionAuthConfigurationTest {
 		.withBean(RequestUserIdWriter.class, RequestUserIdWriter::new)
 		.withBean(FilterErrorResponseWriter.class, () -> new FilterErrorResponseWriter(new ObjectMapper()))
 		.withBean(SessionSseConnectionRegistry.class, SessionSseConnectionRegistry::new)
+		.withBean(SessionSseTerminationPublisher.class, () -> mock(SessionSseTerminationPublisher.class))
 		.withBean(Clock.class, Clock::systemUTC);
 
 	@Test

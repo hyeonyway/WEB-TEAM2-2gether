@@ -45,6 +45,7 @@ import com.dbidding.global.security.RequestUserIdWriter;
 import com.dbidding.global.security.session.SessionAuthConfiguration;
 import com.dbidding.global.security.session.SessionCsrfController;
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.session.SessionSseTerminationPublisher;
 import com.dbidding.global.security.FilterErrorResponseWriter;
 
 @WebMvcTest(
@@ -80,6 +81,9 @@ class SessionAuthenticationWebMvcTest {
 
 	@MockitoBean
 	private AccountRepository accountRepository;
+
+	@MockitoBean
+	private SessionSseTerminationPublisher sessionSseTerminationPublisher;
 
 	@Test
 	void 로그인_세션으로_CurrentUser를_사용하고_로그아웃하면_세션과_쿠키를_폐기한다() throws Exception {

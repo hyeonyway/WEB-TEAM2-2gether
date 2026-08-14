@@ -24,9 +24,9 @@ public class SessionAuthConfiguration {
 		SessionProperties properties,
 		Clock clock,
 		SessionCsrfTokenService csrfTokenService,
-		SessionSseConnectionRegistry sessionSseConnectionRegistry
+		SessionSseTerminationPublisher sessionSseTerminationPublisher
 	) {
-		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseConnectionRegistry);
+		return new SessionAuthenticationStrategy(properties, clock, csrfTokenService, sessionSseTerminationPublisher);
 	}
 
 	@Bean
