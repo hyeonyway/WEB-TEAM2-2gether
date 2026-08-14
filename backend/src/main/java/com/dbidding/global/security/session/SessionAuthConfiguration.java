@@ -30,9 +30,9 @@ public class SessionAuthConfiguration {
 	@Bean
 	SessionAuthFilter sessionAuthFilter(
 		RequestUserIdWriter requestUserIdWriter,
-		FilterErrorResponseWriter errorResponseWriter
+		FilterErrorResponseWriter errorResponseWriter, SessionProperties properties, Clock clock, SessionSseTerminationPublisher publisher
 	) {
-		return new SessionAuthFilter(requestUserIdWriter, errorResponseWriter);
+		return new SessionAuthFilter(requestUserIdWriter, errorResponseWriter, properties, clock, publisher);
 	}
 
 	@Bean

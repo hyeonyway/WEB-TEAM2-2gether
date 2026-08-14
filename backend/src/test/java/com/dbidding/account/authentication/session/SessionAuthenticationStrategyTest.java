@@ -31,7 +31,7 @@ class SessionAuthenticationStrategyTest {
 
 	@BeforeEach
 	void setUp() {
-		SessionProperties properties = new SessionProperties(SessionStore.MEMORY, "SESSION", false, "lax");
+		SessionProperties properties = new SessionProperties(SessionStore.MEMORY, "SESSION", false, "lax", java.time.Duration.ofHours(12));
 		sessionSseTerminationPublisher = org.mockito.Mockito.mock(SessionSseTerminationPublisher.class);
 		strategy = new SessionAuthenticationStrategy(
 			properties,

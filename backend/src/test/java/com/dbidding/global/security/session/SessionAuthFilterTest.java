@@ -25,7 +25,9 @@ class SessionAuthFilterTest {
 	void setUp() {
 		filter = new SessionAuthFilter(
 			new RequestUserIdWriter(),
-			new FilterErrorResponseWriter(objectMapper)
+			new FilterErrorResponseWriter(objectMapper),
+			new com.dbidding.account.authentication.session.SessionProperties(com.dbidding.account.authentication.session.SessionStore.MEMORY, "SESSION", false, "lax", java.time.Duration.ofHours(12)),
+			java.time.Clock.fixed(java.time.Instant.ofEpochSecond(1_786_000_001L), java.time.ZoneOffset.UTC), org.mockito.Mockito.mock(SessionSseTerminationPublisher.class)
 		);
 	}
 
