@@ -70,7 +70,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const amountValue=Number(amount);
   const leading=(context?.my_bid_status??auction.myBidStatus)==='LEADING';
   const belowMinimum=!leading&&(amount===''||amountValue<minimum);
-  const insufficient=amountValue>wallet;
+  const insufficient=!leading&&amountValue>wallet;
   const insufficientBuyNow=buyNowPrice!==null&&buyNowPrice>wallet;
   const closed=!['OPEN','ENDING'].includes(context?.status??auction.status);
   const bidMutation=useMutation({
