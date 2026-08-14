@@ -49,22 +49,10 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const[activeTab,setActiveTab]=useState<'bid'|'buy-now'>('bid');
   const[buyNowAgreed,setBuyNowAgreed]=useState(false);
   const[buyNowConfirmationOpen,setBuyNowConfirmationOpen]=useState(false);
-  // manualAmount가 null이면(아직 직접 입력/버튼 선택을 안 했으면) 매 렌더마다 minimum을
-  // 그대로 따라간다. 직접 입력한 값도 minimum이 올라 무효해지면 자동으로 새 minimum을
-  // 따라가야 하는데(제출을 막지 않고 도와주는 게 목적), 이 보정을 useEffect로 하면
-  // minimum이 바뀐 렌더와 보정되는 렌더 사이에 한 프레임 지연이 생겨 그 순간
-  // "최소 입찰가 이상 입력" 오류가 깜빡인다(특히 redis 프로필에서 minimum이 빠르게
-  // 계속 오르는 상황). 그래서 렌더 도중(커밋 전) 동기적으로 보정한다 — React가 권장하는
-  // "prop 변화에 따라 state를 조정하는" 패턴이라 화면에는 보정 전 상태가 그려지지 않는다.
+  // 아직 금액을 선택하거나 직접 입력하지 않은 경우에만 최소 입찰가를 기본값으로 보여 준다.
+  // 실시간 입찰로 minimum이 올라가도 사용자가 정한 금액을 바꾸면 의도보다 높은 금액으로
+  // 제출될 수 있으므로, 그 값은 유지하고 현재 최소가 미만이라는 오류로만 알려 준다.
   const[manualAmount,setManualAmount]=useState<number|string|null>(null);
-  const[previousMinimum,setPreviousMinimum]=useState(minimum);
-  if(minimum!==previousMinimum){
-    setPreviousMinimum(minimum);
-    if(manualAmount!==null){
-      const manualValue=Number(manualAmount);
-      if(manualAmount===''||!Number.isFinite(manualValue)||manualValue<minimum)setManualAmount(null);
-    }
-  }
   const amount=manualAmount===null?minimum:manualAmount;
   useAuctionStream({
     auctionIds:[auction.id],

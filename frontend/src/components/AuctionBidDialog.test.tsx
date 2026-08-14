@@ -59,7 +59,7 @@ describe('AuctionBidDialog',()=>{
     vi.stubGlobal('matchMedia',vi.fn().mockReturnValue({matches:true}));
   });
 
-  it('SSE 최소 입찰가보다 낮은 입력값과 제출 버튼을 새 최소 입찰가로 올린다',async()=>{
+  it('SSE 최소 입찰가가 올라가도 직접 입력한 금액은 유지하고 제출을 막는다',async()=>{
     renderDialog();
     const user=userEvent.setup();
     const input=await screen.findByRole('spinbutton');
@@ -72,8 +72,9 @@ describe('AuctionBidDialog',()=>{
 
     act(()=>mocks.streamHandler?.(bidEvent));
 
-    await waitFor(()=>expect(input).toHaveValue(32_000));
-    expect(screen.getByRole('button',{name:'32,000원 입찰하기'})).toBeInTheDocument();
+    await waitFor(()=>expect(input).toHaveValue(25_000));
+    expect(screen.getByRole('button',{name:'25,000원 입찰하기'})).toBeDisabled();
+    expect(screen.getByText('최소 입찰가 32,000원 이상 입력해 주세요.')).toBeInTheDocument();
   });
 
   it('직접 입력을 건드리지 않았으면 SSE로 최소 입찰가가 올라도 오류 없이 계속 따라간다',async()=>{
