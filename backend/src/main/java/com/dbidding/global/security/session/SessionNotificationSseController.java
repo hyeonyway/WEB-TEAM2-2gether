@@ -1,6 +1,5 @@
 package com.dbidding.global.security.session;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "app.auth.mode", havingValue = "session")
 public class SessionNotificationSseController {
 	private final NotificationSseConnectionManager connectionManager;
 

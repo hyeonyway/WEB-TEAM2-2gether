@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StartServerScriptTest {
 
     @Test
-    void JWT_SECRET이_없으면_DB_접속_전에_실행을_중단한다() throws Exception {
+    void JWT_SECRET_없이도_DB_연결_검증까지_진행한다() throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder("bash", "scripts/start-server.sh", "true")
             .redirectErrorStream(true);
         Map<String, String> environment = processBuilder.environment();
@@ -34,7 +34,7 @@ class StartServerScriptTest {
 
         assertThat(completed).isTrue();
         assertThat(process.exitValue()).isNotZero();
-        assertThat(output).contains("JWT_SECRET 환경변수가 필요합니다.");
-        assertThat(output).doesNotContain("MySQL 연결을 기다립니다");
+        assertThat(output).doesNotContain("JWT_SECRET 환경변수가 필요합니다.");
+        assertThat(output).contains("MySQL 연결을 기다립니다");
     }
 }

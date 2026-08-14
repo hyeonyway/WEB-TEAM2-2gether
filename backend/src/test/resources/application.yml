@@ -29,9 +29,9 @@ cloud:
       presign-duration-seconds: 300
 
 app:
-  jwt:
-    # 공개 가능한 테스트 전용 값이다. 운영 비밀키로 사용하지 않는다.
-    secret: test-only-jwt-secret-at-least-32-bytes
-    access-token-seconds: ${JWT_ACCESS_SECONDS:1800}
-    refresh-token-seconds: ${JWT_REFRESH_SECONDS:604800}
-    secure-cookie: ${JWT_SECURE_COOKIE:false}
+  session:
+    # 단위·MySQL 통합 테스트는 Redis session listener 대신 MockHttpSession을 사용한다.
+    store: memory
+    cookie-name: SESSION
+    secure-cookie: false
+    same-site: lax

@@ -7,8 +7,7 @@ import org.springframework.session.data.redis.config.ConfigureRedisAction;
 import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisIndexedHttpSession;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "app.auth.mode", havingValue = "session")
-@ConditionalOnProperty(name = "app.session.store", havingValue = "redis")
+@ConditionalOnProperty(name = "app.session.store", havingValue = "redis", matchIfMissing = true)
 @EnableRedisIndexedHttpSession(redisNamespace = "${SESSION_REDIS_NAMESPACE:dbidding:session}")
 public class RedisSessionConfiguration {
 

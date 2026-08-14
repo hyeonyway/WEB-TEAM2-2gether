@@ -1,6 +1,5 @@
 package com.dbidding.global.security.session;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/auth/csrf")
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "app.auth.mode", havingValue = "session")
 public class SessionCsrfController {
 
 	private final SessionCsrfTokenService tokenService;

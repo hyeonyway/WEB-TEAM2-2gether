@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dbidding.account.authentication.AuthenticatedAccount;
-import com.dbidding.account.authentication.AuthenticationStrategy;
 import com.dbidding.account.authentication.CredentialAuthenticationService;
+import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.account.dto.LoginRequest;
 import com.dbidding.account.dto.CurrentAccountResponse;
 import com.dbidding.account.dto.SignupRequest;
@@ -34,7 +34,7 @@ public class AuthController {
 
 	private final SignupService signupService;
 	private final CredentialAuthenticationService credentialAuthenticationService;
-	private final AuthenticationStrategy authenticationStrategy;
+	private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 	private final AccountRepository accountRepository;
 
 	@PostMapping("/signup")
@@ -51,12 +51,12 @@ public class AuthController {
 			request.email(),
 			request.password()
 		);
-		return authenticationStrategy.establish(account, httpServletRequest);
+		return sessionAuthenticationStrategy.establish(account, httpServletRequest);
 	}
 
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout(HttpServletRequest request) {
-		return authenticationStrategy.terminate(request);
+		return sessionAuthenticationStrategy.terminate(request);
 	}
 
 	@GetMapping("/me")
