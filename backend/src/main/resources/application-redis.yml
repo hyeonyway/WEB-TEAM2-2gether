@@ -38,6 +38,11 @@ auction:
       enabled: ${AUCTION_STATE_WARM_UP_ENABLED:true}
       closing-window-minutes: ${AUCTION_STATE_WARM_UP_CLOSING_WINDOW_MINUTES:30}
       recent-limit: ${AUCTION_STATE_WARM_UP_RECENT_LIMIT:100}
+    auction-cold-batch:
+      # 서로 다른 auctionId의 동시 콜드시드를 이 시간(ms) 동안 모아 배치 쿼리 1회로 묶는다.
+      # wallet-cold-batch와 동일한 트레이드오프 — 경합 없는 단독 요청도 이만큼 기다린다.
+      window-ms: ${AUCTION_COLD_SEED_BATCH_WINDOW_MS:5}
+      max-batch-size: ${AUCTION_COLD_SEED_MAX_BATCH_SIZE:200}
     wallet-cold-batch:
       # 서로 다른 userId의 동시 콜드시드를 이 시간(ms) 동안 모아 배치 쿼리 1회로 묶는다.
       # 경합이 없는 단독 요청도 이 시간만큼은 기다리게 되는 지연 하한선이다.

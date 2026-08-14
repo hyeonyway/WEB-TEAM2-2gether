@@ -35,6 +35,7 @@ class RedisAuctionStateSeederTest {
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     @Mock private RedisStateSingleFlight singleFlight;
+    @Mock private RedisAuctionSeedBatchCoordinator batchCoordinator;
     @Mock private RedisScript<Long> auctionStateSeedScript;
     @Captor private ArgumentCaptor<Object[]> arguments;
 
@@ -57,7 +58,7 @@ class RedisAuctionStateSeederTest {
         given(redisTemplate.execute(eq(auctionStateSeedScript), anyList(), any(Object[].class))).willReturn(1L);
 
         new RedisAuctionStateSeeder(auctionRepository, bidRepository, auctionImageRepository, cardStateReader,
-                redisTemplate, projectionCatchUpVerifier, singleFlight, auctionStateSeedScript)
+                redisTemplate, projectionCatchUpVerifier, singleFlight, batchCoordinator, auctionStateSeedScript)
                 .seedAllIfAbsent(List.of(auction));
 
         verify(redisTemplate).execute(eq(auctionStateSeedScript), anyList(), arguments.capture());

@@ -40,6 +40,7 @@ public class RedisAuctionStateSeeder {
     private final StringRedisTemplate redisTemplate;
     private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     private final RedisStateSingleFlight singleFlight;
+    private final RedisAuctionSeedBatchCoordinator batchCoordinator;
     @Qualifier("auctionStateSeedScript") private final RedisScript<Long> auctionStateSeedScript;
 
     @Transactional(readOnly = true)
@@ -49,9 +50,9 @@ public class RedisAuctionStateSeeder {
         return singleFlight.execute(key, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
             if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
-            return auctionRepository.findByIdAndStatusNot(auctionId, AuctionStatus.ENDED)
-                    .filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus()))
-                    .map(this::seed).orElse(false);
+            return batchCoordinator.requestSeedData(auctionId).join()
+                    .map(data -> seed(data.auction(), data.leading(), data.card(), data.imagePaths(), data.latestBids(), data.recentBids()))
+                    .orElse(false);
         });
     }
 
@@ -72,13 +73,6 @@ public class RedisAuctionStateSeeder {
                 .collect(java.util.stream.Collectors.groupingBy(image -> image.getAuction().getId(), java.util.stream.Collectors.mapping(image -> image.getImagePath(), java.util.stream.Collectors.toList())));
         active.forEach(auction -> seed(auction, leading.get(auction.getId()), cards.get(auction.getItemId()), imagePaths.getOrDefault(auction.getId(), List.of()),
                 latestBidsByAuction.getOrDefault(auction.getId(), List.of()), recentBidsByAuction.getOrDefault(auction.getId(), List.of())));
-    }
-
-    private boolean seed(Auction auction) {
-        Bid leading = bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(auction.getId(), BidStatus.LEADING).orElse(null);
-        CardSnapshot card = cardStateReader.getCardSnapshot(auction.getItemId());
-        return seed(auction, leading, card, auctionImageRepository.findByAuctionIdOrderById(auction.getId()).stream().map(image -> image.getImagePath()).toList(),
-                bidRepository.findLatestBidPerBidderByAuctionIdIn(List.of(auction.getId())), bidRepository.findRecentFiveByAuctionIdIn(List.of(auction.getId())));
     }
 
     private boolean seed(Auction auction, Bid leading, CardSnapshot card, List<String> imagePathList, List<Bid> latestBids, List<Bid> recentBids) {
