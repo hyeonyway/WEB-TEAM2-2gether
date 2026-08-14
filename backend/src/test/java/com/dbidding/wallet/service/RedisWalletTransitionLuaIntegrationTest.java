@@ -33,7 +33,7 @@ class RedisWalletTransitionLuaIntegrationTest {
 
     @Test void 충전은_잔액과_Stream과_버전을_함께_전이한다() {
         template.opsForHash().putAll("wallet:balance:1", Map.of("availableBalance", "10000", "frozenBalance", "2000", "walletVersion", "4"));
-        String result = template.execute(script, List.of("wallet:balance:1", "wallet:idempotency:1:charge-1", "event:timeline"), UUID.randomUUID().toString(), "wallet.charged.v1", "1", "3000", "charge-1", "hash", "2026-08-11T00:00:00Z");
+        String result = execute("wallet.charged.v1", "3000", "charge-1");
         assertThat(result).startsWith("ACCEPTED|");
         assertThat(template.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("13000");
         assertThat(template.opsForHash().get("wallet:balance:1", "walletVersion")).isEqualTo("5");
@@ -42,8 +42,58 @@ class RedisWalletTransitionLuaIntegrationTest {
 
     @Test void 충전은_지갑_잔액에_TTL을_걸지_않는다() {
         template.opsForHash().putAll("wallet:balance:1", Map.of("availableBalance", "10000", "frozenBalance", "2000", "walletVersion", "4"));
-        template.execute(script, List.of("wallet:balance:1", "wallet:idempotency:1:charge-1", "event:timeline"), UUID.randomUUID().toString(), "wallet.charged.v1", "1", "3000", "charge-1", "hash", "2026-08-11T00:00:00Z");
+        execute("wallet.charged.v1", "3000", "charge-1");
 
         assertThat(template.getExpire("wallet:balance:1")).isEqualTo(-1L);
+    }
+
+    @Test
+    void 큰_잔액과_버전도_Hash_Stream_응답에_일반_정수_문자열로_기록한다() {
+        template.opsForHash().putAll("wallet:balance:1", Map.of(
+                "availableBalance", "900000000000", "frozenBalance", "0",
+                "walletVersion", "99999999999999"
+        ));
+
+        String result = execute("wallet.charged.v1", "100000000000", "large-charge");
+
+        assertThat(result).doesNotContain("e+").doesNotContain("e-");
+        assertThat(template.opsForHash().entries("wallet:balance:1"))
+                .containsEntry("availableBalance", "1000000000000")
+                .containsEntry("frozenBalance", "0")
+                .containsEntry("walletVersion", "100000000000000");
+        var event = template.opsForStream()
+                .read(org.springframework.data.redis.connection.stream.StreamOffset.fromStart("event:timeline"))
+                .getFirst().getValue();
+        assertThat(event).containsEntry("availableBalance", "1000000000000")
+                .containsEntry("frozenBalance", "0")
+                .containsEntry("walletVersion", "100000000000000")
+                .containsEntry("transactionAmount", "100000000000");
+
+        String replay = execute("wallet.charged.v1", "100000000000", "large-charge");
+        assertThat(replay).doesNotContain("e+").doesNotContain("e-").endsWith("|true");
+        assertThat(template.opsForStream().size("event:timeline")).isEqualTo(1L);
+    }
+
+    @Test
+    void 충전으로_총_보유액이_1조원을_넘으면_아무것도_변경하지_않는다() {
+        template.opsForHash().putAll("wallet:balance:1", Map.of(
+                "availableBalance", "950000000000", "frozenBalance", "0", "walletVersion", "7"
+        ));
+
+        String result = execute("wallet.charged.v1", "100000000000", "over-balance");
+
+        assertThat(result).isEqualTo("REJECTED|BALANCE_LIMIT_EXCEEDED");
+        assertThat(template.opsForHash().entries("wallet:balance:1"))
+                .containsEntry("availableBalance", "950000000000")
+                .containsEntry("walletVersion", "7");
+        assertThat(template.opsForStream().size("event:timeline")).isZero();
+        assertThat(template.hasKey("wallet:idempotency:1:over-balance")).isFalse();
+    }
+
+    private String execute(String eventType, String amount, String idempotencyKey) {
+        return template.execute(script,
+                List.of("wallet:balance:1", "wallet:idempotency:1:" + idempotencyKey, "event:timeline"),
+                UUID.randomUUID().toString(), eventType, "1", amount, idempotencyKey, "hash",
+                "2026-08-11T00:00:00Z", "100000000000", "1000000000000");
     }
 }

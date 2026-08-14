@@ -1,12 +1,19 @@
 package com.dbidding.wallet.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import com.dbidding.wallet.dto.WalletTransactionResponse;
+import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import java.time.Clock;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -41,5 +48,23 @@ class RedisWalletServiceTest {
         ArgumentCaptor<Duration> ttl = ArgumentCaptor.forClass(Duration.class);
         verify(redisTemplate).expire(org.mockito.ArgumentMatchers.eq("wallet:balance:7"), ttl.capture());
         assertThat(ttl.getValue().getSeconds()).isBetween(3600L, 21600L);
+    }
+
+    @Test
+    void 과거_멱등_응답의_지수_표기_잔액을_exact_long으로_복구한다() {
+        when(redisTemplate.execute(eq(walletTransitionScript), anyList(), any(Object[].class)))
+                .thenReturn("ACCEPTED|1-0|1.000000512e+14|0|4|true");
+
+        WalletTransactionResponse response = walletService.charge(7, 100_000_000_000L, "legacy-key");
+
+        assertThat(response.balance()).isEqualTo(100_000_051_200_000L);
+    }
+
+    @Test
+    void 일회_충전_상한을_넘으면_Redis를_호출하지_않는다() {
+        assertThatThrownBy(() -> walletService.charge(7, 100_000_000_001L, "over-limit"))
+                .isInstanceOf(InvalidWalletAmountException.class);
+
+        verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
     }
 }

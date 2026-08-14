@@ -2,6 +2,7 @@ package com.dbidding.wallet.service;
 
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
+import com.dbidding.wallet.domain.WalletAmountPolicy;
 import com.dbidding.wallet.exception.IdempotencyConflictException;
 import com.dbidding.wallet.exception.InsufficientAvailableBalanceException;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
@@ -21,6 +22,8 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.dbidding.global.redis.RedisIntegerValue;
 
 /** Redis Lua 승인 결과를 기존 지갑 API 계약으로 변환한다. */
 @Service
@@ -55,10 +58,10 @@ public class RedisWalletService extends WalletService {
         if (available == null || frozen == null || version == null) {
             return super.getBalance(userId);
         }
-        long availableBalance = Long.parseLong(available.toString());
-        long frozenBalance = Long.parseLong(frozen.toString());
+        long availableBalance = RedisIntegerValue.parseLongExact(available.toString());
+        long frozenBalance = RedisIntegerValue.parseLongExact(frozen.toString());
         return new WalletBalanceResponse(availableBalance + frozenBalance, frozenBalance, availableBalance,
-                Long.parseLong(version.toString()));
+                RedisIntegerValue.parseLongExact(version.toString()));
     }
 
     @Override
@@ -75,6 +78,7 @@ public class RedisWalletService extends WalletService {
     @Override
     public WalletTransactionResponse charge(Integer userId, long amount, String idempotencyKey) {
         if (amount < 1_000L) throw new InvalidWalletAmountException("충전 금액은 1,000원 이상이어야 합니다.");
+        WalletAmountPolicy.validateTransactionAmount(amount);
         validateIdempotencyKey(idempotencyKey);
         return transition(userId, amount, idempotencyKey, "wallet.charged.v1");
     }
@@ -82,6 +86,7 @@ public class RedisWalletService extends WalletService {
     @Override
     public WalletTransactionResponse refund(Integer userId, long amount, String idempotencyKey) {
         if (amount <= 0) throw new InvalidWalletAmountException("환불 금액은 0원보다 커야 합니다.");
+        WalletAmountPolicy.validateTransactionAmount(amount);
         validateIdempotencyKey(idempotencyKey);
         return transition(userId, amount, idempotencyKey, "wallet.refunded.v1");
     }
@@ -89,12 +94,14 @@ public class RedisWalletService extends WalletService {
     @Override
     public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
         if (amount <= 0) throw new InvalidWalletAmountException("정산 금액은 0원보다 커야 합니다.");
+        WalletAmountPolicy.validateBalanceAmount(amount);
         return transition(sellerId, amount, "settlement:" + auctionId, "wallet.settled.v1");
     }
 
     @Override
     public WalletTransactionResponse cancelRefund(Integer buyerId, Integer auctionId, long amount) {
         if (amount <= 0) throw new InvalidWalletAmountException("환불 금액은 0원보다 커야 합니다.");
+        WalletAmountPolicy.validateBalanceAmount(amount);
         return transition(buyerId, amount, "cancel-refund:" + auctionId, "wallet.cancel-refunded.v1");
     }
 
@@ -104,19 +111,27 @@ public class RedisWalletService extends WalletService {
         String raw = redisTemplate.execute(walletTransitionScript, List.of(
                 balanceKey(userId), "wallet:idempotency:" + userId + ":" + idempotencyKey, "event:timeline"
         ), UUID.randomUUID().toString(), eventType, userId.toString(), String.valueOf(amount), idempotencyKey, requestHash,
-                Instant.now(clock).toString());
+                Instant.now(clock).toString(), String.valueOf(WalletAmountPolicy.MAX_TRANSACTION_AMOUNT),
+                String.valueOf(WalletAmountPolicy.MAX_BALANCE));
         String[] fields = raw.split("\\|", -1);
         if (!"ACCEPTED".equals(fields[0])) {
-            if ("INSUFFICIENT_BALANCE".equals(fields.length > 1 ? fields[1] : "")) throw new InsufficientAvailableBalanceException();
-            if ("IDEMPOTENCY_CONFLICT".equals(fields.length > 1 ? fields[1] : "")) throw new IdempotencyConflictException();
+            String reason = fields.length > 1 ? fields[1] : "";
+            if ("INSUFFICIENT_BALANCE".equals(reason)) throw new InsufficientAvailableBalanceException();
+            if ("IDEMPOTENCY_CONFLICT".equals(reason)) throw new IdempotencyConflictException();
+            if ("AMOUNT_LIMIT_EXCEEDED".equals(reason)) {
+                throw new InvalidWalletAmountException("1회 거래 금액은 1,000억 원 이하여야 합니다.");
+            }
+            if ("BALANCE_LIMIT_EXCEEDED".equals(reason)) {
+                throw new InvalidWalletAmountException("지갑 총 보유액은 1조 원 이하여야 합니다.");
+            }
             throw new IllegalStateException("Redis 지갑 상태가 올바르지 않습니다.");
         }
         if (fields.length != 6) throw new IllegalStateException("Redis 지갑 승인 응답이 올바르지 않습니다.");
-        long balance = Long.parseLong(fields[2]) + Long.parseLong(fields[3]);
+        long availableBalance = RedisIntegerValue.parseLongExact(fields[2]);
+        long frozenBalance = RedisIntegerValue.parseLongExact(fields[3]);
+        long walletVersion = RedisIntegerValue.parseLongExact(fields[4]);
+        long balance = Math.addExact(availableBalance, frozenBalance);
         if (!Boolean.parseBoolean(fields[5])) {
-            long availableBalance = Long.parseLong(fields[2]);
-            long frozenBalance = Long.parseLong(fields[3]);
-            long walletVersion = Long.parseLong(fields[4]);
             eventPublisher.publishEvent(new com.dbidding.wallet.sse.WalletBalanceChangedEvent(
                     userId,
                     new WalletBalanceResponse(balance, frozenBalance, availableBalance, walletVersion),

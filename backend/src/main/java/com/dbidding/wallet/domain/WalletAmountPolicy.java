@@ -21,4 +21,10 @@ public final class WalletAmountPolicy {
 			throw new InvalidWalletAmountException("지갑 및 경매 금액은 1조 원 이하여야 합니다.");
 		}
 	}
+
+	public static void validateBalanceAfterCredit(long currentBalance, long amount) {
+		if (currentBalance > MAX_BALANCE || amount > MAX_BALANCE - currentBalance) {
+			throw new InvalidWalletAmountException("지갑 총 보유액은 1조 원 이하여야 합니다.");
+		}
+	}
 }
