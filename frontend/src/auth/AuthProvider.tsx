@@ -9,9 +9,6 @@ import {
   useSyncExternalStore,
 } from 'react';
 import {useQueryClient} from '@tanstack/react-query';
-import {getAccessToken, subscribeAccessToken} from '../api/accessTokenStore';
-import {refreshAccessToken} from '../api/authApi';
-import {isSessionAuthMode} from './authMode';
 import {getSessionUserId, setSessionUserId, subscribeSessionUser} from './session/sessionAuthStore';
 import {clearCsrfToken, setCsrfToken} from './session/csrfTokenStore';
 import {request} from '../api/httpClient';
@@ -34,11 +31,6 @@ type AuthProviderProps = {
 
 export function AuthProvider({children}: AuthProviderProps) {
   const queryClient = useQueryClient();
-  const accessToken = useSyncExternalStore(
-    subscribeAccessToken,
-    getAccessToken,
-    getAccessToken,
-  );
   const sessionUserId = useSyncExternalStore(subscribeSessionUser, getSessionUserId, getSessionUserId);
   const [initialized, setInitialized] = useState(false);
   const initializationInFlightRef = useRef(false);
@@ -48,19 +40,13 @@ export function AuthProvider({children}: AuthProviderProps) {
     initializationInFlightRef.current = true;
     setInitialized(false);
     try {
-      if (isSessionAuthMode()) {
-        const current = await request<CurrentAccountResponseDto>('/api/auth/me', {credentials: 'include'});
-        const csrf = await request<SessionLoginResponseDto>('/api/auth/csrf', {credentials: 'include'});
-        setSessionUserId(current.userId);
-        setCsrfToken(csrf.csrfToken);
-      } else {
-        await refreshAccessToken();
-      }
+      const current = await request<CurrentAccountResponseDto>('/api/auth/me', {credentials: 'include'});
+      const csrf = await request<SessionLoginResponseDto>('/api/auth/csrf', {credentials: 'include'});
+      setSessionUserId(current.userId);
+      setCsrfToken(csrf.csrfToken);
     } catch {
-      if (isSessionAuthMode()) {
-        setSessionUserId(null);
-        clearCsrfToken();
-      }
+      setSessionUserId(null);
+      clearCsrfToken();
       // 인증 복구 실패는 anonymous 상태로 처리하고 전역 오류 UI는 노출하지 않는다.
     } finally {
       setInitialized(true);
@@ -74,9 +60,7 @@ export function AuthProvider({children}: AuthProviderProps) {
 
   const status: AuthStatus = !initialized
     ? 'initializing'
-    : (isSessionAuthMode() ? Boolean(sessionUserId) : Boolean(accessToken))
-      ? 'authenticated'
-      : 'anonymous';
+    : Boolean(sessionUserId) ? 'authenticated' : 'anonymous';
 
   useWalletStream(status === 'authenticated');
   useWalletCrossTabSync(status === 'authenticated');

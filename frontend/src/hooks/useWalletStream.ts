@@ -1,8 +1,6 @@
 import {useEffect,useRef} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
-import {isSessionAuthMode} from '../auth/authMode';
 import {isMockApiEnabled} from '../api/mockApiConfig';
-import {issueSseTicket} from '../api/notificationTicketApi';
 import {fetchWalletBalance} from '../api/walletApi';
 import type {WalletBalanceDto} from '../dto/walletDto';
 import {walletQueryKeys} from '../queries/walletQueryKeys';
@@ -17,9 +15,9 @@ type WalletSsePayload={
   updated_at:string;
 };
 
-function streamUrl(ticket?:string){
+function streamUrl(){
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
-  return `${apiBaseUrl}/api/me/wallet/stream${ticket?`?ticket=${encodeURIComponent(ticket)}`:''}`;
+  return `${apiBaseUrl}/api/me/wallet/stream`;
 }
 
 function parsePayload(data:string):WalletSsePayload|null{
@@ -77,9 +75,8 @@ export function useWalletStream(enabled:boolean){
     const connect=async()=>{
       if(stopped)return;
       try{
-        const ticket=isSessionAuthMode()?undefined:(await issueSseTicket()).ticket;
         if(stopped)return;
-        eventSource=new EventSource(streamUrl(ticket),isSessionAuthMode()?{withCredentials:true}:undefined);
+        eventSource=new EventSource(streamUrl(),{withCredentials:true});
         eventSource.addEventListener('wallet-state-changed',receive);
         eventSource.onopen=()=>{
           if(opened)void recoverBalance();

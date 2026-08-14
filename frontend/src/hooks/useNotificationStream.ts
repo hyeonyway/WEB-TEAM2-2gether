@@ -1,23 +1,14 @@
 import {useEffect,useRef} from 'react';
 import type {InfiniteData} from '@tanstack/react-query';
 import {useQueryClient} from '@tanstack/react-query';
-import {getAccessToken} from '../api/accessTokenStore';
-import {isSessionAuthMode} from '../auth/authMode';
 import {getSessionUserId} from '../auth/session/sessionAuthStore';
-import {decodeAccessTokenUserId} from '../api/jwtClaims';
 import {isMockApiEnabled} from '../api/mockApiConfig';
-import {issueSseTicket} from '../api/notificationTicketApi';
 import type {NotificationDto,NotificationPageDto} from '../dto/notificationDto';
 import {applyNotificationCreated} from '../queries/notificationStreamCache';
 import {notificationQueryKeys} from '../queries/notificationQueries';
 
 const RECONNECT_DELAY_MS=2_000;
 const NOTIFICATION_CREATED_EVENT='notification-created';
-
-function notificationStreamUrl(userId:number,ticket:string):string{
-  const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
-  return `${apiBaseUrl}/api/users/${userId}/notifications/stream?ticket=${encodeURIComponent(ticket)}`;
-}
 
 function sessionNotificationStreamUrl():string{
   const apiBaseUrl=(import.meta.env.VITE_API_BASE_URL??'').replace(/\/+$/,'');
@@ -94,27 +85,12 @@ export function useNotificationStream({
 
     const connect=async()=>{
       if(stopped)return;
-      const sessionMode=isSessionAuthMode();
-      const accessToken=getAccessToken();
-      const userId=sessionMode?getSessionUserId():(accessToken?decodeAccessTokenUserId(accessToken):null);
-      if(!userId){
+      if(!getSessionUserId()){
         scheduleReconnect();
         return;
       }
       if(stopped)return;
-      if(sessionMode){
-        eventSource=new EventSource(sessionNotificationStreamUrl(),{withCredentials:true});
-      }else{
-        let ticket:string;
-        try{
-          ({ticket}=await issueSseTicket());
-        }catch{
-          scheduleReconnect();
-          return;
-        }
-        if(stopped)return;
-        eventSource=new EventSource(notificationStreamUrl(userId,ticket));
-      }
+      eventSource=new EventSource(sessionNotificationStreamUrl(),{withCredentials:true});
       eventSource.addEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);
       eventSource.onerror=()=>{
         eventSource?.removeEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);

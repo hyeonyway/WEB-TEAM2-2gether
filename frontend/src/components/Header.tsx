@@ -1,11 +1,9 @@
 // @ts-nocheck
 import{useMutation,useQueryClient}from'@tanstack/react-query';
-import React,{useEffect,useState,useSyncExternalStore}from'react';
+import React,{useEffect,useState}from'react';
 import{Wallet}from'lucide-react';
 import{Link,useLocation,useNavigate}from'react-router-dom';
 import{useAuthGate}from'../auth/useAuthGate';
-import{isSessionAuthMode}from'../auth/authMode';
-import{getAccessToken,subscribeAccessToken}from'../api/accessTokenStore';
 import{authMutations}from'../queries/authMutations';
 import{useWalletBalance}from'../queries/walletQueries';
 import{walletQueryKeys}from'../queries/walletQueryKeys';
@@ -30,11 +28,9 @@ export default function Header(){
   const{pathname:path}=useLocation();
   const navigate=useNavigate();
   const authGate=useAuthGate();
-  const accessToken=useSyncExternalStore(subscribeAccessToken,getAccessToken,getAccessToken);
   const walletQuery=useWalletBalance();
   const queryClient=useQueryClient();
-  const authenticated=authGate.status==='authenticated'
-    ||(!isSessionAuthMode()&&Boolean(accessToken));
+  const authenticated=authGate.status==='authenticated';
   const chargeWallet=authenticated
     &&walletQuery.isSuccess
     &&!walletQuery.isError
