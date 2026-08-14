@@ -31,25 +31,6 @@ public class RedisAuctionRealtimeStateReader {
         this.redisTemplate = redisTemplate;
     }
 
-    /**
-     * 목록 조회 전용 — 이 유저가 이 경매에 낸 입찰 상태/금액만 필요할 때 쓴다. {@link #read}는
-     * bid-context 하나를 위해 스냅샷 재조회(readSnapshot)와 최근 입찰 이력(recentBids, XREVRANGE)까지
-     * 매번 다시 불러오는데, 목록 항목은 이미 배치 조회로 들고 있는 상태(AuctionState)가 있고
-     * recentBids는 응답에 쓰지도 않아서 그 두 조회가 전부 낭비다(#529). HGETALL 1번으로 끝낸다.
-     */
-    public MyBidSummary readMyBidSummary(Integer auctionId, Integer userId) {
-        if (userId == null) return MyBidSummary.NONE;
-        Map<Object, Object> myBid = redisTemplate.opsForHash().entries(bidderKey(auctionId, userId));
-        if (myBid.isEmpty()) return MyBidSummary.NONE;
-        try {
-            MyBidStatus status = MyBidStatus.valueOf(required(myBid, "status"));
-            Long amount = RedisIntegerValue.parseLongExact(required(myBid, "amount"));
-            return new MyBidSummary(status, amount);
-        } catch (IllegalArgumentException | ArithmeticException exception) {
-            return MyBidSummary.NONE;
-        }
-    }
-
     public RealtimeState read(Integer auctionId, Integer userId) {
         Snapshot snapshot = readSnapshot(auctionId);
         if (snapshot == null) return null;
@@ -233,9 +214,6 @@ public class RedisAuctionRealtimeStateReader {
     public record RealtimeState(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                                 Instant closeTime, Long buyNowPrice, MyBidStatus myBidStatus,
                                 Long myBidAmount, List<BidResponses.BidSummary> recentBids) { }
-    public record MyBidSummary(MyBidStatus status, Long amount) {
-        public static final MyBidSummary NONE = new MyBidSummary(MyBidStatus.NONE, null);
-    }
     public record Snapshot(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                            Instant closeTime, Long buyNowPrice, Integer highestBidderId) { }
     public record MyBidState(MyBidStatus status, Long amount) { }
