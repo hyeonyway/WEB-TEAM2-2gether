@@ -61,8 +61,8 @@ describe('AuctionPage',()=>{
   beforeEach(()=>{
     observeCount=0;
     apiMocks.fetchAuctions.mockReset()
-      .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:'next-token',has_next:true})
-      .mockResolvedValueOnce({content:[auction(1,'리자몽')],next_cursor:null,has_next:false});
+      .mockResolvedValueOnce({content:[auction(2,'피카츄')],next_cursor:'next-token',has_next:true,total_elements:2})
+      .mockResolvedValueOnce({content:[auction(1,'리자몽')],next_cursor:null,has_next:false,total_elements:2});
     streamMocks.useAuctionStream.mockImplementation(({onAuctionUpdated:callback})=>{
       onAuctionUpdated=callback;
     });
@@ -87,7 +87,7 @@ describe('AuctionPage',()=>{
     ].includes(button.textContent??'')).map(button=>button.textContent)).toEqual([
       '최신순','마감 임박순','입찰 수 높은순','경매가 높은순','경매가 낮은순','상승률 높은순',
     ]);
-    expect(screen.getByText('총 1개 경매')).toBeInTheDocument();
+    expect(screen.getByText('총 2개 / 1개 표시 중')).toBeInTheDocument();
   });
 
   it('목록 하단이 보이면 다음 cursor를 조회해 경매를 누적한다',async()=>{

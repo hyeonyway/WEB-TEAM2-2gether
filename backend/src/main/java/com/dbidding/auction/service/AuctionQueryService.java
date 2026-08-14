@@ -84,6 +84,9 @@ public class    AuctionQueryService {
                 clock.instant(),
                 PageRequest.of(0, size + 1)
         );
+        long totalElements = auctionRepository.countSearch(
+                request.keywordOrDefault(), request.psaGrade(), request.statusesOrDefault(), activeOnly(request), clock.instant()
+        );
         boolean hasNext = fetched.size() > size;
         List<Auction> content = hasNext ? List.copyOf(fetched.subList(0, size)) : fetched;
         Map<Integer, CardSnapshot> cards = cardSnapshots(content);
@@ -99,7 +102,8 @@ public class    AuctionQueryService {
         return new AuctionResponses.CursorPage<>(
                 items,
                 nextCursor,
-                hasNext
+                hasNext,
+                totalElements
         );
     }
 
@@ -114,11 +118,25 @@ public class    AuctionQueryService {
         int size = request.sizeOrDefault();
         AuctionCursor cursor = request.cursor() == null || request.cursor().isBlank() ? null : auctionCursorCodec.decode(request.cursor(), sort);
         List<RedisAuctionRealtimeStateReader.AuctionState> page = fetchRedisSortedPage(request, sort, cursor, size + 1);
+        long totalElements = countRedisActiveAuctions(request);
         boolean hasNext = page.size() > size;
         List<RedisAuctionRealtimeStateReader.AuctionState> content = hasNext ? page.subList(0, size) : page;
         List<AuctionResponses.AuctionSummary> items = content.stream().map(state -> redisSummary(state, userId)).toList();
         String nextCursor = hasNext ? auctionCursorCodec.encode(redisCursorOf(content.getLast(), sort)) : null;
-        return new AuctionResponses.CursorPage<>(items, nextCursor, hasNext);
+        return new AuctionResponses.CursorPage<>(items, nextCursor, hasNext, totalElements);
+    }
+
+    private long countRedisActiveAuctions(AuctionSearchRequest request) {
+        return realtimeStateReader.activeAuctionIds().stream()
+                .map(realtimeStateReader::readAuctionState)
+                .filter(Objects::nonNull)
+                .filter(state -> request.status() == null || state.status() == request.status())
+                .filter(state -> request.keywordOrDefault().isBlank()
+                        || state.auctionName().toLowerCase().contains(request.keywordOrDefault().toLowerCase())
+                        || state.cardName().toLowerCase().contains(request.keywordOrDefault().toLowerCase()))
+                .filter(state -> request.psaGrade() == null || request.psaGrade().isBlank()
+                        || request.psaGrade().equalsIgnoreCase(state.cardPsaGrade()))
+                .count();
     }
 
     /**

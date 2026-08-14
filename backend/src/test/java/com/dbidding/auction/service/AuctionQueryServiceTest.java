@@ -81,7 +81,7 @@ class AuctionQueryServiceTest {
         Auction extra = auction(1, AuctionStatus.OPEN, 40_000L, 3);
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(Instant.class),
+                eq(AuctionSort.BID_COUNT.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true), any(Instant.class),
                 eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(first, second, extra));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -103,7 +103,7 @@ class AuctionQueryServiceTest {
     void Redis_활성_경매_snapshot으로_목록의_변경_필드를_overlay한다() {
         Instant estimatedCloseTime = Instant.parse("2026-08-08T01:00:00Z");
         Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
-        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of(auction));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());
@@ -147,7 +147,7 @@ class AuctionQueryServiceTest {
         Auction next = auction(1, AuctionStatus.OPEN, 40_000L, 1);
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.PRICE_HIGH.name()), eq(null), eq(45_000L), eq(null), eq(null), eq(2), eq(true),
+                eq(AuctionSort.PRICE_HIGH.name()), eq(null), eq(45_000L), eq(null), eq(null), eq(null), eq(2), eq(true),
                 any(Instant.class), eq(PageRequest.of(0, 3))
         )).thenReturn(List.of(next));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -169,7 +169,7 @@ class AuctionQueryServiceTest {
         ReflectionTestUtils.setField(first, "changeRateBasisPoints", 5_000L);
         when(auctionRepository.searchByCursor(
                 eq(""), eq(null), eq(List.of(AuctionStatus.OPEN, AuctionStatus.ENDING)),
-                eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
+                eq(AuctionSort.CHANGE_HIGH.name()), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(true),
                 any(Instant.class), eq(PageRequest.of(0, 2))
         )).thenReturn(List.of(first, extra));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
@@ -241,7 +241,7 @@ class AuctionQueryServiceTest {
     void ENDING_경매_목록의_endsAt은_실제_closeTime이_아니라_얼린_estimatedCloseTime이다() {
         Instant estimatedCloseTime = Instant.parse("2026-08-12T10:00:00Z");
         Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
-        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+        when(auctionRepository.searchByCursor(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(List.of(auction));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
         when(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).thenReturn(List.of());

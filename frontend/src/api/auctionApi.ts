@@ -101,6 +101,7 @@ export async function fetchAuctions(
       content,
       next_cursor:hasNext?String(start+query.size):null,
       has_next:hasNext,
+      total_elements:auctions.length,
     };
   }
   const search=params(query);

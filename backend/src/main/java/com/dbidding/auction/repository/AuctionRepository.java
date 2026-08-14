@@ -76,6 +76,25 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
             Pageable pageable
     );
 
+    @Query("""
+            select count(a) from Auction a
+            where a.status in :statuses
+              and (:activeOnly = false or a.closeTime > :now)
+              and (:keyword = '' or lower(a.auctionName) like lower(concat('%', :keyword, '%')))
+              and (:psaGrade is null or a.itemId in (
+                    select c.id from CardMetadata c
+                    where replace(upper(trim(c.psaGrade)), 'PSA ', '') =
+                          replace(upper(trim(:psaGrade)), 'PSA ', '')
+              ))
+            """)
+    long countSearch(
+            @Param("keyword") String keyword,
+            @Param("psaGrade") String psaGrade,
+            @Param("statuses") Collection<AuctionStatus> statuses,
+            @Param("activeOnly") boolean activeOnly,
+            @Param("now") Instant now
+    );
+
     Optional<Auction> findByIdAndStatusNot(Integer id, AuctionStatus status);
 
     Optional<Auction> findBySellerIdAndCreateIdempotencyKey(Integer sellerId, String createIdempotencyKey);
