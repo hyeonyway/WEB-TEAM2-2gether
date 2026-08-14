@@ -14,7 +14,8 @@ type LoginFormProps = {
 
 type LoginErrors = Partial<Record<'email' | 'password' | 'submit', string>>;
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Keep in sync with backend SignupRequest.EMAIL_PATTERN and LoginRequest.
+const emailPattern = /^[A-Za-z0-9](?:[A-Za-z0-9._%+-]*[A-Za-z0-9])?@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,}$/;
 
 export default function LoginForm({initialEmail = '', onSuccess}: LoginFormProps) {
   const queryClient = useQueryClient();
