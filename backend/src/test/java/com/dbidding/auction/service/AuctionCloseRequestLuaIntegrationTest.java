@@ -54,7 +54,7 @@ class AuctionCloseRequestLuaIntegrationTest {
 
         String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time",
                         "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate", "auction:active:by-open-time"),
-                "11", "2026-08-12T01:00:00Z", "1786496400000");
+                "11", "2026-08-12T01:00:00Z", "1786496400000", "1000000000000");
 
         assertThat(result).startsWith("ACCEPTED||0|7|10|리자몽");
         assertThat(redisTemplate.opsForHash().get("auction:state:11", "status")).isEqualTo("ENDED");
@@ -82,7 +82,7 @@ class AuctionCloseRequestLuaIntegrationTest {
 
         String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time",
                         "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate", "auction:active:by-open-time"),
-                "11", "2026-08-12T01:00:00Z", "1786496400000");
+                "11", "2026-08-12T01:00:00Z", "1786496400000", "1000000000000");
 
         assertThat(result).startsWith("ACCEPTED|2|50000|7|10|리자몽");
         assertThat(redisTemplate.opsForHash().get("auction:bidder:11:2", "status")).isEqualTo("WON");
@@ -102,7 +102,7 @@ class AuctionCloseRequestLuaIntegrationTest {
 
         String result = redisTemplate.execute(script, List.of("auction:state:11", "event:timeline", "auction:ending-window:by-close-time",
                         "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate", "auction:active:by-open-time"),
-                "11", "2026-08-12T02:00:00Z", "1786500000000");
+                "11", "2026-08-12T02:00:00Z", "1786500000000", "1000000000000");
 
         assertThat(result).isEqualTo("REPLAYED");
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isZero();
