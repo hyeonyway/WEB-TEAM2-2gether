@@ -25,6 +25,9 @@ app:
       max-records-per-run: ${AUCTION_REDIS_BID_MAX_RECORDS_PER_RUN:100}
 
 auction:
+  catchup-verification:
+    # 여러 엔티티가 동시에 콜드미스 나도 전역 캐치업 여부는 이 주기로만 재확인한다.
+    cache-ttl: ${AUCTION_CATCHUP_CACHE_TTL:PT0.5S}
   active-index:
     cleanup:
       fixed-delay-ms: ${AUCTION_ACTIVE_INDEX_CLEANUP_FIXED_DELAY_MS:3600000}
