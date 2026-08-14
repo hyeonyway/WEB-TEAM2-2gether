@@ -1,4 +1,4 @@
-package com.dbidding.auction.sse;
+package com.dbidding.wallet.sse;
 
 import com.dbidding.sse.metrics.SseConnectionCloseMetrics;
 import com.dbidding.sse.metrics.SseConnectionCloseMetrics.CloseReason;
@@ -13,45 +13,35 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Component
-public class AuctionSseMetrics {
+public class WalletSseMetrics {
     private final MeterRegistry registry;
-    private final Timer sendTimer;
     private final Timer connectTimer;
     private final Counter sendFailures;
     private final SseConnectionCloseMetrics closeMetrics;
 
-    public AuctionSseMetrics(MeterRegistry registry) {
+    public WalletSseMetrics(MeterRegistry registry) {
         this(registry, Clock.systemUTC());
     }
 
     @Autowired
-    public AuctionSseMetrics(MeterRegistry registry, Clock clock) {
+    public WalletSseMetrics(MeterRegistry registry, Clock clock) {
         this.registry = registry;
-        sendTimer = Timer.builder("dbidding.auction.sse.send.duration")
-                .description("경매 SSE emitter 전송시간")
-                .publishPercentileHistogram()
-                .register(registry);
-        connectTimer = Timer.builder("dbidding.sse.connect.duration")
-                .tag("stream", "auction")
+        this.connectTimer = Timer.builder("dbidding.sse.connect.duration")
+                .tag("stream", "wallet")
                 .description("SSE 연결 수립 시간")
                 .publishPercentileHistogram()
                 .register(registry);
-        sendFailures = Counter.builder("dbidding.auction.sse.send.failures")
-                .description("경매 SSE emitter 전송 실패 건수")
+        this.sendFailures = Counter.builder("dbidding.wallet.sse.send.failures")
+                .description("지갑 SSE emitter 전송 실패 건수")
                 .register(registry);
-        closeMetrics = new SseConnectionCloseMetrics(registry, "auction", clock);
+        this.closeMetrics = new SseConnectionCloseMetrics(registry, "wallet", clock);
     }
 
-    public Timer.Sample startSend() {
-        return Timer.start(registry);
-    }
-
-    public void finishSend(Timer.Sample sample) {
-        sample.stop(sendTimer);
-    }
-
-    public void recordSendFailure() {
-        sendFailures.increment();
+    public void registerConnectionGauge(Supplier<Number> connectionCount) {
+        Gauge.builder("dbidding.sse.connections", connectionCount, value -> value.get().doubleValue())
+                .tag("stream", "wallet")
+                .description("SSE 스트림별 현재 연결 수")
+                .register(registry);
     }
 
     public Timer.Sample startConnect() {
@@ -62,11 +52,8 @@ public class AuctionSseMetrics {
         sample.stop(connectTimer);
     }
 
-    public void registerConnectionGauge(Supplier<Number> connectionCount) {
-        Gauge.builder("dbidding.sse.connections", connectionCount, value -> value.get().doubleValue())
-                .tag("stream", "auction")
-                .description("SSE 스트림별 현재 연결 수")
-                .register(registry);
+    public void recordSendFailure() {
+        sendFailures.increment();
     }
 
     public void trackConnectionStart(SseEmitter emitter) {

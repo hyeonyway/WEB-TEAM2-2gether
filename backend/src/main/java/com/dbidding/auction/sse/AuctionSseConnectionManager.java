@@ -9,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import com.dbidding.sse.metrics.SseConnectionCloseMetrics.CloseReason;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Timer;
@@ -54,12 +55,22 @@ public class AuctionSseConnectionManager {
     SseEmitter register(Set<Integer> auctionIds, SseEmitter emitter) {
         Set<Integer> subscribedAuctionIds = Set.copyOf(auctionIds);
         Timer.Sample connectSample = metrics.startConnect();
+        metrics.trackConnectionStart(emitter);
         auctionIdsByEmitter.put(emitter, subscribedAuctionIds);
         subscribedAuctionIds.forEach(auctionId ->
                 emittersByAuctionId.computeIfAbsent(auctionId, ignored -> new CopyOnWriteArraySet<>()).add(emitter));
-        emitter.onCompletion(() -> remove(emitter));
-        emitter.onTimeout(() -> removeAndComplete(emitter));
-        emitter.onError(error -> removeAndComplete(emitter));
+        emitter.onCompletion(() -> {
+            metrics.recordConnectionClosed(emitter, CloseReason.COMPLETION);
+            remove(emitter);
+        });
+        emitter.onTimeout(() -> {
+            metrics.recordConnectionClosed(emitter, CloseReason.TIMEOUT);
+            removeAndComplete(emitter);
+        });
+        emitter.onError(error -> {
+            metrics.recordConnectionClosed(emitter, CloseReason.ERROR);
+            removeAndComplete(emitter);
+        });
         if (send(emitter, SseEmitter.event().name("connected")
                 .reconnectTime(RECONNECT_TIME_MILLIS).data("connected"))) {
             metrics.finishConnect(connectSample);
@@ -117,6 +128,7 @@ public class AuctionSseConnectionManager {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
             metrics.recordSendFailure();
+            metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
             removeAndComplete(emitter);
             return false;
         } finally {
