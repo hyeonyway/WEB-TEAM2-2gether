@@ -58,10 +58,10 @@ if (closeTime.truncatedTo(ChronoUnit.MILLIS).isBefore(this.closeTime.truncatedTo
 
 ## 5. 작업 내용
 
-- [ ] `Auction.java:269` 비교를 양쪽 `.truncatedTo(ChronoUnit.MILLIS)` 후 비교하도록 수정
-- [ ] `ChronoUnit` import 정리
-- [ ] 회귀 테스트: 나노초 끝자리가 마이크로초 반올림 경계(예: `.xxxxxx500` 이상)에 걸리는 closeTime으로 생성한 경매의 첫 입찰이 정상 처리되는지 검증 — 경계값을 명시적으로 구성해서 테스트해야 우연히 통과하는 걸 막을 수 있음
-- [ ] `Auction.java`/`AuctionBidStreamPersistenceService.java`의 다른 `Instant` 비교 지점 전수 점검 (3절 참고)
+- [x] `Auction.java:269` 비교를 양쪽 `.truncatedTo(ChronoUnit.MILLIS)` 후 비교하도록 수정
+- [x] `ChronoUnit` import 정리
+- [x] 회귀 테스트: Redis `2026-08-14T18:05:39.281821965Z`와 MySQL 반올림값 `2026-08-14T18:05:39.281822Z`가 같은 밀리초일 때 첫 입찰이 정상 검증되는지 확인
+- [x] `Auction.java`/`AuctionBidStreamPersistenceService.java`의 Redis-유래·MySQL-유래 `Instant` 직접 비교 지점 점검 — `validateStreamBid`와 `closeAuction`만 확인됐으며, 후자는 #462에서 이미 밀리초 기준으로 처리됨
 - [ ] 수정 배포 후, 현재 막혀 있는 auctionId=2의 ERROR 이벤트를 관리자 replay(`/api/admin/auction-stream/recovery/replay`)로 해소
 
 ## 6. 참고 사항
