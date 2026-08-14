@@ -7,11 +7,13 @@ import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.sse.AuctionStreamPayload;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
+import com.dbidding.global.redis.RedisIntegerValue;
+import com.dbidding.wallet.domain.WalletAmountPolicy;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.sse.WalletBalanceChangedEvent;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -59,24 +61,26 @@ class RedisAuctionCloseSchedulerProcessor implements AuctionCloseSchedulerProces
                 List.of("auction:state:" + auctionId, STREAM_KEY, "auction:ending-window:by-close-time",
                         "auction:active:by-bid-count", "auction:active:by-price", "auction:active:by-change-rate",
                         "auction:active:by-open-time"),
-                String.valueOf(auctionId), now.toString(), String.valueOf(now.toEpochMilli()));
+                String.valueOf(auctionId), now.toString(), String.valueOf(now.toEpochMilli()),
+                Long.toString(WalletAmountPolicy.MAX_BALANCE));
         if (raw == null || !raw.startsWith("ACCEPTED|")) return false;
         String[] fields = raw.split("\\|", -1);
         if (fields.length != 16) throw new IllegalStateException("Redis 경매 종료 승인 응답이 올바르지 않습니다.");
         Integer winnerId = fields[1].isBlank() ? null : Integer.valueOf(fields[1]);
-        Long winningPrice = winnerId == null ? null : Long.valueOf(fields[2]);
+        Long winningPrice = winnerId == null ? null : RedisIntegerValue.parseLongExact(fields[2]);
         AuctionClosedEvent event = new AuctionClosedEvent(
                 auctionId, Integer.valueOf(fields[4]), fields[5], nullable(fields[6]), nullable(fields[7]), nullable(fields[8]),
-                winnerId, Integer.valueOf(fields[3]), Long.valueOf(fields[9]), Long.valueOf(fields[10]), winningPrice,
-                Long.valueOf(fields[11]), Integer.valueOf(fields[12]), now, AuctionStatus.ENDED, now);
+                winnerId, Integer.valueOf(fields[3]), RedisIntegerValue.parseLongExact(fields[9]),
+                RedisIntegerValue.parseLongExact(fields[10]), winningPrice,
+                RedisIntegerValue.parseLongExact(fields[11]), Integer.valueOf(fields[12]), now, AuctionStatus.ENDED, now);
         auctionEventPublisher.publishClosed(event);
         auctionStreamPublisher.publish(AuctionStreamPayload.closed(event));
         if (winnerId != null) {
-            long available = Long.parseLong(fields[13]);
-            long frozen = Long.parseLong(fields[14]);
-            long version = Long.parseLong(fields[15]);
+            long available = RedisIntegerValue.parseLongExact(fields[13]);
+            long frozen = RedisIntegerValue.parseLongExact(fields[14]);
+            long version = RedisIntegerValue.parseLongExact(fields[15]);
             eventPublisher.publishEvent(new WalletBalanceChangedEvent(winnerId,
-                    new WalletBalanceResponse(available + frozen, frozen, available, version), version, now));
+                    new WalletBalanceResponse(Math.addExact(available, frozen), frozen, available, version), version, now));
         }
         return true;
     }

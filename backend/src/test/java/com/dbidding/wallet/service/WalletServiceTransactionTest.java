@@ -110,6 +110,18 @@ class WalletServiceTransactionTest {
 	}
 
 	@Test
+	void 충전으로_지갑_총액이_1조원을_넘으면_거절한다() {
+		Wallet wallet = walletWithPoint(950_000_000_000L);
+		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));
+
+		assertThatThrownBy(() -> service.charge(1, 100_000_000_000L, "balance-limit"))
+			.isInstanceOf(InvalidWalletAmountException.class);
+
+		assertThat(wallet.getPoint()).isEqualTo(950_000_000_000L);
+		then(pointRecordRepository).should(never()).save(any());
+	}
+
+	@Test
 	void 환불은_활성_hold를_제외한_가용_잔액까지만_허용한다() {
 		Wallet wallet = walletWithPoint(10_000L);
 		given(walletRepository.findByUserIdForUpdate(1)).willReturn(Optional.of(wallet));

@@ -74,6 +74,62 @@ class BidAcceptedStreamEventTest {
     }
 
     @Test
+    void 지수_표기된_입찰_Stream_정수_필드를_정확하게_파싱한다() {
+        Map<String, String> fields = fields();
+        fields.put("auctionVersion", "1.00000000000000e+14");
+        fields.put("requestedPrice", "1.2000e+4");
+        fields.put("bidPrice", "1.2000e+4");
+        fields.put("currentPrice", "1.2000e+4");
+        fields.put("bidCount", "2e+0");
+
+        BidAcceptedStreamEvent event = BidAcceptedStreamEvent.from("1720000000000-0", fields);
+
+        assertThat(event.auctionVersion()).isEqualTo(100_000_000_000_000L);
+        assertThat(event.requestedPrice()).isEqualTo(12_000L);
+        assertThat(event.bidPrice()).isEqualTo(12_000L);
+        assertThat(event.bidCount()).isEqualTo(2);
+    }
+
+    @Test
+    void 지수_표기된_지갑_Stream_정수_필드를_정확하게_파싱한다() {
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-3", Map.ofEntries(
+                Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.charged.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "20"),
+                Map.entry("walletVersion", "1.00000000000000e+14"),
+                Map.entry("availableBalance", "7.0000e+4"), Map.entry("frozenBalance", "1.0000e+4"),
+                Map.entry("transactionType", "CHARGE"), Map.entry("transactionAmount", "3.000e+3"),
+                Map.entry("idempotencyKey", "charge-1"), Map.entry("occurredAt", "2026-08-11T00:00:00Z")
+        ));
+
+        WalletStateChangedStreamEvent wallet = (WalletStateChangedStreamEvent) event;
+        assertThat(wallet.walletVersion()).isEqualTo(100_000_000_000_000L);
+        assertThat(wallet.availableBalance()).isEqualTo(70_000L);
+        assertThat(wallet.frozenBalance()).isEqualTo(10_000L);
+        assertThat(wallet.transactionAmount()).isEqualTo(3_000L);
+    }
+
+    @Test
+    void 지수_표기된_주문_Stream_정수_필드를_정확하게_파싱한다() {
+        AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from("1720000000000-4", Map.ofEntries(
+                Map.entry("schemaVersion", "1"), Map.entry("eventType", "order.completed.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("orderId", "100"),
+                Map.entry("auctionId", "10"), Map.entry("orderVersion", "1.00000000000000e+14"),
+                Map.entry("actorId", "1"), Map.entry("buyerId", "1"), Map.entry("sellerId", "7"),
+                Map.entry("status", "COMPLETED"), Map.entry("walletUserId", "7"),
+                Map.entry("walletVersion", "1.00000000000000e+14"),
+                Map.entry("availableBalance", "1.000000000000e+12"), Map.entry("frozenBalance", "0e+0"),
+                Map.entry("transactionType", "ORDER_SETTLEMENT"), Map.entry("transactionAmount", "1.00000000000e+11"),
+                Map.entry("idempotencyKey", "confirm:100"), Map.entry("occurredAt", "2026-08-11T00:00:00Z")
+        ));
+
+        OrderStateChangedStreamEvent order = (OrderStateChangedStreamEvent) event;
+        assertThat(order.orderVersion()).isEqualTo(100_000_000_000_000L);
+        assertThat(order.walletVersion()).isEqualTo(100_000_000_000_000L);
+        assertThat(order.availableBalance()).isEqualTo(1_000_000_000_000L);
+        assertThat(order.transactionAmount()).isEqualTo(100_000_000_000L);
+    }
+
+    @Test
     void 지원하지_않는_이벤트_타입은_거부한다() {
         Map<String, String> fields = fields();
         fields.put("eventType", "bid.rejected.v1");

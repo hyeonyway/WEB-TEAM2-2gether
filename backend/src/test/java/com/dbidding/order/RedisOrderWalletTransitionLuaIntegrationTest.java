@@ -124,10 +124,61 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("20000");
     }
 
+    @Test
+    void 큰_정산액과_버전도_Hash_Stream_응답에_정수_문자열로_유지한다() {
+        givenPendingOrder("100000000000");
+        redisTemplate.opsForHash().putAll("wallet:balance:7", Map.of(
+                "availableBalance", "900000000000", "frozenBalance", "0",
+                "walletVersion", "99999999999999"
+        ));
+        redisTemplate.opsForHash().put("order:state:10", "orderVersion", "99999999999999");
+
+        String result = execute("1", "COMPLETED", "order.completed.v1", "confirm:100", "hash-confirm");
+
+        assertThat(result).doesNotContain("e+").doesNotContain("E+")
+                .contains("|100000000000000|100000000000000|1000000000000|0|7|");
+        assertThat(redisTemplate.opsForHash().entries("wallet:balance:7"))
+                .containsEntry("availableBalance", "1000000000000")
+                .containsEntry("walletVersion", "100000000000000");
+        assertThat(redisTemplate.opsForHash().entries("order:state:10"))
+                .containsEntry("orderVersion", "100000000000000");
+        var event = redisTemplate.opsForStream().read(
+                org.springframework.data.redis.connection.stream.StreamOffset.fromStart("event:timeline"))
+                .getFirst().getValue();
+        assertThat(event).containsEntry("transactionAmount", "100000000000")
+                .containsEntry("availableBalance", "1000000000000")
+                .containsEntry("walletVersion", "100000000000000")
+                .containsEntry("orderVersion", "100000000000000");
+        assertThat(execute("1", "COMPLETED", "order.completed.v1", "confirm:100", "hash-confirm"))
+                .doesNotContain("e+").doesNotContain("E+");
+    }
+
+    @Test
+    void 정산_후_총액이_상한을_넘으면_어떤_상태도_변경하지_않는다() {
+        givenPendingOrder("100000000000");
+        redisTemplate.opsForHash().putAll("wallet:balance:7", Map.of(
+                "availableBalance", "950000000000", "frozenBalance", "0", "walletVersion", "4"
+        ));
+
+        String result = execute("1", "COMPLETED", "order.completed.v1", "confirm:100", "hash-confirm");
+
+        assertThat(result).isEqualTo("REJECTED|BALANCE_LIMIT_EXCEEDED");
+        assertThat(redisTemplate.opsForHash().entries("order:state:10"))
+                .containsEntry("status", "PENDING_CONFIRM").containsEntry("orderVersion", "0");
+        assertThat(redisTemplate.opsForHash().entries("wallet:balance:7"))
+                .containsEntry("availableBalance", "950000000000").containsEntry("walletVersion", "4");
+        assertThat(redisTemplate.opsForStream().size("event:timeline")).isZero();
+        assertThat(redisTemplate.hasKey("order:idempotency:100:confirm:100")).isFalse();
+    }
+
     private void givenPendingOrder() {
+        givenPendingOrder("50000");
+    }
+
+    private void givenPendingOrder(String price) {
         redisTemplate.opsForHash().putAll("order:state:10", Map.of(
                 "orderId", "100", "auctionId", "10", "buyerId", "1", "sellerId", "7", "cardName", "리자몽",
-                "price", "50000", "status", "PENDING_CONFIRM", "createdAt", "2026-08-12T00:00:00Z", "orderVersion", "0"
+                "price", price, "status", "PENDING_CONFIRM", "createdAt", "2026-08-12T00:00:00Z", "orderVersion", "0"
         ));
     }
 
@@ -135,6 +186,6 @@ class RedisOrderWalletTransitionLuaIntegrationTest {
         return redisTemplate.execute(script, List.of("order:state:10", "wallet:balance:" + ("COMPLETED".equals(targetStatus) ? "7" : "1"),
                         "order:idempotency:100:" + idempotencyKey, "event:timeline", "order:state:by-order-id:100"),
                 actorId, targetStatus, eventType, "100", "10", idempotencyKey, requestHash,
-                "11111111-1111-1111-1111-111111111111", "2026-08-12T01:00:00Z");
+                "11111111-1111-1111-1111-111111111111", "2026-08-12T01:00:00Z", "1000000000000");
     }
 }

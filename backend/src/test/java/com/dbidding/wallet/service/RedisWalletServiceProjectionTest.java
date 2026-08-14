@@ -45,8 +45,9 @@ class RedisWalletServiceProjectionTest {
         when(redis.execute(eq(script), eq(java.util.List.of(
                         "wallet:balance:1", "wallet:idempotency:1:charge-key", "event:timeline")),
                 anyString(), eq("wallet.charged.v1"), eq("1"), eq("3000"), eq("charge-key"),
-                eq("wallet.charged.v1:3000"), eq("2026-08-12T00:00:00Z")))
-                .thenReturn("ACCEPTED|1-0|13000|2000|5|false");
+                eq("wallet.charged.v1:3000"), eq("2026-08-12T00:00:00Z"),
+                eq("100000000000"), eq("1000000000000")))
+                .thenReturn("ACCEPTED|1-0|1.3000e+4|2.000e+3|1.00000000000000e+14|false");
 
         service.charge(1, 3_000L, "charge-key");
 
@@ -54,7 +55,7 @@ class RedisWalletServiceProjectionTest {
                 && changed.userId().equals(1)
                 && changed.balance().availableBalance() == 13_000L
                 && changed.balance().frozenBalance() == 2_000L
-                && changed.walletVersion() == 5L));
+                && changed.walletVersion() == 100_000_000_000_000L));
     }
 
     @Test

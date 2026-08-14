@@ -1,6 +1,7 @@
 package com.dbidding.auction.stream;
 
 import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.global.redis.RedisIntegerValue;
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -41,22 +42,22 @@ public record BidAcceptedStreamEvent(
                     streamId,
                     eventType,
                     Integer.valueOf(required(values, "auctionId")),
-                    Long.valueOf(required(values, "auctionVersion")),
+                    RedisIntegerValue.parseLongExact(required(values, "auctionVersion")),
                     Integer.valueOf(required(values, "bidderId")),
-                    Long.valueOf(required(values, "requestedPrice")),
-                    Long.valueOf(required(values, "bidPrice")),
+                    RedisIntegerValue.parseLongExact(required(values, "requestedPrice")),
+                    RedisIntegerValue.parseLongExact(required(values, "bidPrice")),
                     nullableInteger(values.get("previousBidderId")),
                     required(values, "idempotencyKey"),
                     required(values, "idempotencyRequestHash"),
-                    Long.valueOf(required(values, "currentPrice")),
-                    Integer.valueOf(required(values, "bidCount")),
+                    RedisIntegerValue.parseLongExact(required(values, "currentPrice")),
+                    Math.toIntExact(RedisIntegerValue.parseLongExact(required(values, "bidCount"))),
                     Instant.parse(required(values, "closeTime")),
                     auctionStatus,
                     Instant.parse(required(values, "occurredAt"))
             );
             event.validateContract();
             return event;
-        } catch (IllegalArgumentException exception) {
+        } catch (IllegalArgumentException | ArithmeticException exception) {
             throw new InvalidBidStreamEventException("입찰 Stream 이벤트 형식이 올바르지 않습니다.", exception);
         }
     }

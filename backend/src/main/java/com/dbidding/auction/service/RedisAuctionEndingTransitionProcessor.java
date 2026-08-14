@@ -3,6 +3,7 @@ package com.dbidding.auction.service;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.sse.AuctionStreamPayload;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
+import com.dbidding.global.redis.RedisIntegerValue;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +82,7 @@ class RedisAuctionEndingTransitionProcessor implements AuctionEndingTransitionPr
     private long longField(Integer auctionId, String field) {
         Object value = redisTemplate.opsForHash().get(stateKey(auctionId), field);
         if (value == null) throw new IllegalStateException("Redis 경매 상태 필드가 없습니다: " + field);
-        return Long.parseLong(value.toString());
+        return RedisIntegerValue.parseLongExact(value.toString());
     }
 
     private int intField(Integer auctionId, String field) {
