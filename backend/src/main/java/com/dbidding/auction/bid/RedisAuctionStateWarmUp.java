@@ -23,6 +23,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  * 상위권처럼 목록에 바로 노출돼야 하는 경매. 두 번째를 빼먹으면, 정렬 ZSET에 아예 항목이
  * 없는 활성 경매는 warm-up 대상도 아니고 목록에서 클릭된 적도 없어 발견될 방법이 없어서
  * 목록 결과에서 조용히 누락된다.
+ *
+ * <p>지갑 warm-up은 더 이상 독립 설정으로 켜고 끌 수 없다: 이번에 warm-up한 경매의 낙찰
+ * 후보 지갑만 함께 올리므로, {@code auction.state-seeding.warm-up.enabled}(과거
+ * {@code AUCTION_STATE_WARM_UP_ENABLED})가 false면 지갑 warm-up도 같이 꺼진다.</p>
  */
 @Configuration
 @Profile("redis")
