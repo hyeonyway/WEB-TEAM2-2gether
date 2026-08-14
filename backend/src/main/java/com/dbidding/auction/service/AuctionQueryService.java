@@ -102,8 +102,8 @@ public class AuctionQueryService {
             AuctionCursor cursorForFilter = cursor != null && Objects.equals(bound, initialBound) ? cursor : null;
             List<Integer> rawIds = raw.stream().map(tuple -> Integer.valueOf(tuple.getValue())).toList();
             Map<Integer, RedisAuctionRealtimeStateReader.AuctionState> states = realtimeStateReader.readAuctionStates(rawIds);
-            List<RedisAuctionRealtimeStateReader.AuctionState> filtered = raw.stream()
-                    .map(tuple -> states.get(Integer.valueOf(tuple.getValue())))
+            List<RedisAuctionRealtimeStateReader.AuctionState> filtered = rawIds.stream()
+                    .map(states::get)
                     .filter(Objects::nonNull)
                     .filter(state -> request.status() == null || state.status() == request.status())
                     .filter(state -> request.keywordOrDefault().isBlank()
@@ -236,11 +236,9 @@ public class AuctionQueryService {
     }
 
     public AuctionResponses.AuctionDetail getDetail(Integer userId, Integer auctionId) {
-        seedAuctionIfRequired(auctionId);
-        RedisAuctionRealtimeStateReader.AuctionState redisState = realtimeStateReader == null ? null
-                : realtimeStateReader.readAuctionState(auctionId);
-        if (redisState != null) {
-            return redisDetail(redisState, userId);
+        RedisAuctionRealtimeStateReader.StoredAuctionState stored = seedAndReadIfRequired(auctionId);
+        if (stored != null) {
+            return redisDetail(stored, userId);
         }
         return dbAuctionQueryService.getDetail(userId, auctionId);
     }
@@ -281,18 +279,23 @@ public class AuctionQueryService {
         return dbAuctionQueryService.getBidContext(userId, auctionId, wallet);
     }
 
-    private void seedAuctionIfRequired(Integer auctionId) {
-        if (realtimeStateReader != null && realtimeStateReader.readAuctionState(auctionId) == null && stateSeeder != null) {
+    private RedisAuctionRealtimeStateReader.StoredAuctionState seedAndReadIfRequired(Integer auctionId) {
+        if (realtimeStateReader == null) return null;
+        RedisAuctionRealtimeStateReader.StoredAuctionState stored = realtimeStateReader.readStoredAuctionState(auctionId);
+        if (stored == null && stateSeeder != null) {
             stateSeeder.seedIfAbsent(auctionId);
+            stored = realtimeStateReader.readStoredAuctionState(auctionId);
         }
+        return stored;
     }
 
     private AuctionResponses.AuctionDetail redisDetail(
-            RedisAuctionRealtimeStateReader.AuctionState state,
+            RedisAuctionRealtimeStateReader.StoredAuctionState stored,
             Integer userId
     ) {
+        RedisAuctionRealtimeStateReader.AuctionState state = stored.state();
         CardSnapshot card = redisCardSnapshot(state);
-        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(state.auctionId(), userId);
+        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(stored, userId);
         List<AuctionResponses.AuctionPhoto> photos = java.util.stream.IntStream.range(0, state.imagePaths().size())
                 .mapToObj(index -> new AuctionResponses.AuctionPhoto(null, state.imagePaths().get(index), index, index == 0))
                 .toList();

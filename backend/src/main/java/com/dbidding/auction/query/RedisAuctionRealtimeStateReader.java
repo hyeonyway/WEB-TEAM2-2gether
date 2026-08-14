@@ -43,7 +43,7 @@ public class RedisAuctionRealtimeStateReader {
             AuctionState state = stored.state();
             List<BidResponses.BidSummary> recentBids = recentBids(auctionId, stored.highestBidderId());
             Map<Object, Object> myBid = userId == null ? Map.of() : redisTemplate.opsForHash().entries(bidderKey(auctionId, userId));
-            MyBidState myBidState = parseMyBidState(myBid);
+            MyBidState myBidState = parseMyBidStateOrNone(myBid);
             return new RealtimeState(state.status(), state.currentPrice(), state.bidIncrement(), state.bidCount(), state.closeTime(), state.buyNowPrice(),
                     myBidState.status(), myBidState.amount(), recentBids);
         } catch (IllegalArgumentException | ArithmeticException exception) {
@@ -61,8 +61,13 @@ public class RedisAuctionRealtimeStateReader {
         Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
         AuctionState state = parseAuctionState(auctionId, fields);
         if (state == null) return null;
+        return new StoredAuctionState(state, highestBidderId(fields));
+    }
+
+    /** highestBidderId 하나가 손상돼도 나머지 필드로 만들어진 state 자체는 살린다. */
+    private Integer highestBidderId(Map<Object, Object> fields) {
         try {
-            return new StoredAuctionState(state, nullableInteger(fields.get("highestBidderId")));
+            return nullableInteger(fields.get("highestBidderId"));
         } catch (IllegalArgumentException | ArithmeticException exception) {
             return null;
         }
@@ -71,16 +76,10 @@ public class RedisAuctionRealtimeStateReader {
     /** 후보 경매 state를 한 connection의 pipeline으로 읽고 입력 순서대로 유효 state만 반환한다. */
     public Map<Integer, AuctionState> readAuctionStates(List<Integer> auctionIds) {
         if (auctionIds.isEmpty()) return Map.of();
-        List<Object> responses = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            for (Integer auctionId : auctionIds) {
-                connection.hashCommands().hGetAll(redisTemplate.getStringSerializer().serialize(stateKey(auctionId)));
-            }
-            return null;
-        });
+        List<Map<Object, Object>> fieldsList = pipelinedHashGetAll(auctionIds.stream().map(this::stateKey).toList());
         Map<Integer, AuctionState> states = new LinkedHashMap<>();
         for (int index = 0; index < auctionIds.size(); index++) {
-            Map<Object, Object> fields = hashResponse(responses.get(index));
-            AuctionState state = parseAuctionState(auctionIds.get(index), fields);
+            AuctionState state = parseAuctionState(auctionIds.get(index), fieldsList.get(index));
             if (state != null) states.put(auctionIds.get(index), state);
         }
         return states;
@@ -93,27 +92,32 @@ public class RedisAuctionRealtimeStateReader {
         Map<Object, Boolean> membership = redisTemplate.opsForSet().isMember(
                 participatingKey(userId), idValues.toArray()
         );
-        List<Integer> participatingIds = auctionIds.stream()
-                .filter(auctionId -> Boolean.TRUE.equals(membership.get(String.valueOf(auctionId))))
+        List<Integer> participatingIds = java.util.stream.IntStream.range(0, auctionIds.size())
+                .filter(index -> Boolean.TRUE.equals(membership.get(idValues.get(index))))
+                .mapToObj(auctionIds::get)
                 .toList();
         if (participatingIds.isEmpty()) return Map.of();
 
+        List<Map<Object, Object>> fieldsList = pipelinedHashGetAll(
+                participatingIds.stream().map(auctionId -> bidderKey(auctionId, userId)).toList()
+        );
+        Map<Integer, MyBidState> states = new LinkedHashMap<>();
+        for (int index = 0; index < participatingIds.size(); index++) {
+            Map<Object, Object> fields = fieldsList.get(index);
+            // 손상된(파싱 불가) bidder state는 미참여 상태로 취급한다 - read(StoredAuctionState, Integer)와 동일한 처리.
+            if (!fields.isEmpty()) states.put(participatingIds.get(index), parseMyBidStateOrNone(fields));
+        }
+        return states;
+    }
+
+    private List<Map<Object, Object>> pipelinedHashGetAll(List<String> keys) {
         List<Object> responses = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            for (Integer auctionId : participatingIds) {
-                connection.hashCommands().hGetAll(redisTemplate.getStringSerializer().serialize(bidderKey(auctionId, userId)));
+            for (String key : keys) {
+                connection.hashCommands().hGetAll(redisTemplate.getStringSerializer().serialize(key));
             }
             return null;
         });
-        Map<Integer, MyBidState> states = new LinkedHashMap<>();
-        for (int index = 0; index < participatingIds.size(); index++) {
-            try {
-                Map<Object, Object> fields = hashResponse(responses.get(index));
-                if (!fields.isEmpty()) states.put(participatingIds.get(index), parseMyBidState(fields));
-            } catch (IllegalArgumentException | ArithmeticException exception) {
-                // 손상된 bidder state는 목록에서 미참여 상태로 취급한다.
-            }
-        }
-        return states;
+        return responses.stream().map(this::hashResponse).toList();
     }
 
     private AuctionState parseAuctionState(Integer auctionId, Map<Object, Object> fields) {
@@ -151,6 +155,15 @@ public class RedisAuctionRealtimeStateReader {
                         MyBidStatus.valueOf(required(fields, "status")),
                         RedisIntegerValue.parseLongExact(required(fields, "amount"))
                 );
+    }
+
+    /** 손상된 bidder state를 미참여(NONE)로 취급한다 - 목록 조회와 단건 조회가 같은 기준으로 fallback한다. */
+    private MyBidState parseMyBidStateOrNone(Map<Object, Object> fields) {
+        try {
+            return parseMyBidState(fields);
+        } catch (IllegalArgumentException | ArithmeticException exception) {
+            return new MyBidState(MyBidStatus.NONE, null);
+        }
     }
 
     public List<Integer> activeAuctionIds() {

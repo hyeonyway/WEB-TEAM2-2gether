@@ -127,7 +127,7 @@ class AuctionQueryServiceTest {
         Instant estimatedCloseTime = Instant.parse("2026-08-08T01:00:00Z");
         Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
-        when(reader.readAuctionState(1)).thenReturn(null);
+        when(reader.readStoredAuctionState(1)).thenReturn(null);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
         when(cardService.getCardSnapshot(1)).thenReturn(card(1));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());

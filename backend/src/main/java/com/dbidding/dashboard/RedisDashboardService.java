@@ -10,6 +10,7 @@ import com.dbidding.dashboard.dto.DashboardResponse;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -30,8 +31,11 @@ public class RedisDashboardService implements DashboardQueryService {
     @Override
     public List<DashboardResponse.AuctionSnapshot> getParticipatingAuctions(Integer userId, ParticipatingAuctionSort sort) {
         dashboardStateSeeder.seedIfRequired(userId);
-        return realtimeStateReader.participatingAuctionIds(userId).stream()
-                .map(auctionId -> snapshot(auctionId, userId))
+        List<Integer> auctionIds = realtimeStateReader.participatingAuctionIds(userId);
+        Map<Integer, RedisAuctionRealtimeStateReader.AuctionState> states = realtimeStateReader.readAuctionStates(auctionIds);
+        Map<Integer, RedisAuctionRealtimeStateReader.MyBidState> myBids = realtimeStateReader.readMyBidStates(auctionIds, userId);
+        return auctionIds.stream()
+                .map(auctionId -> snapshot(states.get(auctionId), myBids.get(auctionId)))
                 .filter(snapshot -> snapshot != null && snapshot.myBidStatus() != MyBidStatus.NONE)
                 .filter(snapshot -> PARTICIPATING_STATUSES.contains(snapshot.status()))
                 .filter(snapshot -> snapshot.endsAt().isAfter(clock.instant()))
@@ -49,15 +53,16 @@ public class RedisDashboardService implements DashboardQueryService {
                 .toList();
     }
 
-    private DashboardResponse.AuctionSnapshot snapshot(Integer auctionId, Integer userId) {
-        RedisAuctionRealtimeStateReader.AuctionState state = realtimeStateReader.readAuctionState(auctionId);
-        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(auctionId, userId);
-        if (state == null || realtime == null) return null;
+    private DashboardResponse.AuctionSnapshot snapshot(
+            RedisAuctionRealtimeStateReader.AuctionState state,
+            RedisAuctionRealtimeStateReader.MyBidState myBid
+    ) {
+        if (state == null) return null;
         return new DashboardResponse.AuctionSnapshot(
                 state.auctionId(), state.sellerId(),
                 new DashboardResponse.CardSnapshot(state.itemId(), state.cardName(), state.cardPsaGrade(), state.cardLanguage(), state.cardThumbnailUrl()),
                 state.startPrice(), state.currentPrice(), state.bidIncrement(), state.bidCount(), state.closeTime(), state.status(),
-                realtime.myBidStatus(), realtime.myBidAmount()
+                myBid == null ? MyBidStatus.NONE : myBid.status(), myBid == null ? null : myBid.amount()
         );
     }
 
