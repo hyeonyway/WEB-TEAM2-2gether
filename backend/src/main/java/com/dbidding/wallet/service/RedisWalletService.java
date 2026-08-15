@@ -12,7 +12,6 @@ import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -72,7 +71,8 @@ public class RedisWalletService extends WalletService {
         redisTemplate.opsForHash().putAll(key, java.util.Map.of(
                 "availableBalance", "0", "frozenBalance", "0", "walletVersion", "0"
         ));
-        redisTemplate.expire(key, Duration.ofSeconds(3600 + Math.floorMod(userId.longValue(), 18001)));
+        // wallet:balance는 종결 상태가 없어 항상 미래에 다시 쓰일 수 있으므로 TTL을 걸지 않는다
+        // (259443e1에서 다른 Lua 경로들은 이미 제거했으나 이 Java 경로가 누락돼 있었다).
     }
 
     @Override
