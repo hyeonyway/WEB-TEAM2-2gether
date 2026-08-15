@@ -76,11 +76,14 @@ public class RedisProjectionCatchUpVerifier {
         List<MapRecord<String, Object, Object>> latest = redisTemplate.opsForStream().reverseRange(
                 STREAM_KEY, org.springframework.data.domain.Range.unbounded(), Limit.limit().count(1)
         );
-        if (latest == null || latest.isEmpty()) return true;
-        String streamId = latest.getFirst().getId().getValue();
-        return eventRepository.findByStreamId(streamId)
-                .map(inbox -> inbox.getProjectionStatus() == AuctionBidEventProjectionStatus.PROCESSED)
-                .orElse(false)
+        // 스트림이 비어있다는 건 "새로 안 읽은 이벤트가 없다"는 뜻일 뿐, inbox에 쌓인 PENDING/ERROR가
+        // 없다는 뜻이 아니다. 스트림→inbox 적재는 즉시 XDEL로 지워지며 빠르게 끝나고 실제 도메인
+        // projection만 느릴 수 있어서, 이 경우에도 아래 PENDING/ERROR 확인은 항상 수행해야 한다.
+        boolean latestStreamEntryProcessed = latest == null || latest.isEmpty()
+                || eventRepository.findByStreamId(latest.getFirst().getId().getValue())
+                        .map(inbox -> inbox.getProjectionStatus() == AuctionBidEventProjectionStatus.PROCESSED)
+                        .orElse(false);
+        return latestStreamEntryProcessed
                 && !eventRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.PENDING)
                 && !eventRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
     }

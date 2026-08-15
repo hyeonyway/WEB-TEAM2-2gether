@@ -51,6 +51,9 @@ public class RedisAuctionCreateExecutor {
         if (fields.length == 2 && "REJECTED".equals(fields[0]) && "IDEMPOTENCY_CONFLICT".equals(fields[1])) {
             throw AuctionException.idempotencyConflict();
         }
+        if (fields.length == 2 && "REJECTED".equals(fields[0]) && "ID_COLLISION".equals(fields[1])) {
+            throw AuctionException.invalidRequest("경매 ID 발급이 기존 경매와 충돌했습니다. 다시 시도해 주세요.");
+        }
         if (fields.length != 7 || !"ACCEPTED".equals(fields[0])) {
             throw AuctionException.invalidRequest("경매 생성 Redis 상태 전이에 실패했습니다.");
         }

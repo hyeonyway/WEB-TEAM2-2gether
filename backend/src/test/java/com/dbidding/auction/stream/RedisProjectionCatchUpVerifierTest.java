@@ -240,6 +240,15 @@ class RedisProjectionCatchUpVerifierTest {
     }
 
     @Test
+    void 스트림이_비어있어도_PENDING이나_ERROR가_있으면_캐치업되지_않은_것으로_판단한다() {
+        when(streamOperations.reverseRange(eq("event:timeline"), any(), any())).thenReturn(List.of());
+        when(eventRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.PENDING)).thenReturn(true);
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+
+        assertThat(verifier.isCaughtUp()).isFalse();
+    }
+
+    @Test
     void 서로_다른_엔티티가_동시에_콜드미스_나도_실제_조회는_한_번만_수행된다() throws Exception {
         stubLatestProcessed();
         RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));

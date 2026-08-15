@@ -15,6 +15,9 @@ end
 
 local auctionId = redis.call('INCR', KEYS[1])
 local stateKey = 'auction:state:' .. auctionId
+if redis.call('EXISTS', stateKey) == 1 then
+    return 'REJECTED|ID_COLLISION'
+end
 redis.call('HSET', stateKey,
     'status', 'OPEN',
     'sellerId', ARGV[1],
