@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.sse.metrics.SseMetrics;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -67,7 +68,7 @@ class WalletSseConnectionManagerTest {
     void 연결_등록과_해제에_따라_지갑_SSE_연결_Gauge가_변한다() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         WalletSseConnectionManager manager = new WalletSseConnectionManager(
-                objectMapper(), new SyncTaskExecutor(), new WalletSseMetrics(registry));
+                objectMapper(), new SyncTaskExecutor(), new SseMetrics(registry, "wallet"));
         SseEmitter emitter = mock(SseEmitter.class);
         final Runnable[] onCompletion = new Runnable[1];
         org.mockito.Mockito.doAnswer(invocation -> {
@@ -88,7 +89,7 @@ class WalletSseConnectionManagerTest {
     void 전송_실패시_send_failure_원인으로_한번만_기록한다() throws Exception {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         WalletSseConnectionManager manager = new WalletSseConnectionManager(
-                objectMapper(), new SyncTaskExecutor(), new WalletSseMetrics(registry));
+                objectMapper(), new SyncTaskExecutor(), new SseMetrics(registry, "wallet"));
         SseEmitter emitter = mock(SseEmitter.class);
         final Runnable[] onCompletion = new Runnable[1];
         org.mockito.Mockito.doAnswer(invocation -> {
@@ -108,8 +109,8 @@ class WalletSseConnectionManagerTest {
                 .tag("stream", "wallet").tag("reason", "completion").counter().count()).isZero();
     }
 
-    private WalletSseMetrics metrics() {
-        return new WalletSseMetrics(new SimpleMeterRegistry());
+    private SseMetrics metrics() {
+        return new SseMetrics(new SimpleMeterRegistry(), "wallet");
     }
 
     private WalletSsePayload payload(long version) {

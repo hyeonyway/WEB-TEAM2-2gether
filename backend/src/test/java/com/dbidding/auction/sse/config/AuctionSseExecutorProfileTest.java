@@ -2,8 +2,11 @@ package com.dbidding.auction.sse.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dbidding.sse.PerConnectionSseSendDispatcher;
+import com.dbidding.sse.SynchronousSseSendDispatcher;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -13,6 +16,7 @@ class AuctionSseExecutorProfileTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+            .withBean(Clock.class, Clock::systemUTC)
             .withUserConfiguration(AuctionSseExecutorConfig.class);
 
     @Test
@@ -48,6 +52,23 @@ class AuctionSseExecutorProfileTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean("auctionSseBroadcastTaskExecutor"))
                             .isNotSameAs(context.getBean("auctionSseTaskExecutor"));
+                });
+    }
+
+    @Test
+    void 기본_프로필에서는_SynchronousSseSendDispatcher만_등록된다() {
+        contextRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean("auctionSseSendDispatcher")).isInstanceOf(SynchronousSseSendDispatcher.class);
+        });
+    }
+
+    @Test
+    void sse_virtual_threads_프로필에서는_PerConnectionSseSendDispatcher가_등록된다() {
+        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("sse-virtual-threads"))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean("auctionSseSendDispatcher")).isInstanceOf(PerConnectionSseSendDispatcher.class);
                 });
     }
 }

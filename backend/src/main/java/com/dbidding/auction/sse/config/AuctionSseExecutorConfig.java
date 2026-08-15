@@ -1,10 +1,16 @@
 package com.dbidding.auction.sse.config;
 
+import com.dbidding.sse.PerConnectionSseSendDispatcher;
+import com.dbidding.sse.SseSendDispatcher;
+import com.dbidding.sse.SynchronousSseSendDispatcher;
 import com.dbidding.sse.config.CountingCallerRunsPolicy;
 import com.dbidding.sse.config.VirtualThreadSseTaskExecutor;
+import com.dbidding.sse.metrics.SseMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,7 +39,7 @@ public class AuctionSseExecutorConfig {
     private int virtualMaxConcurrency;
 
     /**
-     * broadcast() 전용 pool 크기(#507). 기본 프로필에서는 {@code SynchronousAuctionSseSendDispatcher}가
+     * broadcast() 전용 pool 크기(#507). 기본 프로필에서는 {@code SynchronousSseSendDispatcher}가
      * emitter별 send를 broadcast() 호출 스레드에서 바로 실행하므로(#362), 이 pool이 사실상
      * 실제 send I/O까지 전부 떠안는다 — 그래서 기존에 heartbeat와 공유하던 pool과 같은 크기를
      * 기본값으로 둔다(줄이면 느린 클라이언트 몇 개만으로도 이 pool이 포화돼 caller-runs로
@@ -107,5 +113,25 @@ public class AuctionSseExecutorConfig {
     @Profile("sse-virtual-threads")
     public TaskExecutor auctionSseBroadcastVirtualTaskExecutor() {
         return new VirtualThreadSseTaskExecutor("auction-sse-broadcast-", meterRegistry, "auction-sse-broadcast");
+    }
+
+    /** #508 — {@code AuctionSseConnectionManager}의 메트릭 배선. */
+    @Bean(name = "auctionSseMetrics")
+    public SseMetrics auctionSseMetrics(Clock clock) {
+        return new SseMetrics(meterRegistry, "auction", clock);
+    }
+
+    /** 기본 프로필 — emitter별 send를 broadcast() 호출 스레드에서 순차 실행한다(#362 baseline). */
+    @Bean(name = "auctionSseSendDispatcher")
+    @Profile("!sse-virtual-threads")
+    public SseSendDispatcher auctionSseSendDispatcher() {
+        return new SynchronousSseSendDispatcher();
+    }
+
+    /** {@code sse-virtual-threads} 프로필 — 커넥션 1개당 독립 task로 세분화한다(#362). */
+    @Bean(name = "auctionSseSendDispatcher")
+    @Profile("sse-virtual-threads")
+    public SseSendDispatcher auctionSseSendDispatcherVirtual(@Qualifier("auctionSseTaskExecutor") TaskExecutor auctionSseTaskExecutor) {
+        return new PerConnectionSseSendDispatcher(auctionSseTaskExecutor);
     }
 }
