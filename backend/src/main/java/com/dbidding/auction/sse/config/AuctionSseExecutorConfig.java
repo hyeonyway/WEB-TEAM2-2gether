@@ -32,20 +32,27 @@ public class AuctionSseExecutorConfig {
     @Value("${AUCTION_SSE_VIRTUAL_MAX_CONCURRENCY:0}")
     private int virtualMaxConcurrency;
 
-    @Value("${AUCTION_SSE_BROADCAST_CORE_POOL_SIZE:2}")
+    /**
+     * broadcast() 전용 pool 크기(#507). 기본 프로필에서는 {@code SynchronousAuctionSseSendDispatcher}가
+     * emitter별 send를 broadcast() 호출 스레드에서 바로 실행하므로(#362), 이 pool이 사실상
+     * 실제 send I/O까지 전부 떠안는다 — 그래서 기존에 heartbeat와 공유하던 pool과 같은 크기를
+     * 기본값으로 둔다(줄이면 느린 클라이언트 몇 개만으로도 이 pool이 포화돼 caller-runs로
+     * 이어질 위험이 커진다).
+     */
+    @Value("${AUCTION_SSE_BROADCAST_CORE_POOL_SIZE:4}")
     private int broadcastCorePoolSize;
 
-    @Value("${AUCTION_SSE_BROADCAST_MAX_POOL_SIZE:4}")
+    @Value("${AUCTION_SSE_BROADCAST_MAX_POOL_SIZE:8}")
     private int broadcastMaxPoolSize;
 
     @Value("${AUCTION_SSE_BROADCAST_QUEUE_CAPACITY:2000}")
     private int broadcastQueueCapacity;
 
     /**
-     * emitter별 실제 전송({@code send()})만 담당한다. {@code sse-virtual-threads}에서는
-     * {@code AUCTION_SSE_VIRTUAL_MAX_CONCURRENCY}로 캡을 걸 수 있다(#507 이후
-     * {@code broadcast()}는 이 executor를 안 쓰므로, 캡이 꽉 차도 send 자체만 지연되고
-     * 순회 호출자는 안 묶인다).
+     * heartbeat()와({@code sse-virtual-threads}에서는) emitter별 실제 전송을 담당한다.
+     * broadcast()는 이 executor를 안 쓴다(#507) — 느린 클라이언트 하나 때문에 이 pool이
+     * 막혀도, broadcast() 호출자(Redis pub/sub 스레드 또는 입찰 처리 Tomcat 스레드)는
+     * 별도 executor로 계속 돌 수 있어야 한다.
      */
     @Bean(name = "auctionSseTaskExecutor")
     @Profile("!sse-virtual-threads")
@@ -74,11 +81,11 @@ public class AuctionSseExecutorConfig {
     }
 
     /**
-     * {@code AuctionSseConnectionManager.broadcast()} 전용(#507). emitter 집합을 순회하며
-     * 실제 send는 {@code auctionSseTaskExecutor}에 위임만 하는 가벼운 코디네이션 작업이라,
-     * send용 캡(세마포어/스레드풀)과 예산을 나눠 쓰면 안 된다 — 그러면 캡이 꽉 찼을 때
-     * broadcast() 호출자(Redis pub/sub 스레드 또는 입찰 처리 Tomcat 스레드)까지 블로킹된다.
-     * 그래서 이 executor에는 캡을 두지 않는다.
+     * {@code AuctionSseConnectionManager.broadcast()} 전용(#507) — 가상 스레드 사용 여부와
+     * 무관하게 항상 heartbeat/send와 별개의 executor를 쓴다. 이 프로필에서는 send가
+     * broadcast() 호출 스레드에서 바로 실행되므로(#362) 이 pool이 실질적으로 send I/O까지
+     * 떠안는다 — 느린 클라이언트 하나가 이 pool을 막아도 heartbeat용 pool은 영향받지
+     * 않고, 이 pool 자체가 포화돼도(queue+CallerRunsPolicy) heartbeat 쪽 호출자는 안전하다.
      */
     @Bean(name = "auctionSseBroadcastTaskExecutor")
     @Profile("!sse-virtual-threads")
