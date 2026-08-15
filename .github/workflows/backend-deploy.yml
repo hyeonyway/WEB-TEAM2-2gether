@@ -6,6 +6,15 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/backend-deploy.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-deploy.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -51,7 +60,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Initialize MySQL schema
         run: |
@@ -60,7 +71,15 @@ jobs:
 
       - name: Run Gradle tests
         working-directory: backend
-        run: ./gradlew test --no-daemon
+        run: ./gradlew test jacocoTestReport --no-daemon
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-test-report
+          path: backend/build/reports/jacoco/test/
+          if-no-files-found: warn
 
       - name: Collect failed test summary
         if: always()
@@ -82,9 +101,36 @@ jobs:
           print("EOF")
           PY
 
+  comment-jacoco:
+    name: Comment JaCoCo coverage
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download JaCoCo report
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-test-report
+          path: backend/build/reports/jacoco/test/
+
+      - name: Comment JaCoCo coverage on pull request
+        uses: madrapps/jacoco-report@v1.8.0
+        with:
+          paths: ${{ github.workspace }}/backend/build/reports/jacoco/test/jacocoTestReport.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Backend JaCoCo Coverage
+          update-comment: true
+
   build-dev:
     name: Build development image
-    if: github.ref_name == 'dev'
+    if: github.event_name == 'push' && github.ref_name == 'dev'
     needs: test
     runs-on: ubuntu-24.04-arm
 
@@ -173,7 +219,7 @@ jobs:
 
   notify:
     name: Notify Slack
-    if: always() && needs.test.result != 'skipped'
+    if: github.event_name == 'push' && always() && needs.test.result != 'skipped'
     needs: [test, build-dev, publish-prod-image, deploy-prod]
     runs-on: ubuntu-latest
     env:
@@ -183,7 +229,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 50
 
       - name: Send workflow result to Slack
         if: env.SLACK_WEBHOOK_URL != ''
