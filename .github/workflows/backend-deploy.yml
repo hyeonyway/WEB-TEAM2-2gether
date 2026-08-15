@@ -13,9 +13,9 @@ on:
       - '.github/workflows/backend-deploy.yml'
 
 concurrency:
-  # Main deploys use unique run groups; PRs and dev pushes share a cancellable group.
-  group: ${{ github.event_name == 'push' && github.ref_name == 'main' && format('{0}-{1}', github.workflow, github.run_id) || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.ref) }}
-  cancel-in-progress: true
+  # Main deploys share one non-preemptible group; PRs and dev pushes use cancellable groups.
+  group: ${{ github.event_name == 'push' && github.ref_name == 'main' && format('{0}-main', github.workflow) || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref_name != 'main' }}
 
 permissions:
   contents: read
