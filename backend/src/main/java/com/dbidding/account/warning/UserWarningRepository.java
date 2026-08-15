@@ -1,6 +1,8 @@
 package com.dbidding.account.warning;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -13,4 +15,8 @@ public interface UserWarningRepository extends JpaRepository<UserWarning, Long> 
 	@Query("SELECT COUNT(userWarning) FROM UserWarning userWarning "
 		+ "WHERE userWarning.userId = :userId AND userWarning.expiresAt > :now")
 	long countActiveByUserId(@Param("userId") Integer userId, @Param("now") Instant now);
+
+	Optional<UserWarning> findFirstByUserIdAndExpiresAtAfterOrderByExpiresAtDesc(Integer userId, Instant now);
+
+	List<UserWarning> findByUserIdOrderByIssuedAtDescIdDesc(Integer userId);
 }
