@@ -109,7 +109,7 @@ jobs:
 
   comment-jacoco:
     name: Comment JaCoCo coverage
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -121,13 +121,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download JaCoCo report
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: jacoco-test-report
           path: backend/build/reports/jacoco/test/
 
+      - name: Check JaCoCo report availability
+        id: jacoco-report
+        run: |
+          if [[ -f backend/build/reports/jacoco/test/jacocoTestReport.xml ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Comment JaCoCo coverage on pull request
-        uses: madrapps/jacoco-report@v1.8.0
+        if: steps.jacoco-report.outputs.available == 'true'
+        uses: madrapps/jacoco-report@e51ce1f46f7f8b5331593f935e59cbaf44b84920 # v1.8.0
         with:
           paths: ${{ github.workspace }}/backend/build/reports/jacoco/test/jacocoTestReport.xml
           token: ${{ secrets.GITHUB_TOKEN }}
