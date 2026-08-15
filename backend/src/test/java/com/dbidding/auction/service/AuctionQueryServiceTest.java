@@ -394,6 +394,45 @@ class AuctionQueryServiceTest {
     }
 
     @Test
+    void Redis_상세_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.readStoredAuctionState(1)).thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.getDetail(null, 1))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService);
+    }
+
+    @Test
+    void Redis_입찰내역_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.readStoredAuctionState(1)).thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.getBids(1, new PageRequestDto(0, 20)))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService);
+    }
+
+    @Test
+    void Redis_입찰_컨텍스트_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.readStoredAuctionState(1)).thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.getBidContext(7, 1))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService, walletService);
+    }
+
+    @Test
     void Redis_활성_경매_목록은_BID_COUNT_기준_내림차순으로_정렬한다() {
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
