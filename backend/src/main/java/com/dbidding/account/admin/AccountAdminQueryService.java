@@ -11,6 +11,7 @@ import com.dbidding.account.warning.UserWarningRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Supplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class AccountAdminQueryService {
 	private final UserWarningRepository userWarningRepository;
 	private final Supplier<Instant> nowSupplier;
 
+	@Autowired
 	public AccountAdminQueryService(AccountRepository accountRepository, UserWarningRepository userWarningRepository) {
 		this(accountRepository, userWarningRepository, Instant::now);
 	}
