@@ -15,7 +15,7 @@ class LocalNotificationPushPublisherTest {
     void 단건_publish는_디스패처로_그대로_위임한다() {
         NotificationPushDispatcher pushDispatcher = mock(NotificationPushDispatcher.class);
         LocalNotificationPushPublisher publisher = new LocalNotificationPushPublisher(pushDispatcher);
-        NotificationResponse payload = new NotificationResponse(1L, 100, NotificationType.AUCTION_OPENED, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
+        NotificationResponse payload = new NotificationResponse(1L, 100, NotificationType.AUCTION_OPENED, 0L, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
 
         publisher.publish(1, payload);
 
@@ -26,8 +26,8 @@ class LocalNotificationPushPublisherTest {
     void 배치_publish는_원소마다_디스패처를_호출한다() {
         NotificationPushDispatcher pushDispatcher = mock(NotificationPushDispatcher.class);
         LocalNotificationPushPublisher publisher = new LocalNotificationPushPublisher(pushDispatcher);
-        NotificationResponse payload1 = new NotificationResponse(1L, 100, NotificationType.AUCTION_OPENED, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
-        NotificationResponse payload2 = new NotificationResponse(2L, 100, NotificationType.AUCTION_OPENED, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
+        NotificationResponse payload1 = new NotificationResponse(1L, 100, NotificationType.AUCTION_OPENED, 0L, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
+        NotificationResponse payload2 = new NotificationResponse(2L, 100, NotificationType.AUCTION_OPENED, 0L, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
 
         publisher.publish(List.of(new NotificationPushMessage(1, payload1), new NotificationPushMessage(2, payload2)));
 

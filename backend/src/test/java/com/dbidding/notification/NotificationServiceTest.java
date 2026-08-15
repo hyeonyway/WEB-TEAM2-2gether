@@ -204,31 +204,23 @@ class NotificationServiceTest {
     }
 
     @Test
-    void 본인_알림을_읽음_처리한다() {
+    void 복합키로_본인_알림을_읽음_처리한다() {
         Notification notification = Notification.of(1, 10, NotificationType.AUCTION_OPENED, "메시지");
-        given(notificationRepository.findById(1L)).willReturn(Optional.of(notification));
+        given(notificationRepository.findByUserIdAndAuctionIdAndTypeAndBidId(1, 10, NotificationType.AUCTION_OPENED, Notification.NO_BID))
+                .willReturn(Optional.of(notification));
 
-        notificationService.markAsRead(1, 1L);
+        notificationService.markAsRead(1, NotificationType.AUCTION_OPENED, 10, Notification.NO_BID);
 
         assertThat(notification.isRead()).isTrue();
     }
 
     @Test
-    void 존재하지_않는_알림을_읽음_처리하면_404() {
-        given(notificationRepository.findById(1L)).willReturn(Optional.empty());
+    void 복합키와_일치하는_알림이_없으면_404() {
+        given(notificationRepository.findByUserIdAndAuctionIdAndTypeAndBidId(1, 10, NotificationType.OUTBID, 5L))
+                .willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> notificationService.markAsRead(1, 1L))
+        assertThatThrownBy(() -> notificationService.markAsRead(1, NotificationType.OUTBID, 10, 5L))
                 .isInstanceOf(NotificationException.class);
-    }
-
-    @Test
-    void 본인_소유가_아닌_알림을_읽음_처리하면_404() {
-        Notification notification = Notification.of(2, 10, NotificationType.AUCTION_OPENED, "메시지");
-        given(notificationRepository.findById(1L)).willReturn(Optional.of(notification));
-
-        assertThatThrownBy(() -> notificationService.markAsRead(1, 1L))
-                .isInstanceOf(NotificationException.class);
-        assertThat(notification.isRead()).isFalse();
     }
 
     @Test

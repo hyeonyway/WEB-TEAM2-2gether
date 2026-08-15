@@ -2,7 +2,6 @@ package com.dbidding.notification;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,9 +37,14 @@ public class NotificationController {
         return new NotificationUnreadCountResponse(notificationService.countUnread(userId));
     }
 
-    @PatchMapping("/{notificationId}/read")
-    public ResponseEntity<Void> markAsRead(@CurrentUser Integer userId, @PathVariable Long notificationId) {
-        notificationService.markAsRead(userId, notificationId);
+    @PatchMapping("/read")
+    public ResponseEntity<Void> markAsRead(
+            @CurrentUser Integer userId,
+            @RequestParam NotificationType type,
+            @RequestParam Integer auctionId,
+            @RequestParam(defaultValue = "0") Long bidId
+    ) {
+        notificationService.markAsRead(userId, type, auctionId, bidId);
         return ResponseEntity.noContent().build();
     }
 
