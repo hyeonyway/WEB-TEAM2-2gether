@@ -20,6 +20,7 @@ class AuctionSseExecutorProfileTest {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean("auctionSseTaskExecutor")).isInstanceOf(ThreadPoolTaskExecutor.class);
+            assertThat(context.getBean("auctionSseBroadcastTaskExecutor")).isInstanceOf(ThreadPoolTaskExecutor.class);
         });
     }
 
@@ -29,6 +30,24 @@ class AuctionSseExecutorProfileTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean("auctionSseTaskExecutor")).isInstanceOf(SimpleAsyncTaskExecutor.class);
+                    assertThat(context.getBean("auctionSseBroadcastTaskExecutor")).isInstanceOf(SimpleAsyncTaskExecutor.class);
+                });
+    }
+
+    @Test
+    void broadcast_executor는_send_executor와_별개의_빈이다() {
+        // #507: broadcast()가 send용 캡(세마포어/스레드풀) 예산을 나눠 쓰지 않아야 하므로,
+        // 두 executor는 프로필과 무관하게 항상 서로 다른 인스턴스여야 한다.
+        contextRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean("auctionSseBroadcastTaskExecutor"))
+                    .isNotSameAs(context.getBean("auctionSseTaskExecutor"));
+        });
+        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("sse-virtual-threads"))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean("auctionSseBroadcastTaskExecutor"))
+                            .isNotSameAs(context.getBean("auctionSseTaskExecutor"));
                 });
     }
 }

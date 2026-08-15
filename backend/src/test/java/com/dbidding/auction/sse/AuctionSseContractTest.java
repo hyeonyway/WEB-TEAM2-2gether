@@ -103,7 +103,8 @@ class AuctionSseContractTest {
         }
 
         verify(objectMapper).writeValueAsString(eq(payload.withPublishedAt(now)));
-        verify(event, times(2)).data("{}", MediaType.APPLICATION_JSON);
+        // #507: 순회 전 한 번만 만든 SseEventBuilder를 emitter 전원이 공유하므로 1회만 빌드된다.
+        verify(event, times(1)).data("{}", MediaType.APPLICATION_JSON);
         verify(first, times(2)).send(any(SseEmitter.SseEventBuilder.class));
         verify(second, times(2)).send(any(SseEmitter.SseEventBuilder.class));
     }
@@ -206,13 +207,22 @@ class AuctionSseContractTest {
     }
 
     @Test
-    void 경매_SSE_전송과_heartbeat는_전용_executor에서_비동기로_실행된다() throws Exception {
-        Async broadcast = AuctionSseConnectionManager.class
-                .getMethod("broadcast", AuctionStreamPayload.class).getAnnotation(Async.class);
+    void heartbeat은_send용_executor에서_비동기로_실행된다() throws Exception {
         Async heartbeat = AuctionSseConnectionManager.class.getMethod("heartbeat").getAnnotation(Async.class);
 
-        assertThat(broadcast.value()).isEqualTo("auctionSseTaskExecutor");
         assertThat(heartbeat.value()).isEqualTo("auctionSseTaskExecutor");
+    }
+
+    @Test
+    void broadcast는_send와_분리된_캡_없는_전용_executor에서_비동기로_실행된다() throws Exception {
+        // #507: send용 executor(auctionSseTaskExecutor)가 캡으로 꽉 차도 broadcast() 호출자가
+        // 안 묶이도록, broadcast()는 별도의(캡 없는) executor를 쓴다.
+        Async broadcast = AuctionSseConnectionManager.class
+                .getMethod("broadcast", AuctionStreamPayload.class).getAnnotation(Async.class);
+
+        assertThat(broadcast.value()).isEqualTo("auctionSseBroadcastTaskExecutor");
+        assertThat(broadcast.value()).isNotEqualTo(
+                AuctionSseConnectionManager.class.getMethod("heartbeat").getAnnotation(Async.class).value());
     }
 
     @Test

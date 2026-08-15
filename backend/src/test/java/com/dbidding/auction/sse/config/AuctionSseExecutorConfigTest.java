@@ -65,4 +65,33 @@ class AuctionSseExecutorConfigTest {
         assertThat(isVirtual).hasValue(true);
         assertThat(threadName.get()).startsWith("auction-sse-");
     }
+
+    @Test
+    void broadcast_executor는_send_executor의_캡이_꽉_차있어도_즉시_task를_받는다() throws InterruptedException {
+        // #507: send용 executor(auctionSseTaskExecutor)를 캡 1로 포화시켜 놓아도,
+        // 분리된 broadcast용 executor(캡 없음)는 그 세마포어와 무관해 곧바로 task를 실행해야 한다.
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        AuctionSseExecutorConfig config = new AuctionSseExecutorConfig(registry);
+        ReflectionTestUtils.setField(config, "virtualMaxConcurrency", 1);
+        TaskExecutor sendExecutor = config.auctionSseVirtualTaskExecutor();
+        TaskExecutor broadcastExecutor = config.auctionSseBroadcastVirtualTaskExecutor();
+
+        CountDownLatch sendRunning = new CountDownLatch(1);
+        CountDownLatch releaseSend = new CountDownLatch(1);
+        sendExecutor.execute(() -> {
+            sendRunning.countDown();
+            try {
+                releaseSend.await();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertThat(sendRunning.await(1, TimeUnit.SECONDS)).isTrue();
+
+        CountDownLatch broadcastDone = new CountDownLatch(1);
+        broadcastExecutor.execute(broadcastDone::countDown);
+
+        assertThat(broadcastDone.await(1, TimeUnit.SECONDS)).isTrue();
+        releaseSend.countDown();
+    }
 }

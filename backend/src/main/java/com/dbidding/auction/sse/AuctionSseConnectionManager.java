@@ -78,7 +78,10 @@ public class AuctionSseConnectionManager {
         return emitter;
     }
 
-    @Async("auctionSseTaskExecutor")
+    // #507: send용 캡이 꽉 차도 이 메서드(순회/코디네이션)는 안 묶여야 하므로, send와
+    // 다른(캡 없는) executor를 쓴다 — 실제 emitter별 send는 sendDispatcher가 그대로
+    // 캡이 걸릴 수 있는 auctionSseTaskExecutor에 위임한다.
+    @Async("auctionSseBroadcastTaskExecutor")
     public void broadcast(AuctionStreamPayload event) {
         Set<SseEmitter> emitters = emittersByAuctionId.get(event.auctionId());
         if (emitters == null || emitters.isEmpty()) {
@@ -87,8 +90,11 @@ public class AuctionSseConnectionManager {
         long eventId = eventSequence.incrementAndGet();
         AuctionStreamPayload publishedEvent = event.withPublishedAt(clock.instant());
         String serializedPayload = writeJson(publishedEvent);
-        emitters.forEach(emitter ->
-                sendDispatcher.dispatch(() -> send(emitter, event(publishedEvent.type(), serializedPayload, eventId))));
+        // emitter와 무관하게 매번 동일한 인자라 순회 전 한 번만 만들어 재사용한다 —
+        // .build() 결과는 읽기 전용이라 여러 스레드가 동시에 같은 인스턴스로
+        // emitter.send()해도 안전하다(serializedPayload를 이미 이렇게 재사용 중인 것과 동일).
+        SseEmitter.SseEventBuilder sharedEvent = event(publishedEvent.type(), serializedPayload, eventId);
+        emitters.forEach(emitter -> sendDispatcher.dispatch(() -> send(emitter, sharedEvent)));
     }
 
     @Async("auctionSseTaskExecutor")
