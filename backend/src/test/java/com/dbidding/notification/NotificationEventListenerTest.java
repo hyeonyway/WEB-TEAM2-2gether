@@ -1,5 +1,7 @@
 package com.dbidding.notification;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -50,26 +53,23 @@ class NotificationEventListenerTest {
     private NotificationEventListener listener;
 
     @Test
-    void 경매가_등록되면_찜한_유저_전원에게_알림을_보내고_SSE로_push한다() {
+    void 경매가_등록되면_찜한_유저_전원에게_동일한_알림_객체로_SSE를_push한다() {
         listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
         given(wishlistService.findUserIdsByCardId(10)).willReturn(List.of(1, 2, 3));
-        Notification notification1 = Notification.of(1, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-        Notification notification2 = Notification.of(2, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-        Notification notification3 = Notification.of(3, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
-        given(notificationService.saveAllIgnoringDuplicates(
-                List.of(1, 2, 3), 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
-        )).willReturn(List.of(notification1, notification2, notification3));
 
         listener.handleAuctionOpened(openedEvent());
 
         verify(notificationService).saveAllIgnoringDuplicates(
                 List.of(1, 2, 3), 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
-        verify(notificationPushPublisher).publish(List.of(
-                new NotificationPushMessage(1, NotificationResponse.from(notification1)),
-                new NotificationPushMessage(2, NotificationResponse.from(notification2)),
-                new NotificationPushMessage(3, NotificationResponse.from(notification3))
-        ));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NotificationPushMessage>> messagesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(notificationPushPublisher).publish(messagesCaptor.capture());
+        List<NotificationPushMessage> messages = messagesCaptor.getValue();
+        assertThat(messages).extracting(NotificationPushMessage::userId).containsExactly(1, 2, 3);
+        NotificationResponse sharedPayload = messages.get(0).payload();
+        assertThat(messages).extracting(NotificationPushMessage::payload).containsOnly(sharedPayload);
+        assertNotification(sharedPayload, 100, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.");
         verifyNoMoreInteractions(notificationService);
     }
 
@@ -124,74 +124,98 @@ class NotificationEventListenerTest {
     }
 
     @Test
-    void 낙찰되면_낙찰자와_판매자_모두에게_알림을_보내고_SSE로_push한다() {
+    void 낙찰되면_낙찰자와_판매자_알림을_한번에_저장하고_각각_SSE로_push한다() {
         listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
-        Notification winnerNotification = Notification.of(7, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다.");
-        Notification sellerNotification = Notification.of(9, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매가 낙찰되었습니다.");
-        given(notificationService.save(7, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다.")).willReturn(winnerNotification);
-        given(notificationService.save(9, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매가 낙찰되었습니다.")).willReturn(sellerNotification);
 
         listener.handleAuctionClosed(closedEvent(7, 50_000L));
 
-        verify(notificationService).save(7, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다.");
-        verify(notificationService).save(9, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매가 낙찰되었습니다.");
-        verify(notificationPushPublisher).publish(7, NotificationResponse.from(winnerNotification));
-        verify(notificationPushPublisher).publish(9, NotificationResponse.from(sellerNotification));
+        verify(notificationService).insertAllIgnoringDuplicates(List.of(
+                NotificationInsertRow.of(7, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다."),
+                NotificationInsertRow.of(9, 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매가 낙찰되었습니다.")
+        ));
+        ArgumentCaptor<NotificationResponse> winnerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(7), winnerPayload.capture());
+        assertNotification(winnerPayload.getValue(), 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매에 낙찰되었습니다.");
+        ArgumentCaptor<NotificationResponse> sellerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(9), sellerPayload.capture());
+        assertNotification(sellerPayload.getValue(), 100, NotificationType.AUCTION_WON, "리자몽 EX 카드 경매가 낙찰되었습니다.");
     }
 
     @Test
-    void 유찰되면_판매자에게만_알림을_보내고_SSE로_push한다() {
+    void 유찰되면_판매자_알림만_저장하고_SSE로_push한다() {
         listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
-        Notification sellerNotification = Notification.of(9, 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.");
-        given(notificationService.save(9, 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.")).willReturn(sellerNotification);
 
         listener.handleAuctionClosed(closedEvent(null, null));
 
-        verify(notificationService).save(9, 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.");
-        verify(notificationPushPublisher).publish(9, NotificationResponse.from(sellerNotification));
+        verify(notificationService).insertAllIgnoringDuplicates(List.of(
+                NotificationInsertRow.of(9, 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.")
+        ));
+        ArgumentCaptor<NotificationResponse> sellerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(9), sellerPayload.capture());
+        assertNotification(sellerPayload.getValue(), 100, NotificationType.AUCTION_UNSOLD, "리자몽 EX 카드 경매가 유찰되었습니다.");
         verifyNoMoreInteractions(notificationService);
     }
 
     @Test
-    void 주문이_완료되면_구매자와_판매자_모두에게_카드이름과_함께_알림을_보내고_SSE로_push한다() {
+    void 주문이_완료되면_구매자와_판매자_알림을_한번에_저장하고_각각_SSE로_push한다() {
         listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
-        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다.");
-        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 판매 대금이 정산되었습니다.");
-        given(notificationService.save(7, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다.")).willReturn(buyerNotification);
-        given(notificationService.save(9, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 판매 대금이 정산되었습니다.")).willReturn(sellerNotification);
 
         listener.handleOrderCompleted(new OrderCompletedEvent(1, 100, 7, 9, "리자몽 EX"));
 
-        verify(notificationPushPublisher).publish(7, NotificationResponse.from(buyerNotification));
-        verify(notificationPushPublisher).publish(9, NotificationResponse.from(sellerNotification));
+        verify(notificationService).insertAllIgnoringDuplicates(List.of(
+                NotificationInsertRow.of(7, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다."),
+                NotificationInsertRow.of(9, 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 판매 대금이 정산되었습니다.")
+        ));
+        ArgumentCaptor<NotificationResponse> buyerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(7), buyerPayload.capture());
+        assertNotification(buyerPayload.getValue(), 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 구매가 확정되었습니다.");
+        ArgumentCaptor<NotificationResponse> sellerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(9), sellerPayload.capture());
+        assertNotification(sellerPayload.getValue(), 100, NotificationType.ORDER_COMPLETED, "리자몽 EX 카드 판매 대금이 정산되었습니다.");
     }
 
     @Test
     void 구매자가_취소하면_구매자에게는_환불_판매자에게는_구매자가_취소했다는_알림을_보낸다() {
         listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
-        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다.");
-        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 리자몽 EX 카드 거래를 취소했습니다.");
-        given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다.")).willReturn(buyerNotification);
-        given(notificationService.save(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 리자몽 EX 카드 거래를 취소했습니다.")).willReturn(sellerNotification);
 
         listener.handleOrderCancelled(new OrderCancelledEvent(1, 100, 7, 9, "리자몽 EX", OrderCancelledEvent.CancelledBy.BUYER));
 
-        verify(notificationPushPublisher).publish(7, NotificationResponse.from(buyerNotification));
-        verify(notificationPushPublisher).publish(9, NotificationResponse.from(sellerNotification));
+        verify(notificationService).insertAllIgnoringDuplicates(List.of(
+                NotificationInsertRow.of(7, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다."),
+                NotificationInsertRow.of(9, 100, NotificationType.ORDER_CANCELLED, "구매자가 리자몽 EX 카드 거래를 취소했습니다.")
+        ));
+        ArgumentCaptor<NotificationResponse> buyerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(7), buyerPayload.capture());
+        assertNotification(buyerPayload.getValue(), 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 구매가 취소되어 환불되었습니다.");
+        ArgumentCaptor<NotificationResponse> sellerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(9), sellerPayload.capture());
+        assertNotification(sellerPayload.getValue(), 100, NotificationType.ORDER_CANCELLED, "구매자가 리자몽 EX 카드 거래를 취소했습니다.");
     }
 
     @Test
     void 판매자가_취소하면_판매자에게는_판매취소_구매자에게는_환불_알림을_보낸다() {
         listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
-        Notification buyerNotification = Notification.of(7, 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다.");
-        Notification sellerNotification = Notification.of(9, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 판매를 취소했습니다.");
-        given(notificationService.save(7, 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다.")).willReturn(buyerNotification);
-        given(notificationService.save(9, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 판매를 취소했습니다.")).willReturn(sellerNotification);
 
         listener.handleOrderCancelled(new OrderCancelledEvent(1, 100, 7, 9, "리자몽 EX", OrderCancelledEvent.CancelledBy.SELLER));
 
-        verify(notificationPushPublisher).publish(7, NotificationResponse.from(buyerNotification));
-        verify(notificationPushPublisher).publish(9, NotificationResponse.from(sellerNotification));
+        verify(notificationService).insertAllIgnoringDuplicates(List.of(
+                NotificationInsertRow.of(7, 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다."),
+                NotificationInsertRow.of(9, 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 판매를 취소했습니다.")
+        ));
+        ArgumentCaptor<NotificationResponse> buyerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(7), buyerPayload.capture());
+        assertNotification(buyerPayload.getValue(), 100, NotificationType.ORDER_CANCELLED, "판매자가 리자몽 EX 카드 거래를 취소하여 환불되었습니다.");
+        ArgumentCaptor<NotificationResponse> sellerPayload = ArgumentCaptor.forClass(NotificationResponse.class);
+        verify(notificationPushPublisher).publish(eq(9), sellerPayload.capture());
+        assertNotification(sellerPayload.getValue(), 100, NotificationType.ORDER_CANCELLED, "리자몽 EX 카드 판매를 취소했습니다.");
+    }
+
+    private void assertNotification(NotificationResponse response, Integer auctionId, NotificationType type, String message) {
+        assertThat(response.auctionId()).isEqualTo(auctionId);
+        assertThat(response.type()).isEqualTo(type);
+        assertThat(response.bidId()).isEqualTo(Notification.NO_BID);
+        assertThat(response.message()).isEqualTo(message);
+        assertThat(response.isRead()).isFalse();
     }
 
     private AuctionOpenedEvent openedEvent() {

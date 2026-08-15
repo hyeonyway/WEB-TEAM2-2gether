@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 import java.util.List;
 import java.util.Optional;
@@ -60,18 +59,10 @@ class NotificationServiceTest {
     }
 
     @Test
-    void 여러_유저의_알림을_한번에_저장하고_존재하는_행까지_함께_조회한다() {
+    void 여러_유저의_알림을_재조회_없이_한번에_저장한다() {
         List<Integer> userIds = List.of(1, 2, 3);
-        List<Notification> existing = List.of(
-                Notification.of(1, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
-                Notification.of(2, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."),
-                Notification.of(3, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.")
-        );
-        given(notificationRepository.findByAuctionIdAndTypeAndBidIdAndUserIdIn(
-                10, NotificationType.AUCTION_OPENED, Notification.NO_BID, userIds
-        )).willReturn(existing);
 
-        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+        notificationService.saveAllIgnoringDuplicates(
                 userIds, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
 
@@ -81,18 +72,15 @@ class NotificationServiceTest {
                 eq(2), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다."),
                 eq(3), eq(10), eq("AUCTION_OPENED"), eq(Notification.NO_BID), eq("리자몽 EX 카드의 경매가 등록되었습니다.")
         );
-        assertThat(result).isEqualTo(existing);
+        then(notificationRepository).shouldHaveNoInteractions();
     }
 
     @Test
-    void 대상_유저가_없으면_저장_없이_빈_목록을_반환한다() {
-        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
-                List.of(), 10, NotificationType.AUCTION_OPENED, "메시지"
-        );
+    void 대상_유저가_없으면_아무것도_하지_않는다() {
+        notificationService.saveAllIgnoringDuplicates(List.of(), 10, NotificationType.AUCTION_OPENED, "메시지");
 
-        assertThat(result).isEmpty();
         then(jdbcTemplate).shouldHaveNoInteractions();
-        then(notificationRepository).should(never()).findByAuctionIdAndTypeAndBidIdAndUserIdIn(any(), any(), any(), any());
+        then(notificationRepository).shouldHaveNoInteractions();
     }
 
     @Test

@@ -18,10 +18,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             Integer userId, Integer auctionId, NotificationType type, Long bidId
     );
 
-    List<Notification> findByAuctionIdAndTypeAndBidIdAndUserIdIn(
-            Integer auctionId, NotificationType type, Long bidId, Collection<Integer> userIds
-    );
-
     /**
      * 낙찰/유찰 복구 알림(bidId=NO_BID 고정)의 존재 여부를 경매·유저 여러 건에 대해 한 번에 확인하기 위한 조회.
      * auctionIds/userIds는 독립적인 IN절이라 실제 조합보다 넓게 매칭될 수 있지만, 반환되는 각 행은

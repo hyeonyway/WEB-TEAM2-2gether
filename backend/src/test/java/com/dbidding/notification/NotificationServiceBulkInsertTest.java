@@ -43,56 +43,63 @@ class NotificationServiceBulkInsertTest {
                 userIds.get(0), auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
 
-        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+        notificationService.saveAllIgnoringDuplicates(
                 userIds, auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
 
-        assertThat(result).hasSize(3);
-        assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(userIds);
-        Notification firstUserResult = result.stream()
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId), userIds
+        );
+        assertThat(saved).hasSize(3);
+        assertThat(saved).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(userIds);
+        Notification firstUserResult = saved.stream()
                 .filter(notification -> notification.getUserId().equals(userIds.get(0)))
                 .findFirst()
                 .orElseThrow();
         assertThat(firstUserResult.getId()).isEqualTo(existing.getId());
-
-        long totalRows = result.stream()
-                .filter(notification -> notification.getAuctionId().equals(auctionId))
-                .count();
-        assertThat(totalRows).isEqualTo(3);
     }
 
     @Test
     void 대상_유저가_모두_새로우면_전부_저장한다() {
-        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+        notificationService.saveAllIgnoringDuplicates(
                 userIds, auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
 
-        assertThat(result).hasSize(3);
-        assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(userIds);
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId), userIds
+        );
+        assertThat(saved).hasSize(3);
+        assertThat(saved).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(userIds);
     }
 
     @Test
     void 유저_수가_청크_크기와_정확히_같으면_한_청크로_전부_저장한다() {
         List<Integer> chunkSizedUserIds = insertUsersInBulk("chunk-exact", 10_000);
 
-        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+        notificationService.saveAllIgnoringDuplicates(
                 chunkSizedUserIds, auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
 
-        assertThat(result).hasSize(10_000);
-        assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(chunkSizedUserIds);
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId), chunkSizedUserIds
+        );
+        assertThat(saved).hasSize(10_000);
+        assertThat(saved).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(chunkSizedUserIds);
     }
 
     @Test
     void 유저_수가_청크_크기를_넘으면_여러_청크로_나눠도_전부_저장한다() {
         List<Integer> overChunkUserIds = insertUsersInBulk("chunk-over", 10_001);
 
-        List<Notification> result = notificationService.saveAllIgnoringDuplicates(
+        notificationService.saveAllIgnoringDuplicates(
                 overChunkUserIds, auctionId, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다."
         );
 
-        assertThat(result).hasSize(10_001);
-        assertThat(result).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(overChunkUserIds);
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId), overChunkUserIds
+        );
+        assertThat(saved).hasSize(10_001);
+        assertThat(saved).extracting(Notification::getUserId).containsExactlyInAnyOrderElementsOf(overChunkUserIds);
     }
 
     @Test
