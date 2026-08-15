@@ -65,11 +65,14 @@ public class AuctionSseConnectionManager {
         long eventId = eventSequence.incrementAndGet();
         AuctionStreamPayload publishedEvent = event.withPublishedAt(clock.instant());
         String serializedPayload = writeJson(publishedEvent);
-        // emitter와 무관하게 매번 동일한 인자라 순회 전 한 번만 만들어 재사용한다 —
-        // .build() 결과는 읽기 전용이라 여러 스레드가 동시에 같은 인스턴스로
-        // emitter.send()해도 안전하다(serializedPayload를 이미 이렇게 재사용 중인 것과 동일).
-        SseEmitter.SseEventBuilder sharedEvent = event(publishedEvent.type(), serializedPayload, eventId);
-        emitters.forEach(emitter -> sendDispatcher.dispatch(() -> registry.send(emitter, sharedEvent)));
+        AuctionStreamEventType eventType = publishedEvent.type();
+        // serializedPayload/eventId/eventType은 emitter와 무관하게 동일해 순회 전 한 번만
+        // 만들어 재사용해도 되지만, SseEmitter.SseEventBuilder 인스턴스 자체는 재사용하면
+        // 안 된다 — Spring의 SseEventBuilderImpl.build()는 매 호출마다 내부 LinkedHashSet에
+        // add하는 구조라(캐싱 안 됨), 같은 인스턴스를 여러 emitter가 동시에 send()하면
+        // 그 내부 Set에 여러 스레드가 동시에 add하다 ConcurrentModificationException이 난다.
+        // 그래서 emitter마다 event(...)를 새로 호출해 독립된 builder를 만든다.
+        emitters.forEach(emitter -> sendDispatcher.dispatch(() -> registry.send(emitter, event(eventType, serializedPayload, eventId))));
     }
 
     @Async("auctionSseTaskExecutor")
