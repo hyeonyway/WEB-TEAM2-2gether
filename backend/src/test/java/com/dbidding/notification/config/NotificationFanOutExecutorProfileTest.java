@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -13,6 +14,7 @@ class NotificationFanOutExecutorProfileTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+            .withBean(Clock.class, Clock::systemUTC)
             .withUserConfiguration(NotificationExecutorConfig.class);
 
     @Test
