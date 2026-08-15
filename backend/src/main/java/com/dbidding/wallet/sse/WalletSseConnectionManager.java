@@ -2,6 +2,7 @@ package com.dbidding.wallet.sse;
 
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
 import com.dbidding.sse.metrics.SseConnectionCloseMetrics.CloseReason;
+import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Timer;
@@ -29,7 +30,7 @@ public class WalletSseConnectionManager {
     private final SessionSseConnectionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
     private final TaskExecutor sendExecutor;
-    private final WalletSseMetrics metrics;
+    private final SseMetrics metrics;
     private final Supplier<Number> connectionCountSupplier;
 
     @Autowired
@@ -37,7 +38,7 @@ public class WalletSseConnectionManager {
             SessionSseConnectionRegistry sessionRegistry,
             ObjectMapper objectMapper,
             @Qualifier("walletSseTaskExecutor") TaskExecutor sendExecutor,
-            WalletSseMetrics metrics
+            @Qualifier("walletSseMetrics") SseMetrics metrics
     ) {
         this.sessionRegistry = sessionRegistry;
         this.objectMapper = objectMapper;
@@ -48,7 +49,7 @@ public class WalletSseConnectionManager {
     }
 
     /** 기존 단위 테스트의 생성자 계약을 유지한다. */
-    WalletSseConnectionManager(ObjectMapper objectMapper, TaskExecutor sendExecutor, WalletSseMetrics metrics) {
+    WalletSseConnectionManager(ObjectMapper objectMapper, TaskExecutor sendExecutor, SseMetrics metrics) {
         this(new SessionSseConnectionRegistry(), objectMapper, sendExecutor, metrics);
     }
 
@@ -123,6 +124,7 @@ public class WalletSseConnectionManager {
     }
 
     private boolean send(Integer userId, SseEmitter emitter, SseEmitter.SseEventBuilder event) {
+        Timer.Sample sample = metrics.startSend();
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
@@ -130,6 +132,8 @@ public class WalletSseConnectionManager {
             metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
             removeAndComplete(userId, emitter);
             return false;
+        } finally {
+            metrics.finishSend(sample);
         }
         return true;
     }

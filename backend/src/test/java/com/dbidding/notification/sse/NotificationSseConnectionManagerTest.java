@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.notification.NotificationType;
+import com.dbidding.sse.metrics.SseMetrics;
 import com.dbidding.notification.dto.NotificationResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -28,7 +29,7 @@ class NotificationSseConnectionManagerTest {
     void 연결_등록과_해제에_따라_알림_SSE_연결_Gauge가_변한다() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         NotificationSseConnectionManager manager = new NotificationSseConnectionManager(
-                new SessionSseConnectionRegistry(), new NotificationSseMetrics(registry), objectMapper());
+                new SessionSseConnectionRegistry(), new SseMetrics(registry, "notification"), objectMapper());
         SseEmitter emitter = mock(SseEmitter.class);
         final Runnable[] onCompletion = new Runnable[1];
         org.mockito.Mockito.doAnswer(invocation -> {
@@ -47,7 +48,7 @@ class NotificationSseConnectionManagerTest {
     void 알림_SSE_연결수립_완료시간을_기록한다() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         NotificationSseConnectionManager manager = new NotificationSseConnectionManager(
-                new SessionSseConnectionRegistry(), new NotificationSseMetrics(registry), objectMapper());
+                new SessionSseConnectionRegistry(), new SseMetrics(registry, "notification"), objectMapper());
 
         manager.register(1, mock(SseEmitter.class));
 
@@ -72,7 +73,7 @@ class NotificationSseConnectionManagerTest {
         when(objectMapper.writeValueAsString(any(NotificationResponse.class))).thenReturn("{}");
         NotificationSseConnectionManager manager = new NotificationSseConnectionManager(
                 new SessionSseConnectionRegistry(),
-                new NotificationSseMetrics(new SimpleMeterRegistry()),
+                new SseMetrics(new SimpleMeterRegistry(), "notification"),
                 objectMapper);
         SseEmitter first = mock(SseEmitter.class);
         SseEmitter second = mock(SseEmitter.class);
@@ -166,7 +167,7 @@ class NotificationSseConnectionManagerTest {
     private NotificationSseConnectionManager manager(SessionSseConnectionRegistry registry) {
         return new NotificationSseConnectionManager(
                 registry,
-                new NotificationSseMetrics(new SimpleMeterRegistry()),
+                new SseMetrics(new SimpleMeterRegistry(), "notification"),
                 objectMapper());
     }
 

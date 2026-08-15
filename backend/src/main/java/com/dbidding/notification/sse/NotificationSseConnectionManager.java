@@ -11,7 +11,9 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Supplier;
 import io.micrometer.core.instrument.Timer;
 import com.dbidding.sse.metrics.SseConnectionCloseMetrics.CloseReason;
+import com.dbidding.sse.metrics.SseMetrics;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,13 +31,13 @@ public class NotificationSseConnectionManager {
     private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
     private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
     private final SessionSseConnectionRegistry sessionRegistry;
-    private final NotificationSseMetrics metrics;
+    private final SseMetrics metrics;
     private final ObjectMapper objectMapper;
     private final Supplier<Number> connectionCountSupplier;
 
     public NotificationSseConnectionManager(
             SessionSseConnectionRegistry sessionRegistry,
-            NotificationSseMetrics metrics,
+            @Qualifier("notificationSseMetrics") SseMetrics metrics,
             ObjectMapper objectMapper
     ) {
         this.sessionRegistry = sessionRegistry;
@@ -123,6 +125,7 @@ public class NotificationSseConnectionManager {
     }
 
     private boolean send(Integer userId, SseEmitter emitter, SseEmitter.SseEventBuilder event) {
+        Timer.Sample sample = metrics.startSend();
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
@@ -130,6 +133,8 @@ public class NotificationSseConnectionManager {
             metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
             removeAndComplete(userId, emitter);
             return false;
+        } finally {
+            metrics.finishSend(sample);
         }
         return true;
     }

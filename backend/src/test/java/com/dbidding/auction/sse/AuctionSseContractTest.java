@@ -13,6 +13,8 @@ import static org.mockito.ArgumentMatchers.eq;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
+import com.dbidding.sse.SynchronousSseSendDispatcher;
+import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -83,9 +85,9 @@ class AuctionSseContractTest {
         when(objectMapper.writeValueAsString(any(AuctionStreamPayload.class))).thenReturn("{}");
         var manager = new AuctionSseConnectionManager(
                 Clock.fixed(now, java.time.ZoneOffset.UTC),
-                new AuctionSseMetrics(new SimpleMeterRegistry()),
+                new SseMetrics(new SimpleMeterRegistry(), "auction"),
                 objectMapper,
-                new SynchronousAuctionSseSendDispatcher());
+                new SynchronousSseSendDispatcher());
         SseEmitter first = mock(SseEmitter.class);
         SseEmitter second = mock(SseEmitter.class);
         manager.register(Set.of(10), first);
@@ -262,9 +264,9 @@ class AuctionSseContractTest {
     private AuctionSseConnectionManager manager(SimpleMeterRegistry registry) {
         return new AuctionSseConnectionManager(
                 Clock.fixed(now, java.time.ZoneOffset.UTC),
-                new AuctionSseMetrics(registry),
+                new SseMetrics(registry, "auction"),
                 JsonMapper.builder().addModule(new JavaTimeModule())
                         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build(),
-                new SynchronousAuctionSseSendDispatcher());
+                new SynchronousSseSendDispatcher());
     }
 }

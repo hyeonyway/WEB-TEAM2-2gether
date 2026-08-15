@@ -1,7 +1,9 @@
 package com.dbidding.wallet.sse;
 
 import com.dbidding.sse.config.CountingCallerRunsPolicy;
+import com.dbidding.sse.metrics.SseMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,5 +40,11 @@ public class WalletSseExecutorConfig {
         executor.setAwaitTerminationSeconds(10);
         executor.initialize();
         return executor;
+    }
+
+    /** #508 — {@code WalletSseConnectionManager}의 메트릭 배선. */
+    @Bean(name = "walletSseMetrics")
+    public SseMetrics walletSseMetrics(Clock clock) {
+        return new SseMetrics(meterRegistry, "wallet", clock);
     }
 }

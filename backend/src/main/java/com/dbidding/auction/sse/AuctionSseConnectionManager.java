@@ -9,10 +9,13 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import com.dbidding.sse.SseSendDispatcher;
 import com.dbidding.sse.metrics.SseConnectionCloseMetrics.CloseReason;
+import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Timer;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -26,9 +29,9 @@ public class AuctionSseConnectionManager {
     private static final long RECONNECT_TIME_MILLIS = 3_000L;
 
     private final Clock clock;
-    private final AuctionSseMetrics metrics;
+    private final SseMetrics metrics;
     private final ObjectMapper objectMapper;
-    private final AuctionSseSendDispatcher sendDispatcher;
+    private final SseSendDispatcher sendDispatcher;
     private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByAuctionId = new ConcurrentHashMap<>();
     private final ConcurrentMap<SseEmitter, Set<Integer>> auctionIdsByEmitter = new ConcurrentHashMap<>();
     private final AtomicLong eventSequence = new AtomicLong();
@@ -36,9 +39,9 @@ public class AuctionSseConnectionManager {
 
     public AuctionSseConnectionManager(
             Clock clock,
-            AuctionSseMetrics metrics,
+            @Qualifier("auctionSseMetrics") SseMetrics metrics,
             ObjectMapper objectMapper,
-            AuctionSseSendDispatcher sendDispatcher
+            @Qualifier("auctionSseSendDispatcher") SseSendDispatcher sendDispatcher
     ) {
         this.clock = clock;
         this.metrics = metrics;
