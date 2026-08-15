@@ -7,6 +7,7 @@ import {isMockApiEnabled} from '../api/mockApiConfig';
 import type {NotificationDto,NotificationPageDto} from '../dto/notificationDto';
 import {applyNotificationCreated} from '../queries/notificationStreamCache';
 import {notificationQueryKeys} from '../queries/notificationQueries';
+import {notificationDedupKey} from '../utils/notificationKey';
 import {nextSseReconnectDelayMs,shouldRevalidateSession} from './sseReconnectPolicy';
 
 const NOTIFICATION_CREATED_EVENT='notification-created';
@@ -22,6 +23,7 @@ function parsePayload(data:string):NotificationDto|null{
     if(
       typeof raw.id!=='number'
       ||typeof raw.auctionId!=='number'
+      ||typeof raw.bidId!=='number'
       ||typeof raw.message!=='string'
       ||typeof raw.isRead!=='boolean'
       ||typeof raw.createdAt!=='string'
@@ -44,7 +46,7 @@ export function useNotificationStream({
   const queryClient=useQueryClient();
   const onNotificationCreatedRef=useRef(onNotificationCreated);
   onNotificationCreatedRef.current=onNotificationCreated;
-  const seenNotificationIdsRef=useRef(new Set<number>());
+  const seenNotificationKeysRef=useRef(new Set<string>());
 
   useEffect(()=>{
     if(!enabled||isMockApiEnabled())return;
@@ -57,8 +59,9 @@ export function useNotificationStream({
     const handleNotificationCreated=(event:Event)=>{
       const notification=parsePayload((event as MessageEvent<string>).data);
       if(!notification)return;
-      if(seenNotificationIdsRef.current.has(notification.id))return;
-      seenNotificationIdsRef.current.add(notification.id);
+      const dedupKey=notificationDedupKey(notification);
+      if(seenNotificationKeysRef.current.has(dedupKey))return;
+      seenNotificationKeysRef.current.add(dedupKey);
 
       queryClient.setQueryData<InfiniteData<NotificationPageDto>>(
         notificationQueryKeys.list(false),

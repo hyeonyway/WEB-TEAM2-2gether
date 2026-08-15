@@ -19,7 +19,7 @@ export default function NotificationToastStack({toasts,onDismiss}:NotificationTo
   if(!toasts.length)return null;
 
   const handleOpen=(notification:NotificationDto)=>{
-    markAsReadMutation.mutate(notification.id);
+    markAsReadMutation.mutate(notification);
     onDismiss(notification.id);
     navigate(getNotificationPath(notification));
   };

@@ -18,9 +18,9 @@ function formatRelativeTime(iso:string):string{
   return formatLocalDate(iso);
 }
 
-function NotificationItem({notification,onRead,onNavigate}:{notification:NotificationDto;onRead:(id:number)=>void;onNavigate:(notification:NotificationDto)=>void}){
+function NotificationItem({notification,onRead,onNavigate}:{notification:NotificationDto;onRead:(notification:NotificationDto)=>void;onNavigate:(notification:NotificationDto)=>void}){
   return <li className={`notification-item ${notification.isRead?'read':'unread'}`}>
-    <button type="button" className="notification-item-body" onClick={()=>onRead(notification.id)}>
+    <button type="button" className="notification-item-body" onClick={()=>onRead(notification)}>
       <p>{notification.message}</p>
       <span>{formatRelativeTime(notification.createdAt)}</span>
     </button>
@@ -103,7 +103,7 @@ export default function NotificationBell(){
   };
 
   const handleNavigate=(notification:NotificationDto)=>{
-    markAsRead(notification.id);
+    markAsRead(notification);
     setIsOpen(false);
     navigate(getNotificationPath(notification));
   };

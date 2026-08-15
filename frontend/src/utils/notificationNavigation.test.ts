@@ -3,7 +3,7 @@ import type {NotificationDto} from '../dto/notificationDto';
 import {getNotificationPath} from './notificationNavigation';
 
 function notification(type:NotificationDto['type']):NotificationDto{
-  return {id:1,auctionId:7,type,message:'메시지',isRead:false,createdAt:'2026-08-03T12:00:00'};
+  return {id:1,auctionId:7,type,bidId:type==='OUTBID'?70:0,message:'메시지',isRead:false,createdAt:'2026-08-03T12:00:00'};
 }
 
 describe('getNotificationPath',()=>{

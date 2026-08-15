@@ -4,6 +4,7 @@ import {getDebugUserId} from '../api/debugAuthStorage';
 import {useAuth} from '../auth/useAuth';
 import {notificationMutations} from '../queries/notificationMutations';
 import {notificationQueries,notificationQueryKeys} from '../queries/notificationQueries';
+import type {NotificationKeyFields} from '../utils/notificationKey';
 
 export function useNotifications(unreadOnly:boolean,enabled:boolean){
   const {status}=useAuth();
@@ -38,7 +39,7 @@ export function useNotifications(unreadOnly:boolean,enabled:boolean){
     isFetchingNextPage:listQuery.isFetchingNextPage,
     fetchNextPage:()=>void listQuery.fetchNextPage(),
     refetchAll,
-    markAsRead:(notificationId:number)=>markAsReadMutation.mutate(notificationId),
+    markAsRead:(key:NotificationKeyFields)=>markAsReadMutation.mutate(key),
     markAllAsRead:()=>markAllAsReadMutation.mutate(),
   };
 }
