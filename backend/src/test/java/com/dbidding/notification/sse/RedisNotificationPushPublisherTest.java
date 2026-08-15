@@ -25,7 +25,7 @@ class RedisNotificationPushPublisherTest {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
         RedisNotificationPushPublisher publisher = new RedisNotificationPushPublisher(redisTemplate, objectMapper);
         NotificationResponse payload = new NotificationResponse(
-                1L, 10, NotificationType.OUTBID, "상회 입찰 발생", false, Instant.parse("2026-08-10T00:00:00Z"));
+                1L, 10, NotificationType.OUTBID, 5L, "상회 입찰 발생", false, Instant.parse("2026-08-10T00:00:00Z"));
 
         publisher.publish(7, payload);
 
@@ -45,9 +45,9 @@ class RedisNotificationPushPublisherTest {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build();
         RedisNotificationPushPublisher publisher = new RedisNotificationPushPublisher(redisTemplate, objectMapper);
         NotificationResponse payload1 = new NotificationResponse(
-                1L, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.", false, Instant.parse("2026-08-10T00:00:00Z"));
+                1L, 10, NotificationType.AUCTION_OPENED, 0L, "리자몽 EX 카드의 경매가 등록되었습니다.", false, Instant.parse("2026-08-10T00:00:00Z"));
         NotificationResponse payload2 = new NotificationResponse(
-                2L, 10, NotificationType.AUCTION_OPENED, "리자몽 EX 카드의 경매가 등록되었습니다.", false, Instant.parse("2026-08-10T00:00:00Z"));
+                2L, 10, NotificationType.AUCTION_OPENED, 0L, "리자몽 EX 카드의 경매가 등록되었습니다.", false, Instant.parse("2026-08-10T00:00:00Z"));
 
         publisher.publish(List.of(new NotificationPushMessage(7, payload1), new NotificationPushMessage(8, payload2)));
 

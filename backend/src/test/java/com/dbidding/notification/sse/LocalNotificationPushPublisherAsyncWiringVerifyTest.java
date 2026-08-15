@@ -60,7 +60,7 @@ class LocalNotificationPushPublisherAsyncWiringVerifyTest {
             }).when(pushDispatcher).dispatch(anyInt(), any());
 
             publisher.publish(1, new NotificationResponse(
-                    1L, 10, NotificationType.OUTBID, "메시지", false, Instant.parse("2026-08-11T00:00:00Z")));
+                    1L, 10, NotificationType.OUTBID, 5L, "메시지", false, Instant.parse("2026-08-11T00:00:00Z")));
 
             assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
             assertThat(threadName.get()).startsWith("fanout-verify-");
@@ -82,7 +82,7 @@ class LocalNotificationPushPublisherAsyncWiringVerifyTest {
             }).when(pushDispatcher).dispatch(anyInt(), any());
 
             NotificationResponse payload = new NotificationResponse(
-                    1L, 10, NotificationType.AUCTION_OPENED, "메시지", false, Instant.parse("2026-08-11T00:00:00Z"));
+                    1L, 10, NotificationType.AUCTION_OPENED, 0L, "메시지", false, Instant.parse("2026-08-11T00:00:00Z"));
             publisher.publish(List.of(new NotificationPushMessage(1, payload)));
 
             assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();

@@ -160,7 +160,7 @@ class NotificationSseConnectionManagerTest {
     }
 
     private NotificationResponse notification() {
-        return new NotificationResponse(1L, 100, NotificationType.AUCTION_OPENED, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
+        return new NotificationResponse(1L, 100, NotificationType.AUCTION_OPENED, 0L, "메시지", false, Instant.parse("2026-07-30T12:00:00Z"));
     }
 
     private NotificationSseConnectionManager manager(SessionSseConnectionRegistry registry) {

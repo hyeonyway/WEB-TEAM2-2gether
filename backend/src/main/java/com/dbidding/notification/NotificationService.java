@@ -137,9 +137,9 @@ public class NotificationService {
     }
 
     @Transactional
-    public void markAsRead(Integer userId, Long notificationId) {
-        Notification notification = notificationRepository.findById(notificationId)
-                .filter(found -> found.getUserId().equals(userId))
+    public void markAsRead(Integer userId, NotificationType type, Integer auctionId, Long bidId) {
+        Notification notification = notificationRepository
+                .findByUserIdAndAuctionIdAndTypeAndBidId(userId, auctionId, type, bidId)
                 .orElseThrow(NotificationException::notFound);
         notification.markAsRead();
     }

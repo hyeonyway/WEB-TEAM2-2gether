@@ -107,18 +107,34 @@ class NotificationControllerTest {
     }
 
     @Test
-    void 개별_알림을_읽음_처리한다() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/1/read"))
+    void 복합키로_개별_알림을_읽음_처리한다() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/read")
+                        .param("type", "AUCTION_OPENED")
+                        .param("auctionId", "10"))
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
 
-        then(notificationService).should().markAsRead(1, 1L);
+        then(notificationService).should().markAsRead(1, NotificationType.AUCTION_OPENED, 10, 0L);
     }
 
     @Test
-    void 존재하지_않는_알림은_공통_오류_응답으로_반환한다() throws Exception {
-        org.mockito.Mockito.doThrow(NotificationException.notFound()).when(notificationService).markAsRead(1, 1L);
+    void OUTBID는_bidId_파라미터를_그대로_전달한다() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/read")
+                        .param("type", "OUTBID")
+                        .param("auctionId", "10")
+                        .param("bidId", "5"))
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
 
-        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/1/read"))
+        then(notificationService).should().markAsRead(1, NotificationType.OUTBID, 10, 5L);
+    }
+
+    @Test
+    void 복합키와_일치하는_알림이_없으면_공통_오류_응답으로_반환한다() throws Exception {
+        org.mockito.Mockito.doThrow(NotificationException.notFound())
+                .when(notificationService).markAsRead(1, NotificationType.AUCTION_OPENED, 10, 0L);
+
+        mockMvc.perform(MockMvcRequestBuilders.patch("/api/notifications/read")
+                        .param("type", "AUCTION_OPENED")
+                        .param("auctionId", "10"))
                 .andExpect(MockMvcResultMatchers.status().isNotFound())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("NOTIFICATION_NOT_FOUND"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("존재하지 않는 알림입니다."));

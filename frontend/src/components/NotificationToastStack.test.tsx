@@ -8,7 +8,7 @@ import * as notificationApi from '../api/notificationApi';
 import NotificationToastStack from './NotificationToastStack';
 
 const notification:NotificationDto={
-  id:9,auctionId:5,type:'OUTBID',message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00',
+  id:9,auctionId:5,type:'OUTBID',bidId:50,message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00',
 };
 
 function LocationProbe(){
@@ -47,7 +47,7 @@ describe('NotificationToastStack',()=>{
 
     await user.click(screen.getByText(notification.message));
 
-    expect(notificationApi.markNotificationAsRead).toHaveBeenCalledWith(notification.id);
+    expect(notificationApi.markNotificationAsRead).toHaveBeenCalledWith({...notification,isDismissing:false});
     expect(onDismiss).toHaveBeenCalledWith(notification.id);
     expect(screen.getByTestId('path')).toHaveTextContent(`/auction/${notification.auctionId}`);
   });
@@ -65,7 +65,7 @@ describe('NotificationToastStack',()=>{
 
   it('주문 관련 알림(ORDER_COMPLETED)을 클릭하면 대시보드 주문 탭으로 이동한다',async()=>{
     const user=userEvent.setup();
-    const orderNotification:NotificationDto={...notification,id:11,type:'ORDER_COMPLETED',message:'주문이 완료되었습니다.'};
+    const orderNotification:NotificationDto={...notification,id:11,type:'ORDER_COMPLETED',bidId:0,message:'주문이 완료되었습니다.'};
     renderStack([orderNotification]);
 
     await user.click(screen.getByText(orderNotification.message));

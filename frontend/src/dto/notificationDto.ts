@@ -5,6 +5,7 @@ export type NotificationDto={
   id:number;
   auctionId:number;
   type:NotificationType;
+  bidId:number;
   message:string;
   isRead:boolean;
   createdAt:string;
