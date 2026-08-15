@@ -103,6 +103,31 @@ class NotificationServiceBulkInsertTest {
     }
 
     @Test
+    void 같은_경매_같은_타입이지만_수신자별로_메시지가_다른_행도_한번에_저장한다() {
+        // #506: handleAuctionClosed/handleOrderCompleted/handleOrderCancelled가 낙찰자+판매자,
+        // 구매자+판매자처럼 auctionId/type은 같고 메시지만 다른 두 행을 이 메서드 하나로 합쳐 INSERT한다.
+        List<NotificationInsertRow> rows = List.of(
+                NotificationInsertRow.of(userIds.get(0), auctionId, NotificationType.AUCTION_WON, "카드 경매에 낙찰되었습니다."),
+                NotificationInsertRow.of(userIds.get(1), auctionId, NotificationType.AUCTION_WON, "카드 경매가 낙찰되었습니다.")
+        );
+
+        notificationService.insertAllIgnoringDuplicates(rows);
+
+        List<Notification> saved = notificationRepository.findByBidIdAndAuctionIdInAndUserIdIn(
+                Notification.NO_BID, List.of(auctionId), userIds
+        );
+        assertThat(saved).hasSize(2);
+        assertThat(saved)
+                .filteredOn(notification -> notification.getUserId().equals(userIds.get(0)))
+                .extracting(Notification::getMessage)
+                .containsExactly("카드 경매에 낙찰되었습니다.");
+        assertThat(saved)
+                .filteredOn(notification -> notification.getUserId().equals(userIds.get(1)))
+                .extracting(Notification::getMessage)
+                .containsExactly("카드 경매가 낙찰되었습니다.");
+    }
+
+    @Test
     void 여러_경매의_행을_insertAllIgnoringDuplicates로_한번에_저장한다() {
         Integer otherAuctionId = auctionId + 1;
         List<NotificationInsertRow> rows = List.of(
