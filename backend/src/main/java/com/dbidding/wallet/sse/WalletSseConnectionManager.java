@@ -8,6 +8,7 @@ import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,6 +27,8 @@ public class WalletSseConnectionManager {
     private final SseEmitterRegistry<Integer> registry;
     private final ObjectMapper objectMapper;
     private final SseSendDispatcher sendDispatcher;
+    // Micrometer Gauge는 이 Supplier를 약한 참조로만 들고 있어, GC되지 않도록 필드로 붙잡아둔다.
+    private final Supplier<Number> connectionCountSupplier;
 
     @Autowired
     public WalletSseConnectionManager(
@@ -37,7 +40,8 @@ public class WalletSseConnectionManager {
         this.registry = new SseEmitterRegistry<>(metrics, sessionRegistry);
         this.objectMapper = objectMapper;
         this.sendDispatcher = new PerConnectionSseSendDispatcher(sendExecutor);
-        metrics.registerConnectionGauge(registry::totalConnectionCount);
+        this.connectionCountSupplier = registry::totalConnectionCount;
+        metrics.registerConnectionGauge(connectionCountSupplier);
     }
 
     /** 기존 단위 테스트의 생성자 계약을 유지한다. */

@@ -7,6 +7,7 @@ import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -23,6 +24,8 @@ public class NotificationSseConnectionManager {
 
     private final SseEmitterRegistry<Integer> registry;
     private final ObjectMapper objectMapper;
+    // Micrometer Gauge는 이 Supplier를 약한 참조로만 들고 있어, GC되지 않도록 필드로 붙잡아둔다.
+    private final Supplier<Number> connectionCountSupplier;
 
     public NotificationSseConnectionManager(
             SessionSseConnectionRegistry sessionRegistry,
@@ -31,7 +34,8 @@ public class NotificationSseConnectionManager {
     ) {
         this.registry = new SseEmitterRegistry<>(metrics, sessionRegistry);
         this.objectMapper = objectMapper;
-        metrics.registerConnectionGauge(registry::totalConnectionCount);
+        this.connectionCountSupplier = registry::totalConnectionCount;
+        metrics.registerConnectionGauge(connectionCountSupplier);
     }
 
     public SseEmitter connect(Integer userId) {
