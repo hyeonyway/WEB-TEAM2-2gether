@@ -12,8 +12,10 @@ import org.springframework.stereotype.Component;
 
 /**
  * Redis 채널을 구독해 역직렬화한 뒤 그대로 로컬 커넥션에 broadcast한다 — DB 조회 없음.
- * {@code AuctionSseConnectionManager.broadcast()} 자체가 이미 {@code @Async("auctionSseTaskExecutor")}라
- * 별도로 executor를 지정하지 않는다. {@code local-sse} 프로필에서는 Redis를 안 쓰므로 비활성화.
+ * {@code AuctionSseConnectionManager.broadcast()} 자체가 이미 {@code @Async("auctionSseBroadcastTaskExecutor")}라
+ * 별도로 executor를 지정하지 않는다. 이 executor는 send용 캡(#507)과 무관해 이 메서드를
+ * 호출하는 Redis pub/sub 스레드가 캡 때문에 블로킹되지 않는다. {@code local-sse} 프로필에서는
+ * Redis를 안 쓰므로 비활성화.
  */
 @Component
 @Profile("!local-sse")

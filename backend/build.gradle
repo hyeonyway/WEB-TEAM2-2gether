@@ -1,5 +1,6 @@
 plugins {
 	id 'java'
+	id 'jacoco'
 	id 'org.springframework.boot' version '4.1.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -52,4 +53,17 @@ tasks.named('test') {
 	// TIMESTAMP 컬럼에 바인딩할 때는 이 값이 없으면 JVM 기본 타임존이 쓰이므로, 운영
 	// 환경(Dockerfile의 TZ=UTC)과 동일하게 테스트 JVM의 기본 타임존도 UTC로 고정한다.
 	systemProperty 'user.timezone', 'UTC'
+	finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+jacocoTestCoverageVerification {
+	dependsOn jacocoTestReport
 }

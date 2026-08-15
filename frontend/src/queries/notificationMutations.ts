@@ -2,6 +2,7 @@ import type {InfiniteData,QueryClient} from '@tanstack/react-query';
 import {mutationOptions} from '@tanstack/react-query';
 import {markAllNotificationsAsRead,markNotificationAsRead} from '../api/notificationApi';
 import type {NotificationPageDto} from '../dto/notificationDto';
+import {notificationDedupKey,type NotificationKeyFields} from '../utils/notificationKey';
 import {notificationQueryKeys} from './notificationQueries';
 
 type ListSnapshot={unreadOnly:boolean;data:InfiniteData<NotificationPageDto>|undefined};
@@ -40,17 +41,18 @@ function settleNotifications(queryClient:QueryClient){
 export const notificationMutations={
   markAsRead:(queryClient:QueryClient)=>mutationOptions({
     mutationKey:['notifications','markAsRead'],
-    mutationFn:(notificationId:number)=>markNotificationAsRead(notificationId),
-    onMutate:async(notificationId:number)=>{
+    mutationFn:(key:NotificationKeyFields)=>markNotificationAsRead(key),
+    onMutate:async(key:NotificationKeyFields)=>{
       await queryClient.cancelQueries({queryKey:notificationQueryKeys.all});
       const snapshot=snapshotNotifications(queryClient);
-      updateAllLists(queryClient,items=>items.map(item=>item.id===notificationId&&!item.isRead?{...item,isRead:true}:item));
+      const dedupKey=notificationDedupKey(key);
+      updateAllLists(queryClient,items=>items.map(item=>notificationDedupKey(item)===dedupKey&&!item.isRead?{...item,isRead:true}:item));
       const wasUnread=snapshot.lists.find(list=>!list.unreadOnly)?.data?.pages
-        .flatMap(page=>page.items).find(item=>item.id===notificationId)?.isRead===false;
+        .flatMap(page=>page.items).find(item=>notificationDedupKey(item)===dedupKey)?.isRead===false;
       if(wasUnread)queryClient.setQueryData<number>(notificationQueryKeys.unreadCount,current=>current?Math.max(0,current-1):current);
       return snapshot;
     },
-    onError:(_error,_notificationId,snapshot)=>{
+    onError:(_error,_key,snapshot)=>{
       if(snapshot)restoreNotifications(queryClient,snapshot);
     },
     onSettled:()=>settleNotifications(queryClient),

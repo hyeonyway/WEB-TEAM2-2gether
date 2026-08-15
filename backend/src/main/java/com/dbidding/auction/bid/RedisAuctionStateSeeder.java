@@ -4,9 +4,6 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
-import com.dbidding.auction.repository.AuctionImageRepository;
-import com.dbidding.auction.repository.AuctionRepository;
-import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
@@ -15,13 +12,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /** MySQL projection의 활성 경매를 Redis state miss 때만 조건부 생성한다. */
 @Component
@@ -33,17 +32,12 @@ public class RedisAuctionStateSeeder {
     private static final String ACTIVE_BY_PRICE = "auction:active:by-price";
     private static final String ACTIVE_BY_CHANGE_RATE = "auction:active:by-change-rate";
     private static final String ACTIVE_BY_OPEN_TIME = "auction:active:by-open-time";
-    private final AuctionRepository auctionRepository;
-    private final BidRepository bidRepository;
-    private final AuctionImageRepository auctionImageRepository;
-    private final RedisCardStateReader cardStateReader;
     private final StringRedisTemplate redisTemplate;
     private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     private final RedisStateSingleFlight singleFlight;
     private final RedisAuctionSeedBatchCoordinator batchCoordinator;
     @Qualifier("auctionStateSeedScript") private final RedisScript<Long> auctionStateSeedScript;
 
-    @Transactional(readOnly = true)
     public boolean seedIfAbsent(Integer auctionId) {
         String key = "auction:state:" + auctionId;
         if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
@@ -57,24 +51,27 @@ public class RedisAuctionStateSeeder {
     }
 
     /** @return warm-up된 경매들의 현재 낙찰 후보(HELD 지갑을 가진) userId 목록 - 지갑 warm-up 범위 결정에 사용 */
-    @Transactional(readOnly = true)
     public List<Integer> seedAllIfAbsent(List<Auction> auctions) {
         if (!projectionCatchUpVerifier.isCaughtUp()) return List.of();
         List<Auction> active = auctions.stream().filter(auction -> EnumSet.of(AuctionStatus.OPEN, AuctionStatus.ENDING).contains(auction.getStatus())).toList();
         if (active.isEmpty()) return List.of();
-        List<Integer> auctionIds = active.stream().map(Auction::getId).toList();
-        java.util.Map<Integer, Bid> leading = bidRepository.findByAuctionIdInAndStatus(auctionIds, BidStatus.LEADING).stream()
-                .collect(java.util.stream.Collectors.toMap(bid -> bid.getAuction().getId(), bid -> bid, (first, ignored) -> first));
-        java.util.Map<Integer, List<Bid>> latestBidsByAuction = bidRepository.findLatestBidPerBidderByAuctionIdIn(auctionIds).stream()
-                .collect(java.util.stream.Collectors.groupingBy(bid -> bid.getAuction().getId()));
-        java.util.Map<Integer, List<Bid>> recentBidsByAuction = bidRepository.findRecentFiveByAuctionIdIn(auctionIds).stream()
-                .collect(java.util.stream.Collectors.groupingBy(bid -> bid.getAuction().getId()));
-        java.util.Map<Integer, CardSnapshot> cards = cardStateReader.getCardSnapshots(active.stream().map(Auction::getItemId).distinct().toList());
-        java.util.Map<Integer, List<String>> imagePaths = auctionImageRepository.findByAuctionIdInOrderById(auctionIds).stream()
-                .collect(java.util.stream.Collectors.groupingBy(image -> image.getAuction().getId(), java.util.stream.Collectors.mapping(image -> image.getImagePath(), java.util.stream.Collectors.toList())));
-        active.forEach(auction -> seed(auction, leading.get(auction.getId()), cards.get(auction.getItemId()), imagePaths.getOrDefault(auction.getId(), List.of()),
-                latestBidsByAuction.getOrDefault(auction.getId(), List.of()), recentBidsByAuction.getOrDefault(auction.getId(), List.of())));
-        return leading.values().stream().map(Bid::getBidderId).distinct().toList();
+        List<CompletableFuture<Optional<AuctionSeedData>>> futures = active.stream()
+                .map(Auction::getId)
+                .map(batchCoordinator::requestSeedData)
+                .toList();
+        List<AuctionSeedData> seedData = futures.stream()
+                .map(CompletableFuture::join)
+                .flatMap(Optional::stream)
+                .toList();
+        seedData.forEach(data -> seed(
+                data.auction(), data.leading(), data.card(), data.imagePaths(),
+                data.latestBids(), data.recentBids()));
+        return seedData.stream()
+                .map(AuctionSeedData::leading)
+                .filter(Objects::nonNull)
+                .map(Bid::getBidderId)
+                .distinct()
+                .toList();
     }
 
     private boolean seed(Auction auction, Bid leading, CardSnapshot card, List<String> imagePathList, List<Bid> latestBids, List<Bid> recentBids) {

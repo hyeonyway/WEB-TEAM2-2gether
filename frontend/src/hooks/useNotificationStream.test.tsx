@@ -37,7 +37,7 @@ function createWrapper(){
 }
 
 const notification:NotificationDto={
-  id:9,auctionId:5,type:'OUTBID',message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00',
+  id:9,auctionId:5,type:'OUTBID',bidId:50,message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00',
 };
 
 describe('useNotificationStream',()=>{

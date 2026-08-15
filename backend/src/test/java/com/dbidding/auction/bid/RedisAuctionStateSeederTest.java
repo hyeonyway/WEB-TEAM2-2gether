@@ -8,14 +8,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.auction.domain.Auction;
-import com.dbidding.auction.repository.AuctionImageRepository;
-import com.dbidding.auction.repository.AuctionRepository;
-import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.global.concurrent.RedisStateSingleFlight;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -28,10 +27,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class RedisAuctionStateSeederTest {
-    @Mock private AuctionRepository auctionRepository;
-    @Mock private BidRepository bidRepository;
-    @Mock private AuctionImageRepository auctionImageRepository;
-    @Mock private RedisCardStateReader cardStateReader;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     @Mock private RedisStateSingleFlight singleFlight;
@@ -50,15 +45,14 @@ class RedisAuctionStateSeederTest {
         ReflectionTestUtils.setField(auction, "bidCount", 3);
         ReflectionTestUtils.setField(auction, "lastBidEventVersion", 0L);
         given(projectionCatchUpVerifier.isCaughtUp()).willReturn(true);
-        given(bidRepository.findByAuctionIdInAndStatus(anyList(), any())).willReturn(List.of());
-        given(bidRepository.findLatestBidPerBidderByAuctionIdIn(anyList())).willReturn(List.of());
-        given(bidRepository.findRecentFiveByAuctionIdIn(anyList())).willReturn(List.of());
-        given(cardStateReader.getCardSnapshots(anyList())).willReturn(java.util.Map.of(2,
-                new CardSnapshot(2, "카드", "세트", null, null, "thumbnail")));
+        given(batchCoordinator.requestSeedData(3000005)).willReturn(CompletableFuture.completedFuture(
+                Optional.of(new AuctionSeedData(
+                        auction, null, new CardSnapshot(2, "카드", "세트", null, null, "thumbnail"),
+                        List.of(), List.of(), List.of()))));
         given(redisTemplate.execute(eq(auctionStateSeedScript), anyList(), any(Object[].class))).willReturn(1L);
 
-        new RedisAuctionStateSeeder(auctionRepository, bidRepository, auctionImageRepository, cardStateReader,
-                redisTemplate, projectionCatchUpVerifier, singleFlight, batchCoordinator, auctionStateSeedScript)
+        new RedisAuctionStateSeeder(redisTemplate, projectionCatchUpVerifier, singleFlight,
+                batchCoordinator, auctionStateSeedScript)
                 .seedAllIfAbsent(List.of(auction));
 
         verify(redisTemplate).execute(eq(auctionStateSeedScript), anyList(), arguments.capture());

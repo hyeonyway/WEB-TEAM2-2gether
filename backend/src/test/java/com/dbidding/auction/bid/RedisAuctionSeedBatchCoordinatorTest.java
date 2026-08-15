@@ -9,10 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.Auction;
-import com.dbidding.auction.repository.AuctionImageRepository;
-import com.dbidding.auction.repository.AuctionRepository;
-import com.dbidding.auction.repository.BidRepository;
-import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,9 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class RedisAuctionSeedBatchCoordinatorTest {
-    private final AuctionRepository auctionRepository = mock(AuctionRepository.class);
-    private final BidRepository bidRepository = mock(BidRepository.class);
-    private final AuctionImageRepository auctionImageRepository = mock(AuctionImageRepository.class);
+    private final AuctionSeedDataLoader dataLoader = mock(AuctionSeedDataLoader.class);
     private final RedisCardStateReader cardStateReader = mock(RedisCardStateReader.class);
 
     private Auction auction(Integer id, Integer itemId) {
@@ -43,11 +37,11 @@ class RedisAuctionSeedBatchCoordinatorTest {
         return auction;
     }
 
-    private void stubEmptyBidsAndImages() {
-        when(bidRepository.findByAuctionIdInAndStatus(anyList(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
-        when(bidRepository.findLatestBidPerBidderByAuctionIdIn(anyList())).thenReturn(List.of());
-        when(bidRepository.findRecentFiveByAuctionIdIn(anyList())).thenReturn(List.of());
-        when(auctionImageRepository.findByAuctionIdInOrderById(anyList())).thenReturn(List.of());
+    private Map<Integer, AuctionSeedDbData> dbData(List<Auction> auctions) {
+        return auctions.stream().collect(java.util.stream.Collectors.toMap(
+                Auction::getId,
+                auction -> new AuctionSeedDbData(auction, null, List.of(), List.of(), List.of())
+        ));
     }
 
     @Test
@@ -59,11 +53,10 @@ class RedisAuctionSeedBatchCoordinatorTest {
             auctionIds.add(3000000 + i);
             auctions.add(auction(3000000 + i, i));
         }
-        stubEmptyBidsAndImages();
-        when(auctionRepository.findByIdInAndStatusNot(anyList(), org.mockito.ArgumentMatchers.any())).thenReturn(auctions);
+        when(dataLoader.load(anyList())).thenReturn(dbData(auctions));
         when(cardStateReader.getCardSnapshots(anyList())).thenReturn(Map.of());
         RedisAuctionSeedBatchCoordinator coordinator = new RedisAuctionSeedBatchCoordinator(
-                auctionRepository, bidRepository, auctionImageRepository, cardStateReader, 50, 200
+                dataLoader, cardStateReader, 50, 200
         );
 
         ExecutorService pool = Executors.newFixedThreadPool(auctionCount);
@@ -84,8 +77,8 @@ class RedisAuctionSeedBatchCoordinatorTest {
         }
         pool.shutdown();
 
-        verify(auctionRepository, times(1)).findByIdInAndStatusNot(anyList(), org.mockito.ArgumentMatchers.any());
-        verify(bidRepository, times(1)).findByAuctionIdInAndStatus(anyList(), org.mockito.ArgumentMatchers.any());
+        verify(dataLoader, times(1)).load(anyList());
+        verify(cardStateReader, times(1)).getCardSnapshots(anyList());
     }
 
     @Test
@@ -93,11 +86,10 @@ class RedisAuctionSeedBatchCoordinatorTest {
         int maxBatchSize = 5;
         List<Auction> auctions = new ArrayList<>();
         for (int i = 1; i <= maxBatchSize; i++) auctions.add(auction(3000000 + i, i));
-        stubEmptyBidsAndImages();
-        when(auctionRepository.findByIdInAndStatusNot(anyList(), org.mockito.ArgumentMatchers.any())).thenReturn(auctions);
+        when(dataLoader.load(anyList())).thenReturn(dbData(auctions));
         when(cardStateReader.getCardSnapshots(anyList())).thenReturn(Map.of());
         RedisAuctionSeedBatchCoordinator coordinator = new RedisAuctionSeedBatchCoordinator(
-                auctionRepository, bidRepository, auctionImageRepository, cardStateReader, 10_000, maxBatchSize
+                dataLoader, cardStateReader, 10_000, maxBatchSize
         );
 
         List<CompletableFuture<Optional<AuctionSeedData>>> futures = new ArrayList<>();
@@ -108,15 +100,14 @@ class RedisAuctionSeedBatchCoordinatorTest {
             assertThat(future.get(2, TimeUnit.SECONDS)).isPresent();
         }
 
-        verify(auctionRepository, times(1)).findByIdInAndStatusNot(anyList(), org.mockito.ArgumentMatchers.any());
+        verify(dataLoader, times(1)).load(anyList());
     }
 
     @Test
     void 종료된_경매는_빈_값으로_완료된다() {
-        stubEmptyBidsAndImages();
-        when(auctionRepository.findByIdInAndStatusNot(anyList(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+        when(dataLoader.load(anyList())).thenReturn(Map.of());
         RedisAuctionSeedBatchCoordinator coordinator = new RedisAuctionSeedBatchCoordinator(
-                auctionRepository, bidRepository, auctionImageRepository, cardStateReader, 5, 200
+                dataLoader, cardStateReader, 5, 200
         );
 
         Optional<AuctionSeedData> result = coordinator.requestSeedData(3000001).join();
@@ -126,10 +117,10 @@ class RedisAuctionSeedBatchCoordinatorTest {
 
     @Test
     void flush_중_예외가_발생하면_대기중이던_모든_호출자가_hang_없이_실패한다() {
-        when(auctionRepository.findByIdInAndStatusNot(anyList(), org.mockito.ArgumentMatchers.any()))
+        when(dataLoader.load(anyList()))
                 .thenThrow(new IllegalStateException("DB down"));
         RedisAuctionSeedBatchCoordinator coordinator = new RedisAuctionSeedBatchCoordinator(
-                auctionRepository, bidRepository, auctionImageRepository, cardStateReader, 5, 200
+                dataLoader, cardStateReader, 5, 200
         );
 
         CompletableFuture<Optional<AuctionSeedData>> first = coordinator.requestSeedData(3000001);
@@ -148,8 +139,4 @@ class RedisAuctionSeedBatchCoordinatorTest {
         }
     }
 
-    @SuppressWarnings("unused")
-    private CardSnapshot snapshot(Integer itemId) {
-        return new CardSnapshot(itemId, "카드", "세트", null, null, "thumbnail");
-    }
 }

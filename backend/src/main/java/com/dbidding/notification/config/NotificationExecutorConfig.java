@@ -2,7 +2,9 @@ package com.dbidding.notification.config;
 
 import com.dbidding.sse.config.CountingCallerRunsPolicy;
 import com.dbidding.sse.config.VirtualThreadSseTaskExecutor;
+import com.dbidding.sse.metrics.SseMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -90,5 +92,11 @@ public class NotificationExecutorConfig {
     public TaskExecutor notificationFanOutVirtualTaskExecutor() {
         return new VirtualThreadSseTaskExecutor(
                 "notification-fanout-", meterRegistry, "notification-sse", fanOutVirtualMaxConcurrency);
+    }
+
+    /** #508 — {@code NotificationSseConnectionManager}의 메트릭 배선. */
+    @Bean(name = "notificationSseMetrics")
+    public SseMetrics notificationSseMetrics(Clock clock) {
+        return new SseMetrics(meterRegistry, "notification", clock);
     }
 }

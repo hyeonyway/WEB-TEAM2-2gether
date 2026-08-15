@@ -6,7 +6,7 @@ import {useNotificationToasts} from './useNotificationToasts';
 const DISMISS_ANIMATION_MS=200;
 
 function notification(id:number):NotificationDto{
-  return {id,auctionId:10,type:'AUCTION_OPENED',message:`메시지 ${id}`,isRead:false,createdAt:'2026-08-03T12:00:00'};
+  return {id,auctionId:10,type:'AUCTION_OPENED',bidId:0,message:`메시지 ${id}`,isRead:false,createdAt:'2026-08-03T12:00:00'};
 }
 
 function active(id:number){

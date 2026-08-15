@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /** 대시보드 첫 조회에만 사용자의 활성 참여 경매를 Redis read model로 준비한다. */
 @Component
@@ -24,7 +23,6 @@ public class RedisDashboardStateSeeder {
     private final RedisProjectionCatchUpVerifier projectionCatchUpVerifier;
     private final StringRedisTemplate redisTemplate;
 
-    @Transactional(readOnly = true)
     public void seedIfRequired(Integer userId) {
         String markerKey = "auction:dashboard:seeded:" + userId;
         if (Boolean.TRUE.equals(redisTemplate.hasKey(markerKey))) return;

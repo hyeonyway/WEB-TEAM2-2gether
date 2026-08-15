@@ -85,7 +85,7 @@ describe('NotificationBell 이동 버튼',()=>{
   });
 
   it('경매 관련 알림은 이동 버튼 클릭 시 경매 상세로 이동한다',async()=>{
-    const notification:NotificationDto={id:1,auctionId:7,type:'OUTBID',message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00'};
+    const notification:NotificationDto={id:1,auctionId:7,type:'OUTBID',bidId:70,message:'상회 입찰이 발생했습니다.',isRead:false,createdAt:'2026-08-03T12:00:00'};
     useNotificationsMock.mockReturnValue(mockNotifications([notification]));
     const user=userEvent.setup();
     render(
@@ -102,7 +102,7 @@ describe('NotificationBell 이동 버튼',()=>{
   });
 
   it('주문 관련 알림(ORDER_COMPLETED)은 이동 버튼 클릭 시 대시보드 주문 탭으로 이동한다',async()=>{
-    const notification:NotificationDto={id:2,auctionId:7,type:'ORDER_COMPLETED',message:'주문이 완료되었습니다.',isRead:false,createdAt:'2026-08-03T12:00:00'};
+    const notification:NotificationDto={id:2,auctionId:7,type:'ORDER_COMPLETED',bidId:0,message:'주문이 완료되었습니다.',isRead:false,createdAt:'2026-08-03T12:00:00'};
     useNotificationsMock.mockReturnValue(mockNotifications([notification]));
     const user=userEvent.setup();
     render(
