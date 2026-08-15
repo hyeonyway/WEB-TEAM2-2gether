@@ -1,21 +1,18 @@
 package com.dbidding.wallet.sse;
 
 import com.dbidding.global.security.session.SessionSseConnectionRegistry;
-import com.dbidding.sse.metrics.SseConnectionCloseMetrics.CloseReason;
+import com.dbidding.sse.PerConnectionSseSendDispatcher;
+import com.dbidding.sse.SseEmitterRegistry;
+import com.dbidding.sse.SseSendDispatcher;
 import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.Timer;
-import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -25,13 +22,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class WalletSseConnectionManager {
     public static final String WALLET_STATE_CHANGED = "wallet-state-changed";
     private static final long CONNECTION_TIMEOUT_MILLIS = 30 * 60 * 1000L;
-    private final ConcurrentMap<Integer, Set<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
-    private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
-    private final SessionSseConnectionRegistry sessionRegistry;
+
+    private final SseEmitterRegistry<Integer> registry;
     private final ObjectMapper objectMapper;
-    private final TaskExecutor sendExecutor;
-    private final SseMetrics metrics;
-    private final Supplier<Number> connectionCountSupplier;
+    private final SseSendDispatcher sendDispatcher;
 
     @Autowired
     public WalletSseConnectionManager(
@@ -40,12 +34,10 @@ public class WalletSseConnectionManager {
             @Qualifier("walletSseTaskExecutor") TaskExecutor sendExecutor,
             @Qualifier("walletSseMetrics") SseMetrics metrics
     ) {
-        this.sessionRegistry = sessionRegistry;
+        this.registry = new SseEmitterRegistry<>(metrics, sessionRegistry);
         this.objectMapper = objectMapper;
-        this.sendExecutor = sendExecutor;
-        this.metrics = metrics;
-        this.connectionCountSupplier = this::totalConnectionCount;
-        metrics.registerConnectionGauge(connectionCountSupplier);
+        this.sendDispatcher = new PerConnectionSseSendDispatcher(sendExecutor);
+        metrics.registerConnectionGauge(registry::totalConnectionCount);
     }
 
     /** 기존 단위 테스트의 생성자 계약을 유지한다. */
@@ -66,53 +58,32 @@ public class WalletSseConnectionManager {
     }
 
     SseEmitter register(Integer userId, String sessionId, SseEmitter emitter) {
-        Timer.Sample connectSample = metrics.startConnect();
-        metrics.trackConnectionStart(emitter);
-        emittersByUserId.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(emitter);
-        if (sessionId != null) sessionIdByEmitter.put(emitter, sessionId);
-        emitter.onCompletion(() -> {
-            metrics.recordConnectionClosed(emitter, CloseReason.COMPLETION);
-            remove(userId, emitter);
-        });
-        emitter.onTimeout(() -> {
-            metrics.recordConnectionClosed(emitter, CloseReason.TIMEOUT);
-            removeAndComplete(userId, emitter);
-        });
-        emitter.onError(error -> {
-            metrics.recordConnectionClosed(emitter, CloseReason.ERROR);
-            removeAndComplete(userId, emitter);
-        });
-        if (sessionId != null && !sessionRegistry.register(sessionId, emitter)) {
-            remove(userId, emitter);
-            return emitter;
-        }
-        if (send(userId, emitter, SseEmitter.event().name("connected").reconnectTime(3_000L).data("connected"))) {
-            metrics.finishConnect(connectSample);
-        }
+        registry.register(Set.of(userId), emitter, sessionId);
         return emitter;
     }
 
     public int totalConnectionCount() {
-        return emittersByUserId.values().stream().mapToInt(Set::size).sum();
+        return registry.totalConnectionCount();
     }
 
     public void push(Integer userId, WalletSsePayload payload) {
-        Set<SseEmitter> emitters = emittersByUserId.get(userId);
-        if (emitters == null || emitters.isEmpty()) return;
+        Set<SseEmitter> emitters = registry.emittersFor(userId);
+        if (emitters.isEmpty()) {
+            return;
+        }
         String serialized = serialize(payload);
-        emitters.forEach(emitter -> sendExecutor.execute(() -> send(userId, emitter,
+        emitters.forEach(emitter -> sendDispatcher.dispatch(() -> registry.send(emitter,
                 SseEmitter.event().name(WALLET_STATE_CHANGED).data(serialized, MediaType.APPLICATION_JSON))));
     }
 
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
-        emittersByUserId.forEach((userId, emitters) -> emitters.forEach(emitter ->
-                sendExecutor.execute(() -> send(userId, emitter, SseEmitter.event().comment("heartbeat")))));
+        registry.allEmitters().forEach(emitter ->
+                sendDispatcher.dispatch(() -> registry.send(emitter, SseEmitter.event().comment("heartbeat"))));
     }
 
     int connectionCount(Integer userId) {
-        Set<SseEmitter> emitters = emittersByUserId.get(userId);
-        return emitters == null ? 0 : emitters.size();
+        return registry.connectionCount(userId);
     }
 
     private String serialize(WalletSsePayload payload) {
@@ -121,34 +92,5 @@ public class WalletSseConnectionManager {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Wallet SSE payload 직렬화 실패", exception);
         }
-    }
-
-    private boolean send(Integer userId, SseEmitter emitter, SseEmitter.SseEventBuilder event) {
-        Timer.Sample sample = metrics.startSend();
-        try {
-            emitter.send(event);
-        } catch (IOException | IllegalStateException exception) {
-            metrics.recordSendFailure();
-            metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
-            removeAndComplete(userId, emitter);
-            return false;
-        } finally {
-            metrics.finishSend(sample);
-        }
-        return true;
-    }
-
-    private void removeAndComplete(Integer userId, SseEmitter emitter) {
-        remove(userId, emitter);
-        try { emitter.complete(); } catch (IllegalStateException ignored) { }
-    }
-
-    private void remove(Integer userId, SseEmitter emitter) {
-        String sessionId = sessionIdByEmitter.remove(emitter);
-        if (sessionId != null) sessionRegistry.unregister(sessionId, emitter);
-        emittersByUserId.computeIfPresent(userId, (ignored, emitters) -> {
-            emitters.remove(emitter);
-            return emitters.isEmpty() ? null : emitters;
-        });
     }
 }

@@ -78,6 +78,11 @@ public class SseEmitterRegistry<K> {
         return emitters == null ? Set.of() : emitters;
     }
 
+    /** 등록된 emitter 전체(키 무관). 도메인이 직접 순회하며 자기만의 dispatch 전략을 쓰고 싶을 때 사용한다. */
+    public Set<SseEmitter> allEmitters() {
+        return Set.copyOf(keysByEmitter.keySet());
+    }
+
     public boolean send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
         Timer.Sample sample = metrics.startSend();
         try {
