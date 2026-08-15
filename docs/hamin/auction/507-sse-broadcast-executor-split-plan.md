@@ -20,9 +20,20 @@ refs #507
 1. `AuctionSseExecutorConfig`에 `broadcast()` 전용 새 빈 `auctionSseBroadcastTaskExecutor`를 프로필과 무관하게 항상 별개 인스턴스로 추가한다.
    - `sse-virtual-threads` 프로필: `VirtualThreadSseTaskExecutor`의 3-인자 생성자(캡 없음).
    - 기본 프로필: 별도의 bounded `ThreadPoolTaskExecutor`(`AUCTION_SSE_BROADCAST_CORE_POOL_SIZE`/`MAX_POOL_SIZE`/`QUEUE_CAPACITY`, 기본값은 기존 공유 pool과 동일한 4/8/2000 — 이 프로필에서 이 pool이 실제 send I/O까지 떠안으므로 줄이면 안 된다).
-2. `AuctionSseConnectionManager.broadcast()`의 `@Async` 값을 `"auctionSseTaskExecutor"` → `"auctionSseBroadcastTaskExecutor"`로 변경. `heartbeat()`와 `sendDispatcher`(개별 send)는 그대로 `auctionSseTaskExecutor`를 쓴다.
+2. `AuctionSseConnectionManager.broadcast()`의 `@Async` 값을 `"auctionSseTaskExecutor"` → `"auctionSseBroadcastTaskExecutor"`로 변경. `heartbeat()`는 그대로 `auctionSseTaskExecutor`를 쓴다.
 3. `broadcast()` 안에서 `SseEventBuilder`를 `emitters.forEach` 시작 전 한 번만 생성해 재사용한다.
 4. `AuctionStreamRedisSubscriber`의 stale 주석(예전 단일 executor 설명)을 갱신한다.
+
+## 이번 이슈에서 안 바꾼 것 — 기본 프로필의 emitter별 send는 여전히 broadcast()와 같은 스레드에서 처리된다
+
+`AuctionSseSendDispatcher`는 프로필별로 구현이 다르다:
+
+- `sse-virtual-threads`: `PerConnectionAuctionSseSendDispatcher`가 emitter마다 `auctionSseTaskExecutor.execute(sendTask)`로 **독립적인 task**를 만들어 위임한다 — 커넥션 1개당 스레드가 사실상 분리된다(#362).
+- 기본(`!sse-virtual-threads`) 프로필: `SynchronousAuctionSseSendDispatcher.dispatch()`는 `sendTask.run()`으로 **그 자리에서 바로** 실행한다. 즉 `broadcast()`를 실행 중인 `auctionSseBroadcastTaskExecutor` 스레드가 emitter 순회와 각 emitter의 실제 `send()`를 **전부 한 스레드에서 순차 처리**한다 — `auctionSseTaskExecutor`(send/heartbeat용 pool)는 이 경로에서 전혀 안 쓰인다.
+
+**왜 기본 프로필도 emitter별로 분리하지 않았는가**: `sse-virtual-threads`로 전환하지 않는 한, "커넥션 1개당 독립 task"는 결국 core 4/max 8의 작은 bounded **플랫폼 스레드** pool로 task가 몰린다는 뜻이다. 플랫폼 스레드는 가상 스레드와 달리 느린 클라이언트에 블로킹돼도 그 스레드(귀한 8개 중 하나)를 실제로 붙잡는다 — 가상 스레드처럼 park가 사실상 공짜가 아니다. 이 pool은 heartbeat과도 공유되므로, 여러 경매가 동시에 브로드캐스트하면서 쏟아내는 send task가 쌓이면 heartbeat까지 지연되거나, queue(2000)를 넘겨 `CountingCallerRunsPolicy`가 발동해 결국 broadcast() 호출자(Redis pub/sub 스레드 또는 입찰 처리 Tomcat 스레드) 쪽에서 caller-runs가 일어날 수 있다 — 이번 이슈가 막으려던 바로 그 문제가 다른 경로로 재발하는 셈이다.
+
+이 위험은 #362에서 이미 분석돼 있다: "세분화(유저/커넥션 1개당 독립 task)는 [가상 스레드] 전환과 반드시 같이 한다 ... 세분화만 먼저 넣거나 전환만 먼저 넣는 순서는 둘 다 위험하다." 지금은 브로드캐스트가 경매 구독자로 범위가 좁혀져(#기존 전역 fan-out 대비) 위험의 "규모"는 줄었지만, 인기 경매 하나에 몰리는 동시 구독자 수를 실측하기 전까지는 "이제 안전하다"고 단정할 근거가 없다. 그래서 이번 이슈에서는 **`broadcast()` 자체를 send/heartbeat과 분리하는 것까지만** 하고, emitter별 분리(플랫폼 스레드 확장)는 범위 밖으로 남겨뒀다 — 기본 프로필에서는 같은 broadcast() 호출 안에서 느린 구독자 하나가 다른 구독자의 전송을 지연시킬 수 있다는 트레이드오프를 그대로 받아들인다. 필요해지면 실측 데이터를 먼저 모으고 별도 이슈로 다뤄야 한다.
 
 ## 검증
 
