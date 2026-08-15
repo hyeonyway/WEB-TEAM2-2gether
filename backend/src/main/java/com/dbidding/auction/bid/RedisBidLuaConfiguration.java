@@ -114,4 +114,12 @@ public class RedisBidLuaConfiguration {
         script.setResultType(String.class);
         return script;
     }
+
+    @Bean
+    public RedisScript<Long> auctionSequenceSyncScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-sequence-sync.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
 }
