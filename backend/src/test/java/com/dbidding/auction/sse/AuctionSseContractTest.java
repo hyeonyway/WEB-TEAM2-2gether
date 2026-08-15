@@ -104,9 +104,13 @@ class AuctionSseContractTest {
             manager.broadcast(payload);
         }
 
+        // #507: JSON 직렬화(objectMapper.writeValueAsString)는 순회 전 한 번만 한다.
         verify(objectMapper).writeValueAsString(eq(payload.withPublishedAt(now)));
-        // #507: 순회 전 한 번만 만든 SseEventBuilder를 emitter 전원이 공유하므로 1회만 빌드된다.
-        verify(event, times(1)).data("{}", MediaType.APPLICATION_JSON);
+        // #525: 단, SseEventBuilder 인스턴스는 emitter마다 새로 만든다 — 같은 인스턴스를
+        // 여러 emitter가 동시에 send()하면 Spring의 SseEventBuilderImpl 내부 상태가
+        // 동시에 변경돼 ConcurrentModificationException이 나기 때문이다. 등록된 emitter
+        // 수(2개)만큼 빌드된다.
+        verify(event, times(2)).data("{}", MediaType.APPLICATION_JSON);
         verify(first, times(2)).send(any(SseEmitter.SseEventBuilder.class));
         verify(second, times(2)).send(any(SseEmitter.SseEventBuilder.class));
     }
