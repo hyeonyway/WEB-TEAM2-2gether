@@ -20,6 +20,7 @@ class AuctionSseExecutorProfileTest {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean("auctionSseTaskExecutor")).isInstanceOf(ThreadPoolTaskExecutor.class);
+            assertThat(context.getBean("auctionSseBroadcastTaskExecutor")).isInstanceOf(ThreadPoolTaskExecutor.class);
         });
     }
 
@@ -29,6 +30,24 @@ class AuctionSseExecutorProfileTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean("auctionSseTaskExecutor")).isInstanceOf(SimpleAsyncTaskExecutor.class);
+                    assertThat(context.getBean("auctionSseBroadcastTaskExecutor")).isInstanceOf(SimpleAsyncTaskExecutor.class);
+                });
+    }
+
+    @Test
+    void broadcast_executor는_send_executor와_별개의_빈이다() {
+        // #507: 가상 스레드 사용 여부와 무관하게, 느린 클라이언트의 send가 broadcast() 호출자
+        // 스레드를 막거나 caller-runs로 이어지지 않도록 두 executor는 항상 서로 다른 인스턴스여야 한다.
+        contextRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean("auctionSseBroadcastTaskExecutor"))
+                    .isNotSameAs(context.getBean("auctionSseTaskExecutor"));
+        });
+        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("sse-virtual-threads"))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean("auctionSseBroadcastTaskExecutor"))
+                            .isNotSameAs(context.getBean("auctionSseTaskExecutor"));
                 });
     }
 }
