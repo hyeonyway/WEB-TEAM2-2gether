@@ -13,6 +13,11 @@ import com.dbidding.sse.metrics.SseMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -52,6 +57,47 @@ class SseEmitterRegistryTest {
         assertThat(registry.emittersFor(20)).isEmpty();
         assertThat(registry.totalConnectionCount()).isZero();
         verify(emitter).complete();
+    }
+
+    @Test
+    void 서로_다른_키의_send가_같은_emitter에_동시에_들어와도_직렬화되어_충돌하지_않는다() throws Exception {
+        // 선택 구독(#390)으로 emitter 1개가 여러 키를 구독할 수 있게 되면서, 서로 다른 키의
+        // broadcast가 같은 emitter에 대해 동시에 send()를 호출할 수 있다. SseEmitter.send()는
+        // 동시 호출을 지원하지 않으므로(회귀: 동시 호출 시 실제 연결이 끊김), 이 테스트는
+        // registry.send()가 emitter별로 실제 직렬화하는지 직접 검증한다.
+        SseEmitterRegistry<Integer> registry = new SseEmitterRegistry<>(new SseMetrics(new SimpleMeterRegistry(), "test"));
+        SseEmitter emitter = mock(SseEmitter.class);
+        registry.register(Set.of(10, 20), emitter, null);
+
+        AtomicBoolean inProgress = new AtomicBoolean(false);
+        AtomicBoolean overlapDetected = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            if (!inProgress.compareAndSet(false, true)) {
+                overlapDetected.set(true);
+            }
+            Thread.sleep(50);
+            inProgress.set(false);
+            return null;
+        }).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch bothStarted = new CountDownLatch(2);
+        Runnable sendTask = () -> {
+            bothStarted.countDown();
+            registry.send(emitter, SseEmitter.event().comment("x"));
+        };
+        try {
+            var first = executor.submit(sendTask);
+            var second = executor.submit(sendTask);
+            first.get(2, TimeUnit.SECONDS);
+            second.get(2, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdown();
+        }
+
+        assertThat(overlapDetected).isFalse();
+        assertThat(registry.emittersFor(10)).containsExactly(emitter);
+        assertThat(registry.emittersFor(20)).containsExactly(emitter);
     }
 
     @Test
