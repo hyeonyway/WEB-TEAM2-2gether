@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -24,6 +25,12 @@ public class SseEmitterRegistry<K> {
     private final ConcurrentMap<K, Set<SseEmitter>> emittersByKey = new ConcurrentHashMap<>();
     private final ConcurrentMap<SseEmitter, Set<K>> keysByEmitter = new ConcurrentHashMap<>();
     private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
+    // emitter 1개가 키(topic) 여러 개를 동시에 구독할 수 있어서, 서로 다른 키의 broadcast가
+    // 같은 emitter에 대해 동시에 send()를 호출할 수 있다. SseEmitter.send()는 동시 호출을
+    // 지원하지 않아 IllegalStateException으로 연결이 끊기므로, emitter별로 send를 직렬화한다.
+    // 가상스레드 환경(auctionSseTaskExecutor 등)이라 synchronized 대신 ReentrantLock을 쓴다 —
+    // synchronized는 JDK 21에서 블로킹 시 가상스레드를 캐리어에 pinning시킨다.
+    private final ConcurrentMap<SseEmitter, ReentrantLock> sendLocksByEmitter = new ConcurrentHashMap<>();
     private final SseMetrics metrics;
     private final SessionSseConnectionRegistry sessionRegistry;
 
@@ -85,6 +92,8 @@ public class SseEmitterRegistry<K> {
 
     public boolean send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
         Timer.Sample sample = metrics.startSend();
+        ReentrantLock sendLock = sendLocksByEmitter.computeIfAbsent(emitter, ignored -> new ReentrantLock());
+        sendLock.lock();
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
@@ -93,6 +102,7 @@ public class SseEmitterRegistry<K> {
             removeAndComplete(emitter);
             return false;
         } finally {
+            sendLock.unlock();
             metrics.finishSend(sample);
         }
         return true;
@@ -115,6 +125,7 @@ public class SseEmitterRegistry<K> {
     public void remove(SseEmitter emitter) {
         Set<K> keys = keysByEmitter.remove(emitter);
         String sessionId = sessionIdByEmitter.remove(emitter);
+        sendLocksByEmitter.remove(emitter);
         if (sessionId != null && sessionRegistry != null) {
             sessionRegistry.unregister(sessionId, emitter);
         }
