@@ -119,6 +119,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Download JaCoCo report
         continue-on-error: true
@@ -138,6 +140,7 @@ jobs:
 
       - name: Comment JaCoCo coverage on pull request
         if: steps.jacoco-report.outputs.available == 'true'
+        continue-on-error: true
         uses: madrapps/jacoco-report@e51ce1f46f7f8b5331593f935e59cbaf44b84920 # v1.8.0
         with:
           paths: ${{ github.workspace }}/backend/build/reports/jacoco/test/jacocoTestReport.xml
@@ -271,7 +274,11 @@ jobs:
             esac
           }
 
-          CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA" | head -n 5 | awk 'BEGIN { ORS="" } { printf "%s%s", (NR == 1 ? "" : ", "), $0 }')
+          if git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA" >/dev/null 2>&1; then
+            CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA" | awk 'NR <= 5 { printf "%s%s", (NR == 1 ? "" : ", "), $0 }')
+          else
+            CHANGED_FILES=$(git show --format= --name-only "$CURRENT_SHA" | awk 'NR <= 5 { printf "%s%s", (NR == 1 ? "" : ", "), $0 }')
+          fi
           CHANGED_FILES=${CHANGED_FILES:-없음}
           DEV_BUILD_LABEL=$(status_label "$DEV_BUILD_RESULT")
           IMAGE_LABEL=$(status_label "$IMAGE_RESULT")
