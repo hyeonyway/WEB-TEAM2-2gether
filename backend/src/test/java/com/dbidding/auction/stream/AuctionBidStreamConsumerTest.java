@@ -303,6 +303,41 @@ class AuctionBidStreamConsumerTest {
         org.assertj.core.api.Assertions.assertThat(invoke(consumer, "isExistingGroup", new IllegalStateException("other"))).isEqualTo(false);
     }
 
+    @Test
+    void worker는_리더를_얻지_못한_상태에서_interrupt되면_종료한다() throws Exception {
+        AuctionBidStreamConsumerLeaderLock lock = mock(AuctionBidStreamConsumerLeaderLock.class);
+        when(lock.isLeader()).thenReturn(false);
+        when(lock.tryAcquire()).thenReturn(false);
+        AuctionBidStreamConsumer consumer = consumer(mock(StringRedisTemplate.class), mock(AuctionBidStreamPersistenceService.class));
+        setField(consumer, "running", true);
+        setField(consumer, "leaderLock", lock);
+        Thread worker = new Thread(() -> { try { invoke(consumer, "runWorker"); } catch (Exception ignored) { } });
+        worker.start();
+        Thread.sleep(30);
+        worker.interrupt();
+        worker.join(1000);
+        org.assertj.core.api.Assertions.assertThat(worker.isAlive()).isFalse();
+    }
+
+    @Test
+    void inbox_projection_실패는_error로_기록한다() throws Exception {
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        AuctionTimelineEventRepository inbox = mock(AuctionTimelineEventRepository.class);
+        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-fail", null, null, "wallet.charged.v1", 2,
+                "{\"schemaVersion\":\"2\",\"eventId\":\"8ef477e7-1c80-42ea-a7af-8d8ea9c6d411\",\"eventType\":\"wallet.charged.v1\",\"userId\":\"1\",\"walletVersion\":\"2\",\"availableBalance\":\"10000\",\"frozenBalance\":\"0\",\"occurredAt\":\"2026-08-10T12:00:00Z\"}", Instant.now(), Instant.now());
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),
+                mock(AuctionBidStreamConsumerLeaderLock.class), inbox, new ObjectMapper());
+        when(persistence.hasProjectionError()).thenReturn(false);
+        when(inbox.findFirstByProjectionStatusOrderByIdAsc(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING)).thenReturn(java.util.Optional.of(pending));
+        RuntimeException failure = new IllegalStateException("projection failed");
+        doThrow(failure).when(persistence).project(org.mockito.ArgumentMatchers.any(WalletStateChangedStreamEvent.class));
+        when(persistence.markError("inbox-fail", failure)).thenReturn(true);
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "projectOldestPending")).isEqualTo(true);
+        verify(persistence).markError("inbox-fail", failure);
+    }
+
     private AuctionBidStreamConsumer consumer(StringRedisTemplate redisTemplate, AuctionBidStreamPersistenceService persistence) {
         return new AuctionBidStreamConsumer(redisTemplate, persistence,
                 new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 2, Duration.ofSeconds(1), 10),
