@@ -177,6 +177,45 @@ class AuctionBidStreamConsumerTest {
         org.assertj.core.api.Assertions.assertThat(invoke(consumer(redisTemplate, mock(AuctionBidStreamPersistenceService.class)), "claimPending")).isSameAs(record);
     }
 
+    @Test
+    void pending_inbox의_유효한_payload는_projection_후_처리완료로_표시한다() throws Exception {
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        AuctionTimelineEventRepository inbox = mock(AuctionTimelineEventRepository.class);
+        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-1", null, null, "wallet.charged.v1", 2,
+                "{\"schemaVersion\":\"2\",\"eventId\":\"8ef477e7-1c80-42ea-a7af-8d8ea9c6d411\",\"eventType\":\"wallet.charged.v1\",\"userId\":\"1\",\"walletVersion\":\"2\",\"availableBalance\":\"10000\",\"frozenBalance\":\"0\",\"occurredAt\":\"2026-08-10T12:00:00Z\"}",
+                Instant.parse("2026-08-10T12:00:00Z"), Instant.now());
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 10),
+                mock(AuctionBidStreamConsumerLeaderLock.class), inbox, new ObjectMapper());
+        when(persistence.hasProjectionError()).thenReturn(false);
+        when(inbox.findFirstByProjectionStatusOrderByIdAsc(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING))
+                .thenReturn(java.util.Optional.of(pending));
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "projectOldestPending")).isEqualTo(true);
+
+        verify(persistence).recordProjectionAttempt("inbox-1");
+        verify(persistence).project(org.mockito.ArgumentMatchers.any(WalletStateChangedStreamEvent.class));
+        verify(persistence).markProcessed("inbox-1");
+    }
+
+    @Test
+    void pending_inbox의_손상된_payload는_projection_오류로_표시한다() throws Exception {
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        AuctionTimelineEventRepository inbox = mock(AuctionTimelineEventRepository.class);
+        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-bad", null, null, "wallet.charged.v1", 2, "not-json",
+                Instant.parse("2026-08-10T12:00:00Z"), Instant.now());
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 10),
+                mock(AuctionBidStreamConsumerLeaderLock.class), inbox, new ObjectMapper());
+        when(persistence.hasProjectionError()).thenReturn(false);
+        when(inbox.findFirstByProjectionStatusOrderByIdAsc(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING))
+                .thenReturn(java.util.Optional.of(pending));
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "projectOldestPending")).isEqualTo(true);
+
+        verify(persistence).markError(org.mockito.ArgumentMatchers.eq("inbox-bad"), org.mockito.ArgumentMatchers.any(IllegalStateException.class));
+    }
+
     private AuctionBidStreamConsumer consumer(StringRedisTemplate redisTemplate, AuctionBidStreamPersistenceService persistence) {
         return new AuctionBidStreamConsumer(redisTemplate, persistence,
                 new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 2, Duration.ofSeconds(1), 10),
