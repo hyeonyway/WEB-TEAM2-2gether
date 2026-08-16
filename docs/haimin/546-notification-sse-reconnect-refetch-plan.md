@@ -30,7 +30,7 @@ SSE가 오래 끊겼다 재연결되는 경우엔 최신 상태가 보장되지 
 
 ## 완료 기준
 
-- [ ] `useNotificationStream` 재연결 시 REST 재조회(invalidate) 반영
-- [ ] `useNotificationStream.test.tsx` 케이스 추가/통과
+- [x] `useNotificationStream` 재연결 시 REST 재조회(invalidate) 반영
+- [x] `useNotificationStream.test.tsx` 케이스 추가/통과
 
 > 이 문서는 claude의 도움을 받아 작성되었습니다.
