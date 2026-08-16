@@ -98,6 +98,44 @@ class AuctionBidStreamConsumerTest {
         verify(persistence).project(event);
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void 유효한_지갑_이벤트는_inbox에_저장한_뒤_ACK와_삭제를_수행한다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
+        MapRecord<String, Object, Object> record = mock(MapRecord.class);
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        Map<String, String> values = Map.of(
+                "schemaVersion", "2", "eventId", "8ef477e7-1c80-42ea-a7af-8d8ea9c6d411", "eventType", "wallet.charged.v1",
+                "userId", "1", "walletVersion", "2", "availableBalance", "10000", "frozenBalance", "0",
+                "occurredAt", "2026-08-10T12:00:00Z");
+        when(redisTemplate.opsForStream()).thenReturn(streamOperations);
+        when(record.getId()).thenReturn(RecordId.of("valid-1"));
+        when(record.getValue()).thenReturn((Map) values);
+
+        invoke(consumer(redisTemplate, persistence), "receiveAndAcknowledge", record);
+
+        verify(persistence).recordPending(org.mockito.ArgumentMatchers.any(WalletStateChangedStreamEvent.class), org.mockito.ArgumentMatchers.anyString());
+        verify(streamOperations).acknowledge("event:timeline", "auction-timeline-persistence", RecordId.of("valid-1"));
+        verify(streamOperations).delete("event:timeline", RecordId.of("valid-1"));
+    }
+
+    @Test
+    void projection_오류가_있거나_대기_inbox가_없으면_기존_inbox를_처리하지_않는다() throws Exception {
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        AuctionTimelineEventRepository inbox = mock(AuctionTimelineEventRepository.class);
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 2, Duration.ofSeconds(1), 10),
+                mock(AuctionBidStreamConsumerLeaderLock.class), inbox, new ObjectMapper());
+        when(persistence.hasProjectionError()).thenReturn(true, false);
+        when(inbox.findFirstByProjectionStatusOrderByIdAsc(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING))
+                .thenReturn(java.util.Optional.empty());
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "projectOldestPending")).isEqualTo(false);
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "projectOldestPending")).isEqualTo(false);
+        verify(inbox).findFirstByProjectionStatusOrderByIdAsc(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING);
+    }
+
     private AuctionBidStreamConsumer consumer(StringRedisTemplate redisTemplate, AuctionBidStreamPersistenceService persistence) {
         return new AuctionBidStreamConsumer(redisTemplate, persistence,
                 new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 2, Duration.ofSeconds(1), 10),
@@ -116,6 +154,16 @@ class AuctionBidStreamConsumerTest {
         method.setAccessible(true);
         try {
             return method.invoke(target, argument);
+        } catch (java.lang.reflect.InvocationTargetException exception) {
+            throw (Exception) exception.getCause();
+        }
+    }
+
+    private Object invoke(Object target, String name) throws Exception {
+        java.lang.reflect.Method method = target.getClass().getDeclaredMethod(name);
+        method.setAccessible(true);
+        try {
+            return method.invoke(target);
         } catch (java.lang.reflect.InvocationTargetException exception) {
             throw (Exception) exception.getCause();
         }
