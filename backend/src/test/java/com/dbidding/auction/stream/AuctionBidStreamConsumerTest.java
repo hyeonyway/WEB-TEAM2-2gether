@@ -104,6 +104,19 @@ class AuctionBidStreamConsumerTest {
     }
 
     @Test
+    void transient_예외가_최대재시도까지_실패하면_마지막_실패를_반환한다() throws Exception {
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        WalletStateChangedStreamEvent event = walletEvent("retry-last");
+        org.springframework.dao.TransientDataAccessResourceException failure = new org.springframework.dao.TransientDataAccessResourceException("temporary");
+        doThrow(failure).when(persistence).project(event);
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
+                new AuctionBidStreamProperties(Duration.ZERO, Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),
+                mock(AuctionBidStreamConsumerLeaderLock.class), mock(AuctionTimelineEventRepository.class), new ObjectMapper());
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "projectWithRetry", event)).isSameAs(failure);
+    }
+
+    @Test
     void 비재시도_예외는_한번만_projection을_시도하고_반환한다() throws Exception {
         AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
         WalletStateChangedStreamEvent event = walletEvent("failure-1");
@@ -230,6 +243,7 @@ class AuctionBidStreamConsumerTest {
         when(persistence.hasProjectionError()).thenReturn(false);
         when(inbox.findFirstByProjectionStatusOrderByIdAsc(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING))
                 .thenReturn(java.util.Optional.of(pending));
+        when(persistence.markError(org.mockito.ArgumentMatchers.eq("inbox-bad"), org.mockito.ArgumentMatchers.any())).thenReturn(true);
 
         org.assertj.core.api.Assertions.assertThat(invoke(consumer, "projectOldestPending")).isEqualTo(true);
 
@@ -268,9 +282,10 @@ class AuctionBidStreamConsumerTest {
         org.assertj.core.api.Assertions.assertThat(consumer.isAutoStartup()).isTrue();
         org.assertj.core.api.Assertions.assertThat(consumer.getPhase()).isEqualTo(Integer.MAX_VALUE - 100);
         consumer.stop();
+        consumer.shutdown();
 
         org.assertj.core.api.Assertions.assertThat(consumer.isRunning()).isFalse();
-        verify(lock).releaseAfterRun();
+        verify(lock, org.mockito.Mockito.atLeastOnce()).releaseAfterRun();
     }
 
     @Test
