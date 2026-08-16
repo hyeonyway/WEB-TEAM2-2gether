@@ -279,6 +279,46 @@ class AuctionBidStreamPersistenceServiceTest {
     }
 
     @Test
+    void 새로운_경매_생성_이벤트는_native_insert와_이미지_저장을_수행한다() throws Exception {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        jakarta.persistence.EntityManager entityManager = org.mockito.Mockito.mock(jakarta.persistence.EntityManager.class);
+        jakarta.persistence.Query query = org.mockito.Mockito.mock(jakarta.persistence.Query.class);
+        java.lang.reflect.Field field = AuctionBidStreamPersistenceService.class.getDeclaredField("entityManager");
+        field.setAccessible(true);
+        field.set(service, entityManager);
+        AuctionCreatedStreamEvent event = new AuctionCreatedStreamEvent("created-new", 11, 1, 3, "auction", "description",
+                "memo", "psa", "NM", true, 10_000L, 20_000L, 3_000L, 1_000L, java.util.List.of("a", "b"),
+                Instant.parse("2026-08-10T12:00:00Z"), "key", "a".repeat(64), Instant.parse("2026-08-10T11:00:00Z"));
+        given(accountRepository.existsById(1)).willReturn(true);
+        given(auctionRepository.existsById(11)).willReturn(false);
+        given(auctionRepository.findBySellerIdAndCreateIdempotencyKey(1, "key")).willReturn(java.util.Optional.empty());
+        given(cardService.getCardSnapshot(3)).willReturn(new com.dbidding.card.dto.CardResponses.CardSnapshot(3, "card", null, null, null, null));
+        given(entityManager.createNativeQuery(org.mockito.ArgumentMatchers.anyString())).willReturn(query);
+        given(query.setParameter(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).willReturn(query);
+        given(query.executeUpdate()).willReturn(1);
+        given(entityManager.getReference(Auction.class, 11)).willReturn(auction);
+
+        service.project(event);
+
+        verify(query).executeUpdate();
+        verify(auctionImageRepository).saveAll(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void 존재하지_않는_ORDER와_ENDING_대상은_오류로_처리한다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        OrderStateChangedStreamEvent orderEvent = new OrderStateChangedStreamEvent("order-missing", UUID.randomUUID(), "order.completed.v1",
+                20, 10, 1L, 2, 2, 1, com.dbidding.order.OrderStatus.COMPLETED, 1, 1L, 1L, 0L,
+                PointTransactionType.ORDER_SETTLEMENT, 1L, "key", Instant.parse("2026-08-10T12:00:00Z"));
+        given(orderRepository.findByIdForUpdate(20)).willReturn(java.util.Optional.empty());
+        given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> service.project(orderEvent)).isInstanceOf(InvalidBidStreamEventException.class);
+        assertThatThrownBy(() -> service.project(new AuctionEndingStartedStreamEvent("ending-missing", 10,
+                Instant.now(), Instant.now()))).isInstanceOf(InvalidBidStreamEventException.class);
+    }
+
+    @Test
     void 주문_상태_이벤트는_주문과_지갑_및_Redis_상태를_함께_projection한다() {
         RedisOrderRealtimeStateProjection realtime = org.mockito.Mockito.mock(RedisOrderRealtimeStateProjection.class);
         AuctionBidStreamPersistenceService service = service(java.util.Optional.of(realtime));

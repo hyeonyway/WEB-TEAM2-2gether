@@ -230,6 +230,31 @@ class BidAcceptedStreamEventTest {
     }
 
     @Test
+    void 입찰_계약의_주요_경계값을_거부한다() {
+        Map<String, String> badStream = fields();
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("bad", badStream)).isInstanceOf(InvalidBidStreamEventException.class);
+        Map<String, String> badPrevious = fields();
+        badPrevious.put("previousBidderId", "0");
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", badPrevious)).isInstanceOf(InvalidBidStreamEventException.class);
+        Map<String, String> badKey = fields();
+        badKey.put("idempotencyKey", "x".repeat(65));
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", badKey)).isInstanceOf(InvalidBidStreamEventException.class);
+    }
+
+    @Test
+    void 즉시낙찰은_종료상태와_승인시각이_일치해야한다() {
+        Map<String, String> badStatus = fields();
+        badStatus.put("eventType", "auction.buy-now.v1");
+        badStatus.put("auctionStatus", "OPEN");
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-1", badStatus)).isInstanceOf(InvalidBidStreamEventException.class);
+        Map<String, String> badTime = fields();
+        badTime.put("eventType", "auction.buy-now.v1");
+        badTime.put("auctionStatus", "ENDED");
+        badTime.put("closeTime", "2026-08-10T10:00:00Z");
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-1", badTime)).isInstanceOf(InvalidBidStreamEventException.class);
+    }
+
+    @Test
     private Map<String, String> fields() {
         return new java.util.HashMap<>(Map.ofEntries(
                 Map.entry("eventType", "bid.accepted.v1"),
