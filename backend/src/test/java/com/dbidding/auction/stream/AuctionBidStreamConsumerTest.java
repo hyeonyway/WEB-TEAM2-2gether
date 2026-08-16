@@ -117,6 +117,15 @@ class AuctionBidStreamConsumerTest {
     }
 
     @Test
+    void transient_판정은_모든_데이터접근_예외_계열을_지원한다() throws Exception {
+        AuctionBidStreamConsumer consumer = consumer(mock(StringRedisTemplate.class), mock(AuctionBidStreamPersistenceService.class));
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "isTransient", (Object) new org.springframework.dao.TransientDataAccessResourceException("x"))).isEqualTo(true);
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "isTransient", (Object) new org.springframework.dao.RecoverableDataAccessException("x"))).isEqualTo(true);
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "isTransient", (Object) new org.springframework.transaction.CannotCreateTransactionException("x"))).isEqualTo(true);
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "isTransient", (Object) new IllegalStateException("x"))).isEqualTo(false);
+    }
+
+    @Test
     void 비재시도_예외는_한번만_projection을_시도하고_반환한다() throws Exception {
         AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
         WalletStateChangedStreamEvent event = walletEvent("failure-1");
