@@ -87,6 +87,23 @@ class AuctionBidStreamConsumerTest {
     }
 
     @Test
+    void transient_retry_sleep중_interrupt되면_현재_실패를_반환한다() throws Exception {
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        WalletStateChangedStreamEvent event = walletEvent("retry-interrupt");
+        doThrow(new org.springframework.dao.TransientDataAccessResourceException("temporary")).when(persistence).project(event);
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
+                new AuctionBidStreamProperties(Duration.ofSeconds(1), Duration.ofSeconds(1), 3, Duration.ofSeconds(1), 1),
+                mock(AuctionBidStreamConsumerLeaderLock.class), mock(AuctionTimelineEventRepository.class), new ObjectMapper());
+        java.util.concurrent.atomic.AtomicReference<Object> result = new java.util.concurrent.atomic.AtomicReference<>();
+        Thread thread = new Thread(() -> { try { result.set(invoke(consumer, "projectWithRetry", event)); } catch (Exception exception) { result.set(exception); } });
+        thread.start();
+        Thread.sleep(50);
+        thread.interrupt();
+        thread.join(1000);
+        org.assertj.core.api.Assertions.assertThat(result.get()).isInstanceOf(org.springframework.dao.TransientDataAccessResourceException.class);
+    }
+
+    @Test
     void 비재시도_예외는_한번만_projection을_시도하고_반환한다() throws Exception {
         AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
         WalletStateChangedStreamEvent event = walletEvent("failure-1");
