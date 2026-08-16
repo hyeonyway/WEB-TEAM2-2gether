@@ -230,6 +230,59 @@ class BidAcceptedStreamEventTest {
     }
 
     @Test
+    void 지갑_hold_상태와_원장_상태가_모두_유효한_조합을_파싱한다() {
+        WalletStateChangedStreamEvent event = WalletStateChangedStreamEvent.from("1-0", Map.ofEntries(
+                Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.hold.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "1"),
+                Map.entry("walletVersion", "2"), Map.entry("availableBalance", "10000"), Map.entry("frozenBalance", "5000"),
+                Map.entry("auctionId", "10"), Map.entry("holdAmount", "5000"), Map.entry("holdStatus", "HELD"),
+                Map.entry("transactionType", "AUCTION_CAPTURE"), Map.entry("transactionAmount", "5000"),
+                Map.entry("occurredAt", "2026-08-10T12:00:00Z")
+        ));
+
+        assertThat(event.auctionId()).isEqualTo(10);
+        assertThat(event.holdAmount()).isEqualTo(5000L);
+    }
+
+    @Test
+    void 지갑_hold금액과_hold상태의_한쪽만_존재하면_거부한다() {
+        Map<String, String> fields = new java.util.HashMap<>(Map.ofEntries(
+                Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.hold.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "1"),
+                Map.entry("walletVersion", "1"), Map.entry("availableBalance", "1"), Map.entry("frozenBalance", "0"),
+                Map.entry("holdAmount", "100"), Map.entry("transactionType", "AUCTION_CAPTURE"), Map.entry("transactionAmount", "100"),
+                Map.entry("occurredAt", "2026-08-10T12:00:00Z")
+        ));
+        assertThatThrownBy(() -> WalletStateChangedStreamEvent.from("1-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class).hasMessageContaining("hold projection");
+    }
+
+    @Test
+    void 지갑_transactionType과_transactionAmount의_한쪽만_존재하면_거부한다() {
+        Map<String, String> fields = new java.util.HashMap<>(Map.ofEntries(
+                Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.charged.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "1"),
+                Map.entry("walletVersion", "1"), Map.entry("availableBalance", "1"), Map.entry("frozenBalance", "0"),
+                Map.entry("transactionType", "CHARGE"), Map.entry("occurredAt", "2026-08-10T12:00:00Z")
+        ));
+        assertThatThrownBy(() -> WalletStateChangedStreamEvent.from("1-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class).hasMessageContaining("원장 field");
+    }
+
+    @Test
+    void 지갑_idempotencyKey가_너무_길면_거부한다() {
+        Map<String, String> fields = new java.util.HashMap<>(Map.ofEntries(
+                Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.charged.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "1"),
+                Map.entry("walletVersion", "1"), Map.entry("availableBalance", "1"), Map.entry("frozenBalance", "0"),
+                Map.entry("transactionType", "CHARGE"), Map.entry("transactionAmount", "1"),
+                Map.entry("idempotencyKey", "x".repeat(65)), Map.entry("occurredAt", "2026-08-10T12:00:00Z")
+        ));
+        assertThatThrownBy(() -> WalletStateChangedStreamEvent.from("1-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class).hasMessageContaining("64자");
+    }
+
+    @Test
     void 입찰_계약의_주요_경계값을_거부한다() {
         Map<String, String> badStream = fields();
         assertThatThrownBy(() -> BidAcceptedStreamEvent.from("bad", badStream)).isInstanceOf(InvalidBidStreamEventException.class);
