@@ -46,7 +46,65 @@ class AuctionBidStreamConsumerLeaderLockTest {
         lock.shutdownHeartbeat();
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void heartbeat_갱신에_성공하면_리더_상태를_유지한다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).thenReturn(1L);
+        AuctionBidStreamConsumerLeaderLock lock = new AuctionBidStreamConsumerLeaderLock(redisTemplate, properties());
+        setLeader(lock, true);
+
+        renew(lock);
+
+        assertThat(lock.isLeader()).isTrue();
+        lock.shutdownHeartbeat();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void heartbeat_갱신이_거부되면_리더_상태를_해제한다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).thenReturn(0L);
+        AuctionBidStreamConsumerLeaderLock lock = new AuctionBidStreamConsumerLeaderLock(redisTemplate, properties());
+        setLeader(lock, true);
+
+        renew(lock);
+
+        assertThat(lock.isLeader()).isFalse();
+        lock.shutdownHeartbeat();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void heartbeat_Redis_예외도_리더_상태를_해제한다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("down"));
+        AuctionBidStreamConsumerLeaderLock lock = new AuctionBidStreamConsumerLeaderLock(redisTemplate, properties());
+        setLeader(lock, true);
+
+        renew(lock);
+
+        assertThat(lock.isLeader()).isFalse();
+        lock.shutdownHeartbeat();
+    }
+
     private AuctionBidStreamProperties properties() {
         return new AuctionBidStreamProperties(Duration.ofSeconds(1), Duration.ofSeconds(1), 2, Duration.ofSeconds(3), 10);
+    }
+
+    private void renew(AuctionBidStreamConsumerLeaderLock lock) throws Exception {
+        java.lang.reflect.Method method = AuctionBidStreamConsumerLeaderLock.class.getDeclaredMethod("renewLease");
+        method.setAccessible(true);
+        method.invoke(lock);
+    }
+
+    private void setLeader(AuctionBidStreamConsumerLeaderLock lock, boolean leader) throws Exception {
+        java.lang.reflect.Field field = AuctionBidStreamConsumerLeaderLock.class.getDeclaredField("leader");
+        field.setAccessible(true);
+        field.set(lock, leader);
     }
 }
