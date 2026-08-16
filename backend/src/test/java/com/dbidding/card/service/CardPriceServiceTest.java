@@ -2,6 +2,7 @@ package com.dbidding.card.service;
 
 import com.dbidding.auction.adapter.CardAuctionAdapter;
 import com.dbidding.auction.service.AuctionInsightQueryService;
+import com.dbidding.account.domain.Account;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
@@ -209,7 +210,10 @@ class CardPriceServiceTest {
         statisticRepository.save(new ItemStatistic(popular.getId(), LocalDate.now().minusDays(1),
                 100_000L, 100_000L, 90_000L, 110_000L, 1, 1, 0,
                 null, null, null));
-        wishlistRepository.save(Wishlist.of(1, popular.getId()));
+        Account user = Account.create("wishlist-sort@test.com", "wishlist-sort", "password", "salt");
+        entityManager.persist(user);
+        entityManager.flush();
+        wishlistRepository.save(Wishlist.of(user.getId(), popular.getId()));
         entityManager.flush();
         entityManager.clear();
 
