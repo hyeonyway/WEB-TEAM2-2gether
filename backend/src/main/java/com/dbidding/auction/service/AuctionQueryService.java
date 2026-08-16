@@ -78,8 +78,13 @@ public class AuctionQueryService {
         long withinBoundOffset = 0;
         List<RedisAuctionRealtimeStateReader.AuctionState> collected = new ArrayList<>();
         boolean exhausted = false;
+        // #529: keyword/psaGrade 필터가 없으면 ZSET에서 나온 순서 그대로가 결과라 걸러질 항목이
+        // 없다 — limit만큼만 가져오면 된다. 필터가 있으면 몇 개가 걸러질지 미리 알 수 없으므로
+        // (Redis가 텍스트/등급 필터를 직접 못 함, #530) 지금처럼 여유분(고정 배치)을 유지한다.
+        boolean hasNoFilter = request.keywordOrDefault().isBlank() && (request.psaGrade() == null || request.psaGrade().isBlank());
+        int fetchBatchSize = hasNoFilter ? limit : SORT_ZSET_FETCH_BATCH_SIZE;
         for (int batch = 0; collected.size() < limit && !exhausted && batch < SORT_ZSET_MAX_BATCHES; batch++) {
-            List<ZSetOperations.TypedTuple<String>> raw = realtimeStateReader.activeIdsBatch(zsetKey, descending, bound, withinBoundOffset, SORT_ZSET_FETCH_BATCH_SIZE);
+            List<ZSetOperations.TypedTuple<String>> raw = realtimeStateReader.activeIdsBatch(zsetKey, descending, bound, withinBoundOffset, fetchBatchSize);
             if (raw.isEmpty()) {
                 exhausted = true;
                 break;
@@ -111,7 +116,7 @@ public class AuctionQueryService {
                 bound = lastScore;
                 withinBoundOffset = itemsAtLastScore;
             }
-            if (raw.size() < SORT_ZSET_FETCH_BATCH_SIZE) exhausted = true;
+            if (raw.size() < fetchBatchSize) exhausted = true;
         }
         return collected.size() > limit ? collected.subList(0, limit) : collected;
     }
@@ -200,15 +205,18 @@ public class AuctionQueryService {
 
     private AuctionResponses.AuctionSummary redisSummary(RedisAuctionRealtimeStateReader.AuctionState state, Integer userId) {
         CardSnapshot card = redisCardSnapshot(state);
-        RedisAuctionRealtimeStateReader.RealtimeState realtime = realtimeStateReader.read(state.auctionId(), userId);
+        // #529: 목록 항목은 이 유저의 입찰 상태/금액만 필요하다 — read()를 재사용하면 항목마다
+        // state에 이미 있는 스냅샷을 중복 재조회하고, 응답에 쓰지도 않는 recentBids(XREVRANGE)까지
+        // 매번 다시 읽어온다. readMyBidSummary()는 HGETALL 1번으로 끝낸다.
+        RedisAuctionRealtimeStateReader.MyBidSummary myBid = realtimeStateReader.readMyBidSummary(state.auctionId(), userId);
+        if (myBid == null) myBid = RedisAuctionRealtimeStateReader.MyBidSummary.NONE;
         return AuctionResponses.AuctionSummary.builder()
                 .id(state.auctionId()).card(cardSummary(card)).seller(sellerSummary(state.sellerId()))
                 .startPrice(state.startPrice()).currentPrice(state.currentPrice()).bidIncrement(state.bidIncrement())
                 .minimumBid(state.buyNowPrice() == null ? state.currentPrice() + state.bidIncrement()
                         : Math.min(state.currentPrice() + state.bidIncrement(), state.buyNowPrice()))
                 .bidCount(state.bidCount()).buyNowPrice(state.buyNowPrice()).startsAt(state.openTime()).endsAt(publicCloseTime(state))
-                .status(state.status()).myBidStatus(realtime == null ? MyBidStatus.NONE : realtime.myBidStatus())
-                .myBidAmount(realtime == null ? null : realtime.myBidAmount()).build();
+                .status(state.status()).myBidStatus(myBid.status()).myBidAmount(myBid.amount()).build();
     }
 
     private CardSnapshot redisCardSnapshot(RedisAuctionRealtimeStateReader.AuctionState state) {
