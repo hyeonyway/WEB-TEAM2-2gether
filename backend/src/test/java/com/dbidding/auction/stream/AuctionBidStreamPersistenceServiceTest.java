@@ -202,6 +202,73 @@ class AuctionBidStreamPersistenceServiceTest {
                 .hasMessageContaining("아직 종료할 수 없는 경매입니다");
     }
 
+    @Test
+    void 잘못된_schemaVersion의_malformed_이벤트은_0으로_보관한다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        given(inboxRepository.findByStreamId("malformed-invalid-version")).willReturn(java.util.Optional.empty());
+
+        service.recordMalformed("malformed-invalid-version", java.util.Map.of("schemaVersion", "NaN"));
+
+        ArgumentCaptor<com.dbidding.auction.domain.AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(com.dbidding.auction.domain.AuctionTimelineEvent.class);
+        verify(inboxRepository).save(inbox.capture());
+        assertThat(inbox.getValue().getSchemaVersion()).isZero();
+        assertThat(inbox.getValue().getEventType()).isEqualTo("unknown");
+    }
+
+    @Test
+    void 첫_ERROR_이벤트를_재처리_대기열로_되돌린다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        com.dbidding.auction.domain.AuctionTimelineEvent event = org.mockito.Mockito.mock(com.dbidding.auction.domain.AuctionTimelineEvent.class);
+        given(inboxRepository.findFirstByProjectionStatusOrderByIdAsc(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.ERROR))
+                .willReturn(java.util.Optional.of(event));
+
+        assertThat(service.requeueFirstError()).isSameAs(event);
+
+        verify(event).requeueForProjection();
+    }
+
+    @Test
+    void projection_오류는_inbox에_기록하고_첫_오류임을_반환한다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        com.dbidding.auction.domain.AuctionTimelineEvent event = org.mockito.Mockito.mock(com.dbidding.auction.domain.AuctionTimelineEvent.class);
+        given(event.getEventType()).willReturn("wallet.charged.v1");
+        given(inboxRepository.findByStreamId("error-1")).willReturn(java.util.Optional.of(event));
+        given(inboxRepository.existsByProjectionStatus(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.ERROR)).willReturn(false);
+
+        assertThat(service.markError("error-1", new IllegalStateException("failed"))).isTrue();
+
+        verify(event).markError("IllegalStateException: failed");
+    }
+
+    @Test
+    void projection_시도는_존재하는_inbox에만_기록한다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        com.dbidding.auction.domain.AuctionTimelineEvent event = org.mockito.Mockito.mock(com.dbidding.auction.domain.AuctionTimelineEvent.class);
+        given(inboxRepository.findByStreamId("attempt-1")).willReturn(java.util.Optional.of(event));
+
+        service.recordProjectionAttempt("attempt-1");
+
+        verify(event).recordAttempt(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void ENDING_전이_이벤트를_경매에_반영한다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        AuctionEndingStartedStreamEvent event = new AuctionEndingStartedStreamEvent("ending-1", 10,
+                Instant.parse("2026-08-10T12:00:00Z"), Instant.parse("2026-08-10T11:00:00Z"));
+        given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.of(auction));
+
+        service.project(event);
+
+        verify(auction).applyEndingTransition(event.closeTime());
+    }
+
+    private AuctionBidStreamPersistenceService service(java.util.Optional<RedisOrderRealtimeStateProjection> realtimeProjection) {
+        return new AuctionBidStreamPersistenceService(inboxRepository, auctionRepository, auctionImageRepository, bidRepository,
+                walletService, accountRepository, walletProjectionService, orderService, orderRepository, realtimeProjection,
+                cardService, auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC));
+    }
+
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {
         return new BidAcceptedStreamEvent(
                 streamId, BidStreamEventType.BID_ACCEPTED, 10, version, bidderId, 10_000L + version, 10_000L + version, previousBidderId,
