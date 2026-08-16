@@ -294,6 +294,59 @@ class AuctionBidStreamConsumerTest {
     }
 
     @Test
+    void worker의_runtime_예외는_잡아서_다시_루프를_시도한다() throws Exception {
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        when(persistence.hasProjectionError()).thenThrow(new IllegalStateException("db down"));
+        AuctionBidStreamConsumerLeaderLock lock = mock(AuctionBidStreamConsumerLeaderLock.class);
+        when(lock.isLeader()).thenReturn(true);
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),
+                lock, mock(AuctionTimelineEventRepository.class), new ObjectMapper());
+        setField(consumer, "running", true);
+        Thread worker = new Thread(() -> { try { invoke(consumer, "runWorker"); } catch (Exception ignored) { } });
+        worker.start();
+        Thread.sleep(30);
+        setField(consumer, "running", false);
+        worker.interrupt();
+        worker.join(1000);
+        org.assertj.core.api.Assertions.assertThat(worker.isAlive()).isFalse();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 새_stream의_정상_record도_수신후_ACK와_삭제한다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
+        AuctionBidStreamConsumerLeaderLock lock = mock(AuctionBidStreamConsumerLeaderLock.class);
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        AuctionTimelineEvent inbox = mock(AuctionTimelineEvent.class);
+        when(redisTemplate.opsForStream()).thenReturn(streamOperations);
+        PendingMessages pending = mock(PendingMessages.class);
+        when(streamOperations.pending(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(1L))).thenReturn(pending);
+        when(pending.iterator()).thenReturn(java.util.Collections.emptyIterator());
+        MapRecord<String, Object, Object> record = mock(MapRecord.class);
+        when(record.getId()).thenReturn(RecordId.of("new-1"));
+        when(record.getValue()).thenReturn(Map.of("eventType", "unknown"));
+        when(persistence.recordMalformed("new-1", Map.of("eventType", "unknown"))).thenReturn(inbox);
+        when(inbox.getStreamId()).thenReturn("new-1");
+        when(persistence.hasProjectionError()).thenReturn(false);
+        when(persistence.markError(org.mockito.ArgumentMatchers.eq("new-1"), org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(streamOperations.<MapRecord<String, Object, Object>>read(org.mockito.ArgumentMatchers.any(org.springframework.data.redis.connection.stream.Consumer.class),
+                org.mockito.ArgumentMatchers.any(org.springframework.data.redis.connection.stream.StreamReadOptions.class),
+                org.mockito.ArgumentMatchers.<org.springframework.data.redis.connection.stream.StreamOffset<String>[]>any())).thenReturn(java.util.List.of(record));
+        when(lock.isLeader()).thenReturn(true);
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(redisTemplate, persistence,
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),
+                lock, mock(AuctionTimelineEventRepository.class), new ObjectMapper());
+        setField(consumer, "running", true);
+
+        invoke(consumer, "consumeUntilIdle");
+
+        verify(streamOperations).acknowledge("event:timeline", "auction-timeline-persistence", RecordId.of("new-1"));
+        verify(streamOperations).delete("event:timeline", RecordId.of("new-1"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void worker는_pending이_없고_새_stream도_비어있으면_즉시_유휴상태로_돌아간다() throws Exception {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
