@@ -171,6 +171,65 @@ class BidAcceptedStreamEventTest {
     }
 
     @Test
+    void 지원하지_않는_schemaVersion은_입찰_이벤트를_거부한다() {
+        Map<String, String> fields = fields();
+        fields.put("schemaVersion", "2");
+
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("지원하지 않는");
+    }
+
+    @Test
+    void 일반_입찰의_발생시각이_마감시각과_같으면_거부한다() {
+        Map<String, String> fields = fields();
+        fields.put("occurredAt", fields.get("closeTime"));
+
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("마감 시각보다 이전");
+    }
+
+    @Test
+    void 일반_입찰의_요청가와_승인가가_다르면_거부한다() {
+        Map<String, String> fields = fields();
+        fields.put("requestedPrice", "11000");
+        fields.put("idempotencyRequestHash", "b7c07f5860b4a2be594ae268cdf87a1efddd1b46698527a49d01742a33a6c711");
+
+        assertThatThrownBy(() -> BidAcceptedStreamEvent.from("1720000000000-0", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("원 요청가와 승인 입찰가");
+    }
+
+    @Test
+    void 지갑_이벤트의_잘못된_hold_조합은_거부한다() {
+        Map<String, String> fields = new java.util.HashMap<>(Map.ofEntries(
+                Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.hold.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "1"),
+                Map.entry("walletVersion", "1"), Map.entry("availableBalance", "0"), Map.entry("frozenBalance", "10000"),
+                Map.entry("holdAmount", "10000"), Map.entry("occurredAt", "2026-08-10T12:00:00Z")
+        ));
+
+        assertThatThrownBy(() -> AuctionWalletTimelineEvent.from("wallet-bad", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("hold projection");
+    }
+
+    @Test
+    void 지갑_이벤트의_음수_잔액은_거부한다() {
+        Map<String, String> fields = new java.util.HashMap<>(Map.ofEntries(
+                Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.charged.v1"),
+                Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "1"),
+                Map.entry("walletVersion", "1"), Map.entry("availableBalance", "-1"), Map.entry("frozenBalance", "0"),
+                Map.entry("occurredAt", "2026-08-10T12:00:00Z")
+        ));
+
+        assertThatThrownBy(() -> AuctionWalletTimelineEvent.from("wallet-negative", fields))
+                .isInstanceOf(InvalidBidStreamEventException.class)
+                .hasMessageContaining("값이 올바르지");
+    }
+
+    @Test
     private Map<String, String> fields() {
         return new java.util.HashMap<>(Map.ofEntries(
                 Map.entry("eventType", "bid.accepted.v1"),

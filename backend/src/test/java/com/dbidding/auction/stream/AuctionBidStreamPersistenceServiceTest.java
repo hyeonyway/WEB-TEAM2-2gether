@@ -298,10 +298,52 @@ class AuctionBidStreamPersistenceServiceTest {
         verify(realtime).markProjectedStatusAfterCommit(10, 20, "COMPLETED");
     }
 
+    @Test
+    void 이전_입찰자가_낮은_ID이면_지갑을_release_후_hold하고_즉시낙찰은_capture한다() throws Exception {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        Bid previous = org.mockito.Mockito.mock(Bid.class);
+        given(previous.getBidderId()).willReturn(1);
+        BidAcceptedStreamEvent event = new BidAcceptedStreamEvent("1-0", BidStreamEventType.BUY_NOW, 10, 1L, 2,
+                10_000L, 10_000L, 1, "key", "a".repeat(64), 10_000L, 1,
+                Instant.parse("2026-08-10T12:00:00Z"), com.dbidding.auction.domain.AuctionStatus.ENDED,
+                Instant.parse("2026-08-10T12:00:00Z"));
+
+        invokeWalletTransition(service, event, previous, 10);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(walletService);
+        order.verify(walletService).release(1, 10);
+        order.verify(walletService).hold(2, 10, 10_000L);
+        order.verify(walletService).capture(2, 10, 10_000L);
+    }
+
+    @Test
+    void 동일한_입찰자의_즉시낙찰은_release없이_hold와_capture를_수행한다() throws Exception {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        Bid previous = org.mockito.Mockito.mock(Bid.class);
+        given(previous.getBidderId()).willReturn(2);
+        BidAcceptedStreamEvent event = new BidAcceptedStreamEvent("1-0", BidStreamEventType.BUY_NOW, 10, 1L, 2,
+                10_000L, 10_000L, 2, "key", "a".repeat(64), 10_000L, 1,
+                Instant.parse("2026-08-10T12:00:00Z"), com.dbidding.auction.domain.AuctionStatus.ENDED,
+                Instant.parse("2026-08-10T12:00:00Z"));
+
+        invokeWalletTransition(service, event, previous, 10);
+
+        verify(walletService).hold(2, 10, 10_000L);
+        verify(walletService).capture(2, 10, 10_000L);
+        verify(walletService, org.mockito.Mockito.never()).release(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
     private AuctionBidStreamPersistenceService service(java.util.Optional<RedisOrderRealtimeStateProjection> realtimeProjection) {
         return new AuctionBidStreamPersistenceService(inboxRepository, auctionRepository, auctionImageRepository, bidRepository,
                 walletService, accountRepository, walletProjectionService, orderService, orderRepository, realtimeProjection,
                 cardService, auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC));
+    }
+
+    private void invokeWalletTransition(AuctionBidStreamPersistenceService service, BidAcceptedStreamEvent event, Bid previous, int auctionId) throws Exception {
+        java.lang.reflect.Method method = AuctionBidStreamPersistenceService.class.getDeclaredMethod(
+                "applyWalletTransition", BidAcceptedStreamEvent.class, Bid.class, Integer.class);
+        method.setAccessible(true);
+        method.invoke(service, event, previous, auctionId);
     }
 
     private BidAcceptedStreamEvent event(String streamId, Long version, Integer bidderId, Integer previousBidderId) {
