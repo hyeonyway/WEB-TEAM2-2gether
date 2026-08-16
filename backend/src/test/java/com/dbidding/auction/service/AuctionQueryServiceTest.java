@@ -2,6 +2,7 @@ package com.dbidding.auction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -376,7 +377,7 @@ class AuctionQueryServiceTest {
     }
 
     @Test
-    void 마감_임박순은_ENDING을_먼저_두고_OPEN만_마감시각순으로_정렬한다() {
+    void 마감_임박순은_Redis_closeTime_순서와_동일하게_정렬한다() {
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         when(reader.activeIdsBatch(eq("auction:active:by-close-time"), eq(false), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(tuple(1, 10), tuple(2, 20), tuple(3, 30), tuple(4, 40)));
@@ -392,7 +393,7 @@ class AuctionQueryServiceTest {
 
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.ENDING_SOON, null, null, 20));
 
-        assertThat(response.content()).extracting(item -> item.id()).containsExactly(4, 1, 2, 3);
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(2, 3, 1, 4);
     }
 
     @Test
@@ -444,6 +445,31 @@ class AuctionQueryServiceTest {
         assertThat(response.content()).extracting(item -> item.id()).doesNotHaveDuplicates();
         assertThat(response.content()).extracting(item -> item.id()).containsExactlyElementsOf(allIdsDescending);
         assertThat(response.hasNext()).isFalse();
+    }
+
+    @Test
+    void 동점_score가_여러_배치에_걸쳐도_cursor_이전_항목을_다시_반환하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+        List<Integer> firstBatch = java.util.stream.IntStream.rangeClosed(101, 150).boxed().toList();
+        List<Integer> secondBatch = java.util.stream.IntStream.rangeClosed(51, 100).boxed().toList();
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(0L), anyInt()))
+                .thenReturn(firstBatch.stream().map(id -> (ZSetOperations.TypedTuple<String>) new DefaultTypedTuple<>(String.valueOf(id), 5.0)).toList());
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(50L), anyInt()))
+                .thenReturn(secondBatch.stream().map(id -> (ZSetOperations.TypedTuple<String>) new DefaultTypedTuple<>(String.valueOf(id), 5.0)).toList());
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(100L), anyInt()))
+                .thenReturn(List.of());
+        for (int id : java.util.stream.IntStream.rangeClosed(51, 150).toArray()) {
+            when(reader.readAuctionState(id)).thenReturn(redisState(id, 5, 40_000L, 40_000L,
+                    Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        }
+
+        var cursor = new AuctionCursor(AuctionSort.BID_COUNT, 5L, null, 100);
+        var response = auctionQueryService.search(null,
+                new AuctionSearchRequest("", "PSA 10", AuctionSort.BID_COUNT, null, cursorCodec.encode(cursor), 60));
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactlyElementsOf(
+                java.util.stream.IntStream.iterate(99, id -> id >= 51, id -> id - 1).boxed().toList());
     }
 
     private ZSetOperations.TypedTuple<String> tuple(Integer auctionId, double score) {
