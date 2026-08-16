@@ -12,6 +12,7 @@ class EventSourceMock extends EventTarget{
   readonly url:string;
 	readonly options:EventSourceInit|undefined;
   close=vi.fn();
+  onopen:(()=>void)|null=null;
   onerror:(()=>void)|null=null;
 
   constructor(url:string|URL,options?:EventSourceInit){
@@ -142,6 +143,27 @@ describe('useNotificationStream',()=>{
     await vi.advanceTimersByTimeAsync(2_000);
 
     expect(EventSourceMock.instances).toHaveLength(2);
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('재연결되면 목록·안읽음 캐시를 무효화해 REST로 다시 맞춘다',async()=>{
+    vi.useFakeTimers();
+    const{queryClient,Wrapper}=createWrapper();
+    const invalidateSpy=vi.spyOn(queryClient,'invalidateQueries');
+    const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
+    await vi.waitFor(()=>expect(EventSourceMock.instances).toHaveLength(1));
+
+    EventSourceMock.instances[0]?.onopen?.();
+    expect(invalidateSpy).not.toHaveBeenCalled();
+
+    EventSourceMock.instances[0]?.onerror?.();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(EventSourceMock.instances).toHaveLength(2);
+
+    EventSourceMock.instances[1]?.onopen?.();
+    expect(invalidateSpy).toHaveBeenCalledWith({queryKey:notificationQueryKeys.all});
+
     unmount();
     vi.useRealTimers();
   });

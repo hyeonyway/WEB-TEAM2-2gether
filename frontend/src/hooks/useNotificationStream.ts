@@ -54,6 +54,7 @@ export function useNotificationStream({
     let eventSource:EventSource|null=null;
     let reconnectTimer:ReturnType<typeof setTimeout>|null=null;
     let stopped=false;
+    let opened=false;
     let consecutiveFailures=0;
 
     const handleNotificationCreated=(event:Event)=>{
@@ -106,6 +107,8 @@ export function useNotificationStream({
       eventSource.addEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);
       eventSource.onopen=()=>{
         consecutiveFailures=0;
+        if(opened)void queryClient.invalidateQueries({queryKey:notificationQueryKeys.all});
+        opened=true;
       };
       eventSource.onerror=()=>{
         eventSource?.removeEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);
