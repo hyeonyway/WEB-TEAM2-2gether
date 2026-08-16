@@ -415,17 +415,24 @@ class AuctionQueryServiceTest {
 
     @Test
     void 배치_크기를_넘는_동점이_있어도_중복_없이_전부_가져온다() {
+        // #529: 필터 없는 조회는 배치 크기가 이제 고정 50이 아니라 요청 size만큼으로 줄어든다.
+        // 그래도 "한 배치로 동점 전부를 못 채우면 다음 배치를 이어서 가져온다"는 동작 자체는
+        // 배치 크기와 무관하게 성립해야 하므로, 요청한 batchSize를 실제로 반영해 잘라주는
+        // 가짜 Redis를 흉내낸다(고정 50짜리 캔 데이터에 의존하면 배치 크기가 바뀔 때마다
+        // 이 테스트가 실제 배치 경계와 안 맞물려 깨진다).
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
-        // Redis는 동점 구간에서 멤버 문자열 lex 순서로 반환하므로, 숫자 auctionId 순서와 다른
-        // 임의의 순서로 50개(1번째 배치)와 나머지 10개(2번째 배치)를 나눠 돌려주도록 시뮬레이션한다.
-        List<ZSetOperations.TypedTuple<String>> firstBatch = new java.util.ArrayList<>();
-        for (int id = 60; id > 10; id--) firstBatch.add(tuple(id, 5));
-        List<ZSetOperations.TypedTuple<String>> secondBatch = new java.util.ArrayList<>();
-        for (int id = 10; id >= 1; id--) secondBatch.add(tuple(id, 5));
-        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
-                .thenReturn(firstBatch);
-        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(50L), org.mockito.ArgumentMatchers.anyInt()))
-                .thenReturn(secondBatch);
+        List<Integer> allIdsDescending = new java.util.ArrayList<>();
+        for (int id = 60; id >= 1; id--) allIdsDescending.add(id);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), any(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(invocation -> {
+                    long withinBoundOffset = invocation.getArgument(3);
+                    int batchSize = invocation.getArgument(4);
+                    List<ZSetOperations.TypedTuple<String>> slice = new java.util.ArrayList<>();
+                    for (int i = (int) withinBoundOffset; i < Math.min(withinBoundOffset + batchSize, allIdsDescending.size()); i++) {
+                        slice.add(tuple(allIdsDescending.get(i), 5));
+                    }
+                    return slice;
+                });
         for (int id = 1; id <= 60; id++) {
             when(reader.readAuctionState(id)).thenReturn(redisState(id, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
         }
@@ -435,9 +442,7 @@ class AuctionQueryServiceTest {
 
         assertThat(response.content()).hasSize(60);
         assertThat(response.content()).extracting(item -> item.id()).doesNotHaveDuplicates();
-        List<Integer> expectedDescending = new java.util.ArrayList<>();
-        for (int id = 60; id >= 1; id--) expectedDescending.add(id);
-        assertThat(response.content()).extracting(item -> item.id()).containsExactlyElementsOf(expectedDescending);
+        assertThat(response.content()).extracting(item -> item.id()).containsExactlyElementsOf(allIdsDescending);
         assertThat(response.hasNext()).isFalse();
     }
 
