@@ -84,7 +84,7 @@ export default function CardsPage(){
             setFavoriteOnly(true);
             updateFilters({favoriteOnly:true});
           }}>나의 찜</button>
-          <label className="grade-filter"><span>PSA 등급</span><select value={grade} onChange={event=>{setGrade(event.target.value);updateFilters({psaGrade:event.target.value})}}>
+          <label className="grade-filter"><select aria-label="PSA 등급" value={grade} onChange={event=>{setGrade(event.target.value);updateFilters({psaGrade:event.target.value})}}>
             <option value="">전체 등급</option>
             {Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
           </select></label>
