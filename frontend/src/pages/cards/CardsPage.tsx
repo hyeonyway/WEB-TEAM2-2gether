@@ -84,11 +84,11 @@ export default function CardsPage(){
             setFavoriteOnly(true);
             updateFilters({favoriteOnly:true});
           }}>나의 찜</button>
+          <label className="grade-filter"><span>PSA 등급</span><select value={grade} onChange={event=>{setGrade(event.target.value);updateFilters({psaGrade:event.target.value})}}>
+            <option value="">전체 등급</option>
+            {Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
+          </select></label>
         </div>
-        <label className="grade-filter"><span>PSA 등급</span><select value={grade} onChange={event=>{setGrade(event.target.value);updateFilters({psaGrade:event.target.value})}}>
-          <option value="">전체 등급</option>
-          {Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
-        </select></label>
       </div>
       <p className="catalog-count">{favoriteOnly?`나의 찜 ${visibleCards.length.toLocaleString()}개`:`전체 ${totalElements.toLocaleString()}개 · ${cards.length.toLocaleString()}개 표시 중`}</p>
       {catalogPending?<CardCatalogSkeleton/>:catalogError?<p className="form-error">카드 정보를 불러오지 못했습니다.</p>:<CardCatalog cards={visibleCards}/>}
