@@ -94,6 +94,29 @@ Gauge/Timer를 추가하고, SSE executor의 `RejectedExecutionHandler`를
 - 두 메트릭은 **유실된 이벤트 수가 아니라 포화되어 호출 스레드에서 처리한
   작업의 횟수와 소요시간**이다. 작업을 버리는 `DiscardPolicy`로 바꾸지 않는다.
 
+> **갱신(추후, #544)**: 위 "DiscardPolicy로 바꾸지 않는다"는 fan-out/heartbeat류
+> executor(caller가 SSE 전용 백그라운드 스레드)에는 여전히 유효하지만, 다음
+> 두 executor는 이후 `CountingDiscardPolicy`로 교체됐다.
+> - `notificationTaskExecutor`(origin) — caller가 `@TransactionalEventListener(AFTER_COMMIT)`을
+>   커밋한 입찰/주문 API 스레드일 수 있다. 알림은 별도 복구 로직으로 목록
+>   자체는 유실되지 않고 SSE 실시간 push만 재시도 안 되는 구조라 API 스레드
+>   보호를 우선했다.
+> - `walletSseTaskExecutor` — 기본(Redis) 프로필에서는 caller가 Redis
+>   subscriber 스레드지만, `local-sse` 프로필에서는 `WalletSseEventListener`가
+>   비동기가 아니라 커밋 스레드에서 바로 이 executor까지 이어진다. 순수 SSE
+>   send만 하고 DB write 등 부작용이 없어, discard해도 잔고 값(이미 커밋됨)은
+>   유실되지 않는다.
+>
+> 메트릭 이름/태그(`dbidding.sse.broadcast.saturated`, tag `executor`)는
+> CallerRuns와 동일하게 유지했다 — 기존 대시보드/알림 쿼리가 그대로 동작한다.
+> 다만 duration 타이머(`dbidding.sse.broadcast.saturated.caller-runs.duration`)는
+> discard executor에서는 더 이상 기록되지 않는다(task를 아예 실행하지 않으므로).
+>
+> 또한 `auctionSseBroadcastTaskExecutor`/`walletSseTaskExecutor`는 `local-sse`
+> 프로필에서 caller가 API/커밋 스레드로 바뀌는 동일한 리스크가 있다(#544
+> 이슈 코멘트 참고) — `auctionSseBroadcastTaskExecutor`는 아직 CallerRuns를
+> 유지 중이며, 필요성이 확인되면 별도로 재검토한다.
+
 - [ ] **Step 1: 실패하는 테스트 작성** — 풀+큐를 가득 채운 뒤 태스크를
       추가로 제출하면 포화 카운터와 CallerRuns Timer가 증가하고, 호출
       스레드에서 실행되는지 검증
