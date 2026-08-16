@@ -218,6 +218,24 @@ class AuctionBidStreamConsumerTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void pending_claim_결과가_빈목록이면_새_record를_반환하지_않는다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
+        PendingMessages pending = mock(PendingMessages.class);
+        PendingMessage message = mock(PendingMessage.class);
+        RecordId id = RecordId.of("empty-claim");
+        when(redisTemplate.opsForStream()).thenReturn(streamOperations);
+        when(streamOperations.pending(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(1L))).thenReturn(pending);
+        when(pending.iterator()).thenReturn(java.util.List.of(message).iterator());
+        when(message.getConsumerName()).thenReturn("auction-timeline-single");
+        when(message.getId()).thenReturn(id);
+        when(streamOperations.claim(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(Duration.ZERO), org.mockito.ArgumentMatchers.eq(id))).thenReturn(java.util.Collections.emptyList());
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer(redisTemplate, mock(AuctionBidStreamPersistenceService.class)), "claimPending")).isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void 다른_consumer의_idle_초과_pending은_claim한다() throws Exception {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
