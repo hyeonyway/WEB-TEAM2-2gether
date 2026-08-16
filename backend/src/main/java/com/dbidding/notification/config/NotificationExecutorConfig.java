@@ -1,6 +1,7 @@
 package com.dbidding.notification.config;
 
 import com.dbidding.sse.config.CountingCallerRunsPolicy;
+import com.dbidding.sse.config.CountingDiscardPolicy;
 import com.dbidding.sse.config.VirtualThreadSseTaskExecutor;
 import com.dbidding.sse.metrics.SseMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -44,8 +45,11 @@ public class NotificationExecutorConfig {
     private int fanOutVirtualMaxConcurrency;
 
     /**
-     * origin(저장+발행, {@code NotificationEventListener}) 전용 — DB 커넥션(HikariCP)을 쓰는
-     * 작업이라 동시 실행 상한이 방화벽 역할을 한다.
+     * origin(저장+발행, {@code NotificationEventListener}) 전용 — {@code @TransactionalEventListener(AFTER_COMMIT)}라
+     * 커밋한 스레드(입찰/주문 등 API 요청 스레드일 수 있음)가 caller다. CallerRunsPolicy를 쓰면 포화 시
+     * 그 요청 스레드가 알림 저장(DB write)+발행을 직접 떠안아 API 지연과 HikariCP 풀 압박이 겹친다.
+     * 알림은 별도 복구 로직으로 유실 없이 목록에 남으므로(SSE 실시간 push만 재시도 안 됨),
+     * discard로 API 스레드를 보호한다.
      */
     @Bean(name = "notificationTaskExecutor")
     public ThreadPoolTaskExecutor notificationTaskExecutor() {
@@ -54,7 +58,7 @@ public class NotificationExecutorConfig {
         executor.setMaxPoolSize(maxPoolSize);
         executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("notification-");
-        executor.setRejectedExecutionHandler(new CountingCallerRunsPolicy(meterRegistry, "notification"));
+        executor.setRejectedExecutionHandler(new CountingDiscardPolicy(meterRegistry, "notification"));
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(10);
         executor.initialize();

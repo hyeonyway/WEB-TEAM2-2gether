@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -36,6 +37,11 @@ public class NonUrgentNotificationRecoveryScheduler {
     @Scheduled(
             fixedDelayString = "${notification.recovery.non-urgent.fixed-delay-ms:300000}",
             scheduler = "notificationRecoveryTaskScheduler"
+    )
+    @SchedulerLock(
+            name = "notification-recovery-non-urgent",
+            lockAtLeastFor = "PT10S",
+            lockAtMostFor = "PT10M"
     )
     public void recover() {
         Instant now = clock.instant();

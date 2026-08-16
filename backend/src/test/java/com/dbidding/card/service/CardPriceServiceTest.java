@@ -2,6 +2,7 @@ package com.dbidding.card.service;
 
 import com.dbidding.auction.adapter.CardAuctionAdapter;
 import com.dbidding.auction.service.AuctionInsightQueryService;
+import com.dbidding.account.domain.Account;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.domain.CardSort;
@@ -12,6 +13,8 @@ import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.statistic.repository.ItemStatisticRepository;
 import com.dbidding.statistic.repository.ItemDailyStatisticRepository;
 import com.dbidding.statistic.service.StatisticQueryService;
+import com.dbidding.wishlist.Wishlist;
+import com.dbidding.wishlist.WishlistRepository;
 import com.dbidding.wishlist.WishlistService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -52,6 +55,7 @@ class CardPriceServiceTest {
     @Autowired CardMetadataRepository cardRepository;
     @Autowired ItemStatisticRepository statisticRepository;
     @Autowired ItemDailyStatisticRepository dailyStatisticRepository;
+    @Autowired WishlistRepository wishlistRepository;
     @Autowired EntityManager entityManager;
 
     @Test
@@ -193,7 +197,7 @@ class CardPriceServiceTest {
     }
 
     @Test
-    void 가격순과_찜순으로_카드_목록을_정렬한다() {
+    void 가격순과_실제_찜_수로_카드_목록을_정렬한다() {
         CardSet set = new CardSet("정렬 테스트", "SORT");
         entityManager.persist(set);
         CardMetadata expensive = cardRepository.save(new CardMetadata(
@@ -201,11 +205,15 @@ class CardPriceServiceTest {
         CardMetadata popular = cardRepository.save(new CardMetadata(
                 set, "인기 카드", "JP", "10", "gold", null));
         statisticRepository.save(new ItemStatistic(expensive.getId(), LocalDate.now().minusDays(1),
-                500_000L, 500_000L, 480_000L, 520_000L, 1, 1, 1,
+                500_000L, 500_000L, 480_000L, 520_000L, 1, 1, 100,
                 null, null, null));
         statisticRepository.save(new ItemStatistic(popular.getId(), LocalDate.now().minusDays(1),
-                100_000L, 100_000L, 90_000L, 110_000L, 1, 1, 100,
+                100_000L, 100_000L, 90_000L, 110_000L, 1, 1, 0,
                 null, null, null));
+        Account user = Account.create("wishlist-sort@test.com", "wishlist-sort", "password", "salt");
+        entityManager.persist(user);
+        entityManager.flush();
+        wishlistRepository.save(Wishlist.of(user.getId(), popular.getId()));
         entityManager.flush();
         entityManager.clear();
 

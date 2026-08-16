@@ -1,6 +1,6 @@
 package com.dbidding.wallet.sse;
 
-import com.dbidding.sse.config.CountingCallerRunsPolicy;
+import com.dbidding.sse.config.CountingDiscardPolicy;
 import com.dbidding.sse.metrics.SseMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
@@ -28,6 +28,15 @@ public class WalletSseExecutorConfig {
         this.meterRegistry = meterRegistry;
     }
 
+    /**
+     * caller는 기본(Redis) 프로필에서는 {@code WalletSseRedisSubscriber}(SSE 전용 백그라운드
+     * 스레드)지만, {@code local-sse} 프로필에서는 {@code WalletSseEventListener}가 비동기가
+     * 아니라 커밋한 스레드(입찰/주문 API 요청 스레드일 수 있음)에서 바로
+     * {@code LocalWalletSsePublisher}를 호출해 이 executor까지 이어진다. 이 executor는
+     * 순수 SSE send만 하고 다른 부작용(DB write 등)이 없어, 포화 시 discard해도 잔고
+     * 값 자체는 유실되지 않는다(재연결/재조회 시 최신 값을 다시 받는다) — API 스레드
+     * 보호를 우선한다.
+     */
     @Bean(name = "walletSseTaskExecutor")
     public TaskExecutor walletSseTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -35,7 +44,7 @@ public class WalletSseExecutorConfig {
         executor.setMaxPoolSize(maxPoolSize);
         executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("wallet-sse-");
-        executor.setRejectedExecutionHandler(new CountingCallerRunsPolicy(meterRegistry, "wallet"));
+        executor.setRejectedExecutionHandler(new CountingDiscardPolicy(meterRegistry, "wallet"));
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(10);
         executor.initialize();

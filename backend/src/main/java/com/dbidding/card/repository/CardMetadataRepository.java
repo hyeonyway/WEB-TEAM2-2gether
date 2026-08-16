@@ -21,6 +21,11 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Inte
                     from card_metadata c
                     left join item_statistics s
                       on s.item_id = c.id
+                    left join (
+                        select item_id, count(*) as wishlist_count
+                        from wishlists
+                        group by item_id
+                    ) w on w.item_id = c.id
                     where (:keyword = '' or lower(c.name) like lower(concat('%', :keyword, '%')))
                       and (:psaGrade is null or
                            replace(upper(trim(c.psa_grade)), 'PSA ', '') =
@@ -30,7 +35,7 @@ public interface CardMetadataRepository extends JpaRepository<CardMetadata, Inte
                            then coalesce(s.latest_price, s.average_price_30d, 0)
                       end desc,
                       case when :sort = 'FAVORITE'
-                           then coalesce(s.wishlist_count, 0)
+                           then coalesce(w.wishlist_count, 0)
                       end desc,
                       case when :sort = 'REGISTERED'
                            then c.id
