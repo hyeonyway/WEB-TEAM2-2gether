@@ -501,7 +501,7 @@ flowchart LR
 
 <br/>
 
-[📷 SSE 개선 전후 구조 비교 이미지]
+![Broadcast Executor 도입 전후 (k6 500VU)](asset/performance/sse-executor-before-after.png)
 
 ---
 
@@ -548,7 +548,10 @@ Redis Stream
 
 <br/>
 
-[📷 Hot Auction p95 / Hikari Active Before-After 그래프]
+| Before (8차, DB Lock) | After (9차, Redis Lua) |
+|---|---|
+| ![8차 Hot Auction p95](asset/performance/r8-hotauc-p95.png) | ![9차 Hot Auction p95](asset/performance/r9-hotauc-p95-zoom.png) |
+| ![8차 Hikari Active](asset/performance/r8-hotauc-hikari.png) | ![9차 Hikari Active](asset/performance/r9-hotauc-hikari-zoom.png) |
 
 ---
 
@@ -567,8 +570,9 @@ Redis Stream
 
 <br/>
 
-[📷 Redis 왕복 횟수 / 목록 조회 p95 Before-After 그래프]
-
+| Before (#529 수정 전) | After (#529 수정 후, 9차) |
+|---|---|
+| ![수정 전 목록 조회 p95](asset/performance/pre529-list-p95.png) | ![수정 후 엔드포인트별 p95](asset/performance/endpoint-p95.png) |
 
 ---
 
@@ -594,10 +598,6 @@ Redis Seed → 각 요청에 결과 반환
 
 > 이 항목은 부하 테스트로 단독 격리한 before/after 수치는 없고, 설계·구현 검증으로 확인했습니다.
 
-<br/>
-
-[📷 Cold Miss 수에 따른 Query 수 Before-After 그래프 (있는 경우)]
-
 ---
 
 ## JVM Memory / Swap / GC — RAM 증설과 Virtual Thread 실험
@@ -614,13 +614,16 @@ RAM 증설 이후에도 Hot Auction 지연은 그대로 남아 있었습니다 �
 
 <br/>
 
-[📷 Platform Thread vs Virtual Thread, RAM 증설 전후 부하 테스트 그래프]
+| 5차 (VT 미적용, 903MB) | 7차 (VT 적용, 903MB) | 8차 (VT 적용, 1.8GiB) |
+|---|---|---|
+| ![5차 GC](asset/performance/r5-gc.png) | ![7차 GC](asset/performance/r7-gc.png) | ![8차 GC](asset/performance/r8-gc.png) |
+| ![5차 Swap](asset/performance/r5-swap.png) | ![7차 Swap](asset/performance/r7-swap.png) | ![8차 Swap](asset/performance/r8-swap.png) |
 
 ---
 
 ## 9차 최종 결과 요약
 
-#529(목록 중복 조회 제거) 머지 직후 8차와 동일한 6개 시나리오 표준 세트로 재측정했습니다.
+#529(목록 중복 조회 제거) 머지 직후 8차와 동일한 6개 시나리오 표준 세트로 재측정했습니다. 8차(`local-sse,sse-virtual-threads`)와 9차(`redis,sse-virtual-threads`) 모두 가상스레드는 켜져 있고, SSE 처리 방식(JVM 로컬 vs Redis Pub/Sub)만 달라서 완전한 A/B는 아닙니다.
 
 | 구분 | Before | After (9차) |
 |---|---|---|
@@ -632,10 +635,19 @@ RAM 증설 이후에도 Hot Auction 지연은 그대로 남아 있었습니다 �
 
 <br/>
 
-[📷 최종 성능 개선 Summary 그래프 — p95 / Hikari / SSE 성공률 / Full GC 등 2~4개 요약]
+<table>
+<tr>
+<td><img src="asset/performance/hot-auction-p95.png" alt="9차 Hot Auction p95"/></td>
+<td><img src="asset/performance/hikari-pool.png" alt="9차 Hikari Pool"/></td>
+</tr>
+<tr>
+<td><img src="asset/performance/gc-pressure.png" alt="9차 GC Pressure"/></td>
+<td><img src="asset/performance/redis-throughput.png" alt="9차 Redis Command Throughput"/></td>
+</tr>
+</table>
 
 > 상세 부하 테스트 결과는
-> [Performance Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/Performance-부하-테스트-전략)에서 확인할 수 있습니다.
+> [Performance Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/6.1-부하-테스트-전략)에서 확인할 수 있습니다.
 
 <br/>
 
@@ -653,8 +665,8 @@ README에서는 서비스와 핵심 기술만 요약하고,
 | ⚡ 실시간 경매 시스템 | [입찰 동시성 / Redis Lua 원자적 입찰 / Wallet Hold / Projection](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/실시간-경매-시스템-경매-및-입찰-정책) |
 | 📡 실시간 통신 | [SSE 도입 이유 / Executor 구조 / Virtual Thread](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/실시간-통신-SSE-도입-이유) |
 | 🧠 Redis Architecture | [실시간 상태 원장 / Key 설계 / Cold Seed / Catch-up 검증](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/Redis-Architecture-실시간-상태-원장) |
-| 🚀 Performance | [1~9차 부하 테스트 및 성능 개선](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/Performance-부하-테스트-전략) |
-| 🔐 Authentication | [Redis Session / CSRF / 세션 절대 수명 / 단일 로그인](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/Authentication-Security-인증-구조-변화) |
+| 🚀 Performance | [1~9차 부하 테스트 및 성능 개선](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/6.1-부하-테스트-전략) |
+| 🔐 Authentication | [Redis Session / CSRF / 세션 절대 수명 / 단일 로그인](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/7.1-인증-구조-변화) |
 | 💾 Database & Data | [MySQL Schema / 도메인 모델 / Redis ↔ MySQL 정합성](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/Database-Data-MySQL-Schema) |
 | ☁️ Infrastructure | [AWS 구성 / CI-CD / Monitoring](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/10.1-AWS-Infrastructure) |
 | 🔥 Trouble Shooting | [MySQL filesort / HikariCP 고갈 / Projection 정지 등 11건](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/Trouble-Shooting-MySQL-filesort-병목) |
