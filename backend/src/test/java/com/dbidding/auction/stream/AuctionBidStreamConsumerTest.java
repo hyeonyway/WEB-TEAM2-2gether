@@ -178,6 +178,29 @@ class AuctionBidStreamConsumerTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void 다른_consumer의_idle_초과_pending은_claim한다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
+        PendingMessages pending = mock(PendingMessages.class);
+        PendingMessage message = mock(PendingMessage.class);
+        MapRecord<String, Object, Object> record = mock(MapRecord.class);
+        RecordId id = RecordId.of("3-0");
+        when(redisTemplate.opsForStream()).thenReturn(streamOperations);
+        when(streamOperations.pending(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(1L))).thenReturn(pending);
+        when(pending.iterator()).thenReturn(java.util.List.of(message).iterator());
+        when(message.getConsumerName()).thenReturn("other-consumer");
+        when(message.getElapsedTimeSinceLastDelivery()).thenReturn(Duration.ofSeconds(2));
+        when(message.getId()).thenReturn(id);
+        when(streamOperations.claim(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(Duration.ofSeconds(1)), org.mockito.ArgumentMatchers.eq(id)))
+                .thenReturn(java.util.List.of(record));
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer(redisTemplate, mock(AuctionBidStreamPersistenceService.class)), "claimPending")).isSameAs(record);
+    }
+
+    @Test
     void pending_inbox의_유효한_payload는_projection_후_처리완료로_표시한다() throws Exception {
         AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
         AuctionTimelineEventRepository inbox = mock(AuctionTimelineEventRepository.class);
