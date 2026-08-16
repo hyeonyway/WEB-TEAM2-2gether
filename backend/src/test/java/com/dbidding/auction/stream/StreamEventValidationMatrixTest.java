@@ -22,6 +22,12 @@ class StreamEventValidationMatrixTest {
         assertThatThrownBy(() -> WalletStateChangedStreamEvent.from("1-0", Map.of(
                 "schemaVersion", "1", "eventType", "wallet.charged.v1")))
                 .isInstanceOf(InvalidBidStreamEventException.class);
+        assertThatThrownBy(() -> WalletStateChangedStreamEvent.from("1-0", Map.of(
+                "schemaVersion", "2", "eventType", "wallet.charged.v1", "eventId", "not-a-uuid")))
+                .isInstanceOf(InvalidBidStreamEventException.class);
+        assertThatThrownBy(() -> WalletStateChangedStreamEvent.from("1-0", Map.of(
+                "schemaVersion", "2", "eventType", "wallet.charged.v1", "eventId", UUID.randomUUID().toString())))
+                .isInstanceOf(InvalidBidStreamEventException.class);
         assertThatThrownBy(() -> WalletStateChangedStreamEvent.from("1-0", Map.ofEntries(
                 Map.entry("schemaVersion", "2"), Map.entry("eventType", "wallet.charged.v1"),
                 Map.entry("eventId", UUID.randomUUID().toString()), Map.entry("userId", "1"),
