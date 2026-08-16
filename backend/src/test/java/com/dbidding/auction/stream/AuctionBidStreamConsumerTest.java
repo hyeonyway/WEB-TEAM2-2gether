@@ -270,6 +270,31 @@ class AuctionBidStreamConsumerTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void group_생성시_BUSYGROUP_오류는_무시하고_다른_오류는_전파한다() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.RedisCallback.class)))
+                .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("BUSYGROUP exists"));
+        consumer(redisTemplate, mock(AuctionBidStreamPersistenceService.class)).createGroup();
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.RedisCallback.class)))
+                .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("redis down"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> consumer(redisTemplate, mock(AuctionBidStreamPersistenceService.class)).createGroup())
+                .isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
+    }
+
+    @Test
+    void stream_payload_직렬화_실패는_IllegalStateException으로_변환한다() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = mock(com.fasterxml.jackson.databind.ObjectMapper.class);
+        when(mapper.writeValueAsString(org.mockito.ArgumentMatchers.anyMap()))
+                .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("broken") { });
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), mock(AuctionBidStreamPersistenceService.class),
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),
+                mock(AuctionBidStreamConsumerLeaderLock.class), mock(AuctionTimelineEventRepository.class), mapper);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> invoke(consumer, "serialize", Map.of("x", "y")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void worker는_pending이_없고_새_stream도_비어있으면_즉시_유휴상태로_돌아간다() throws Exception {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
