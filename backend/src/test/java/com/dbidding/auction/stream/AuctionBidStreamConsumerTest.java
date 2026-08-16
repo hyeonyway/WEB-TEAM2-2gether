@@ -216,6 +216,35 @@ class AuctionBidStreamConsumerTest {
         verify(persistence).markError(org.mockito.ArgumentMatchers.eq("inbox-bad"), org.mockito.ArgumentMatchers.any(IllegalStateException.class));
     }
 
+    @Test
+    void lifecycle은_시작_상태와_종료_상태를_정상적으로_전환한다() {
+        AuctionBidStreamConsumerLeaderLock lock = mock(AuctionBidStreamConsumerLeaderLock.class);
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), mock(AuctionBidStreamPersistenceService.class),
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),
+                lock, mock(AuctionTimelineEventRepository.class), new ObjectMapper());
+
+        consumer.start();
+        org.assertj.core.api.Assertions.assertThat(consumer.isRunning()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(consumer.isAutoStartup()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(consumer.getPhase()).isEqualTo(Integer.MAX_VALUE - 100);
+        consumer.stop();
+
+        org.assertj.core.api.Assertions.assertThat(consumer.isRunning()).isFalse();
+        verify(lock).releaseAfterRun();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void group_생성은_Redis_callback을_실행한다() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.RedisCallback.class))).thenReturn(null);
+        AuctionBidStreamConsumer consumer = consumer(redisTemplate, mock(AuctionBidStreamPersistenceService.class));
+
+        consumer.createGroup();
+
+        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.RedisCallback.class));
+    }
+
     private AuctionBidStreamConsumer consumer(StringRedisTemplate redisTemplate, AuctionBidStreamPersistenceService persistence) {
         return new AuctionBidStreamConsumer(redisTemplate, persistence,
                 new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 2, Duration.ofSeconds(1), 10),

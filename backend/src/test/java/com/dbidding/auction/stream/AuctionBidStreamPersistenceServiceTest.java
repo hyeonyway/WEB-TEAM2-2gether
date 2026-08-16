@@ -263,6 +263,41 @@ class AuctionBidStreamPersistenceServiceTest {
         verify(auction).applyEndingTransition(event.closeTime());
     }
 
+    @Test
+    void 이미_projection된_경매_생성_이벤트는_중복_insert하지_않는다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        AuctionCreatedStreamEvent event = new AuctionCreatedStreamEvent("created-1", 10, 1, 3, "auction", "description",
+                null, null, null, false, 10_000L, null, 3_000L, 1_000L, java.util.List.of("image"),
+                Instant.parse("2026-08-10T12:00:00Z"), "key", "a".repeat(64), Instant.parse("2026-08-10T11:00:00Z"));
+        given(accountRepository.existsById(1)).willReturn(true);
+        given(auctionRepository.existsById(10)).willReturn(true);
+
+        service.project(event);
+
+        verify(auctionRepository).existsById(10);
+        verify(auctionImageRepository, org.mockito.Mockito.never()).saveAll(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 주문_상태_이벤트는_주문과_지갑_및_Redis_상태를_함께_projection한다() {
+        RedisOrderRealtimeStateProjection realtime = org.mockito.Mockito.mock(RedisOrderRealtimeStateProjection.class);
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.of(realtime));
+        Order order = org.mockito.Mockito.mock(Order.class);
+        given(orderRepository.findByIdForUpdate(20)).willReturn(java.util.Optional.of(order));
+        given(order.getAuctionId()).willReturn(10);
+        given(order.getBuyerId()).willReturn(2);
+        given(order.getSellerId()).willReturn(1);
+        OrderStateChangedStreamEvent event = new OrderStateChangedStreamEvent("order-1", UUID.randomUUID(), "order.completed.v1",
+                20, 10, 2L, 2, 2, 1, com.dbidding.order.OrderStatus.COMPLETED, 1, 3L, 50_000L, 0L,
+                PointTransactionType.ORDER_SETTLEMENT, 10_000L, "order-key", Instant.parse("2026-08-10T12:00:00Z"));
+
+        service.project(event);
+
+        verify(order).applyProjectedStatus(com.dbidding.order.OrderStatus.COMPLETED);
+        verify(walletProjectionService).project(org.mockito.ArgumentMatchers.any(WalletStateChangedStreamEvent.class));
+        verify(realtime).markProjectedStatusAfterCommit(10, 20, "COMPLETED");
+    }
+
     private AuctionBidStreamPersistenceService service(java.util.Optional<RedisOrderRealtimeStateProjection> realtimeProjection) {
         return new AuctionBidStreamPersistenceService(inboxRepository, auctionRepository, auctionImageRepository, bidRepository,
                 walletService, accountRepository, walletProjectionService, orderService, orderRepository, realtimeProjection,
