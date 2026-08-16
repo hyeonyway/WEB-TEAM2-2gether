@@ -245,6 +245,41 @@ class AuctionBidStreamConsumerTest {
         verify(redisTemplate).execute(org.mockito.ArgumentMatchers.any(org.springframework.data.redis.core.RedisCallback.class));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void worker는_pending이_없고_새_stream도_비어있으면_즉시_유휴상태로_돌아간다() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
+        AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
+        AuctionBidStreamConsumerLeaderLock lock = mock(AuctionBidStreamConsumerLeaderLock.class);
+        when(redisTemplate.opsForStream()).thenReturn(streamOperations);
+        PendingMessages pending = mock(PendingMessages.class);
+        when(streamOperations.pending(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(1L))).thenReturn(pending);
+        when(pending.iterator()).thenReturn(java.util.Collections.emptyIterator());
+        when(persistence.hasProjectionError()).thenReturn(false);
+        when(lock.isLeader()).thenReturn(true);
+        AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(redisTemplate, persistence,
+                new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),
+                lock, mock(AuctionTimelineEventRepository.class), new ObjectMapper());
+        setField(consumer, "running", true);
+
+        invoke(consumer, "consumeUntilIdle");
+
+        verify(streamOperations).read(org.mockito.ArgumentMatchers.any(org.springframework.data.redis.connection.stream.Consumer.class),
+                org.mockito.ArgumentMatchers.any(org.springframework.data.redis.connection.stream.StreamReadOptions.class),
+                org.mockito.ArgumentMatchers.<org.springframework.data.redis.connection.stream.StreamOffset<String>[]>any());
+    }
+
+    @Test
+    void existing_Redis_group_오류만_무시한다() throws Exception {
+        AuctionBidStreamConsumer consumer = consumer(mock(StringRedisTemplate.class), mock(AuctionBidStreamPersistenceService.class));
+
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "isExistingGroup",
+                new org.springframework.dao.DataIntegrityViolationException("BUSYGROUP Consumer Group name already exists"))).isEqualTo(true);
+        org.assertj.core.api.Assertions.assertThat(invoke(consumer, "isExistingGroup", new IllegalStateException("other"))).isEqualTo(false);
+    }
+
     private AuctionBidStreamConsumer consumer(StringRedisTemplate redisTemplate, AuctionBidStreamPersistenceService persistence) {
         return new AuctionBidStreamConsumer(redisTemplate, persistence,
                 new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 2, Duration.ofSeconds(1), 10),
@@ -268,6 +303,12 @@ class AuctionBidStreamConsumerTest {
         }
     }
 
+    private Object invoke(Object target, String name, Throwable argument) throws Exception {
+        java.lang.reflect.Method method = target.getClass().getDeclaredMethod(name, Throwable.class);
+        method.setAccessible(true);
+        return method.invoke(target, argument);
+    }
+
     private Object invoke(Object target, String name) throws Exception {
         java.lang.reflect.Method method = target.getClass().getDeclaredMethod(name);
         method.setAccessible(true);
@@ -276,5 +317,11 @@ class AuctionBidStreamConsumerTest {
         } catch (java.lang.reflect.InvocationTargetException exception) {
             throw (Exception) exception.getCause();
         }
+    }
+
+    private void setField(Object target, String name, Object value) throws Exception {
+        java.lang.reflect.Field field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 }
