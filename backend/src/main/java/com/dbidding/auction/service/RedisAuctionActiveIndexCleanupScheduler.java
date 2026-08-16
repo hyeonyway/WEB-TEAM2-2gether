@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -35,6 +36,11 @@ class RedisAuctionActiveIndexCleanupScheduler {
     @Value("${auction.active-index.cleanup.batch-size:100}") private int batchSize;
 
     @Scheduled(fixedDelayString = "${auction.active-index.cleanup.fixed-delay-ms:3600000}")
+    @SchedulerLock(
+            name = "auction-active-index-cleanup",
+            lockAtLeastFor = "PT10S",
+            lockAtMostFor = "PT10M"
+    )
     void removeTerminalEntries() {
         Instant threshold = clock.instant().minus(staleAfter);
         Long removed = redisTemplate.execute(auctionActiveIndexGcScript, ACTIVE_INDEX_KEYS,
