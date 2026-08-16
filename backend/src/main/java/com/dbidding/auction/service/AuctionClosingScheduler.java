@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -36,6 +37,11 @@ public class AuctionClosingScheduler {
     @Scheduled(
             fixedDelayString = "${auction.closing.scheduler.fixed-delay-ms:60000}",
             scheduler = "auctionBackupTaskScheduler"
+    )
+    @SchedulerLock(
+            name = "auction-closing-backup-scheduler",
+            lockAtLeastFor = "PT10S",
+            lockAtMostFor = "PT5M"
     )
     public void closeDueAuctions() {
         Instant now = clock.instant();
