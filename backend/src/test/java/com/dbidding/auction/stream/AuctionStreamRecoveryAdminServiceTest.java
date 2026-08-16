@@ -108,6 +108,31 @@ class AuctionStreamRecoveryAdminServiceTest {
         assertThat(result.pendingCount()).isEqualTo(4L);
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void 관리자는_처리_완료된_이벤트를_최신순으로_조회한다() {
+        AccountRepository accounts = mock(AccountRepository.class);
+        AuctionTimelineEventRepository inbox = mock(AuctionTimelineEventRepository.class);
+        admin(accounts, 1);
+        AuctionTimelineEvent event = mock(AuctionTimelineEvent.class);
+        when(event.getStreamId()).thenReturn("done-1");
+        when(event.getProjectionStatus()).thenReturn(AuctionBidEventProjectionStatus.PROCESSED);
+        org.springframework.data.domain.Page<AuctionTimelineEvent> page = mock(org.springframework.data.domain.Page.class);
+        when(page.getContent()).thenReturn(java.util.List.of(event));
+        when(page.getNumber()).thenReturn(2);
+        when(page.getTotalPages()).thenReturn(3);
+        when(page.getTotalElements()).thenReturn(21L);
+        when(inbox.findByProjectionStatusOrderByProcessedAtDesc(org.mockito.ArgumentMatchers.eq(AuctionBidEventProjectionStatus.PROCESSED),
+                org.mockito.ArgumentMatchers.any())).thenReturn(page);
+
+        AuctionStreamRecoveryEventPage result = new AuctionStreamRecoveryAdminService(accounts, inbox,
+                mock(AuctionBidStreamPersistenceService.class)).processedEvents(1, 2);
+
+        assertThat(result.page()).isEqualTo(2);
+        assertThat(result.totalElements()).isEqualTo(21L);
+        assertThat(result.content()).extracting(AuctionStreamRecoveryEventResponse::streamId).containsExactly("done-1");
+    }
+
     private void admin(AccountRepository accounts, int userId) {
         com.dbidding.account.domain.Account account = mock(com.dbidding.account.domain.Account.class);
         when(account.getRole()).thenReturn(com.dbidding.account.domain.AccountRole.ADMIN);
