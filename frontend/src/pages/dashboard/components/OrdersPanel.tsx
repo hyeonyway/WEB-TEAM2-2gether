@@ -36,7 +36,8 @@ const toFailedRow=(auction:FailedAuctionDto):SaleRow=>({
 export default function OrdersPanel(){
   const[role,setRole]=useState<OrderRole>('buyer');
   const[statusFilter,setStatusFilter]=useState<StatusFilter>('ALL');
-  const[cancelTarget,setCancelTarget]=useState<SaleRow|null>(null);
+  // role을 함께 담아서, 모달이 열려 있는 동안 역할 탭을 바꿔도 취소 시점의 역할(=올바른 mutation)이 유지되게 한다.
+  const[cancelTarget,setCancelTarget]=useState<{order:SaleRow;role:OrderRole}|null>(null);
   const queryClient=useQueryClient();
   const orders=useQuery(role==='buyer'?orderQueries.purchases():orderQueries.sales());
   const failedAuctions=useQuery({...auctionQueries.failedForSeller(),enabled:role==='seller'});
@@ -45,14 +46,20 @@ export default function OrdersPanel(){
   const invalidateOrders=()=>{
     void queryClient.invalidateQueries({queryKey:orderQueryKey});
     void queryClient.invalidateQueries({queryKey:walletQueryKeys.balance()});
+    void queryClient.invalidateQueries({queryKey:['auth','me','warnings']});
   };
   const confirmMutation=useMutation({mutationFn:confirmOrder,onSuccess:invalidateOrders});
   const cancelMutation=useMutation({mutationFn:cancelOrder,onSuccess:()=>{setCancelTarget(null);invalidateOrders();}});
   const sellerCancelMutation=useMutation({mutationFn:sellerCancelOrder,onSuccess:()=>{setCancelTarget(null);invalidateOrders();}});
-  const cancelTargetMutation=role==='buyer'?cancelMutation:sellerCancelMutation;
+  const cancelTargetMutation=cancelTarget?.role==='seller'?sellerCancelMutation:cancelMutation;
+  const closeCancelModal=()=>{
+    cancelMutation.reset();
+    sellerCancelMutation.reset();
+    setCancelTarget(null);
+  };
   const actionError=confirmMutation.isError?'구매확정에 실패했습니다. 다시 시도해 주세요.'
-    :cancelMutation.isError&&!cancelTarget?'구매취소에 실패했습니다. 다시 시도해 주세요.'
-    :sellerCancelMutation.isError&&!cancelTarget?'판매취소에 실패했습니다. 다시 시도해 주세요.'
+    :cancelMutation.isError?'구매취소에 실패했습니다. 다시 시도해 주세요.'
+    :sellerCancelMutation.isError?'판매취소에 실패했습니다. 다시 시도해 주세요.'
     :null;
   const statusFilters=role==='seller'?[...baseStatusFilters,{id:'FAILED',label:'유찰'} as const]:baseStatusFilters;
   const activeQuery=statusFilter==='FAILED'?failedAuctions:orders;
@@ -100,19 +107,19 @@ export default function OrdersPanel(){
                   </div>
                   {role==='buyer'&&order.status==='PENDING_CONFIRM'&&order.id!==null&&<div className="order-actions">
                     <button type="button" className="order-confirm-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>confirmMutation.mutate(order.id)}>구매확정</button>
-                    <button type="button" className="order-cancel-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>setCancelTarget(order)}>구매취소</button>
+                    <button type="button" className="order-cancel-button" disabled={confirmMutation.isPending||cancelMutation.isPending} onClick={()=>setCancelTarget({order,role:'buyer'})}>구매취소</button>
                   </div>}
                   {role==='seller'&&order.status==='PENDING_CONFIRM'&&order.id!==null&&<div className="order-actions single">
-                    <button type="button" className="order-cancel-button" disabled={sellerCancelMutation.isPending} onClick={()=>setCancelTarget(order)}>판매취소</button>
+                    <button type="button" className="order-cancel-button" disabled={sellerCancelMutation.isPending} onClick={()=>setCancelTarget({order,role:'seller'})}>판매취소</button>
                   </div>}
                 </li>)}
               </ul>}
     </section>
-    {cancelTarget&&<div className="order-cancel-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&!cancelTargetMutation.isPending&&setCancelTarget(null)}>
-      <section className="order-cancel-modal" role="dialog" aria-modal="true" aria-label={role==='buyer'?'구매 취소 확인':'판매 취소 확인'}>
+    {cancelTarget&&<div className="order-cancel-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&!cancelTargetMutation.isPending&&closeCancelModal()}>
+      <section className="order-cancel-modal" role="dialog" aria-modal="true" aria-label={cancelTarget.role==='buyer'?'구매 취소 확인':'판매 취소 확인'}>
         <small>ORDER CANCELLATION</small>
-        <h2>{role==='buyer'?'정말 구매를 취소할까요?':'정말 판매를 취소할까요?'}</h2>
-        <p><b>{cancelTarget.cardName}</b> 거래를 취소합니다.</p>
+        <h2>{cancelTarget.role==='buyer'?'정말 구매를 취소할까요?':'정말 판매를 취소할까요?'}</h2>
+        <p><b>{cancelTarget.order.cardName}</b> 거래를 취소합니다.</p>
         {warningSummary.isPending
           ? <p>경고 현황을 확인하는 중입니다.</p>
           : warningSummary.data&&<p className={warningSummary.data.active_warning_count+1>=warningSummary.data.suspension_threshold?'order-cancel-modal-warning':'order-cancel-modal-notice'}>
@@ -121,8 +128,8 @@ export default function OrdersPanel(){
             </p>}
         {cancelTargetMutation.isError&&<p className="order-cancel-modal-error">취소에 실패했습니다. 다시 시도해 주세요.</p>}
         <div className="order-cancel-modal-actions">
-          <button type="button" disabled={cancelTargetMutation.isPending} onClick={()=>setCancelTarget(null)}>돌아가기</button>
-          <button type="button" disabled={cancelTargetMutation.isPending} onClick={()=>cancelTarget.id!==null&&cancelTargetMutation.mutate(cancelTarget.id)}>{role==='buyer'?'구매취소 확정':'판매취소 확정'}</button>
+          <button type="button" disabled={cancelTargetMutation.isPending} onClick={closeCancelModal}>돌아가기</button>
+          <button type="button" disabled={cancelTargetMutation.isPending} onClick={()=>cancelTarget.order.id!==null&&cancelTargetMutation.mutate(cancelTarget.order.id)}>{cancelTarget.role==='buyer'?'구매취소 확정':'판매취소 확정'}</button>
         </div>
       </section>
     </div>}

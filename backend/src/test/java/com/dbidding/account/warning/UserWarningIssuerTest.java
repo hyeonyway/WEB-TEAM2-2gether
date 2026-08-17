@@ -70,13 +70,15 @@ class UserWarningIssuerTest {
 	}
 
 	@Test
-	void 주문_없는_관리자_수동_경고는_중복_검사_없이_발급된다() {
+	void 주문_없는_관리자_수동_경고는_최근_중복_발급이_없으면_발급된다() {
 		AccountRepository accounts = org.mockito.Mockito.mock(AccountRepository.class);
 		UserWarningRepository warnings = org.mockito.Mockito.mock(UserWarningRepository.class);
 		AccountSuspensionService suspensionService = org.mockito.Mockito.mock(AccountSuspensionService.class);
 		Account account = org.mockito.Mockito.mock(Account.class);
 		Instant now = Instant.parse("2026-08-15T00:00:00Z");
 		given(accounts.findByIdForUpdate(7)).willReturn(Optional.of(account));
+		given(warnings.existsByUserIdAndReasonAndIssuedAtAfter(7, UserWarningReason.ADMIN_MANUAL, now.minusSeconds(5)))
+			.willReturn(false);
 		given(warnings.countActiveByUserId(7, now)).willReturn(1L);
 
 		new UserWarningIssuer(accounts, warnings, suspensionService, Clock.fixed(now, ZoneOffset.UTC))
@@ -84,6 +86,24 @@ class UserWarningIssuerTest {
 
 		verify(warnings, never()).existsByOrderIdAndReason(org.mockito.Mockito.any(), org.mockito.Mockito.any());
 		verify(warnings).save(org.mockito.Mockito.any(UserWarning.class));
+		verify(suspensionService, never()).suspendAutomatically(7);
+	}
+
+	@Test
+	void 주문_없는_관리자_수동_경고는_짧은_시간_내_중복_요청이면_건너뛴다() {
+		AccountRepository accounts = org.mockito.Mockito.mock(AccountRepository.class);
+		UserWarningRepository warnings = org.mockito.Mockito.mock(UserWarningRepository.class);
+		AccountSuspensionService suspensionService = org.mockito.Mockito.mock(AccountSuspensionService.class);
+		Account account = org.mockito.Mockito.mock(Account.class);
+		Instant now = Instant.parse("2026-08-15T00:00:00Z");
+		given(accounts.findByIdForUpdate(7)).willReturn(Optional.of(account));
+		given(warnings.existsByUserIdAndReasonAndIssuedAtAfter(7, UserWarningReason.ADMIN_MANUAL, now.minusSeconds(5)))
+			.willReturn(true);
+
+		new UserWarningIssuer(accounts, warnings, suspensionService, Clock.fixed(now, ZoneOffset.UTC))
+			.issue(7, null, UserWarningReason.ADMIN_MANUAL);
+
+		verify(warnings, never()).save(org.mockito.Mockito.any());
 		verify(suspensionService, never()).suspendAutomatically(7);
 	}
 }

@@ -4,14 +4,16 @@ import com.dbidding.account.admin.dto.AdminAccountPageResponse;
 import com.dbidding.account.admin.dto.AdminAccountResponse;
 import com.dbidding.account.admin.dto.UserWarningResponse;
 import com.dbidding.account.domain.Account;
-import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.domain.AccountStatus;
 import com.dbidding.account.exception.AccountNotFoundException;
 import com.dbidding.account.repository.AccountRepository;
+import com.dbidding.account.warning.UserWarningIssuer;
 import com.dbidding.account.warning.UserWarningRepository;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,20 +25,27 @@ public class AccountAdminQueryService {
 
 	private final AccountRepository accountRepository;
 	private final UserWarningRepository userWarningRepository;
+	private final AccountAdminAuthorization authorization;
 	private final Supplier<Instant> nowSupplier;
 
 	@Autowired
-	public AccountAdminQueryService(AccountRepository accountRepository, UserWarningRepository userWarningRepository) {
-		this(accountRepository, userWarningRepository, Instant::now);
+	public AccountAdminQueryService(
+		AccountRepository accountRepository,
+		UserWarningRepository userWarningRepository,
+		AccountAdminAuthorization authorization
+	) {
+		this(accountRepository, userWarningRepository, authorization, Instant::now);
 	}
 
 	AccountAdminQueryService(
 		AccountRepository accountRepository,
 		UserWarningRepository userWarningRepository,
+		AccountAdminAuthorization authorization,
 		Supplier<Instant> nowSupplier
 	) {
 		this.accountRepository = accountRepository;
 		this.userWarningRepository = userWarningRepository;
+		this.authorization = authorization;
 		this.nowSupplier = nowSupplier;
 	}
 
@@ -44,23 +53,28 @@ public class AccountAdminQueryService {
 	public AdminAccountPageResponse findAccounts(
 		Integer actorId, int page, int size, String keyword, AccountStatus status, boolean onlyWarned
 	) {
-		requireAdmin(actorId);
+		authorization.requireAdmin(actorId);
 		String normalizedKeyword = normalizeKeyword(keyword);
 		Integer accountId = toAccountId(normalizedKeyword);
 		Instant now = nowSupplier.get();
 		Page<Account> accounts = accountRepository.searchForAdmin(
 			normalizedKeyword, accountId, status, onlyWarned, now, PageRequest.of(page, size)
 		);
+		List<Integer> accountIds = accounts.getContent().stream().map(Account::getId).toList();
+		Map<Integer, UserWarningRepository.ActiveWarningStats> statsByUserId = accountIds.isEmpty()
+			? Map.of()
+			: userWarningRepository.findActiveWarningStats(accountIds, now).stream()
+				.collect(Collectors.toMap(UserWarningRepository.ActiveWarningStats::getUserId, stats -> stats));
 		List<AdminAccountResponse> content = accounts.getContent().stream()
-			.map(account -> toResponse(account, now))
+			.map(account -> toResponse(account, statsByUserId.get(account.getId())))
 			.toList();
 		return new AdminAccountPageResponse(content, accounts.getNumber(), accounts.getSize(),
-			accounts.getTotalElements(), accounts.getTotalPages());
+			accounts.getTotalElements(), accounts.getTotalPages(), UserWarningIssuer.SUSPENSION_WARNING_COUNT);
 	}
 
 	@Transactional(readOnly = true)
 	public List<UserWarningResponse> findWarnings(Integer actorId, Integer targetId) {
-		requireAdmin(actorId);
+		authorization.requireAdmin(actorId);
 		if (!accountRepository.existsById(targetId)) {
 			throw new AccountNotFoundException();
 		}
@@ -69,23 +83,11 @@ public class AccountAdminQueryService {
 			.toList();
 	}
 
-	private AdminAccountResponse toResponse(Account account, Instant now) {
-		long activeWarningCount = userWarningRepository.countActiveByUserId(account.getId(), now);
-		Instant latestActiveWarningExpiresAt = userWarningRepository
-			.findFirstByUserIdAndExpiresAtAfterOrderByExpiresAtDesc(account.getId(), now)
-			.map(warning -> warning.getExpiresAt())
-			.orElse(null);
+	private AdminAccountResponse toResponse(Account account, UserWarningRepository.ActiveWarningStats stats) {
+		long activeWarningCount = stats == null ? 0 : stats.getActiveCount();
+		Instant latestActiveWarningExpiresAt = stats == null ? null : stats.getLatestExpiresAt();
 		return new AdminAccountResponse(account.getId(), account.getEmail(), account.getNickname(), account.getRole(),
 			account.getStatus(), account.getCreatedAt(), activeWarningCount, latestActiveWarningExpiresAt);
-	}
-
-	private void requireAdmin(Integer actorId) {
-		boolean admin = accountRepository.findById(actorId)
-			.map(account -> account.getRole() == AccountRole.ADMIN)
-			.orElse(false);
-		if (!admin) {
-			throw new AccountAdminAccessDeniedException();
-		}
 	}
 
 	private String normalizeKeyword(String keyword) {

@@ -12,7 +12,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('../../api/adminAccountApi', () => apiMocks);
 
-const activeAccount = {id: 7, email: 'collector@example.com', nickname: '피카츄 수집가', role: 'USER', status: 'ACTIVE', created_at: '2026-08-01T00:00:00Z', active_warning_count: 1, latest_active_warning_expires_at: '2026-09-01T00:00:00Z'} as const;
+const activeAccount = {id: 7, email: 'collector@example.com', nickname: '피카츄 수집가', role: 'USER', status: 'ACTIVE', created_at: '2026-08-01T00:00:00Z', active_warning_count: 2, latest_active_warning_expires_at: '2026-09-01T00:00:00Z'} as const;
 
 function renderPage() {
   return render(<QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
@@ -22,7 +22,7 @@ function renderPage() {
 
 describe('AdminUsersPage', () => {
   beforeEach(() => {
-    apiMocks.fetchAdminAccounts.mockReset().mockResolvedValue({content: [activeAccount], page: 0, size: 20, total_elements: 1, total_pages: 1});
+    apiMocks.fetchAdminAccounts.mockReset().mockResolvedValue({content: [activeAccount], page: 0, size: 20, total_elements: 1, total_pages: 1, suspension_threshold: 3});
     apiMocks.fetchAdminAccountWarnings.mockReset().mockResolvedValue([{id: 3, order_id: 12, reason: 'BUYER_CANCELLED', issued_at: '2026-08-10T00:00:00Z', expires_at: '2026-09-10T00:00:00Z'}]);
     apiMocks.suspendAdminAccount.mockReset().mockResolvedValue(undefined);
     apiMocks.activateAdminAccount.mockReset().mockResolvedValue(undefined);
@@ -35,7 +35,7 @@ describe('AdminUsersPage', () => {
 
     expect(await screen.findByText('피카츄 수집가')).toBeInTheDocument();
     expect(screen.getByText('ACTIVE')).toBeInTheDocument();
-    expect(screen.getByText('활성 경고 1건')).toBeInTheDocument();
+    expect(screen.getByText('활성 경고 2건')).toBeInTheDocument();
     await user.type(screen.getByLabelText('회원 검색'), '피카');
     await user.click(screen.getByRole('button', {name: '검색'}));
     await waitFor(() => expect(apiMocks.fetchAdminAccounts).toHaveBeenLastCalledWith({page: 0, size: 20, keyword: '피카', status: undefined, onlyWarned: false}));
@@ -60,7 +60,7 @@ describe('AdminUsersPage', () => {
 
     await screen.findByText('피카츄 수집가');
     await user.click(screen.getByRole('button', {name: '경고'}));
-    expect(screen.getByRole('dialog')).toHaveTextContent('이미 활성 경고가 있어 이 경고로 자동 정지됩니다.');
+    expect(screen.getByRole('dialog')).toHaveTextContent('이 경고로 활성 경고가 3/3건이 되어 자동 정지됩니다.');
     await user.click(screen.getByRole('button', {name: '경고 확인'}));
     await waitFor(() => expect(apiMocks.warnAdminAccount).toHaveBeenCalledWith(7));
   });

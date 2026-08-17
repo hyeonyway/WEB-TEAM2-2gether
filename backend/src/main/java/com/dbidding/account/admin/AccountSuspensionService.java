@@ -3,10 +3,13 @@ package com.dbidding.account.admin;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.domain.AccountRole;
 import com.dbidding.account.domain.AccountStatus;
+import com.dbidding.account.event.AccountSuspendedEvent;
 import com.dbidding.account.exception.AccountNotFoundException;
+import com.dbidding.account.exception.InvalidAdminTargetException;
 import com.dbidding.account.repository.AccountRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -14,25 +17,28 @@ import org.springframework.stereotype.Service;
 public class AccountSuspensionService {
 
 	private final AccountRepository accountRepository;
-	private final AccountSessionRevoker sessionRevoker;
+	private final AccountAdminAuthorization authorization;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public void suspend(Integer actorId, Integer targetId) {
-		requireAdmin(actorId);
+		authorization.requireAdmin(actorId);
 		if (actorId.equals(targetId)) {
-			throw new IllegalArgumentException("자기 자신의 계정은 정지할 수 없습니다.");
+			throw new InvalidAdminTargetException("자기 자신의 계정은 정지할 수 없습니다.");
 		}
-		suspendTarget(targetId);
+		Account target = findTargetForUpdate(targetId);
+		requireNonAdminTarget(target);
+		suspendTarget(target);
 	}
 
 	@Transactional
 	public void activate(Integer actorId, Integer targetId) {
-		requireAdmin(actorId);
+		authorization.requireAdmin(actorId);
 		if (actorId.equals(targetId)) {
-			throw new IllegalArgumentException("자기 자신의 계정은 활성화할 수 없습니다.");
+			throw new InvalidAdminTargetException("자기 자신의 계정은 활성화할 수 없습니다.");
 		}
-		Account target = accountRepository.findById(targetId)
-			.orElseThrow(AccountNotFoundException::new);
+		Account target = findTargetForUpdate(targetId);
+		requireNonAdminTarget(target);
 		if (target.getStatus() == AccountStatus.SUSPENDED) {
 			target.activate();
 		}
@@ -40,22 +46,24 @@ public class AccountSuspensionService {
 
 	@Transactional
 	public void suspendAutomatically(Integer targetId) {
-		suspendTarget(targetId);
+		suspendTarget(findTargetForUpdate(targetId));
 	}
 
-	private void suspendTarget(Integer targetId) {
-		Account target = accountRepository.findByIdForUpdate(targetId)
-			.orElseThrow(AccountNotFoundException::new);
+	private void suspendTarget(Account target) {
 		if (target.getStatus() != AccountStatus.SUSPENDED) {
 			target.suspend();
 		}
-		sessionRevoker.revoke(targetId);
+		eventPublisher.publishEvent(new AccountSuspendedEvent(target.getId()));
 	}
 
-	private void requireAdmin(Integer actorId) {
-		boolean admin = accountRepository.findById(actorId)
-			.map(account -> account.getRole() == AccountRole.ADMIN)
-			.orElse(false);
-		if (!admin) throw new AccountAdminAccessDeniedException();
+	private Account findTargetForUpdate(Integer targetId) {
+		return accountRepository.findByIdForUpdate(targetId)
+			.orElseThrow(AccountNotFoundException::new);
+	}
+
+	private void requireNonAdminTarget(Account target) {
+		if (target.getRole() == AccountRole.ADMIN) {
+			throw new InvalidAdminTargetException("관리자 계정은 대상으로 지정할 수 없습니다.");
+		}
 	}
 }

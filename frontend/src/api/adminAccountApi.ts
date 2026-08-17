@@ -19,6 +19,7 @@ export type AdminAccountPageDto = {
   size: number;
   total_elements: number;
   total_pages: number;
+  suspension_threshold: number;
 };
 
 export type AdminAccountWarningDto = {

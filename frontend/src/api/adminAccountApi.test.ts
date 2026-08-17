@@ -9,7 +9,7 @@ describe('adminAccountApi', () => {
   });
 
   it('검색어와 페이지로 관리자 회원 목록을 조회한다', async () => {
-    const response = {content: [], page: 1, size: 20, total_elements: 0, total_pages: 0};
+    const response = {content: [], page: 1, size: 20, total_elements: 0, total_pages: 0, suspension_threshold: 3};
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(response), {
       status: 200, headers: {'Content-Type': 'application/json'},
     }));

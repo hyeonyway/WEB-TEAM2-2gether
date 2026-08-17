@@ -58,7 +58,7 @@ class AccountAdminControllerTest {
 				TARGET_ID, "pikachu@example.com", "피카츄", AccountRole.USER, AccountStatus.SUSPENDED,
 				Instant.parse("2026-08-01T00:00:00Z"), 1, Instant.parse("2026-09-01T00:00:00Z")
 			)),
-			1, 20, 21, 2
+			1, 20, 21, 2, 3
 		));
 
 		mockMvc.perform(get("/api/admin/users")
@@ -80,7 +80,7 @@ class AccountAdminControllerTest {
 	@Test
 	void 관리자가_상태와_경고_필터를_지정해_회원_목록을_조회한다() throws Exception {
 		given(queryService.findAccounts(ADMIN_ID, 0, 20, null, AccountStatus.SUSPENDED, true))
-			.willReturn(new AdminAccountPageResponse(List.of(), 0, 20, 0, 0));
+			.willReturn(new AdminAccountPageResponse(List.of(), 0, 20, 0, 0, 3));
 
 		mockMvc.perform(get("/api/admin/users")
 				.queryParam("status", "SUSPENDED")

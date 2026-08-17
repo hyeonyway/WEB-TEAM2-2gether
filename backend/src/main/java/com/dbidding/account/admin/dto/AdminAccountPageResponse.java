@@ -8,6 +8,7 @@ public record AdminAccountPageResponse(
 	int page,
 	int size,
 	@JsonProperty("total_elements") long totalElements,
-	@JsonProperty("total_pages") int totalPages
+	@JsonProperty("total_pages") int totalPages,
+	@JsonProperty("suspension_threshold") long suspensionThreshold
 ) {
 }
