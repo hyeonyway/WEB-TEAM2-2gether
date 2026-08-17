@@ -24,7 +24,7 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../backend
     depends_on:
       db:
         condition: service_healthy
@@ -44,6 +44,7 @@ services:
       REDIS_PASSWORD: dbidding_local
       SESSION_SECURE_COOKIE: "false"
       PASSWORD_HASH_ITERATIONS: "100"
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "30"
     ports:
       - "127.0.0.1:8081:8080"
 
@@ -51,8 +52,8 @@ services:
     image: node:22-alpine
     working_dir: /app
     volumes:
-      - ./frontend:/app
-      - ./asset:/asset:ro
+      - ../frontend:/app
+      - ../asset:/asset:ro
     environment:
       VITE_API_BASE_URL: http://localhost:8081
       VITE_IMAGE_BASE_URL: https://dbidding.shop/upload
