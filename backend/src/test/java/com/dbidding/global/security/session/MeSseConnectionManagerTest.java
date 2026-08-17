@@ -1,0 +1,117 @@
+package com.dbidding.global.security.session;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
+import com.dbidding.sse.metrics.SseMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.io.IOException;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+class MeSseConnectionManagerTest {
+
+    @Test
+    void 유저ID로_등록한_연결만_조회된다() {
+        MeSseConnectionManager manager = manager();
+        SseEmitter owner = mock(SseEmitter.class);
+        SseEmitter otherUser = mock(SseEmitter.class);
+
+        manager.register(1, owner);
+        manager.register(2, otherUser);
+
+        assertThat(manager.emittersFor(1)).containsExactly(owner);
+        assertThat(manager.emittersFor(2)).containsExactly(otherUser);
+        assertThat(manager.connectionCount(1)).isEqualTo(1);
+    }
+
+    @Test
+    void 연결_등록과_해제에_따라_me_SSE_연결_Gauge가_변한다() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MeSseConnectionManager manager = new MeSseConnectionManager(new SseMetrics(registry, "me"), new SyncTaskExecutor());
+        SseEmitter emitter = mock(SseEmitter.class);
+        final Runnable[] onCompletion = new Runnable[1];
+        doAnswer(invocation -> {
+            onCompletion[0] = invocation.getArgument(0);
+            return null;
+        }).when(emitter).onCompletion(any(Runnable.class));
+
+        manager.register(1, emitter);
+
+        assertThat(registry.get("dbidding.sse.connections").tag("stream", "me").gauge().value()).isEqualTo(1);
+        onCompletion[0].run();
+        assertThat(registry.get("dbidding.sse.connections").tag("stream", "me").gauge().value()).isZero();
+        assertThat(registry.get("dbidding.sse.connections.closed")
+                .tag("stream", "me").tag("reason", "completion").counter().count()).isEqualTo(1);
+    }
+
+    @Test
+    void 세션_종료_시_해당_세션의_연결도_종료한다() {
+        SessionSseConnectionRegistry sessionRegistry = new SessionSseConnectionRegistry();
+        MeSseConnectionManager manager = new MeSseConnectionManager(
+                sessionRegistry, new SseMetrics(new SimpleMeterRegistry(), "me"), new SyncTaskExecutor());
+        SseEmitter emitter = mock(SseEmitter.class);
+
+        manager.register(1, "session-a", emitter);
+        sessionRegistry.disconnect("session-a");
+
+        verify(emitter).complete();
+    }
+
+    @Test
+    void 전송에_실패하면_등록에서_제거된다() throws Exception {
+        MeSseConnectionManager manager = manager();
+        SseEmitter emitter = mock(SseEmitter.class);
+        manager.register(1, emitter);
+        doThrow(new IOException("disconnected"))
+                .when(emitter).send(any(SseEmitter.SseEventBuilder.class));
+
+        manager.send(emitter, SseEmitter.event().comment("ping"), new SseMetrics(new SimpleMeterRegistry(), "caller"));
+
+        assertThat(manager.connectionCount(1)).isZero();
+        verify(emitter).complete();
+    }
+
+    @Test
+    void heartbeat은_전용_executor로_등록된_모든_emitter에_전송한다() {
+        TaskExecutor executor = mock(TaskExecutor.class);
+        MeSseConnectionManager manager = manager(executor);
+        manager.register(1, mock(SseEmitter.class));
+        manager.register(2, mock(SseEmitter.class));
+
+        manager.heartbeat();
+
+        verify(executor, times(2)).execute(any(Runnable.class));
+    }
+
+    @Test
+    void 서로_다른_도메인의_전송_메트릭을_각자의_SseMetrics로_기록한다() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MeSseConnectionManager manager = new MeSseConnectionManager(new SseMetrics(registry, "me"), new SyncTaskExecutor());
+        SseEmitter emitter = mock(SseEmitter.class);
+        manager.register(1, emitter);
+        SseMetrics notificationMetrics = new SseMetrics(registry, "notification");
+        SseMetrics walletMetrics = new SseMetrics(registry, "wallet");
+
+        manager.send(emitter, SseEmitter.event().comment("a"), notificationMetrics);
+        manager.send(emitter, SseEmitter.event().comment("b"), walletMetrics);
+
+        assertThat(registry.get("dbidding.notification.sse.send.duration").timer().count()).isEqualTo(1);
+        assertThat(registry.get("dbidding.wallet.sse.send.duration").timer().count()).isEqualTo(1);
+    }
+
+    private MeSseConnectionManager manager() {
+        return manager(new SyncTaskExecutor());
+    }
+
+    private MeSseConnectionManager manager(TaskExecutor heartbeatExecutor) {
+        return new MeSseConnectionManager(new SseMetrics(new SimpleMeterRegistry(), "me"), heartbeatExecutor);
+    }
+}
