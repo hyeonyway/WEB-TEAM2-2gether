@@ -105,6 +105,20 @@ class MeSseConnectionManagerTest {
     }
 
     @Test
+    void heartbeat은_등록된_emitter에_실제로_heartbeat_주석_이벤트를_전송한다() throws Exception {
+        // 위 테스트는 mock executor라 dispatch까지만 확인하고 실제 dispatch된 작업(runnable)은
+        // 실행되지 않는다 — SyncTaskExecutor로 실제 emitter.send() 호출까지 검증한다.
+        MeSseConnectionManager manager = manager();
+        SseEmitter emitter = mock(SseEmitter.class);
+        manager.register(1, emitter);
+
+        manager.heartbeat();
+
+        // register()의 "connected" 이벤트(1회) + heartbeat(1회) = 총 2회.
+        verify(emitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
+    }
+
+    @Test
     void heartbeat은_Async로_notificationFanOutTaskExecutor에서_돈다() throws NoSuchMethodException {
         // heartbeat()가 plain @Scheduled면 앱 전체가 공유하는 단일 스레드
         // TaskScheduler(AuctionSchedulingConfig의 @Primary bean, poolSize=1) 위에서 돌게 되고,
