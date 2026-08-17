@@ -19,6 +19,7 @@ public final class BidResponses {
             @JsonProperty("current_price") Long currentPrice,
             @JsonProperty("minimum_bid") Long minimumBid,
             @JsonProperty("bid_increment") Long bidIncrement,
+            @JsonProperty("buy_now_price") Long buyNowPrice,
             @JsonProperty("my_bid_status") MyBidStatus myBidStatus,
             @JsonProperty("my_bid_amount") Long myBidAmount,
             WalletSummary wallet,

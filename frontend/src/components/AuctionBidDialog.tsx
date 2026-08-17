@@ -49,7 +49,7 @@ export default function AuctionBidDialog({auction,onClose}:{auction:AuctionDto;o
   const currentPrice=context?.current_price??auction.currentPrice;
   const bidIncrement=context?.bid_increment??auction.bidIncrement;
   const minimum=context?.minimum_bid??currentPrice+bidIncrement;
-  const buyNowPrice=auction.buyNowPrice??null;
+  const buyNowPrice=context?.buy_now_price??null;
   const[activeTab,setActiveTab]=useState<'bid'|'buy-now'>('bid');
   const[buyNowAgreed,setBuyNowAgreed]=useState(false);
   const[buyNowConfirmationOpen,setBuyNowConfirmationOpen]=useState(false);

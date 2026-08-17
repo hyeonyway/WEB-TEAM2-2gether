@@ -36,6 +36,7 @@ const auction:AuctionDto={
 
 const context:BidContextResponseDto={
   auction_id:1,status:'OPEN',current_price:10_000,minimum_bid:11_000,bid_increment:1_000,
+  buy_now_price:20_000,
   my_bid_status:'NONE',my_bid_amount:null,wallet:{available_balance:100_000,frozen_balance:0},recent_bids:[],
 };
 
