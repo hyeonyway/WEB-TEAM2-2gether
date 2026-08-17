@@ -69,7 +69,7 @@
 
 <br/>
 
-![서비스 메인 페이지 GIF](./asset/gif/서비스-메인-페이지.gif)
+![서비스 메인 페이지 GIF](./asset/gif/service-main-page.gif)
 
 <br/>
 
