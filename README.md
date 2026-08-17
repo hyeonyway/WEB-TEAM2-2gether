@@ -706,13 +706,13 @@ README에서는 서비스와 핵심 기술만 요약하고,
   </a>
 </td>
 <td align="center">
-  <a href="https://github.com/JeongSH1">
-    <img src="https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f" width="120">
+  <a href="https://github.com/eunki01">
+    <img src="https://github.com/user-attachments/assets/38db6764-513a-421e-be48-475ca9f86dd3" width="120">
   </a>
 </td>
 <td align="center">
-  <a href="https://github.com/eunki01">
-    <img src="https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f" width="120">
+  <a href="https://github.com/JeongSH1">
+    <img src="https://github.com/user-attachments/assets/85f97f98-b4fa-4894-9dcd-59bded030046" width="120">
   </a>
 </td>
 <td align="center">
