@@ -1,6 +1,7 @@
 package com.dbidding.auction.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -17,6 +18,7 @@ import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.PageRequestDto;
+import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.dto.AuctionCursor;
 import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.auction.dto.AuctionSearchRequest;
@@ -42,6 +44,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.DefaultTypedTuple;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -124,7 +127,7 @@ class AuctionQueryServiceTest {
         Instant estimatedCloseTime = Instant.parse("2026-08-08T01:00:00Z");
         Auction auction = endingAuction(estimatedCloseTime, estimatedCloseTime.plusSeconds(90));
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
-        when(reader.readAuctionState(1)).thenReturn(null);
+        when(reader.readStoredAuctionState(1)).thenReturn(null);
         when(auctionRepository.findById(1)).thenReturn(Optional.of(auction));
         when(cardService.getCardSnapshot(1)).thenReturn(card(1));
         when(auctionImageRepository.findByAuctionIdOrderById(1)).thenReturn(List.of());
@@ -193,6 +196,45 @@ class AuctionQueryServiceTest {
 
         assertThat(response.content()).hasSize(1);
         assertThat(response.content().getFirst().isHighest()).isTrue();
+    }
+
+    @Test
+    void Redis_입찰_내역은_한번_읽은_stored_state를_최근_입찰_조회에_재사용한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        var state = redisState(1, 3, 43_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var stored = new RedisAuctionRealtimeStateReader.StoredAuctionState(state, 7);
+        var recentBid = new BidResponses.BidSummary(
+                11L, 43_000L, "user-7***", true, Instant.parse("2026-08-01T00:10:00Z"));
+        when(reader.readStoredAuctionState(1)).thenReturn(stored);
+        when(reader.read(stored, null)).thenReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
+                AuctionStatus.OPEN, 43_000L, 1_000L, 3, state.closeTime(), null,
+                MyBidStatus.NONE, null, List.of(recentBid)));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.getBids(1, new PageRequestDto(0, 20));
+
+        assertThat(response.content()).containsExactly(recentBid);
+    }
+
+    @Test
+    void Redis_입찰_컨텍스트는_hit한_stored_state를_재사용한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        var state = redisState(1, 3, 43_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var stored = new RedisAuctionRealtimeStateReader.StoredAuctionState(state, 7);
+        when(reader.readStoredAuctionState(1)).thenReturn(stored);
+        when(reader.read(stored, 7)).thenReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
+                AuctionStatus.OPEN, 43_000L, 1_000L, 3, state.closeTime(), null,
+                MyBidStatus.LEADING, 43_000L, List.of()));
+        when(walletService.getBalance(7)).thenReturn(
+                new com.dbidding.wallet.dto.WalletBalanceResponse(100_000L, 43_000L, 57_000L));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.getBidContext(7, 1);
+
+        assertThat(response.currentPrice()).isEqualTo(43_000L);
+        assertThat(response.myBidStatus()).isEqualTo(MyBidStatus.LEADING);
+        assertThat(response.myBidAmount()).isEqualTo(43_000L);
+        assertThat(response.wallet().availableBalance()).isEqualTo(57_000L);
     }
 
     @Test
@@ -311,13 +353,95 @@ class AuctionQueryServiceTest {
     }
 
     @Test
+    void Redis_활성_경매_목록은_batch_state와_참여_입찰_상태로_응답을_조립한다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        var first = redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var leading = redisState(2, 10, 43_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var last = redisState(3, 1, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 5), tuple(2, 10), tuple(3, 1)));
+        when(reader.readAuctionStates(List.of(1, 2, 3)))
+                .thenReturn(Map.of(1, first, 2, leading, 3, last));
+        when(reader.readMyBidStates(List.of(2, 1, 3), 7))
+                .thenReturn(Map.of(2, new RedisAuctionRealtimeStateReader.MyBidState(MyBidStatus.LEADING, 43_000L)));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        var response = auctionQueryService.search(
+                7, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20));
+
+        assertThat(response.content()).extracting(item -> item.id()).containsExactly(2, 1, 3);
+        assertThat(response.content().getFirst().myBidStatus()).isEqualTo(MyBidStatus.LEADING);
+        assertThat(response.content().getFirst().myBidAmount()).isEqualTo(43_000L);
+        assertThat(response.content().get(1).myBidStatus()).isEqualTo(MyBidStatus.NONE);
+        assertThat(response.content().get(1).myBidAmount()).isNull();
+    }
+
+    @Test
+    void Redis_목록_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(tuple(1, 5)));
+        when(reader.readAuctionStates(List.of(1)))
+                .thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.search(
+                7, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20)))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService);
+    }
+
+    @Test
+    void Redis_상세_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.readStoredAuctionState(1)).thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.getDetail(null, 1))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService);
+    }
+
+    @Test
+    void Redis_입찰내역_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.readStoredAuctionState(1)).thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.getBids(1, new PageRequestDto(0, 20)))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService);
+    }
+
+    @Test
+    void Redis_입찰_컨텍스트_command_오류는_cache_miss처럼_DB_fallback하지_않는다() {
+        RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
+        when(reader.readStoredAuctionState(1)).thenThrow(new RedisConnectionFailureException("redis unavailable"));
+        ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
+
+        assertThatThrownBy(() -> auctionQueryService.getBidContext(7, 1))
+                .isInstanceOf(RedisConnectionFailureException.class)
+                .hasMessage("redis unavailable");
+
+        verifyNoInteractions(auctionRepository, auctionImageRepository, bidRepository, cardService, walletService);
+    }
+
+    @Test
     void Redis_활성_경매_목록은_BID_COUNT_기준_내림차순으로_정렬한다() {
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(tuple(1, 5), tuple(2, 10), tuple(3, 1)));
-        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
-        when(reader.readAuctionState(2)).thenReturn(redisState(2, 10, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
-        when(reader.readAuctionState(3)).thenReturn(redisState(3, 1, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionStates(List.of(1, 2, 3))).thenReturn(Map.of(
+                1, redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"),
+                2, redisState(2, 10, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"),
+                3, redisState(3, 1, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10")
+        ));
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20));
@@ -332,9 +456,11 @@ class AuctionQueryServiceTest {
                 .thenReturn(List.of(tuple(2, 10), tuple(1, 5), tuple(3, 1)));
         when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(tuple(1, 5), tuple(3, 1)));
-        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
-        when(reader.readAuctionState(2)).thenReturn(redisState(2, 10, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
-        when(reader.readAuctionState(3)).thenReturn(redisState(3, 1, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        var first = redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var second = redisState(2, 10, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        var third = redisState(3, 1, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10");
+        when(reader.readAuctionStates(List.of(2, 1, 3))).thenReturn(Map.of(1, first, 2, second, 3, third));
+        when(reader.readAuctionStates(List.of(1, 3))).thenReturn(Map.of(1, first, 3, third));
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
         var firstPage = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 2));
@@ -353,8 +479,10 @@ class AuctionQueryServiceTest {
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         when(reader.activeIdsBatch(eq("auction:active:by-price"), eq(false), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(tuple(3, 40_000), tuple(5, 40_000)));
-        when(reader.readAuctionState(3)).thenReturn(redisState(3, 0, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
-        when(reader.readAuctionState(5)).thenReturn(redisState(5, 0, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        when(reader.readAuctionStates(List.of(3, 5))).thenReturn(Map.of(
+                3, redisState(3, 0, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"),
+                5, redisState(5, 0, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10")
+        ));
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.PRICE_LOW, null, null, 20));
@@ -367,8 +495,10 @@ class AuctionQueryServiceTest {
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(null), eq(0L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(tuple(1, 5), tuple(2, 3)));
-        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "PSA 10"));
-        when(reader.readAuctionState(2)).thenReturn(redisState(2, 3, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "9"));
+        when(reader.readAuctionStates(List.of(1, 2))).thenReturn(Map.of(
+                1, redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "PSA 10"),
+                2, redisState(2, 3, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "9")
+        ));
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", "10", AuctionSort.BID_COUNT, null, null, 20));
@@ -385,10 +515,8 @@ class AuctionQueryServiceTest {
         var earlierOpen = redisState(2, AuctionStatus.OPEN, Instant.parse("2026-08-01T01:00:00Z"));
         var laterOpen = redisState(3, AuctionStatus.OPEN, Instant.parse("2026-08-01T02:00:00Z"));
         var endingSecond = redisState(4, AuctionStatus.ENDING, Instant.parse("2026-08-01T04:00:00Z"));
-        when(reader.readAuctionState(1)).thenReturn(endingFirst);
-        when(reader.readAuctionState(2)).thenReturn(earlierOpen);
-        when(reader.readAuctionState(3)).thenReturn(laterOpen);
-        when(reader.readAuctionState(4)).thenReturn(endingSecond);
+        when(reader.readAuctionStates(List.of(1, 2, 3, 4))).thenReturn(Map.of(
+                1, endingFirst, 2, earlierOpen, 3, laterOpen, 4, endingSecond));
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.ENDING_SOON, null, null, 20));
@@ -405,8 +533,10 @@ class AuctionQueryServiceTest {
                 .thenReturn(firstBatch);
         when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(51.0), eq(1L), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of(tuple(1, 5)));
-        for (int id = 100; id < 150; id++) when(reader.readAuctionState(id)).thenReturn(null);
-        when(reader.readAuctionState(1)).thenReturn(redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
+        List<Integer> firstBatchIds = firstBatch.stream().map(tuple -> Integer.valueOf(tuple.getValue())).toList();
+        when(reader.readAuctionStates(firstBatchIds)).thenReturn(Map.of());
+        when(reader.readAuctionStates(List.of(1))).thenReturn(Map.of(
+                1, redisState(1, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10")));
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20));
@@ -416,11 +546,9 @@ class AuctionQueryServiceTest {
 
     @Test
     void 배치_크기를_넘는_동점이_있어도_중복_없이_전부_가져온다() {
-        // #529: 필터 없는 조회는 배치 크기가 이제 고정 50이 아니라 요청 size만큼으로 줄어든다.
-        // 그래도 "한 배치로 동점 전부를 못 채우면 다음 배치를 이어서 가져온다"는 동작 자체는
-        // 배치 크기와 무관하게 성립해야 하므로, 요청한 batchSize를 실제로 반영해 잘라주는
-        // 가짜 Redis를 흉내낸다(고정 50짜리 캔 데이터에 의존하면 배치 크기가 바뀔 때마다
-        // 이 테스트가 실제 배치 경계와 안 맞물려 깨진다).
+        // 배치 크기는 고정(#552)이지만 그 값과 무관하게 "한 배치로 동점 전부를 못 채우면
+        // 다음 배치를 이어서 가져온다"가 성립해야 하므로, 요청한 batchSize를 실제로 반영해
+        // 잘라주는 가짜 Redis를 흉내낸다.
         RedisAuctionRealtimeStateReader reader = mock(RedisAuctionRealtimeStateReader.class);
         List<Integer> allIdsDescending = new java.util.ArrayList<>();
         for (int id = 60; id >= 1; id--) allIdsDescending.add(id);
@@ -434,9 +562,13 @@ class AuctionQueryServiceTest {
                     }
                     return slice;
                 });
-        for (int id = 1; id <= 60; id++) {
-            when(reader.readAuctionState(id)).thenReturn(redisState(id, 5, 40_000L, 40_000L, Instant.parse("2026-08-01T00:00:00Z"), "10"));
-        }
+        when(reader.readAuctionStates(any())).thenAnswer(invocation -> {
+            List<Integer> ids = invocation.getArgument(0);
+            Map<Integer, RedisAuctionRealtimeStateReader.AuctionState> states = new java.util.LinkedHashMap<>();
+            ids.forEach(id -> states.put(id, redisState(id, 5, 40_000L, 40_000L,
+                    Instant.parse("2026-08-01T00:00:00Z"), "10")));
+            return states;
+        });
         ReflectionTestUtils.setField(auctionQueryService, "realtimeStateReader", reader);
 
         var response = auctionQueryService.search(null, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 60));
@@ -459,10 +591,13 @@ class AuctionQueryServiceTest {
                 .thenReturn(secondBatch.stream().map(id -> (ZSetOperations.TypedTuple<String>) new DefaultTypedTuple<>(String.valueOf(id), 5.0)).toList());
         when(reader.activeIdsBatch(eq("auction:active:by-bid-count"), eq(true), eq(5.0), eq(100L), anyInt()))
                 .thenReturn(List.of());
-        for (int id : java.util.stream.IntStream.rangeClosed(51, 150).toArray()) {
-            when(reader.readAuctionState(id)).thenReturn(redisState(id, 5, 40_000L, 40_000L,
-                    Instant.parse("2026-08-01T00:00:00Z"), "10"));
-        }
+        when(reader.readAuctionStates(any())).thenAnswer(invocation -> {
+            List<Integer> ids = invocation.getArgument(0);
+            Map<Integer, RedisAuctionRealtimeStateReader.AuctionState> states = new java.util.LinkedHashMap<>();
+            ids.forEach(id -> states.put(id, redisState(id, 5, 40_000L, 40_000L,
+                    Instant.parse("2026-08-01T00:00:00Z"), "10")));
+            return states;
+        });
 
         var cursor = new AuctionCursor(AuctionSort.BID_COUNT, 5L, null, 100);
         var response = auctionQueryService.search(null,

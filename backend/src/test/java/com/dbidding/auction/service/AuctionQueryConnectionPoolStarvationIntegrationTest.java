@@ -2,6 +2,7 @@ package com.dbidding.auction.service;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 
@@ -124,14 +125,19 @@ class AuctionQueryConnectionPoolStarvationIntegrationTest {
 
     private void stubRedisHit() {
         Instant closeTime = Instant.parse("2026-08-15T00:00:00Z");
-        given(realtimeStateReader.readAuctionState(anyInt())).willAnswer(invocation -> new RedisAuctionRealtimeStateReader.AuctionState(
-                invocation.getArgument(0), AuctionStatus.OPEN, 1, 1,
-                "카드", "세트", "10", "JP", "/card.png",
-                "경매", "설명", null, null, null, false,
-                10_000L, 12_000L, 1_000L, 2, null, 0L,
-                closeTime.minusSeconds(3600), closeTime, List.of("/auction.png")
-        ));
-        given(realtimeStateReader.read(anyInt(), anyInt())).willReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
+        given(realtimeStateReader.readStoredAuctionState(anyInt())).willAnswer(invocation -> {
+            var state = new RedisAuctionRealtimeStateReader.AuctionState(
+                    invocation.getArgument(0), AuctionStatus.OPEN, 1, 1,
+                    "카드", "세트", "10", "JP", "/card.png",
+                    "경매", "설명", null, null, null, false,
+                    10_000L, 12_000L, 1_000L, 2, null, 0L,
+                    closeTime.minusSeconds(3600), closeTime, List.of("/auction.png")
+            );
+            return new RedisAuctionRealtimeStateReader.StoredAuctionState(state, null);
+        });
+        given(realtimeStateReader.read(
+                any(RedisAuctionRealtimeStateReader.StoredAuctionState.class), anyInt()
+        )).willReturn(new RedisAuctionRealtimeStateReader.RealtimeState(
                 AuctionStatus.OPEN, 12_000L, 1_000L, 2, closeTime, null,
                 MyBidStatus.NONE, null, List.of()
         ));

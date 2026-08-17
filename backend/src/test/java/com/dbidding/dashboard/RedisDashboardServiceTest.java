@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,12 +33,16 @@ class RedisDashboardServiceTest {
     @Test
     void Redis_승인_상태와_내_입찰_상태로_참여중인_경매를_반환한다() {
         given(stateReader.participatingAuctionIds(7)).willReturn(List.of(1, 2, 3));
-        given(stateReader.readAuctionState(1)).willReturn(state(1, 120_000L, AuctionStatus.OPEN, CLOCK.instant().plusSeconds(60)));
-        given(stateReader.readAuctionState(2)).willReturn(state(2, 300_000L, AuctionStatus.ENDING, CLOCK.instant().plusSeconds(120)));
-        given(stateReader.readAuctionState(3)).willReturn(state(3, 500_000L, AuctionStatus.OPEN, CLOCK.instant().minusSeconds(1)));
-        given(stateReader.read(1, 7)).willReturn(realtime(MyBidStatus.LEADING, 120_000L, AuctionStatus.OPEN, CLOCK.instant().plusSeconds(60)));
-        given(stateReader.read(2, 7)).willReturn(realtime(MyBidStatus.OUTBID, 300_000L, AuctionStatus.ENDING, CLOCK.instant().plusSeconds(120)));
-        given(stateReader.read(3, 7)).willReturn(realtime(MyBidStatus.LEADING, 500_000L, AuctionStatus.OPEN, CLOCK.instant().minusSeconds(1)));
+        given(stateReader.readAuctionStates(List.of(1, 2, 3))).willReturn(Map.of(
+                1, state(1, 120_000L, AuctionStatus.OPEN, CLOCK.instant().plusSeconds(60)),
+                2, state(2, 300_000L, AuctionStatus.ENDING, CLOCK.instant().plusSeconds(120)),
+                3, state(3, 500_000L, AuctionStatus.OPEN, CLOCK.instant().minusSeconds(1))
+        ));
+        given(stateReader.readMyBidStates(List.of(1, 2, 3), 7)).willReturn(Map.of(
+                1, myBid(MyBidStatus.LEADING, 120_000L),
+                2, myBid(MyBidStatus.OUTBID, 300_000L),
+                3, myBid(MyBidStatus.LEADING, 500_000L)
+        ));
 
         var result = dashboardService.getParticipatingAuctions(7, ParticipatingAuctionSort.PRICE_HIGH);
 
@@ -53,7 +58,7 @@ class RedisDashboardServiceTest {
         );
     }
 
-    private RedisAuctionRealtimeStateReader.RealtimeState realtime(MyBidStatus myBidStatus, long amount, AuctionStatus status, Instant closeTime) {
-        return new RedisAuctionRealtimeStateReader.RealtimeState(status, amount, 1_000L, 2, closeTime, null, myBidStatus, amount, List.of());
+    private RedisAuctionRealtimeStateReader.MyBidState myBid(MyBidStatus status, long amount) {
+        return new RedisAuctionRealtimeStateReader.MyBidState(status, amount);
     }
 }
