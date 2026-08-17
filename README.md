@@ -691,7 +691,11 @@ README에서는 서비스와 핵심 기술만 요약하고,
 <td align="center">[📷 프로필]</td>
 <td align="center">[📷 프로필]</td>
 <td align="center">[📷 프로필]</td>
-<td align="center">[![내 사진](https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f)](https://github.com/haimin13)</td>
+<td align="center">
+  <a href="https://github.com/haimin13">
+    <img src="https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f" width="120">
+  </a>
+</td>
 </tr>
 
 <tr>
