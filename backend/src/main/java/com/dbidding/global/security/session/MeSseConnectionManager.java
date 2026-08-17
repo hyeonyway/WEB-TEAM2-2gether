@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -70,10 +71,18 @@ public class MeSseConnectionManager {
         return registry.send(emitter, event, callMetrics);
     }
 
+    /**
+     * {@code @Async}가 없으면 Spring의 {@code @Primary} {@code TaskScheduler}는 앱 전체
+     * {@code @Scheduled} 작업을 스레드 1개로 도는데(#557 리뷰에서 발견), 그 스레드에서
+     * {@code notificationFanOutTaskExecutor}가 포화돼 {@code CallerRunsPolicy}가 발동하면
+     * emitter.send()가 그 유일한 스케줄러 스레드에서 그대로 블로킹된다 — 다른 모든
+     * {@code @Scheduled} 작업이 함께 멈춘다. {@code @Async}로 트리거 자체를 먼저 그 executor로
+     * 넘겨서, 최악의 경우에도 스케줄러 스레드가 아니라 그 executor의 스레드가 블로킹되게 한다.
+     */
+    @Async("notificationFanOutTaskExecutor")
     @Scheduled(fixedDelay = 25_000L)
     public void heartbeat() {
-        registry.allEmitters().forEach(emitter ->
-                heartbeatDispatcher.dispatch(() -> registry.send(emitter, SseEmitter.event().comment("heartbeat"))));
+        registry.heartbeatAll(heartbeatDispatcher);
     }
 
     public int connectionCount(Integer userId) {

@@ -7,7 +7,7 @@ import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.MediaType;
@@ -22,8 +22,9 @@ public class WalletSseConnectionManager {
     private final ObjectMapper objectMapper;
     private final SseMetrics metrics;
     private final SseSendDispatcher sendDispatcher;
+    // Micrometer Gauge는 이 Supplier를 약한 참조로만 들고 있어, GC되지 않도록 필드로 붙잡아둔다.
+    private final Supplier<Number> connectionCountSupplier;
 
-    @Autowired
     public WalletSseConnectionManager(
             MeSseConnectionManager connectionManager,
             ObjectMapper objectMapper,
@@ -34,6 +35,10 @@ public class WalletSseConnectionManager {
         this.objectMapper = objectMapper;
         this.metrics = metrics;
         this.sendDispatcher = new PerConnectionSseSendDispatcher(sendExecutor);
+        // 알림·지갑이 이제 커넥션을 공유하므로(#557) 이 값은 공유 커넥션 수와 같다 — 기존
+        // dbidding.sse.connections{stream=wallet} 대시보드/알림이 계속 값을 받게 유지한다.
+        this.connectionCountSupplier = connectionManager::totalConnectionCount;
+        metrics.registerConnectionGauge(connectionCountSupplier);
     }
 
     public void push(Integer userId, WalletSsePayload payload) {

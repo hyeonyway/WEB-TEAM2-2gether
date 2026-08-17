@@ -11,12 +11,25 @@ import static org.mockito.Mockito.verify;
 import com.dbidding.sse.metrics.SseMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 class MeSseConnectionManagerTest {
+
+    @Test
+    void connect는_새_emitter를_발급해_등록하고_총_연결수에_반영한다() {
+        MeSseConnectionManager manager = manager();
+
+        SseEmitter emitter = manager.connect(1, "session-a");
+
+        assertThat(emitter).isNotNull();
+        assertThat(manager.emittersFor(1)).containsExactly(emitter);
+        assertThat(manager.totalConnectionCount()).isEqualTo(1);
+    }
 
     @Test
     void 유저ID로_등록한_연결만_조회된다() {
@@ -80,7 +93,7 @@ class MeSseConnectionManagerTest {
     }
 
     @Test
-    void heartbeat은_전용_executor로_등록된_모든_emitter에_전송한다() {
+    void heartbeat은_주입받은_executor로_등록된_모든_emitter에_전송한다() {
         TaskExecutor executor = mock(TaskExecutor.class);
         MeSseConnectionManager manager = manager(executor);
         manager.register(1, mock(SseEmitter.class));
@@ -89,6 +102,20 @@ class MeSseConnectionManagerTest {
         manager.heartbeat();
 
         verify(executor, times(2)).execute(any(Runnable.class));
+    }
+
+    @Test
+    void heartbeat은_Async로_notificationFanOutTaskExecutor에서_돈다() throws NoSuchMethodException {
+        // heartbeat()가 plain @Scheduled면 앱 전체가 공유하는 단일 스레드
+        // TaskScheduler(AuctionSchedulingConfig의 @Primary bean, poolSize=1) 위에서 돌게 되고,
+        // notificationFanOutTaskExecutor 포화 시 CallerRunsPolicy가 그 스케줄러 스레드를
+        // 블로킹시켜 다른 모든 @Scheduled 작업을 함께 멈출 수 있다(#557 리뷰에서 발견). @Async로
+        // 트리거 자체를 executor로 먼저 넘겨서 이 위험을 없앤다 — 이 계약이 깨지지 않게 고정한다.
+        Method heartbeat = MeSseConnectionManager.class.getMethod("heartbeat");
+        Async async = heartbeat.getAnnotation(Async.class);
+
+        assertThat(async).isNotNull();
+        assertThat(async.value()).isEqualTo("notificationFanOutTaskExecutor");
     }
 
     @Test

@@ -66,9 +66,13 @@ public class NotificationExecutorConfig {
     }
 
     /**
-     * subscriber(로컬 fan-out, {@code NotificationPushRedisSubscriber}/{@code LocalNotificationPushPublisher}/
-     * {@code NotificationSseConnectionManager.heartbeat()}) 전용 — DB 접근 없이 순수 네트워크
-     * SSE send만 하는 작업이라 origin과 풀을 공유하지 않는다(#305).
+     * subscriber(로컬 fan-out, {@code NotificationPushRedisSubscriber}/{@code LocalNotificationPushPublisher}) 전용
+     * — DB 접근 없이 순수 네트워크 SSE send만 하는 작업이라 origin과 풀을 공유하지 않는다(#305).
+     *
+     * <p>{@code MeSseConnectionManager.heartbeat()}(#557)도 이 executor를 빌려 쓴다 — 알림·지갑
+     * SSE 커넥션이 공유되면서 이 pool이 이제 알림 fan-out 물량뿐 아니라 지갑 커넥션까지 포함한
+     * 전체 heartbeat 물량도 감당한다. {@code NOTIFICATION_FANOUT_*}로 용량을 조정할 때 이 점을
+     * 감안해야 한다.
      */
     @Bean(name = "notificationFanOutTaskExecutor")
     @Profile("!sse-virtual-threads")

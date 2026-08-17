@@ -99,6 +99,14 @@ public class SseEmitterRegistry<K> {
      * 전송시간·실패 카운트({@code dbidding.<stream>.sse.send.*})는 각자의 {@link SseMetrics}로
      * 계속 따로 집계하고 싶을 때 쓰는 오버로드다(#557). emitter별 send 직렬화(락)는 registry가
      * 여전히 하나로 관리하므로, 서로 다른 도메인이 같은 emitter에 동시에 보내도 충돌하지 않는다.
+     *
+     * <p>연결 종료 사유({@code dbidding.sse.connections.closed})는 {@code callMetrics}가 아니라
+     * registry 자신의 {@link #metrics}로 기록한다. {@link SseConnectionCloseMetrics}는 emitter별
+     * 시작 시각을 하나의 맵에서 추적하는데, 그 시작 시각은 {@link #register}가 항상 registry
+     * 자신의 metrics로 기록해두기 때문이다({@code trackConnectionStart}). 종료를 {@code callMetrics}로
+     * 기록하면 시작 시각을 찾지 못해 그 종료 기록 자체가 조용히 유실된다(#558 리뷰에서 발견). 물리
+     * 커넥션 하나의 종료 사유는 어떤 도메인이 그 순간 보내고 있었든 값이 하나뿐이어야 하므로,
+     * 이 쪽은 애초에 도메인별로 나눌 개념이 아니다.
      */
     public boolean send(SseEmitter emitter, SseEmitter.SseEventBuilder event, SseMetrics callMetrics) {
         Timer.Sample sample = callMetrics.startSend();
@@ -108,7 +116,7 @@ public class SseEmitterRegistry<K> {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
             callMetrics.recordSendFailure();
-            callMetrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
+            metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
             removeAndComplete(emitter);
             return false;
         } finally {
@@ -118,9 +126,19 @@ public class SseEmitterRegistry<K> {
         return true;
     }
 
-    /** 등록된 emitter 전원에게 heartbeat 주석 이벤트를 보낸다. */
+    /** 등록된 emitter 전원에게 heartbeat 주석 이벤트를 보낸다. 호출한 스레드에서 순차 전송한다. */
     public void heartbeatAll() {
         keysByEmitter.keySet().forEach(emitter -> send(emitter, SseEmitter.event().comment("heartbeat")));
+    }
+
+    /**
+     * 등록된 emitter 전원에게 heartbeat 주석 이벤트를 보내되, emitter 1개당 독립 task로
+     * 세분화해 {@code dispatcher}에 위임한다(#557). 커넥션 수가 많아 호출 스레드에서 순차
+     * 전송하면 오래 걸리는 경우(예: 유저당 커넥션을 공유하는 {@code MeSseConnectionManager})에 쓴다.
+     */
+    public void heartbeatAll(SseSendDispatcher dispatcher) {
+        keysByEmitter.keySet().forEach(emitter ->
+                dispatcher.dispatch(() -> send(emitter, SseEmitter.event().comment("heartbeat"))));
     }
 
     public void removeAndComplete(SseEmitter emitter) {
