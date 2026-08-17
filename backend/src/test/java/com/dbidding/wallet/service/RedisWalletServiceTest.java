@@ -48,6 +48,18 @@ class RedisWalletServiceTest {
     }
 
     @Test
+    void 잔액_조회도_TTL을_걸지_않는다() {
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(hashOperations.get("wallet:balance:7", "availableBalance")).thenReturn("10000");
+        when(hashOperations.get("wallet:balance:7", "frozenBalance")).thenReturn("0");
+        when(hashOperations.get("wallet:balance:7", "walletVersion")).thenReturn("1");
+
+        walletService.getBalance(7);
+
+        verify(redisTemplate, never()).expire(eq("wallet:balance:7"), any(Duration.class));
+    }
+
+    @Test
     void 과거_멱등_응답의_지수_표기_잔액을_exact_long으로_복구한다() {
         when(redisTemplate.execute(eq(walletTransitionScript), anyList(), any(Object[].class)))
                 .thenReturn("ACCEPTED|1-0|1.000000512e+14|0|4|true");
