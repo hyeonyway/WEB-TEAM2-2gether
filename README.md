@@ -678,17 +678,11 @@ README에서는 서비스와 핵심 기술만 요약하고,
 ## Team 2gether
 
 <table>
-<colgroup>
-<col width="25%">
-<col width="25%">
-<col width="25%">
-<col width="25%">
-</colgroup>
 <tr>
-<th>김현문</th>
-<th>이은기</th>
-<th>정세호</th>
-<th>임하민</th>
+<th width="25%">김현문</th>
+<th width="25%">이은기</th>
+<th width="25%">정세호</th>
+<th width="25%">임하민</th>
 </tr>
 
 <tr>
