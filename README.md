@@ -90,7 +90,7 @@
 
 <br/>
 
-[![경매 등록 화면 GIF](./asset/gif/경매-등록-화면.gif)](./asset/gif/경매-등록-화면.gif)
+![경매 등록 화면 GIF](./asset/gif/auction-register.gif)
 
 <br/>
 
@@ -108,7 +108,7 @@
 
 <br/>
 
-[![경매 입찰 GIF](./asset/gif/경매-입찰.gif)](./asset/gif/경매-입찰.gif)
+![경매 입찰 GIF](./asset/gif/auction-bid.gif)
 
 <br/>
 
@@ -126,7 +126,7 @@
 
 <br/>
 
-[![경매 상세 화면 가격 실시간 변경 GIF](./asset/gif/경매-상세-화면에서-가격이-실시간-변경.gif)](./asset/gif/경매-상세-화면에서-가격이-실시간-변경.gif)
+![경매 상세 화면 가격 실시간 변경 GIF](./asset/gif/auction-price-realtime.gif)
 
 <br/>
 
@@ -144,7 +144,7 @@
 
 <br/>
 
-[![실시간 알림 GIF](./asset/gif/실시간-알림.gif)](./asset/gif/실시간-알림.gif)
+![실시간 알림 GIF](./asset/gif/realtime-notification.gif)
 
 <br/>
 
