@@ -499,7 +499,7 @@ CREATE TABLE user_warnings
 (
     id         BIGINT      NOT NULL AUTO_INCREMENT,
     user_id    INT         NOT NULL,
-    order_id   INT         NOT NULL,
+    order_id   INT         NULL,
     reason     VARCHAR(32) NOT NULL,
     issued_at  TIMESTAMP(6) NOT NULL,
     expires_at TIMESTAMP(6) NOT NULL,

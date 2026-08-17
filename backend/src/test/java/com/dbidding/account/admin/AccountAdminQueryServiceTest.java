@@ -31,20 +31,21 @@ class AccountAdminQueryServiceTest {
 		Instant now = Instant.parse("2026-08-15T00:00:00Z");
 		Instant expiresAt = Instant.parse("2026-09-01T00:00:00Z");
 		given(accounts.findById(1)).willReturn(Optional.of(admin));
-		given(accounts.searchForAdmin("피카츄", null, PageRequest.of(0, 20))).willReturn(new PageImpl<>(List.of(user), PageRequest.of(0, 20), 1));
+		given(accounts.searchForAdmin("피카츄", null, null, false, now, PageRequest.of(0, 20)))
+			.willReturn(new PageImpl<>(List.of(user), PageRequest.of(0, 20), 1));
 		given(warnings.countActiveByUserId(2, now)).willReturn(1L);
 		given(warnings.findFirstByUserIdAndExpiresAtAfterOrderByExpiresAtDesc(2, now))
 			.willReturn(Optional.of(UserWarning.issued(2, 100, UserWarningReason.BUYER_CANCELLED, now, expiresAt)));
 
 		var response = new AccountAdminQueryService(accounts, warnings, () -> now)
-			.findAccounts(1, 0, 20, "피카츄");
+			.findAccounts(1, 0, 20, "피카츄", null, false);
 
 		assertThat(response.content()).singleElement().satisfies(account -> {
 			assertThat(account.status()).isEqualTo(AccountStatus.SUSPENDED);
 			assertThat(account.activeWarningCount()).isEqualTo(1);
 			assertThat(account.latestActiveWarningExpiresAt()).isEqualTo(expiresAt);
 		});
-		verify(accounts).searchForAdmin("피카츄", null, PageRequest.of(0, 20));
+		verify(accounts).searchForAdmin("피카츄", null, null, false, now, PageRequest.of(0, 20));
 	}
 
 	@Test
@@ -75,8 +76,24 @@ class AccountAdminQueryServiceTest {
 		given(accounts.findById(1)).willReturn(Optional.of(user));
 
 		assertThatThrownBy(() -> new AccountAdminQueryService(accounts, warnings, Instant::now)
-			.findAccounts(1, 0, 20, null))
+			.findAccounts(1, 0, 20, null, null, false))
 			.isInstanceOf(AccountAdminAccessDeniedException.class);
+	}
+
+	@Test
+	void 상태와_경고_필터를_리포지토리_조회에_그대로_전달한다() {
+		AccountRepository accounts = org.mockito.Mockito.mock(AccountRepository.class);
+		UserWarningRepository warnings = org.mockito.Mockito.mock(UserWarningRepository.class);
+		Account admin = account(1, AccountRole.ADMIN, AccountStatus.ACTIVE, "admin@example.com", "관리자");
+		Instant now = Instant.parse("2026-08-15T00:00:00Z");
+		given(accounts.findById(1)).willReturn(Optional.of(admin));
+		given(accounts.searchForAdmin(null, null, AccountStatus.SUSPENDED, true, now, PageRequest.of(0, 20)))
+			.willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+		new AccountAdminQueryService(accounts, warnings, () -> now)
+			.findAccounts(1, 0, 20, null, AccountStatus.SUSPENDED, true);
+
+		verify(accounts).searchForAdmin(null, null, AccountStatus.SUSPENDED, true, now, PageRequest.of(0, 20));
 	}
 
 	private Account account(Integer id, AccountRole role, AccountStatus status, String email, String nickname) {

@@ -5,6 +5,7 @@ import com.dbidding.account.admin.dto.AdminAccountResponse;
 import com.dbidding.account.admin.dto.UserWarningResponse;
 import com.dbidding.account.domain.Account;
 import com.dbidding.account.domain.AccountRole;
+import com.dbidding.account.domain.AccountStatus;
 import com.dbidding.account.exception.AccountNotFoundException;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.account.warning.UserWarningRepository;
@@ -40,14 +41,16 @@ public class AccountAdminQueryService {
 	}
 
 	@Transactional(readOnly = true)
-	public AdminAccountPageResponse findAccounts(Integer actorId, int page, int size, String keyword) {
+	public AdminAccountPageResponse findAccounts(
+		Integer actorId, int page, int size, String keyword, AccountStatus status, boolean onlyWarned
+	) {
 		requireAdmin(actorId);
 		String normalizedKeyword = normalizeKeyword(keyword);
 		Integer accountId = toAccountId(normalizedKeyword);
-		Page<Account> accounts = accountRepository.searchForAdmin(
-			normalizedKeyword, accountId, PageRequest.of(page, size)
-		);
 		Instant now = nowSupplier.get();
+		Page<Account> accounts = accountRepository.searchForAdmin(
+			normalizedKeyword, accountId, status, onlyWarned, now, PageRequest.of(page, size)
+		);
 		List<AdminAccountResponse> content = accounts.getContent().stream()
 			.map(account -> toResponse(account, now))
 			.toList();

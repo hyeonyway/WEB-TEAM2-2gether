@@ -27,7 +27,7 @@ public class UserWarning {
 	@Column(name = "user_id", nullable = false)
 	private Integer userId;
 
-	@Column(name = "order_id", nullable = false)
+	@Column(name = "order_id")
 	private Integer orderId;
 
 	@Enumerated(EnumType.STRING)
