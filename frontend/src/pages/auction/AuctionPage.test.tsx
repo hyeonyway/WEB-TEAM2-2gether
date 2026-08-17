@@ -49,7 +49,7 @@ function renderPage(initialEntry='/auction',authStatus:'initializing'|'authentic
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   const result=render(<QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
-        <AuthContext.Provider value={{status:authStatus,retryInitialization:vi.fn()}}>
+        <AuthContext.Provider value={{status:authStatus,role:null,retryInitialization:vi.fn()}}>
           <AuctionPage/><LocationProbe/>
       </AuthContext.Provider>
     </MemoryRouter>

@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {clearCsrfToken,getCsrfToken,setCsrfToken} from './csrfTokenStore';
-import {getSessionUserId,setSessionUserId} from './sessionAuthStore';
+import {getSessionUserId,setSession} from './sessionAuthStore';
 import {revalidateSession} from './sessionRevalidation';
 
 function jsonResponse(body:unknown,status=200){
@@ -9,10 +9,10 @@ function jsonResponse(body:unknown,status=200){
 
 describe('revalidateSession',()=>{
   beforeEach(()=>{
-    setSessionUserId(37);
+    setSession(37);
     setCsrfToken('existing-csrf-token');
   });
-  afterEach(()=>{vi.restoreAllMocks();setSessionUserId(null);clearCsrfToken();});
+  afterEach(()=>{vi.restoreAllMocks();setSession(null);clearCsrfToken();});
 
   it('세션이 살아있으면 true를 반환하고 상태를 유지한다',async()=>{
     vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(jsonResponse({userId:37}));

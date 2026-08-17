@@ -2,7 +2,7 @@ import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {act,renderHook,waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {getSessionUserId,setSessionUserId} from '../auth/session/sessionAuthStore';
+import {getSessionUserId,setSession} from '../auth/session/sessionAuthStore';
 import type {NotificationDto} from '../dto/notificationDto';
 import {notificationQueryKeys} from '../queries/notificationQueries';
 import {useNotificationStream} from './useNotificationStream';
@@ -45,13 +45,13 @@ describe('useNotificationStream',()=>{
   beforeEach(()=>{
     EventSourceMock.instances=[];
     vi.stubGlobal('EventSource',EventSourceMock);
-    setSessionUserId(42);
+    setSession(42);
   });
 
   afterEach(()=>{
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
-    setSessionUserId(null);
+    setSession(null);
   });
 
   it('세션 cookie로 내 알림 스트림에 연결한다',async()=>{
@@ -221,7 +221,7 @@ describe('useNotificationStream',()=>{
   });
 
   it('로그인 상태가 아니면 스트림에 연결하지 않는다',async()=>{
-    setSessionUserId(null);
+    setSession(null);
     const{Wrapper}=createWrapper();
     const{unmount}=renderHook(()=>useNotificationStream(),{wrapper:Wrapper});
 

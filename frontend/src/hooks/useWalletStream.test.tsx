@@ -3,7 +3,7 @@ import {act,renderHook} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {fetchWalletBalance} from '../api/walletApi';
-import {getSessionUserId,setSessionUserId} from '../auth/session/sessionAuthStore';
+import {getSessionUserId,setSession} from '../auth/session/sessionAuthStore';
 import {walletQueryKeys} from '../queries/walletQueryKeys';
 import {useWalletStream} from './useWalletStream';
 
@@ -26,7 +26,7 @@ function payload(version:number,totalBalance:number){return JSON.stringify({
 
 describe('useWalletStream',()=>{
   beforeEach(()=>{EventSourceMock.instances=[];vi.stubGlobal('EventSource',EventSourceMock);vi.useFakeTimers();});
-  afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.clearAllMocks();setSessionUserId(null);});
+  afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.clearAllMocks();setSession(null);});
 
   it('재연결 REST 응답은 그 사이 받은 더 최신 SSE snapshot을 덮어쓰지 않는다',async()=>{
     let resolveRecovery!:(value:{totalBalance:number;frozenBalance:number;availableBalance:number})=>void;
@@ -89,7 +89,7 @@ describe('useWalletStream',()=>{
   });
 
   it('연속 5회 실패하면 세션을 재검증하고, 만료된 상태면 로그인 상태를 비운다',async()=>{
-    setSessionUserId(37);
+    setSession(37);
     const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(
       new Response(JSON.stringify({code:'SESSION_EXPIRED'}),{status:401,headers:{'Content-Type':'application/json'}}),
     );

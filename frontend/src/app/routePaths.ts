@@ -8,6 +8,8 @@ export const routePaths = {
   myPage: '/mypage',
   sell: '/sell',
   admin: '/admin',
+  adminUsers: '/admin/users',
+  adminStreamRecovery: '/admin/stream-recovery',
 } as const;
 
 export const appRoutePatterns = Object.values(routePaths);

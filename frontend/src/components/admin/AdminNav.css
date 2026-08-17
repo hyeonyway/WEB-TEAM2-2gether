@@ -1,0 +1,3 @@
+.admin-nav{display:flex;gap:6px}
+.admin-nav a{border:1px solid #e2e2e2;border-radius:8px;padding:8px 10px;color:#777;font-size:11px;text-decoration:none}
+.admin-nav a.active{border-color:#181a2b;background:#181a2b;color:#fff}

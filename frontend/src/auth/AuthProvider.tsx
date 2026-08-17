@@ -9,7 +9,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import {useQueryClient} from '@tanstack/react-query';
-import {getSessionUserId, setSessionUserId, subscribeSessionUser} from './session/sessionAuthStore';
+import {getSessionRole, getSessionUserId, setSession, subscribeSessionUser} from './session/sessionAuthStore';
 import {clearCsrfToken, setCsrfToken} from './session/csrfTokenStore';
 import {request} from '../api/httpClient';
 import type {CurrentAccountResponseDto, SessionLoginResponseDto} from '../dto/authDto';
@@ -20,6 +20,7 @@ export type AuthStatus = 'initializing' | 'authenticated' | 'anonymous';
 
 export type AuthContextValue = {
   status: AuthStatus;
+  role: 'USER' | 'ADMIN' | null;
   retryInitialization: () => void;
 };
 
@@ -32,6 +33,7 @@ type AuthProviderProps = {
 export function AuthProvider({children}: AuthProviderProps) {
   const queryClient = useQueryClient();
   const sessionUserId = useSyncExternalStore(subscribeSessionUser, getSessionUserId, getSessionUserId);
+  const role = useSyncExternalStore(subscribeSessionUser, getSessionRole, getSessionRole);
   const [initialized, setInitialized] = useState(false);
   const initializationInFlightRef = useRef(false);
 
@@ -42,10 +44,10 @@ export function AuthProvider({children}: AuthProviderProps) {
     try {
       const current = await request<CurrentAccountResponseDto>('/api/auth/me', {credentials: 'include'});
       const csrf = await request<SessionLoginResponseDto>('/api/auth/csrf', {credentials: 'include'});
-      setSessionUserId(current.userId);
+      setSession(current.userId, current.role);
       setCsrfToken(csrf.csrfToken);
     } catch {
-      setSessionUserId(null);
+      setSession(null, null);
       clearCsrfToken();
       // 인증 복구 실패는 anonymous 상태로 처리하고 전역 오류 UI는 노출하지 않는다.
     } finally {
@@ -74,10 +76,11 @@ export function AuthProvider({children}: AuthProviderProps) {
 
   const contextValue = useMemo<AuthContextValue>(() => ({
     status,
+    role,
     retryInitialization: () => {
       void initialize();
     },
-  }), [initialize, status]);
+  }), [initialize, status, role]);
 
   return (
     <AuthContext.Provider value={contextValue}>

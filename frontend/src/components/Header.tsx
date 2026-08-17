@@ -31,6 +31,9 @@ export default function Header(){
   const walletQuery=useWalletBalance();
   const queryClient=useQueryClient();
   const authenticated=authGate.status==='authenticated';
+  const navigationItems=authenticated&&authGate.role==='ADMIN'
+    ?[...mainNavigation,{href:'/admin/users',label:'관리자'}]
+    :mainNavigation;
   const chargeWallet=authenticated
     &&walletQuery.isSuccess
     &&!walletQuery.isError
@@ -58,5 +61,5 @@ export default function Header(){
         ?<button className="header-wallet" onClick={()=>setChargeOpen(true)}><Wallet/><span><small>내 전자지갑</small><strong>{wallet.toLocaleString()}P</strong></span><b>충전하기</b></button>
         :null
     :null;
-  return <><header><div className="head-inner"><Link className="logo" to="/" aria-label="홈으로 이동"><img src={dbiddingLogo} alt="DBIDDING"/></Link><nav className="header-main-nav" aria-label="주요 메뉴">{mainNavigation.map(item=><Link key={item.href} to={item.href} className={isActivePath(item.href,path)?'active':''} aria-current={isActivePath(item.href,path)?'page':undefined} onClick={event=>{if(item.requiresAuth&&!authGate.requestNavigation())event.preventDefault()}}>{item.label}</Link>)}</nav><div className="head-account-actions">{walletControl}<NotificationBell/><nav className="header-account-nav" aria-label="계정 메뉴"><Link to="/mypage" className={isActivePath('/mypage',path)?'active':''} onClick={event=>{if(!authGate.requestNavigation())event.preventDefault()}}>마이페이지</Link>{authenticated?<button type="button" disabled={logoutMutation.isPending} onClick={()=>logoutMutation.mutate()}>{logoutMutation.isPending?'로그아웃 중...':'로그아웃'}</button>:<button type="button" onClick={()=>setAuthOpen(true)}>로그인</button>}</nav></div></div></header>{chargeOpen&&chargeWallet&&<WalletChargeDialog wallet={chargeWallet} onClose={()=>setChargeOpen(false)}/>}<AuthModal open={authOpen} onClose={()=>setAuthOpen(false)} onLoginSuccess={()=>setAuthOpen(false)}/></>;
+  return <><header><div className="head-inner"><Link className="logo" to="/" aria-label="홈으로 이동"><img src={dbiddingLogo} alt="DBIDDING"/></Link><nav className="header-main-nav" aria-label="주요 메뉴">{navigationItems.map(item=><Link key={item.href} to={item.href} className={isActivePath(item.href,path)?'active':''} aria-current={isActivePath(item.href,path)?'page':undefined} onClick={event=>{if(item.requiresAuth&&!authGate.requestNavigation())event.preventDefault()}}>{item.label}</Link>)}</nav><div className="head-account-actions">{walletControl}<NotificationBell/><nav className="header-account-nav" aria-label="계정 메뉴"><Link to="/mypage" className={isActivePath('/mypage',path)?'active':''} onClick={event=>{if(!authGate.requestNavigation())event.preventDefault()}}>마이페이지</Link>{authenticated?<button type="button" disabled={logoutMutation.isPending} onClick={()=>logoutMutation.mutate()}>{logoutMutation.isPending?'로그아웃 중...':'로그아웃'}</button>:<button type="button" onClick={()=>setAuthOpen(true)}>로그인</button>}</nav></div></div></header>{chargeOpen&&chargeWallet&&<WalletChargeDialog wallet={chargeWallet} onClose={()=>setChargeOpen(false)}/>}<AuthModal open={authOpen} onClose={()=>setAuthOpen(false)} onLoginSuccess={()=>setAuthOpen(false)}/></>;
 }

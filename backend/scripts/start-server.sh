@@ -119,7 +119,7 @@ flush_redis_database() {
   : "${REDIS_USERNAME:?DB 스키마 초기화 후 Redis를 비우려면 REDIS_USERNAME 환경변수가 필요합니다.}"
   : "${REDIS_PASSWORD:?DB 스키마 초기화 후 Redis를 비우려면 REDIS_PASSWORD 환경변수가 필요합니다.}"
 
-  redis_cli_args=("$REDIS_CLI" --no-auth-warning --host="$REDIS_HOST" --port="$REDIS_PORT" --user="$REDIS_USERNAME")
+  redis_cli_args=("$REDIS_CLI" --no-auth-warning -h "$REDIS_HOST" -p "$REDIS_PORT" --user "$REDIS_USERNAME")
   if [[ "${REDIS_SSL_ENABLED:-false}" == "true" ]]; then
     redis_cli_args+=(--tls)
   fi

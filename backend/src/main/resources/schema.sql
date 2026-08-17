@@ -493,3 +493,25 @@ CREATE TABLE orders
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE user_warnings
+(
+    id         BIGINT      NOT NULL AUTO_INCREMENT,
+    user_id    INT         NOT NULL,
+    order_id   INT         NULL,
+    reason     VARCHAR(32) NOT NULL,
+    issued_at  TIMESTAMP(6) NOT NULL,
+    expires_at TIMESTAMP(6) NOT NULL,
+
+    CONSTRAINT pk_user_warnings PRIMARY KEY (id),
+    CONSTRAINT uk_user_warnings_order_reason UNIQUE (order_id, reason),
+    CONSTRAINT fk_user_warnings_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_user_warnings_order
+        FOREIGN KEY (order_id) REFERENCES orders (id),
+
+    INDEX idx_user_warnings_user_expires_at (user_id, expires_at)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;

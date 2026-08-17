@@ -81,6 +81,9 @@ class SessionAuthenticationWebMvcTest {
 	private AccountRepository accountRepository;
 
 	@MockitoBean
+	private com.dbidding.account.warning.UserWarningRepository userWarningRepository;
+
+	@MockitoBean
 	private SessionSseTerminationPublisher sessionSseTerminationPublisher;
 
 	@Test

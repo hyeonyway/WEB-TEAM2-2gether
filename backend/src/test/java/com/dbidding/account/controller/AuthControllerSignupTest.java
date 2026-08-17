@@ -23,6 +23,8 @@ import com.dbidding.account.exception.DuplicateEmailException;
 import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.service.SignupService;
 import com.dbidding.account.repository.AccountRepository;
+import com.dbidding.account.warning.UserWarningRepository;
+import java.time.Clock;
 
 @WebMvcTest(AuthController.class)
 class AuthControllerSignupTest {
@@ -41,6 +43,12 @@ class AuthControllerSignupTest {
 
 	@MockitoBean
 	private AccountRepository accountRepository;
+
+	@MockitoBean
+	private UserWarningRepository userWarningRepository;
+
+	@MockitoBean
+	private Clock clock;
 
 	@Test
 	void 회원가입하면_201과_공개된_사용자_정보만_반환한다() throws Exception {

@@ -6,7 +6,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {HttpError} from '../../api/httpClient';
 import {AuthContext} from '../../auth/AuthProvider';
 import {clearCsrfToken, setCsrfToken} from '../../auth/session/csrfTokenStore';
-import {setSessionUserId} from '../../auth/session/sessionAuthStore';
+import {setSession} from '../../auth/session/sessionAuthStore';
 import {walletQueryKeys} from '../../queries/walletQueryKeys';
 import Header from '../Header';
 
@@ -33,7 +33,7 @@ function renderHeader(status: 'authenticated' | 'anonymous' = 'anonymous', path 
     ...render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[path]}>
-          <AuthContext.Provider value={{status, retryInitialization: vi.fn()}}>
+          <AuthContext.Provider value={{status, role: null, retryInitialization: vi.fn()}}>
             <Header/>
             <LocationProbe/>
           </AuthContext.Provider>
@@ -62,7 +62,7 @@ describe('Header와 인증 모달의 세션 인증 UI', () => {
     logoutMock.mockReset();
     signupMock.mockReset();
     clearCsrfToken();
-    setSessionUserId(null);
+    setSession(null);
   });
 
   it('anonymous 사용자는 보호 메뉴를 이동하지 않고 로그인 안내 토스트를 한 번 표시한다', async () => {
@@ -97,7 +97,7 @@ describe('Header와 인증 모달의 세션 인증 UI', () => {
 
   it('로그인 성공 시 개인 query를 무효화하고 모달을 닫는다', async () => {
     loginMock.mockImplementation(async () => {
-      setSessionUserId(7);
+      setSession(7);
       setCsrfToken('csrf-token');
       return {csrfToken: 'csrf-token'};
     });
@@ -147,7 +147,7 @@ describe('Header와 인증 모달의 세션 인증 UI', () => {
   it('로그아웃이 완료되면 개인 지갑 cache를 제거하고 홈으로 이동한다', async () => {
     logoutMock.mockImplementation(async () => {
       clearCsrfToken();
-      setSessionUserId(null);
+      setSession(null);
     });
     const {queryClient} = renderHeader('authenticated');
     queryClient.setQueryData(walletQueryKeys.balance(), {totalBalance: 10_000});
