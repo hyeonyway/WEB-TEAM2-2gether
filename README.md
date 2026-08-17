@@ -324,35 +324,18 @@ Redis의 단일 Thread 실행 모델과 Lua Script의 원자성을 이용해
 Redis flow chart
 
 ```mermaid
-flowchart TD
-    Start([사용자 요청: 입찰 / 상세 조회]) --> CheckRedis{Redis에 상태 존재하는가?<br/><code>EXISTS auction:state:id</code>}
-
-    %% Cache Hit 경로
-    CheckRedis -- "YES (Cache Hit)" --> LuaExec[⚡ Redis In-Memory 즉시 처리<br/>Lua Script 원자적 입찰/조회]
-
-    %% Cache Miss (On-Demand Loading) 경로
-    CheckRedis -- "NO (Cache Miss)" --> FetchDB[(1. MySQL DB 원본 조회<br/>경매 정보 & 카드 스냅샷)]
-    FetchDB --> LoadRedis["2. 🚀 On-Demand Redis 적재<br/>───────────────────────<br/>• HSET auction:state:id<br/>• ZADD auction:active:by-close-time<br/>• ZADD auction:active:by-price<br/>• ZADD auction:active:by-bid-count"]
-    LoadRedis --> LuaExec
-
-    %% 사후 처리 및 라이프사이클
-    LuaExec --> IsAuctionEnd{경매 마감 도래?}
-    IsAuctionEnd -- "진행 중 (Ongoing)" --> EndFlow([클라이언트에 실시간 응답])
-    
-    IsAuctionEnd -- "마감 (Closed)" --> SyncDB[(3. MySQL에 최종 결과 영속화<br/>Write-Back)]
-    SyncDB --> Cleanup["4. 🧹 Redis 메모리 즉시 회수<br/>DEL auction:state:id<br/>ZREM active 인덱스 제거"]
-    Cleanup --> EndFlow
-
-    %% 스타일링
-    style Start fill:#f9f9f9,stroke:#333,stroke-width:1px
-    style CheckRedis fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    style FetchDB fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
-    style LoadRedis fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style LuaExec fill:#ede7f6,stroke:#512da8,stroke-width:2px
-    style IsAuctionEnd fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    style SyncDB fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style Cleanup fill:#ffebee,stroke:#c62828,stroke-width:2px
-    style EndFlow fill:#f9f9f9,stroke:#333,stroke-width:1px
+flowchart LR
+    Start(["입찰 / 경매 상세 조회 요청"]) --> Exists{"Redis에 경매 상태 존재?"}
+    Exists -- YES --> Process["Redis In-Memory 처리<br>────────────────────<br>• Auction State 조회<br>• Lua 기반 입찰 처리<br>• Wallet / Hold 검증"]
+    Exists -- NO --> DB[("MySQL<br>경매 원본 상태 조회")]
+    DB --> Seed["On-Demand Redis Seed<br>────────────────────<br>• auction:state:{id}<br>• wallet:{userId}<br>• wallet:hold:{userId}<br>• 활성 경매 인덱스"]
+    Seed --> Process
+    Process --> Active{"경매가 계속 활성 상태인가?"}
+    Active -- YES --> Keep["Redis에 상태 유지<br>후속 요청에서 재사용"]
+    Keep --> Response(["실시간 응답"])
+    Active -- NO · 경매 종료 --> Persist["최종 상태 영속화<br>Redis Stream → MySQL Projection"]
+    Persist --> Cleanup["Redis 상태 정리<br>────────────────────<br>• DEL auction state<br>• Wallet Hold 정리<br>• ZREM 활성 경매 인덱스"]
+    Cleanup --> Response
 ```
 
 [👉 Redis 상태 관리 Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/5.5-Redis-%EB%B9%84%EC%96%B4-%EC%9E%88%EC%9D%84-%EB%95%8C-%EC%83%81%ED%83%9C-%EB%B3%B5%EC%9B%90-&-Redis-%EC%83%81%ED%83%9C-%EC%82%AC%EC%A0%84-%EC%A0%81%EC%9E%AC)
