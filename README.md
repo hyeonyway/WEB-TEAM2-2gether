@@ -1,6 +1,6 @@
 <div align="center">
 
-[📷 dbidding 메인 로고 이미지]
+![dbidding 로고](asset/dbidding_logo.svg)
 
 # dbidding
 
