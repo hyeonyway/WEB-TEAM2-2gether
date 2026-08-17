@@ -14,7 +14,6 @@ import {clearCsrfToken, setCsrfToken} from './session/csrfTokenStore';
 import {request} from '../api/httpClient';
 import type {CurrentAccountResponseDto, SessionLoginResponseDto} from '../dto/authDto';
 import {useWalletCrossTabSync} from '../hooks/useWalletCrossTabSync';
-import {useWalletStream} from '../hooks/useWalletStream';
 
 export type AuthStatus = 'initializing' | 'authenticated' | 'anonymous';
 
@@ -64,7 +63,6 @@ export function AuthProvider({children}: AuthProviderProps) {
     ? 'initializing'
     : Boolean(sessionUserId) ? 'authenticated' : 'anonymous';
 
-  useWalletStream(status === 'authenticated');
   useWalletCrossTabSync(status === 'authenticated');
 
   useEffect(() => {
