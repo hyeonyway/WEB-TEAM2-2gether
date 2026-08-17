@@ -23,7 +23,8 @@ public interface AccountRepository extends JpaRepository<Account, Integer> {
 	Optional<Account> findByEmail(String email);
 
 	@Query("SELECT account FROM Account account "
-		+ "WHERE (:keyword IS NULL "
+		+ "WHERE account.role <> com.dbidding.account.domain.AccountRole.ADMIN "
+		+ "AND (:keyword IS NULL "
 		+ "OR LOWER(account.email) LIKE LOWER(CONCAT('%', :keyword, '%')) "
 		+ "OR LOWER(account.nickname) LIKE LOWER(CONCAT('%', :keyword, '%')) "
 		+ "OR account.id = :accountId) "
