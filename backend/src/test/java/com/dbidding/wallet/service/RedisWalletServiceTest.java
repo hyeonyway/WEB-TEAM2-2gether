@@ -17,7 +17,6 @@ import com.dbidding.wallet.exception.InvalidWalletAmountException;
 import java.time.Clock;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.HashOperations;
@@ -39,15 +38,25 @@ class RedisWalletServiceTest {
     );
 
     @Test
-    void 지갑_생성시_잔액_hash에_1시간에서_6시간_사이_idle_TTL을_건다() {
+    void 지갑_생성시_잔액_hash에_TTL을_걸지_않는다() {
         when(walletRepository.existsByUserId(7)).thenReturn(false);
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
 
         walletService.provision(7);
 
-        ArgumentCaptor<Duration> ttl = ArgumentCaptor.forClass(Duration.class);
-        verify(redisTemplate).expire(org.mockito.ArgumentMatchers.eq("wallet:balance:7"), ttl.capture());
-        assertThat(ttl.getValue().getSeconds()).isBetween(3600L, 21600L);
+        verify(redisTemplate, never()).expire(org.mockito.ArgumentMatchers.eq("wallet:balance:7"), any(Duration.class));
+    }
+
+    @Test
+    void 잔액_조회도_TTL을_걸지_않는다() {
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(hashOperations.get("wallet:balance:7", "availableBalance")).thenReturn("10000");
+        when(hashOperations.get("wallet:balance:7", "frozenBalance")).thenReturn("0");
+        when(hashOperations.get("wallet:balance:7", "walletVersion")).thenReturn("1");
+
+        walletService.getBalance(7);
+
+        verify(redisTemplate, never()).expire(eq("wallet:balance:7"), any(Duration.class));
     }
 
     @Test
