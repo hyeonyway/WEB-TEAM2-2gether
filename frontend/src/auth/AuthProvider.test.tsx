@@ -6,7 +6,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {AuthProvider} from './AuthProvider';
 import {useAuth} from './useAuth';
 import {clearCsrfToken, getCsrfToken, setCsrfToken} from './session/csrfTokenStore';
-import {getSessionUserId, setSessionUserId} from './session/sessionAuthStore';
+import {getSessionUserId, setSession} from './session/sessionAuthStore';
 
 vi.mock('../hooks/useWalletStream', () => ({useWalletStream: vi.fn()}));
 
@@ -59,7 +59,7 @@ describe('AuthProvider 앱 시작 세션 인증 복구', () => {
     BroadcastChannelMock.instances = [];
     vi.stubGlobal('BroadcastChannel', BroadcastChannelMock);
     clearCsrfToken();
-    setSessionUserId(null);
+    setSession(null);
   });
 
   it('현재 사용자와 CSRF token을 모두 조회한 뒤 authenticated가 된다', async () => {
@@ -77,7 +77,7 @@ describe('AuthProvider 앱 시작 세션 인증 복구', () => {
   });
 
   it('세션 복구가 401이면 공개 화면을 유지하고 세션 상태를 비운다', async () => {
-    setSessionUserId(37);
+    setSession(37);
     setCsrfToken('stale-csrf-token');
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({code: 'SESSION_EXPIRED'}, 401));
 
