@@ -1,0 +1,63 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: dbidding_local
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pdbidding_local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "dbidding_local"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "dbidding_local", "--no-auth-warning", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: redis,sse-virtual-threads
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: dbidding
+      DB_USERNAME: root
+      DB_PASSWORD: dbidding_local
+      DB_SCHEMA_SYNC_MODE: reset-on-mismatch
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: default
+      REDIS_PASSWORD: dbidding_local
+      SESSION_SECURE_COOKIE: "false"
+      PASSWORD_HASH_ITERATIONS: "100"
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - ./asset:/asset:ro
+    environment:
+      VITE_API_BASE_URL: http://localhost:8081
+      VITE_IMAGE_BASE_URL: https://dbidding.shop/upload
+    command: sh -c "npm install && npx vite --host 0.0.0.0 --port 5173"
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:5173:5173"
