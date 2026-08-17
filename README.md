@@ -690,7 +690,7 @@ README에서는 서비스와 핵심 기술만 요약하고,
 <tr>
 <td align="center">
   <a href="https://github.com/hyeonyway">
-    <img src="https://github.com/user-attachments/assets/7c8ef8cf-c597-4fff-aca9-1c42b7095238" width="120">
+    <img src="https://github.com/user-attachments/assets/90db0c95-ad08-4f57-bf5e-22e733641b5d" width="120">
   </a>
 </td>
 <td align="center">
