@@ -158,23 +158,25 @@ export function useMeStream({
         return;
       }
       if(stopped)return;
-      eventSource=new EventSource(streamUrl(),{withCredentials:true});
-      eventSource.addEventListener(WALLET_STATE_CHANGED_EVENT,handleWalletStateChanged);
-      eventSource.addEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);
-      eventSource.onopen=()=>{
-        consecutiveFailures=0;
-        if(opened){
-          void recoverWalletBalance();
-          void queryClient.invalidateQueries({queryKey:notificationQueryKeys.all});
-        }
-        opened=true;
-      };
-      eventSource.onerror=()=>{
-        detach();
-        eventSource?.close();
-        eventSource=null;
-        handleFailure();
-      };
+      try{
+        eventSource=new EventSource(streamUrl(),{withCredentials:true});
+        eventSource.addEventListener(WALLET_STATE_CHANGED_EVENT,handleWalletStateChanged);
+        eventSource.addEventListener(NOTIFICATION_CREATED_EVENT,handleNotificationCreated);
+        eventSource.onopen=()=>{
+          consecutiveFailures=0;
+          if(opened){
+            void recoverWalletBalance();
+            void queryClient.invalidateQueries({queryKey:notificationQueryKeys.all});
+          }
+          opened=true;
+        };
+        eventSource.onerror=()=>{
+          detach();
+          eventSource?.close();
+          eventSource=null;
+          handleFailure();
+        };
+      }catch{handleFailure();}
     };
 
     void connect();

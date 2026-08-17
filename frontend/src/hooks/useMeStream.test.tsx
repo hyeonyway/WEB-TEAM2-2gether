@@ -161,4 +161,19 @@ describe('useMeStream',()=>{
 
     expect(source?.close).toHaveBeenCalled();
   });
+
+  it('EventSource 생성 자체가 실패해도 재연결을 예약한다',async()=>{
+    class ThrowingEventSourceMock{
+      constructor(){throw new Error('malformed url');}
+    }
+    vi.stubGlobal('EventSource',ThrowingEventSourceMock);
+    const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
+    renderHook(()=>useMeStream(),{wrapper:wrapper(queryClient)});
+    await act(async()=>{await Promise.resolve();});
+
+    vi.stubGlobal('EventSource',EventSourceMock);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(2_000);});
+
+    expect(EventSourceMock.instances).toHaveLength(1);
+  });
 });
