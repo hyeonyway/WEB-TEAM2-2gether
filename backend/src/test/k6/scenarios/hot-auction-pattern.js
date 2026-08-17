@@ -31,9 +31,11 @@ const resultFile = __ENV.K6_RESULT_FILE;
 const bidServerError = new Rate('bid_server_error');
 const bidPolicyRejected = new Counter('bid_policy_rejected');
 const auctionSseConnected = new Rate('auction_sse_connected');
-const notificationSseConnected = new Rate('notification_sse_connected');
 const auctionSseEvents = new Counter('auction_sse_events');
-const notificationSseEvents = new Counter('notification_sse_events');
+// 알림+지갑 SSE가 /api/me/stream 하나로 합쳐졌다(#557) — 유저당 커넥션 3개(auction/
+// notification/wallet)에서 2개(auction/me)로 줄었다.
+const meSseConnected = new Rate('me_sse_connected');
+const meSseEvents = new Counter('me_sse_events');
 const sseBarrierReady = new Rate('sse_barrier_ready');
 
 export const options = {
@@ -46,8 +48,8 @@ export const options = {
       stages: [{target: sseUsers, duration: sseRampUp}, {target: sseUsers, duration: sseDuration}],
       gracefulRampDown: '5s',
     },
-    notificationSse: {
-      executor: 'ramping-vus', exec: 'notificationSse', startVUs: 0,
+    meSse: {
+      executor: 'ramping-vus', exec: 'meSse', startVUs: 0,
       stages: [{target: sseUsers, duration: sseRampUp}, {target: sseUsers, duration: sseDuration}],
       gracefulRampDown: '5s',
     },
@@ -69,7 +71,7 @@ export const options = {
     'http_req_duration{name:POST /api/auctions/:id/bids,status:400}': ['p(95)<400', 'p(99)<600'],
     'http_req_duration{name:POST /api/auctions/:id/bids,status:409}': ['p(95)<400', 'p(99)<600'],
     'auction_sse_connected': ['rate>0.99'],
-    'notification_sse_connected': ['rate>0.99'],
+    'me_sse_connected': ['rate>0.99'],
     'sse_barrier_ready': ['rate>0.99'],
   },
 };
@@ -82,22 +84,35 @@ export function setup() {
   return {auctionIds, hotAuctionIds, coldAuctionIds: auctionIds.filter(id => !hotAuctionIds.includes(id)), sessions};
 }
 
-export function auctionSse() {
-  sse.open(`${baseUrl}/api/auctions/stream`, {headers: {Accept: 'text/event-stream'}, tags: {name: 'GET /api/auctions/stream'}}, client => {
+export function auctionSse(data) {
+  // /api/auctions/stream이 선택 구독으로 바뀌어(feature/390) auctionIds가 필수다
+  // (최대 16개, 콤마 구분) — 없으면 400으로 즉시 끊긴다. pure-throughput.js와
+  // 동일하게 매 VU가 auctionIds 풀에서 무작위 최대 15개를 골라 구독한다.
+  const auctionIds = subscribedAuctionIds(data.auctionIds);
+  const url = `${baseUrl}/api/auctions/stream?auctionIds=${auctionIds.join(',')}`;
+  sse.open(url, {headers: {Accept: 'text/event-stream'}, tags: {name: 'GET /api/auctions/stream'}}, client => {
     client.on('open', () => auctionSseConnected.add(true));
     client.on('event', () => auctionSseEvents.add(1));
     client.on('error', () => auctionSseConnected.add(false));
   });
 }
 
-export function notificationSse(data) {
-  // 세션 인증(#469 이후): 티켓 발급(POST /api/sse/tickets) 없이 세션 쿠키로 바로 연결한다.
-  // 개인화 여부는 서버가 세션에서 판별하므로 URL에 userId도 필요 없다.
+function subscribedAuctionIds(auctionIds) {
+  const shuffled = [...auctionIds].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(15, shuffled.length));
+}
+
+export function meSse(data) {
+  // 세션 인증(#469 이후) + 알림·지갑 SSE 통합(#557): 티켓 발급 없이 세션 쿠키로
+  // /api/me/stream 하나에 연결한다 — 알림(event: notification-created)과 지갑(event:
+  // wallet-state-changed) 이벤트가 같은 커넥션으로 온다. hot/cold 입찰 둘 다 이
+  // data.sessions 풀에서 계정을 뽑아 쓰므로(placeBid -> authorization(data.sessions)),
+  // 이 스트림도 같은 풀에 붙여야 hot 경매에 몰리는 실제 hold/outbid 이벤트를 받는다.
   const session = sessionOf(data.sessions);
-  sse.open(`${baseUrl}/api/me/notifications/stream`, {headers: {Accept: 'text/event-stream', Cookie: `SESSION=${session.cookie}`}, tags: {name: 'GET /api/me/notifications/stream'}}, client => {
-    client.on('open', () => notificationSseConnected.add(true));
-    client.on('event', () => notificationSseEvents.add(1));
-    client.on('error', () => notificationSseConnected.add(false));
+  sse.open(`${baseUrl}/api/me/stream`, {headers: {Accept: 'text/event-stream', Cookie: `SESSION=${session.cookie}`}, tags: {name: 'GET /api/me/stream'}}, client => {
+    client.on('open', () => meSseConnected.add(true));
+    client.on('event', () => meSseEvents.add(1));
+    client.on('error', () => meSseConnected.add(false));
   });
 }
 

@@ -140,10 +140,20 @@ def start_run(scenario, base_url, params):
 
 
 def stop_run(run_id):
-    with RUNS_LOCK:
-        run = RUNS.get(run_id)
-    if run and run["proc"] and run["proc"].poll() is None:
-        run["proc"].terminate()
+    # proc가 아직 None인 시작 직후 찰나에 중지를 누르면 여기서도 같은 공백에 걸릴 수
+    # 있다 — 몇 번 짧게 재시도해서 실제로 Popen된 뒤의 proc를 잡는다.
+    for _ in range(20):
+        with RUNS_LOCK:
+            run = RUNS.get(run_id)
+            proc = run["proc"] if run else None
+            finished = run is not None and run["returncode"] is not None
+        if finished or not run:
+            return
+        if proc is not None:
+            if proc.poll() is None:
+                proc.terminate()
+            return
+        time.sleep(0.1)
 
 
 def read_log_tail(run_id, max_chars=12000):
@@ -332,7 +342,13 @@ class Handler(BaseHTTPRequestHandler):
             if not run:
                 self._json({"error": "unknown run"}, 404)
                 return
-            running = run["proc"] is not None and run["proc"].poll() is None
+            # proc는 백그라운드 스레드가 subprocess.Popen()까지 실행해야 채워지는데,
+            # start_run()이 run_id를 반환한 직후 프론트가 바로 첫 폴링을 날리면 그 사이
+            # (아직 None)에 걸릴 수 있다 — 그 순간 "proc is not None"으로 판정하면 아직
+            # 시작도 안 한 걸 "이미 끝남"으로 잘못 읽는다(#560). returncode는 run_job()의
+            # finally에서 실제 종료 후에만 채워지므로, 이걸로 판정해야 시작 전 공백까지
+            # 정확히 "아직 실행 중"으로 잡힌다.
+            running = run["returncode"] is None
             elapsed = (run["finished_at"] or time.time()) - run["started_at"]
             self._json({
                 "running": running, "returncode": run["returncode"], "elapsed": elapsed,

@@ -21,7 +21,9 @@ const resultFile = __ENV.K6_RESULT_FILE;
 const bidServerError = new Rate('bid_server_error');
 const bidPolicyRejected = new Counter('bid_policy_rejected');
 const sseAuctionConnectSuccess = new Rate('sse_auction_connect_success');
-const sseNotificationConnectSuccess = new Rate('sse_notification_connect_success');
+// 알림+지갑 SSE가 /api/me/stream 하나로 합쳐졌다(#557) — 유저당 커넥션 3개(auction/
+// notification/wallet)에서 2개(auction/me)로 줄었다.
+const sseMeConnectSuccess = new Rate('sse_me_connect_success');
 
 export const options = {
   setupTimeout: __ENV.SETUP_TIMEOUT || '15m',
@@ -33,8 +35,8 @@ export const options = {
       stages: [{target: sseVUs, duration: sseRampUp}, {target: sseVUs, duration: sseDuration}],
       gracefulRampDown: '5s',
     },
-    notificationSse: {
-      executor: 'ramping-vus', exec: 'notificationSse', startVUs: 0,
+    meSse: {
+      executor: 'ramping-vus', exec: 'meSse', startVUs: 0,
       stages: [{target: sseVUs, duration: sseRampUp}, {target: sseVUs, duration: sseDuration}],
       gracefulRampDown: '5s',
     },
@@ -54,7 +56,7 @@ export const options = {
     'http_req_duration{name:GET /api/auctions,scenario:generalReads}': ['p(95)<300', 'p(99)<600'],
     'http_req_duration{name:GET /api/auctions/:id,scenario:generalReads}': ['p(95)<300', 'p(99)<600'],
     'sse_auction_connect_success': ['rate>0.99'],
-    'sse_notification_connect_success': ['rate>0.99'],
+    'sse_me_connect_success': ['rate>0.99'],
   },
 };
 
@@ -82,13 +84,18 @@ function subscribedAuctionIds(auctions) {
   return shuffled.slice(0, Math.min(15, shuffled.length));
 }
 
-export function notificationSse(data) {
-  // 세션 인증(#469 이후): 티켓 발급(POST /api/sse/tickets) 없이 세션 쿠키로 바로 연결한다.
-  // 개인화 여부는 서버가 세션에서 판별하므로 URL에 userId도 필요 없다.
+export function meSse(data) {
+  // 세션 인증(#469 이후) + 알림·지갑 SSE 통합(#557): 티켓 발급 없이 세션 쿠키로
+  // /api/me/stream 하나에 연결한다 — 알림 이벤트(event: notification-created)와 지갑
+  // 이벤트(event: wallet-state-changed)가 같은 커넥션으로 온다. 지갑 이벤트는 이 계정이
+  // 실제로 입찰하거나(자기 hold) 직전 최고입찰자에서 밀려날(hold 해제) 때만 오므로,
+  // bidContextRead/bidWrite와 동일한 data.sessions 풀을 그대로 재사용해서 이 VU가 붙는
+  // 계정이 실제 입찰 흐름을 타는 계정과 겹치게 한다(전혀 입찰 안 하는 별도 계정에
+  // 연결해봐야 이벤트가 안 와서 실부하를 못 잰다).
   const session = sessionOf(data.sessions);
-  sse.open(`${baseUrl}/api/me/notifications/stream`, {headers: {Accept: 'text/event-stream', Cookie: `SESSION=${session.cookie}`}, tags: {name: 'GET /api/me/notifications/stream'}}, client => {
-    client.on('open', () => sseNotificationConnectSuccess.add(true));
-    client.on('error', () => sseNotificationConnectSuccess.add(false));
+  sse.open(`${baseUrl}/api/me/stream`, {headers: {Accept: 'text/event-stream', Cookie: `SESSION=${session.cookie}`}, tags: {name: 'GET /api/me/stream'}}, client => {
+    client.on('open', () => sseMeConnectSuccess.add(true));
+    client.on('error', () => sseMeConnectSuccess.add(false));
   });
 }
 
