@@ -91,19 +91,29 @@ public class SseEmitterRegistry<K> {
     }
 
     public boolean send(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
-        Timer.Sample sample = metrics.startSend();
+        return send(emitter, event, metrics);
+    }
+
+    /**
+     * 여러 도메인이 emitter 등록(연결 관리)은 공유 registry 하나로 통합하면서도, 도메인별
+     * 전송시간·실패 카운트({@code dbidding.<stream>.sse.send.*})는 각자의 {@link SseMetrics}로
+     * 계속 따로 집계하고 싶을 때 쓰는 오버로드다(#557). emitter별 send 직렬화(락)는 registry가
+     * 여전히 하나로 관리하므로, 서로 다른 도메인이 같은 emitter에 동시에 보내도 충돌하지 않는다.
+     */
+    public boolean send(SseEmitter emitter, SseEmitter.SseEventBuilder event, SseMetrics callMetrics) {
+        Timer.Sample sample = callMetrics.startSend();
         ReentrantLock sendLock = sendLocksByEmitter.computeIfAbsent(emitter, ignored -> new ReentrantLock());
         sendLock.lock();
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
-            metrics.recordSendFailure();
-            metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
+            callMetrics.recordSendFailure();
+            callMetrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
             removeAndComplete(emitter);
             return false;
         } finally {
             sendLock.unlock();
-            metrics.finishSend(sample);
+            callMetrics.finishSend(sample);
         }
         return true;
     }

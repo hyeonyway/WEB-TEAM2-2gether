@@ -46,7 +46,9 @@ Add to `backend/src/test/java/com/dbidding/sse/SseEmitterRegistryTest.java` (add
         registry.send(emitter, SseEmitter.event().comment("ping"), callMetrics);
 
         assertThat(meterRegistry.get("dbidding.caller.sse.send.duration").timer().count()).isEqualTo(1);
-        assertThat(meterRegistry.find("dbidding.test.sse.send.duration").timer()).isNull();
+        // register()의 "connected" 이벤트 전송은 registry 자신의 "test" 메트릭을 쓴다 — 그건
+        // 그대로 1이고, 방금 보낸 callMetrics(caller) 전송으로는 늘지 않아야 한다.
+        assertThat(meterRegistry.get("dbidding.test.sse.send.duration").timer().count()).isEqualTo(1);
     }
 
     @Test
@@ -62,7 +64,9 @@ Add to `backend/src/test/java/com/dbidding/sse/SseEmitterRegistryTest.java` (add
 
         assertThat(result).isFalse();
         assertThat(meterRegistry.get("dbidding.caller.sse.send.failures").counter().count()).isEqualTo(1);
-        assertThat(meterRegistry.find("dbidding.test.sse.send.failures").counter()).isNull();
+        // registry 자신의 "test" 메트릭 카운터는 SseMetrics 생성 시 0으로 이미 등록돼 있다 —
+        // 이번 실패가 callMetrics(caller)로만 잡히고 "test" 쪽은 여전히 0이어야 한다.
+        assertThat(meterRegistry.get("dbidding.test.sse.send.failures").counter().count()).isZero();
         assertThat(registry.emittersFor(10)).isEmpty();
         assertThat(registry.emittersFor(20)).isEmpty();
     }
