@@ -23,15 +23,17 @@ export type AdminAccountPageDto = {
 
 export type AdminAccountWarningDto = {
   id: number;
-  order_id: number;
+  order_id: number | null;
   reason: string;
   issued_at: string;
   expires_at: string;
 };
 
-export function fetchAdminAccounts({page = 0, size = 20, keyword}: {page?: number; size?: number; keyword?: string} = {}) {
+export function fetchAdminAccounts({page = 0, size = 20, keyword, status, onlyWarned}: {page?: number; size?: number; keyword?: string; status?: AdminAccountStatus; onlyWarned?: boolean} = {}) {
   const params = new URLSearchParams({page: String(page), size: String(size)});
   if (keyword?.trim()) params.set('keyword', keyword.trim());
+  if (status) params.set('status', status);
+  if (onlyWarned) params.set('only_warned', 'true');
   return authenticatedRequest<AdminAccountPageDto>(`/api/admin/users?${params}`);
 }
 
@@ -45,4 +47,8 @@ export function suspendAdminAccount(userId: number) {
 
 export function activateAdminAccount(userId: number) {
   return authenticatedRequest<void>(`/api/admin/users/${userId}/activate`, {method: 'POST'});
+}
+
+export function warnAdminAccount(userId: number) {
+  return authenticatedRequest<void>(`/api/admin/users/${userId}/warn`, {method: 'POST'});
 }
