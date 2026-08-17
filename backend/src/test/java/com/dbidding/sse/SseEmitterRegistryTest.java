@@ -186,4 +186,60 @@ class SseEmitterRegistryTest {
                 .tag("stream", "test").tag("reason", "completion").counter().count()).isEqualTo(1);
         assertThat(registry.totalConnectionCount()).isZero();
     }
+
+    @Test
+    void 전용_메트릭을_전달하면_해당_메트릭으로_전송시간을_기록한다() {
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        SseEmitterRegistry<Integer> registry = new SseEmitterRegistry<>(new SseMetrics(meterRegistry, "test"));
+        SseMetrics callMetrics = new SseMetrics(meterRegistry, "caller");
+        SseEmitter emitter = mock(SseEmitter.class);
+        registry.register(Set.of(10), emitter, null);
+
+        registry.send(emitter, SseEmitter.event().comment("ping"), callMetrics);
+
+        assertThat(meterRegistry.get("dbidding.caller.sse.send.duration").timer().count()).isEqualTo(1);
+        // register()의 "connected" 이벤트 전송은 registry 자신의 "test" 메트릭을 쓴다 — 그건
+        // 그대로 1이고, 방금 보낸 callMetrics(caller) 전송으로는 늘지 않아야 한다.
+        assertThat(meterRegistry.get("dbidding.test.sse.send.duration").timer().count()).isEqualTo(1);
+    }
+
+    @Test
+    void 전용_메트릭_전송이_실패하면_그_메트릭으로만_실패를_기록하고_모든_키에서_제거된다() throws Exception {
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        SseEmitterRegistry<Integer> registry = new SseEmitterRegistry<>(new SseMetrics(meterRegistry, "test"));
+        SseMetrics callMetrics = new SseMetrics(meterRegistry, "caller");
+        SseEmitter emitter = mock(SseEmitter.class);
+        registry.register(Set.of(10, 20), emitter, null);
+        doThrow(new IOException("disconnected")).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
+
+        boolean result = registry.send(emitter, SseEmitter.event().comment("ping"), callMetrics);
+
+        assertThat(result).isFalse();
+        assertThat(meterRegistry.get("dbidding.caller.sse.send.failures").counter().count()).isEqualTo(1);
+        // registry 자신의 "test" 메트릭 카운터는 SseMetrics 생성 시 0으로 이미 등록돼 있다 —
+        // 이번 실패가 callMetrics(caller)로만 잡히고 "test" 쪽은 여전히 0이어야 한다.
+        assertThat(meterRegistry.get("dbidding.test.sse.send.failures").counter().count()).isZero();
+        assertThat(registry.emittersFor(10)).isEmpty();
+        assertThat(registry.emittersFor(20)).isEmpty();
+    }
+
+    @Test
+    void 전용_메트릭_전송이_실패해도_연결_종료_사유는_registry_자신의_메트릭으로_기록한다() throws Exception {
+        // register()가 연결 시작 시각을 registry 자신의 "test" 메트릭에 기록해두므로(trackConnectionStart),
+        // 종료 사유도 같은 "test" 메트릭으로 기록해야 시작-종료가 짝지어진다. callMetrics(caller)로
+        // 기록하면 시작 시각을 못 찾아 조용히 유실된다 — #558 리뷰에서 발견된 버그의 회귀 테스트.
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        SseEmitterRegistry<Integer> registry = new SseEmitterRegistry<>(new SseMetrics(meterRegistry, "test"));
+        SseMetrics callMetrics = new SseMetrics(meterRegistry, "caller");
+        SseEmitter emitter = mock(SseEmitter.class);
+        registry.register(Set.of(10), emitter, null);
+        doThrow(new IOException("disconnected")).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
+
+        registry.send(emitter, SseEmitter.event().comment("ping"), callMetrics);
+
+        assertThat(meterRegistry.get("dbidding.sse.connections.closed")
+                .tag("stream", "test").tag("reason", "send_failure").counter().count()).isEqualTo(1);
+        assertThat(meterRegistry.get("dbidding.sse.connections.closed")
+                .tag("stream", "caller").tag("reason", "send_failure").counter().count()).isZero();
+    }
 }

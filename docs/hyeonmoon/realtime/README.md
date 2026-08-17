@@ -10,6 +10,7 @@
 2. [SSE Payload 사전 직렬화](2-sse-payload-pre-serialization.md) — fan-out 전 JSON을 한 번만 만들고 emitter에는 동일한 JSON data를 전달하는 성능 개선
 3. [경매 SSE 선택 구독](3-auction-sse-selective-subscription.md) — 상세·목록·검색 화면이 실제로 관찰하는 경매만 구독하고, 지갑 갱신은 개인화 스트림으로 분리하는 개선 설계
 4. [emitter 동시 send 붕괴 수정](4-sse-emitter-concurrent-send-fix.md) — 선택 구독으로 emitter가 다중 키를 구독하게 되며 생긴 동시 send 충돌 버그(#520) 원인·수정·검증
+5. [알림·지갑 SSE 스트림 통합](5-notification-wallet-sse-stream-consolidation-plan.md) — 유저당 SSE 커넥션을 3개(auction/notification/wallet)에서 2개로 줄여 Tomcat 커넥션 압박을 완화하는 설계(#557)
 
 `TicketProvider` 인터페이스/구현 계획은 A(김현문) 담당 문서로 옮겨졌다:
 [../auth/5-current-user-and-sse-auth.md](../auth/5-current-user-and-sse-auth.md).
