@@ -688,9 +688,21 @@ README에서는 서비스와 핵심 기술만 요약하고,
 </tr>
 
 <tr>
-<td align="center">[📷 프로필]</td>
-<td align="center">[📷 프로필]</td>
-<td align="center">[📷 프로필]</td>
+<td align="center">
+  <a href="https://github.com/hyeonyway">
+    <img src="https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f" width="120">
+  </a>
+</td>
+<td align="center">
+  <a href="https://github.com/JeongSH1">
+    <img src="https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f" width="120">
+  </a>
+</td>
+<td align="center">
+  <a href="https://github.com/eunki01">
+    <img src="https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f" width="120">
+  </a>
+</td>
 <td align="center">
   <a href="https://github.com/haimin13">
     <img src="https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f" width="120">
@@ -720,14 +732,14 @@ README에서는 서비스와 핵심 기술만 요약하고,
 <td>
 - Card<br/>
 - Dashboard<br/>
-- Ranking<br/>
+- SSE<br/>
 - Redis Stream 이벤트 계약 및 배치 영속화
 </td>
 <td>
-- Upload<br/>
 - Notification<br/>
 - Wishlist<br/>
 - SSE
+- Upload<br/>
 </td>
 </tr>
 </table>
