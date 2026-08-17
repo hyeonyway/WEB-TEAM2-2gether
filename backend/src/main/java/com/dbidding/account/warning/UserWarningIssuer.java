@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 public class UserWarningIssuer {
 
 	private static final long WARNING_PERIOD_DAYS = 30;
-	private static final long SUSPENSION_WARNING_COUNT = 2;
+	public static final long SUSPENSION_WARNING_COUNT = 3;
 
 	private final AccountRepository accountRepository;
 	private final UserWarningRepository userWarningRepository;
