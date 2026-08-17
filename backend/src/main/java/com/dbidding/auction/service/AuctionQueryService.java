@@ -73,25 +73,25 @@ public class AuctionQueryService {
     ) {
         String zsetKey = sortZSetKey(sort);
         boolean descending = sort != AuctionSort.PRICE_LOW && sort != AuctionSort.ENDING_SOON;
+        // ENDING_SOON은 ENDING 그룹을 OPEN 그룹보다 먼저 보여주므로 closeTime만으로
+        // Redis 범위를 좁히면 그룹 경계를 넘을 때 OPEN 항목을 건너뛴다. 이 정렬은
+        // 활성 인덱스를 처음부터 읽고 아래의 그룹-aware cursor 필터로 이어간다.
         Double initialBound = cursor == null ? null : cursorScore(cursor, sort);
         Double bound = initialBound;
         long withinBoundOffset = 0;
         List<RedisAuctionRealtimeStateReader.AuctionState> collected = new ArrayList<>();
         boolean exhausted = false;
-        // #529: keyword/psaGrade 필터가 없으면 ZSET에서 나온 순서 그대로가 결과라 걸러질 항목이
-        // 없다 — limit만큼만 가져오면 된다. 필터가 있으면 몇 개가 걸러질지 미리 알 수 없으므로
-        // (Redis가 텍스트/등급 필터를 직접 못 함, #530) 지금처럼 여유분(고정 배치)을 유지한다.
-        boolean hasNoFilter = request.keywordOrDefault().isBlank() && (request.psaGrade() == null || request.psaGrade().isBlank());
-        int fetchBatchSize = hasNoFilter ? limit : SORT_ZSET_FETCH_BATCH_SIZE;
+        // 동일 score 내부의 Redis member 순서와 숫자 auctionId tie-break 순서가 다를 수 있다.
+        // 작은 페이지 크기로 조회하면 한 페이지를 채우기 위해 내부 배치를 과도하게 스캔하다가
+        // SORT_ZSET_MAX_BATCHES에 도달해 전체 목록을 누락시킬 수 있으므로 고정 배치를 사용한다.
+        int fetchBatchSize = SORT_ZSET_FETCH_BATCH_SIZE;
         for (int batch = 0; collected.size() < limit && !exhausted && batch < SORT_ZSET_MAX_BATCHES; batch++) {
             List<ZSetOperations.TypedTuple<String>> raw = realtimeStateReader.activeIdsBatch(zsetKey, descending, bound, withinBoundOffset, fetchBatchSize);
             if (raw.isEmpty()) {
                 exhausted = true;
                 break;
             }
-            // 커서 경계 필터는 "아직 사용자 커서와 같은 score(동점 구간) 안에 있을 때"만 적용한다.
-            // score가 바뀌면 그 뒤로는 전부 커서 이후이므로(순서상 모호함이 없음) 더 적용할 필요가 없다.
-            AuctionCursor cursorForFilter = cursor != null && java.util.Objects.equals(bound, initialBound) ? cursor : null;
+            AuctionCursor cursorForFilter = cursor != null && Objects.equals(bound, initialBound) ? cursor : null;
             List<RedisAuctionRealtimeStateReader.AuctionState> filtered = raw.stream()
                     .map(tuple -> realtimeStateReader.readAuctionState(Integer.valueOf(tuple.getValue())))
                     .filter(Objects::nonNull)
@@ -106,11 +106,8 @@ public class AuctionQueryService {
                     .toList();
             collected.addAll(filtered);
             double lastScore = raw.getLast().getScore();
-            long itemsAtLastScore = raw.stream().filter(tuple -> tuple.getScore() == lastScore).count();
-            // 이 배치 전체가 여전히 같은 bound(score)에 머물러 있으면 - batchSize를 넘는 동점이 있다는 뜻이므로,
-            // 같은 score 안에서 이미 가져온 만큼 offset을 늘려 다음 호출이 이어서 가져오게 한다. score가
-            // 바뀌었으면 그 새 score에서 이 배치가 이미 소비한 만큼만 offset으로 남긴다.
-            if (bound != null && lastScore == bound) {
+            long itemsAtLastScore = raw.stream().filter(tuple -> Double.compare(tuple.getScore(), lastScore) == 0).count();
+            if (bound != null && Double.compare(lastScore, bound) == 0) {
                 withinBoundOffset += raw.size();
             } else {
                 bound = lastScore;
@@ -145,7 +142,7 @@ public class AuctionQueryService {
         if (sort == AuctionSort.LATEST || sort == AuctionSort.ENDING_SOON) {
             int compared = (sort == AuctionSort.LATEST ? state.openTime() : state.closeTime()).compareTo(cursor.timeValue());
             if (compared != 0) return sort == AuctionSort.ENDING_SOON ? compared > 0 : compared < 0;
-            return state.auctionId() < cursor.auctionId();
+            return sort == AuctionSort.ENDING_SOON ? state.auctionId() > cursor.auctionId() : state.auctionId() < cursor.auctionId();
         }
         long value = switch (sort) {
             case BID_COUNT -> state.bidCount();
@@ -177,12 +174,8 @@ public class AuctionQueryService {
                             (RedisAuctionRealtimeStateReader.AuctionState state) -> changeRateBasisPoints(state)).reversed()
                     .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId, java.util.Comparator.reverseOrder());
             case ENDING_SOON -> java.util.Comparator.comparing(
-                            (RedisAuctionRealtimeStateReader.AuctionState state) -> state.status() != AuctionStatus.ENDING
-                    )
-                    .thenComparing(
-                            state -> state.status() == AuctionStatus.OPEN ? state.closeTime() : Instant.EPOCH
-                    )
-                    .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId, java.util.Comparator.reverseOrder());
+                            RedisAuctionRealtimeStateReader.AuctionState::closeTime)
+                    .thenComparing(RedisAuctionRealtimeStateReader.AuctionState::auctionId);
         };
     }
 
