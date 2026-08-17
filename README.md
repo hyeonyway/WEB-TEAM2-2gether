@@ -691,7 +691,7 @@ README에서는 서비스와 핵심 기술만 요약하고,
 <td align="center">[📷 프로필]</td>
 <td align="center">[📷 프로필]</td>
 <td align="center">[📷 프로필]</td>
-<td align="center">[📷 프로필]</td>
+<td align="center">[![내 사진](https://github.com/user-attachments/assets/a1c87eb5-fcc6-43d2-8a56-f77a02376a1f)](https://github.com/haimin13)</td>
 </tr>
 
 <tr>
@@ -723,8 +723,7 @@ README에서는 서비스와 핵심 기술만 요약하고,
 - Upload<br/>
 - Notification<br/>
 - Wishlist<br/>
-- Batch<br/>
-- Big Query Index 최적화
+- SSE
 </td>
 </tr>
 </table>
