@@ -2,6 +2,7 @@ import {Route, Routes} from 'react-router-dom';
 import {Header} from '../components';
 import {Navigate} from 'react-router-dom';
 import {RequireAuth} from '../auth/RequireAuth';
+import {RequireAdmin} from '../auth/RequireAdmin';
 import AuctionDetailPage from '../pages/auction-detail';
 import AuctionPage from '../pages/auction';
 import CardDetailPage from '../pages/card-detail';
@@ -25,8 +26,8 @@ export function AppRoutes() {
       <Route path={routePaths.dashboard} element={<RequireAuth><DashboardPage/></RequireAuth>}/>
       <Route path={routePaths.myPage} element={<RequireAuth><MyPage/></RequireAuth>}/>
       <Route path={routePaths.admin} element={<Navigate to={routePaths.adminUsers} replace/>}/>
-      <Route path={routePaths.adminUsers} element={<AdminUsersPage/>}/>
-      <Route path={routePaths.adminStreamRecovery} element={<StreamRecoveryPage/>}/>
+      <Route path={routePaths.adminUsers} element={<RequireAdmin><AdminUsersPage/></RequireAdmin>}/>
+      <Route path={routePaths.adminStreamRecovery} element={<RequireAdmin><StreamRecoveryPage/></RequireAdmin>}/>
       <Route
         path={routePaths.sell}
         element={<RequireAuth><SellPage Header={Header}/></RequireAuth>}
