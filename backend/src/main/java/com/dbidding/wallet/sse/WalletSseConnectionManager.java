@@ -1,93 +1,60 @@
 package com.dbidding.wallet.sse;
 
-import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.session.MeSseConnectionManager;
 import com.dbidding.sse.PerConnectionSseSendDispatcher;
-import com.dbidding.sse.SseEmitterRegistry;
 import com.dbidding.sse.SseSendDispatcher;
 import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
-import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.MediaType;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Component
-@Slf4j
 public class WalletSseConnectionManager {
     public static final String WALLET_STATE_CHANGED = "wallet-state-changed";
-    private static final long CONNECTION_TIMEOUT_MILLIS = 30 * 60 * 1000L;
 
-    private final SseEmitterRegistry<Integer> registry;
+    private final MeSseConnectionManager connectionManager;
     private final ObjectMapper objectMapper;
+    private final SseMetrics metrics;
     private final SseSendDispatcher sendDispatcher;
-    // Micrometer Gauge는 이 Supplier를 약한 참조로만 들고 있어, GC되지 않도록 필드로 붙잡아둔다.
-    private final Supplier<Number> connectionCountSupplier;
 
     @Autowired
     public WalletSseConnectionManager(
-            SessionSseConnectionRegistry sessionRegistry,
+            MeSseConnectionManager connectionManager,
             ObjectMapper objectMapper,
             @Qualifier("walletSseTaskExecutor") TaskExecutor sendExecutor,
             @Qualifier("walletSseMetrics") SseMetrics metrics
     ) {
-        this.registry = new SseEmitterRegistry<>(metrics, sessionRegistry);
+        this.connectionManager = connectionManager;
         this.objectMapper = objectMapper;
+        this.metrics = metrics;
         this.sendDispatcher = new PerConnectionSseSendDispatcher(sendExecutor);
-        this.connectionCountSupplier = registry::totalConnectionCount;
-        metrics.registerConnectionGauge(connectionCountSupplier);
-    }
-
-    /** 기존 단위 테스트의 생성자 계약을 유지한다. */
-    WalletSseConnectionManager(ObjectMapper objectMapper, TaskExecutor sendExecutor, SseMetrics metrics) {
-        this(new SessionSseConnectionRegistry(), objectMapper, sendExecutor, metrics);
-    }
-
-    public SseEmitter connect(Integer userId) {
-        return connect(userId, null);
-    }
-
-    public SseEmitter connect(Integer userId, String sessionId) {
-        return register(userId, sessionId, new SseEmitter(CONNECTION_TIMEOUT_MILLIS));
-    }
-
-    SseEmitter register(Integer userId, SseEmitter emitter) {
-        return register(userId, null, emitter);
-    }
-
-    SseEmitter register(Integer userId, String sessionId, SseEmitter emitter) {
-        registry.register(Set.of(userId), emitter, sessionId);
-        return emitter;
-    }
-
-    public int totalConnectionCount() {
-        return registry.totalConnectionCount();
     }
 
     public void push(Integer userId, WalletSsePayload payload) {
-        Set<SseEmitter> emitters = registry.emittersFor(userId);
+        Set<SseEmitter> emitters = connectionManager.emittersFor(userId);
         if (emitters.isEmpty()) {
             return;
         }
         String serialized = serialize(payload);
-        emitters.forEach(emitter -> sendDispatcher.dispatch(() -> registry.send(emitter,
-                SseEmitter.event().name(WALLET_STATE_CHANGED).data(serialized, MediaType.APPLICATION_JSON))));
+        emitters.forEach(emitter -> sendDispatcher.dispatch(() -> connectionManager.send(
+                emitter,
+                SseEmitter.event().name(WALLET_STATE_CHANGED).data(serialized, MediaType.APPLICATION_JSON),
+                metrics
+        )));
     }
 
-    @Scheduled(fixedDelay = 25_000L)
-    public void heartbeat() {
-        registry.allEmitters().forEach(emitter ->
-                sendDispatcher.dispatch(() -> registry.send(emitter, SseEmitter.event().comment("heartbeat"))));
+    public int connectionCount(Integer userId) {
+        return connectionManager.connectionCount(userId);
     }
 
-    int connectionCount(Integer userId) {
-        return registry.connectionCount(userId);
+    public int totalConnectionCount() {
+        return connectionManager.totalConnectionCount();
     }
 
     private String serialize(WalletSsePayload payload) {

@@ -321,8 +321,11 @@ public class MeSseConnectionManager {
         metrics.registerConnectionGauge(connectionCountSupplier);
     }
 
-    /** 기존 단위 테스트의 생성자 계약을 유지한다. */
-    MeSseConnectionManager(SseMetrics metrics, TaskExecutor heartbeatExecutor) {
+    /**
+     * 테스트 편의 생성자 — {@code notification.sse}/{@code wallet.sse} 패키지의 도메인
+     * 매니저 테스트에서도 공유 연결 관리자를 직접 만들어 써야 해서(#557) public이다.
+     */
+    public MeSseConnectionManager(SseMetrics metrics, TaskExecutor heartbeatExecutor) {
         this(new SessionSseConnectionRegistry(), metrics, heartbeatExecutor);
     }
 
@@ -822,9 +825,9 @@ class WalletSseConnectionManagerTest {
         WalletSseConnectionManager manager = new WalletSseConnectionManager(
                 connectionManager, objectMapper(), new SyncTaskExecutor(), new SseMetrics(meterRegistry, "wallet"));
         SseEmitter emitter = mock(SseEmitter.class);
+        connectionManager.register(1, emitter);
         org.mockito.Mockito.doThrow(new IOException("disconnected"))
                 .when(emitter).send(ArgumentMatchers.any(SseEmitter.SseEventBuilder.class));
-        connectionManager.register(1, emitter);
 
         manager.push(1, payload(10));
 
