@@ -101,6 +101,18 @@ class AccountSuspensionServiceTest {
 	}
 
 	@Test
+	void 이미_활성_상태인_계정은_활성화해도_아무_동작도_하지_않는다() {
+		Account target = Mockito.mock(Account.class);
+		given(target.getRole()).willReturn(AccountRole.USER);
+		given(target.getStatus()).willReturn(AccountStatus.ACTIVE);
+		given(accounts.findByIdForUpdate(2)).willReturn(Optional.of(target));
+
+		service.activate(1, 2);
+
+		verify(target, never()).activate();
+	}
+
+	@Test
 	void 자기_자신을_활성화할_수_없다() {
 		assertThatThrownBy(() -> service.activate(1, 1))
 			.isInstanceOf(InvalidAdminTargetException.class);
