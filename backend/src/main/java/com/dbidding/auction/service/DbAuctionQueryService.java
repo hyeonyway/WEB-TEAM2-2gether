@@ -153,6 +153,7 @@ public class DbAuctionQueryService {
                 .currentPrice(auction.getCurrentPrice())
                 .minimumBid(auction.minimumBid())
                 .bidIncrement(auction.getBidPriceUnit())
+                .buyNowPrice(auction.getBuyNowPrice())
                 .myBidStatus(myBidStatus(myBid))
                 .myBidAmount(myBid == null ? null : myBid.getBidPrice())
                 .wallet(new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance()))

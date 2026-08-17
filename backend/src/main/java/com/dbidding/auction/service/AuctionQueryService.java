@@ -257,6 +257,7 @@ public class AuctionQueryService {
             return BidResponses.BidContext.builder()
                     .auctionId(auctionId).status(realtime.status()).currentPrice(realtime.currentPrice())
                     .minimumBid(realtime.currentPrice() + realtime.bidIncrement()).bidIncrement(realtime.bidIncrement())
+                    .buyNowPrice(realtime.buyNowPrice())
                     .myBidStatus(realtime.myBidStatus()).myBidAmount(realtime.myBidAmount())
                     .wallet(new BidResponses.WalletSummary(wallet.availableBalance(), wallet.frozenBalance()))
                     .recentBids(realtime.recentBids()).build();
