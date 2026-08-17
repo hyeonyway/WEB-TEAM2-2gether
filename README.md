@@ -1,6 +1,6 @@
 <div align="center">
 
-![dbidding 로고](asset/dbidding_logo.svg)
+<img src="asset/dbidding_logo.svg" alt="dbidding 로고" width="400">
 
 # dbidding
 
@@ -16,8 +16,6 @@
 [GitHub Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki)
 &nbsp; | &nbsp;
 [API 문서](API_DOCUMENT_URL)
-&nbsp; | &nbsp;
-[Figma](FIGMA_URL)
 
 </div>
 
@@ -680,6 +678,12 @@ README에서는 서비스와 핵심 기술만 요약하고,
 ## Team 2gether
 
 <table>
+<colgroup>
+<col width="25%">
+<col width="25%">
+<col width="25%">
+<col width="25%">
+</colgroup>
 <tr>
 <th>김현문</th>
 <th>이은기</th>
@@ -738,7 +742,7 @@ README에서는 서비스와 핵심 기술만 요약하고,
 <td>
 - Notification<br/>
 - Wishlist<br/>
-- SSE
+- SSE<br/>
 - Upload<br/>
 </td>
 </tr>
