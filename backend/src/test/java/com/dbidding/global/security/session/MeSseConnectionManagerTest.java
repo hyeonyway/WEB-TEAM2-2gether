@@ -8,10 +8,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.dbidding.notification.sse.NotificationSseConnectionManager;
 import com.dbidding.sse.metrics.SseMetrics;
+import com.dbidding.wallet.sse.WalletSseConnectionManager;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
@@ -130,6 +134,27 @@ class MeSseConnectionManagerTest {
 
         assertThat(async).isNotNull();
         assertThat(async.value()).isEqualTo("notificationFanOutTaskExecutor");
+    }
+
+    @Test
+    void 알림_지갑_매니저를_같이_생성해도_연결수_gauge는_me_하나만_등록된다() {
+        // 알림·지갑이 커넥션을 공유하므로(#557) 셀 대상은 물리적으로 하나뿐이다. 예전에
+        // 대시보드 호환 목적으로 NotificationSseConnectionManager/WalletSseConnectionManager
+        // 생성자에서도 같은 값을 stream=notification/wallet으로 또 등록했었는데, 그러면
+        // 커넥션 하나가 me+notification+wallet 세 시리즈에 다 잡혀서 합산 패널에서 실제
+        // 연결 수의 3배로 보인다(#560에서 실제로 발견됨) — 이 회귀가 재발하지 않게 고정한다.
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MeSseConnectionManager connectionManager =
+                new MeSseConnectionManager(new SseMetrics(registry, "me"), new SyncTaskExecutor());
+        new NotificationSseConnectionManager(connectionManager, new SseMetrics(registry, "notification"), new ObjectMapper());
+        new WalletSseConnectionManager(
+                connectionManager, new ObjectMapper(), new SyncTaskExecutor(), new SseMetrics(registry, "wallet"));
+
+        List<String> streamsWithConnectionGauge = registry.find("dbidding.sse.connections").gauges().stream()
+                .map(gauge -> gauge.getId().getTag("stream"))
+                .toList();
+
+        assertThat(streamsWithConnectionGauge).containsExactly("me");
     }
 
     @Test

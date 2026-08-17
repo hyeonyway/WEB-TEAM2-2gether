@@ -7,7 +7,6 @@ import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Set;
-import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.MediaType;
@@ -22,8 +21,6 @@ public class WalletSseConnectionManager {
     private final ObjectMapper objectMapper;
     private final SseMetrics metrics;
     private final SseSendDispatcher sendDispatcher;
-    // Micrometer Gauge는 이 Supplier를 약한 참조로만 들고 있어, GC되지 않도록 필드로 붙잡아둔다.
-    private final Supplier<Number> connectionCountSupplier;
 
     public WalletSseConnectionManager(
             MeSseConnectionManager connectionManager,
@@ -35,10 +32,11 @@ public class WalletSseConnectionManager {
         this.objectMapper = objectMapper;
         this.metrics = metrics;
         this.sendDispatcher = new PerConnectionSseSendDispatcher(sendExecutor);
-        // 알림·지갑이 이제 커넥션을 공유하므로(#557) 이 값은 공유 커넥션 수와 같다 — 기존
-        // dbidding.sse.connections{stream=wallet} 대시보드/알림이 계속 값을 받게 유지한다.
-        this.connectionCountSupplier = connectionManager::totalConnectionCount;
-        metrics.registerConnectionGauge(connectionCountSupplier);
+        // 커넥션 수 gauge는 여기서 등록하지 않는다(#560) — 알림·지갑이 커넥션을 공유하므로
+        // (#557) 실제로 셀 대상은 하나뿐이고, 그 값은 MeSseConnectionManager가 이미
+        // dbidding.sse.connections{stream=me} 하나로 등록한다. 여기서도 같은 값을
+        // {stream=wallet}로 또 등록하면(과거엔 대시보드 호환 목적으로 그렇게 했었다)
+        // 실제 연결 수가 3배로 잡혀 보이는 문제가 생긴다(#560에서 발견).
     }
 
     public void push(Integer userId, WalletSsePayload payload) {
