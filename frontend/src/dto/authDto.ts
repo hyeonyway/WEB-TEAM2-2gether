@@ -33,3 +33,8 @@ export type CurrentAccountResponseDto = {
   userId: number;
   role: 'USER' | 'ADMIN';
 };
+
+export type MyWarningSummaryDto = {
+  active_warning_count: number;
+  suspension_threshold: number;
+};
