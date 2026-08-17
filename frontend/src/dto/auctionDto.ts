@@ -129,6 +129,7 @@ export type BidContextResponseDto={
   current_price:number;
   minimum_bid:number;
   bid_increment:number;
+  buy_now_price:number|null;
   my_bid_status:MyBidStatus;
   my_bid_amount:number|null;
   wallet:{

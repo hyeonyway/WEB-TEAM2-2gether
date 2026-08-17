@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.dbidding.global.security.session.SessionSseConnectionRegistry;
+import com.dbidding.global.security.session.MeSseConnectionManager;
 import com.dbidding.sse.metrics.SseMetrics;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,12 +26,12 @@ class WalletSseConnectionManagerTest {
 
     @Test
     void 지갑_이벤트는_같은_사용자의_연결에만_전송한다() throws Exception {
-        WalletSseConnectionManager manager = new WalletSseConnectionManager(
-                objectMapper(), new SyncTaskExecutor(), metrics());
+        MeSseConnectionManager connectionManager = meSseConnectionManager(new SyncTaskExecutor());
+        WalletSseConnectionManager manager = manager(connectionManager, new SyncTaskExecutor());
         SseEmitter owner = mock(SseEmitter.class);
         SseEmitter otherUser = mock(SseEmitter.class);
-        manager.register(1, owner);
-        manager.register(2, otherUser);
+        connectionManager.register(1, owner);
+        connectionManager.register(2, otherUser);
 
         manager.push(1, payload(10));
 
@@ -43,8 +43,9 @@ class WalletSseConnectionManagerTest {
     @Test
     void 지갑_이벤트_전송은_전용_executor에_위임한다() {
         TaskExecutor executor = mock(TaskExecutor.class);
-        WalletSseConnectionManager manager = new WalletSseConnectionManager(objectMapper(), executor, metrics());
-        manager.register(1, mock(SseEmitter.class));
+        MeSseConnectionManager connectionManager = meSseConnectionManager(new SyncTaskExecutor());
+        WalletSseConnectionManager manager = manager(connectionManager, executor);
+        connectionManager.register(1, mock(SseEmitter.class));
 
         manager.push(1, payload(10));
 
@@ -52,61 +53,27 @@ class WalletSseConnectionManagerTest {
     }
 
     @Test
-    void 세션_종료_시_해당_세션의_지갑_SSE_연결도_종료한다() {
-        SessionSseConnectionRegistry registry = new SessionSseConnectionRegistry();
-        WalletSseConnectionManager manager = new WalletSseConnectionManager(
-                registry, objectMapper(), new SyncTaskExecutor(), metrics());
-        SseEmitter emitter = mock(SseEmitter.class);
-
-        manager.register(1, "session-a", emitter);
-        registry.disconnect("session-a");
-
-        verify(emitter).complete();
-    }
-
-    @Test
-    void 연결_등록과_해제에_따라_지갑_SSE_연결_Gauge가_변한다() {
-        SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        WalletSseConnectionManager manager = new WalletSseConnectionManager(
-                objectMapper(), new SyncTaskExecutor(), new SseMetrics(registry, "wallet"));
-        SseEmitter emitter = mock(SseEmitter.class);
-        final Runnable[] onCompletion = new Runnable[1];
-        org.mockito.Mockito.doAnswer(invocation -> {
-            onCompletion[0] = invocation.getArgument(0);
-            return null;
-        }).when(emitter).onCompletion(any(Runnable.class));
-
-        manager.register(1, emitter);
-
-        assertThat(registry.get("dbidding.sse.connections").tag("stream", "wallet").gauge().value()).isEqualTo(1);
-        onCompletion[0].run();
-        assertThat(registry.get("dbidding.sse.connections").tag("stream", "wallet").gauge().value()).isZero();
-        assertThat(registry.get("dbidding.sse.connections.closed")
-                .tag("stream", "wallet").tag("reason", "completion").counter().count()).isEqualTo(1);
-    }
-
-    @Test
     void 전송_실패시_send_failure_원인으로_한번만_기록한다() throws Exception {
-        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MeSseConnectionManager connectionManager = meSseConnectionManager(new SyncTaskExecutor());
         WalletSseConnectionManager manager = new WalletSseConnectionManager(
-                objectMapper(), new SyncTaskExecutor(), new SseMetrics(registry, "wallet"));
+                connectionManager, objectMapper(), new SyncTaskExecutor(), new SseMetrics(meterRegistry, "wallet"));
         SseEmitter emitter = mock(SseEmitter.class);
-        final Runnable[] onCompletion = new Runnable[1];
-        org.mockito.Mockito.doAnswer(invocation -> {
-            onCompletion[0] = invocation.getArgument(0);
-            return null;
-        }).when(emitter).onCompletion(any(Runnable.class));
+        connectionManager.register(1, emitter);
         org.mockito.Mockito.doThrow(new IOException("disconnected"))
                 .when(emitter).send(ArgumentMatchers.any(SseEmitter.SseEventBuilder.class));
 
-        manager.register(1, emitter);
-        onCompletion[0].run();
+        manager.push(1, payload(10));
 
-        assertThat(registry.get("dbidding.wallet.sse.send.failures").counter().count()).isEqualTo(1);
-        assertThat(registry.get("dbidding.sse.connections.closed")
-                .tag("stream", "wallet").tag("reason", "send_failure").counter().count()).isEqualTo(1);
-        assertThat(registry.get("dbidding.sse.connections.closed")
-                .tag("stream", "wallet").tag("reason", "completion").counter().count()).isZero();
+        assertThat(meterRegistry.get("dbidding.wallet.sse.send.failures").counter().count()).isEqualTo(1);
+    }
+
+    private WalletSseConnectionManager manager(MeSseConnectionManager connectionManager, TaskExecutor executor) {
+        return new WalletSseConnectionManager(connectionManager, objectMapper(), executor, metrics());
+    }
+
+    private MeSseConnectionManager meSseConnectionManager(TaskExecutor heartbeatExecutor) {
+        return new MeSseConnectionManager(new SseMetrics(new SimpleMeterRegistry(), "me"), heartbeatExecutor);
     }
 
     private SseMetrics metrics() {

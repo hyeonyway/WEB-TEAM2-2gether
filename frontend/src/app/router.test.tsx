@@ -37,7 +37,7 @@ function renderRoute(
   const view = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]}>
-        <AuthContext.Provider value={{status, retryInitialization: vi.fn()}}>
+        <AuthContext.Provider value={{status, role: null, retryInitialization: vi.fn()}}>
           <App/>
           <LocationProbe/>
           <BackButton/>

@@ -9,7 +9,7 @@ function authWrapper(status: AuthStatus) {
   return function Wrapper({children}: {children: ReactNode}) {
     return (
       <MemoryRouter>
-        <AuthContext.Provider value={{status, retryInitialization: vi.fn()}}>
+        <AuthContext.Provider value={{status, role: null, retryInitialization: vi.fn()}}>
           {children}
         </AuthContext.Provider>
       </MemoryRouter>

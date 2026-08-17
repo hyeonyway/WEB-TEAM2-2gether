@@ -2,12 +2,14 @@ import type {
   LoginRequestDto,
   SessionLoginResponseDto,
   CurrentAccountResponseDto,
+  MyWarningSummaryDto,
   SignupRequestDto,
   SignupResponseDto,
 } from '../dto/authDto';
 import {request} from './httpClient';
+import {authenticatedRequest} from './authenticatedRequest';
 import {clearCsrfToken, setCsrfToken} from '../auth/session/csrfTokenStore';
-import {setSessionUserId} from '../auth/session/sessionAuthStore';
+import {setSession} from '../auth/session/sessionAuthStore';
 import {sessionAuthenticatedRequest} from '../auth/session/sessionAuthenticatedRequest';
 
 const authRequestOptions = {
@@ -30,11 +32,15 @@ export async function login(loginRequest: LoginRequestDto) {
   });
   setCsrfToken(response.csrfToken);
   const current = await request<CurrentAccountResponseDto>('/api/auth/me', authRequestOptions);
-  setSessionUserId(current.userId);
+  setSession(current.userId, current.role);
   return response;
 }
 
 export async function logout() {
   try { await sessionAuthenticatedRequest<void>('/api/auth/logout', {method: 'POST'}); }
-  finally { clearCsrfToken(); setSessionUserId(null); }
+  finally { clearCsrfToken(); setSession(null, null); }
+}
+
+export function fetchMyWarningSummary() {
+  return authenticatedRequest<MyWarningSummaryDto>('/api/auth/me/warnings');
 }

@@ -14,6 +14,7 @@ import com.dbidding.account.authentication.CredentialAuthenticationService;
 import com.dbidding.account.authentication.session.SessionAuthenticationStrategy;
 import com.dbidding.account.dto.LoginRequest;
 import com.dbidding.account.dto.CurrentAccountResponse;
+import com.dbidding.account.dto.MyWarningSummaryResponse;
 import com.dbidding.account.dto.SignupRequest;
 import com.dbidding.account.dto.SignupResponse;
 import com.dbidding.account.exception.DuplicateEmailException;
@@ -21,10 +22,13 @@ import com.dbidding.account.exception.DuplicateNicknameException;
 import com.dbidding.account.exception.InvalidCredentialsException;
 import com.dbidding.account.service.SignupService;
 import com.dbidding.account.repository.AccountRepository;
+import com.dbidding.account.warning.UserWarningIssuer;
+import com.dbidding.account.warning.UserWarningRepository;
 import com.dbidding.global.security.CurrentUser;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -36,6 +40,8 @@ public class AuthController {
 	private final CredentialAuthenticationService credentialAuthenticationService;
 	private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 	private final AccountRepository accountRepository;
+	private final UserWarningRepository userWarningRepository;
+	private final Clock clock;
 
 	@PostMapping("/signup")
 	public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
@@ -63,6 +69,12 @@ public class AuthController {
 	public CurrentAccountResponse currentAccount(@CurrentUser Integer userId) {
 		String role = accountRepository.findById(userId).orElseThrow().getRole().name();
 		return new CurrentAccountResponse(userId, role);
+	}
+
+	@GetMapping("/me/warnings")
+	public MyWarningSummaryResponse myWarningSummary(@CurrentUser Integer userId) {
+		long activeWarningCount = userWarningRepository.countActiveByUserId(userId, clock.instant());
+		return new MyWarningSummaryResponse(activeWarningCount, UserWarningIssuer.SUSPENSION_WARNING_COUNT);
 	}
 
 	@ExceptionHandler({

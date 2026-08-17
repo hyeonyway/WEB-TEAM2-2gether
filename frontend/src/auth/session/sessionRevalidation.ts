@@ -1,15 +1,17 @@
 import {request} from '../../api/httpClient';
 import type {CurrentAccountResponseDto} from '../../dto/authDto';
 import {clearCsrfToken} from './csrfTokenStore';
-import {getSessionUserId, setSessionUserId} from './sessionAuthStore';
+import {getSessionRole, getSessionUserId, setSession} from './sessionAuthStore';
 
 export async function revalidateSession(): Promise<boolean> {
   try {
     const current = await request<CurrentAccountResponseDto>('/api/auth/me', {credentials: 'include'});
-    if (getSessionUserId() !== current.userId) setSessionUserId(current.userId);
+    if (getSessionUserId() !== current.userId || getSessionRole() !== current.role) {
+      setSession(current.userId, current.role);
+    }
     return true;
   } catch {
-    setSessionUserId(null);
+    setSession(null, null);
     clearCsrfToken();
     return false;
   }

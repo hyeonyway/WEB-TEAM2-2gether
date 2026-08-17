@@ -6,7 +6,7 @@ import {AuthProvider} from '../auth/AuthProvider';
 import {useAuth} from '../auth/useAuth';
 import {useWalletBalance} from './walletQueries';
 import {clearCsrfToken} from '../auth/session/csrfTokenStore';
-import {setSessionUserId} from '../auth/session/sessionAuthStore';
+import {setSession} from '../auth/session/sessionAuthStore';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -55,7 +55,7 @@ describe('useWalletBalance', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     clearCsrfToken();
-    setSessionUserId(null);
+    setSession(null);
   });
 
   it('anonymous 상태에서는 Wallet API를 호출하지 않는다', async () => {

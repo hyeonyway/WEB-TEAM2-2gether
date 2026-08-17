@@ -78,4 +78,16 @@ public class Account {
 			salt
 		);
 	}
+
+	public void suspend() {
+		this.status = AccountStatus.SUSPENDED;
+	}
+
+	public void activate() {
+		if (status == AccountStatus.WITHDRAWN) {
+			throw new IllegalStateException("탈퇴한 계정은 활성화할 수 없습니다.");
+		}
+		this.status = AccountStatus.ACTIVE;
+	}
+
 }
