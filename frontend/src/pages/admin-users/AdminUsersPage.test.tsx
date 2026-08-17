@@ -16,7 +16,7 @@ const activeAccount = {id: 7, email: 'collector@example.com', nickname: '피카�
 
 function renderPage() {
   return render(<QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-    <MemoryRouter><AuthContext.Provider value={{status: 'authenticated', retryInitialization: vi.fn()}}><AdminUsersPage/></AuthContext.Provider></MemoryRouter>
+    <MemoryRouter><AuthContext.Provider value={{status: 'authenticated', role: 'ADMIN', retryInitialization: vi.fn()}}><AdminUsersPage/></AuthContext.Provider></MemoryRouter>
   </QueryClientProvider>);
 }
 

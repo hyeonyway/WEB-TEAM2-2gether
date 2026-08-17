@@ -20,6 +20,7 @@ export type AuthStatus = 'initializing' | 'authenticated' | 'anonymous';
 
 export type AuthContextValue = {
   status: AuthStatus;
+  role: 'USER' | 'ADMIN' | null;
   retryInitialization: () => void;
 };
 
@@ -33,6 +34,7 @@ export function AuthProvider({children}: AuthProviderProps) {
   const queryClient = useQueryClient();
   const sessionUserId = useSyncExternalStore(subscribeSessionUser, getSessionUserId, getSessionUserId);
   const [initialized, setInitialized] = useState(false);
+  const [role, setRole] = useState<'USER' | 'ADMIN' | null>(null);
   const initializationInFlightRef = useRef(false);
 
   const initialize = useCallback(async () => {
@@ -43,9 +45,11 @@ export function AuthProvider({children}: AuthProviderProps) {
       const current = await request<CurrentAccountResponseDto>('/api/auth/me', {credentials: 'include'});
       const csrf = await request<SessionLoginResponseDto>('/api/auth/csrf', {credentials: 'include'});
       setSessionUserId(current.userId);
+      setRole(current.role);
       setCsrfToken(csrf.csrfToken);
     } catch {
       setSessionUserId(null);
+      setRole(null);
       clearCsrfToken();
       // 인증 복구 실패는 anonymous 상태로 처리하고 전역 오류 UI는 노출하지 않는다.
     } finally {
@@ -74,10 +78,11 @@ export function AuthProvider({children}: AuthProviderProps) {
 
   const contextValue = useMemo<AuthContextValue>(() => ({
     status,
+    role,
     retryInitialization: () => {
       void initialize();
     },
-  }), [initialize, status]);
+  }), [initialize, status, role]);
 
   return (
     <AuthContext.Provider value={contextValue}>

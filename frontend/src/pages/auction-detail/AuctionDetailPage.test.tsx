@@ -42,7 +42,7 @@ function renderAnonymousDetail(status:'anonymous'|'authenticated'='anonymous'){
   const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}});
   return render(<QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={['/auction/10']}>
-      <AuthContext.Provider value={{status,retryInitialization:vi.fn()}}>
+      <AuthContext.Provider value={{status,role:null,retryInitialization:vi.fn()}}>
         <Routes>
           <Route path="/auction/:auctionId" element={<AuctionDetailPage/>}/>
           <Route path="/cards/:cardId" element={<h1>카드 시세 Route</h1>}/>

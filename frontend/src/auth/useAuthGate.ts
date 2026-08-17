@@ -10,7 +10,7 @@ export function showAuthRequiredToast() {
 }
 
 export function useAuthGate() {
-  const {status} = useAuth();
+  const {status, role} = useAuth();
 
   const requestNavigation = useCallback(() => {
     if (status === 'authenticated') return true;
@@ -20,6 +20,7 @@ export function useAuthGate() {
 
   return {
     status,
+    role,
     requestNavigation,
   };
 }

@@ -33,7 +33,7 @@ function renderHeader(status: 'authenticated' | 'anonymous' = 'anonymous', path 
     ...render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[path]}>
-          <AuthContext.Provider value={{status, retryInitialization: vi.fn()}}>
+          <AuthContext.Provider value={{status, role: null, retryInitialization: vi.fn()}}>
             <Header/>
             <LocationProbe/>
           </AuthContext.Provider>

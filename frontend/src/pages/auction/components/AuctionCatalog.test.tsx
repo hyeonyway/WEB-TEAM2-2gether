@@ -28,7 +28,7 @@ function LocationProbe(){
 
 function renderCatalog(status:'anonymous'|'authenticated'='anonymous',auctionOverride:Partial<AuctionDto>={}){
   return render(<MemoryRouter>
-    <AuthContext.Provider value={{status,retryInitialization:vi.fn()}}>
+    <AuthContext.Provider value={{status,role:null,retryInitialization:vi.fn()}}>
       <AuctionCatalog auctions={[{...auction,...auctionOverride}]}/>
       <ToastContainer/>
       <LocationProbe/>
@@ -53,7 +53,7 @@ describe('AuctionCatalog',()=>{
   });
 
   it('PSA 접두사가 포함된 등급도 한 번만 표시한다',()=>{
-    render(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+    render(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',role:null,retryInitialization:vi.fn()}}>
       <AuctionCatalog auctions={[{...auction,card:{...auction.card,psaGrade:'PSA 10'}}]}/>
     </AuthContext.Provider></MemoryRouter>);
 
@@ -85,11 +85,11 @@ describe('AuctionCatalog',()=>{
     const Observer=vi.fn(function(){return {observe:vi.fn(),disconnect,unobserve:vi.fn()};});
     vi.stubGlobal('IntersectionObserver',Observer);
     const onSubscriptionAuctionIdsChange=vi.fn();
-    const {rerender}=render(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+    const {rerender}=render(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',role:null,retryInitialization:vi.fn()}}>
       <AuctionCatalog auctions={[auction]} onSubscriptionAuctionIdsChange={onSubscriptionAuctionIdsChange}/>
     </AuthContext.Provider></MemoryRouter>);
 
-    rerender(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',retryInitialization:vi.fn()}}>
+    rerender(<MemoryRouter><AuthContext.Provider value={{status:'anonymous',role:null,retryInitialization:vi.fn()}}>
       <AuctionCatalog auctions={[{...auction,bidCount:auction.bidCount+1}]} onSubscriptionAuctionIdsChange={onSubscriptionAuctionIdsChange}/>
     </AuthContext.Provider></MemoryRouter>);
 
