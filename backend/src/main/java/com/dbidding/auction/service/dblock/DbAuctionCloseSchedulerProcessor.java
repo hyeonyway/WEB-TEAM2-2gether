@@ -1,5 +1,7 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.dblock;
 
+import com.dbidding.auction.service.AuctionCloseSchedulerProcessor;
+import com.dbidding.auction.service.AuctionDueClosingService;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

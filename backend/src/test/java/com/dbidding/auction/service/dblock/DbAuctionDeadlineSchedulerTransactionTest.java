@@ -1,4 +1,4 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.dblock;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -8,6 +8,9 @@ import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
+import com.dbidding.auction.service.AuctionCloseSchedulerProcessor;
+import com.dbidding.auction.service.AuctionEndingTransitionProcessor;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -21,7 +24,7 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
-class AuctionDeadlineSchedulerTransactionTest {
+class DbAuctionDeadlineSchedulerTransactionTest {
     @Test
     void 일정_변경은_커밋_후에만_재예약하고_롤백하면_무시한다() {
         AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor = mock(AuctionCloseSchedulerProcessor.class);
@@ -35,7 +38,7 @@ class AuctionDeadlineSchedulerTransactionTest {
 
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean(TransactionalEventListenerFactory.class);
-            context.registerBean(AuctionDeadlineScheduler.class, () -> new AuctionDeadlineScheduler(
+            context.registerBean(DbAuctionDeadlineScheduler.class, () -> new DbAuctionDeadlineScheduler(
                     auctionCloseSchedulerProcessor,
                     auctionRepository,
                     auctionEndingTransitionProcessor,

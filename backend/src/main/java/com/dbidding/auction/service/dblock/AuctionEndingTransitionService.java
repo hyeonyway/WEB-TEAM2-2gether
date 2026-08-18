@@ -1,9 +1,13 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.dblock;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
+import com.dbidding.auction.service.AuctionEndingPolicy;
+import com.dbidding.auction.service.AuctionEndingTransitionProcessor;
+import com.dbidding.auction.service.EndingExtensionProvider;
 import com.dbidding.auction.sse.AuctionStreamPayload;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import java.time.Duration;

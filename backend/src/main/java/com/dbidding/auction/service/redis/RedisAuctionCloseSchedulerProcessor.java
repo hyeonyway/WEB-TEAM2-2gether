@@ -1,10 +1,11 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.redis;
 
 import java.time.Instant;
 import java.util.List;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.event.AuctionClosedEvent;
 import com.dbidding.auction.event.AuctionEventPublisher;
+import com.dbidding.auction.service.AuctionCloseSchedulerProcessor;
 import com.dbidding.auction.sse.AuctionStreamPayload;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.global.redis.RedisIntegerValue;

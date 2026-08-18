@@ -6,10 +6,10 @@ import static org.mockito.Mockito.mock;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.service.AuctionClosingScheduler;
 import com.dbidding.auction.service.AuctionCloseSchedulerProcessor;
-import com.dbidding.auction.service.AuctionDeadlineScheduler;
 import com.dbidding.auction.service.AuctionEndingTransitionProcessor;
 import com.dbidding.auction.service.AuctionDueClosingService;
 import com.dbidding.auction.service.AuctionCommandService;
+import com.dbidding.auction.service.dblock.DbAuctionDeadlineScheduler;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -20,7 +20,7 @@ class AuctionSchedulingConfigurationTest {
             .withInitializer(context -> context.getEnvironment().setActiveProfiles("local"))
             .withUserConfiguration(
                     AuctionSchedulingConfig.class,
-                    AuctionDeadlineScheduler.class,
+                    DbAuctionDeadlineScheduler.class,
                     AuctionClosingScheduler.class
             )
             .withBean(AuctionCloseSchedulerProcessor.class, () -> mock(AuctionCloseSchedulerProcessor.class))
@@ -32,7 +32,7 @@ class AuctionSchedulingConfigurationTest {
     @Test
     void 실제_프로필에서도_정시와_백업_마감_스케줄러를_생성한다() {
         contextRunner.run(context -> {
-            assertThat(context).hasSingleBean(AuctionDeadlineScheduler.class);
+            assertThat(context).hasSingleBean(DbAuctionDeadlineScheduler.class);
             assertThat(context).hasSingleBean(AuctionClosingScheduler.class);
             assertThat(context).hasBean("auctionDeadlineTaskScheduler");
             assertThat(context).hasBean("auctionBackupTaskScheduler");

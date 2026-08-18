@@ -1,9 +1,12 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.dblock;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
-import java.time.Clock;
+import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
+import com.dbidding.auction.service.AuctionCloseSchedulerProcessor;
+import com.dbidding.auction.service.AuctionEndingPolicy;
+import com.dbidding.auction.service.AuctionEndingTransitionProcessor;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
@@ -11,47 +14,45 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
-import org.springframework.core.env.Environment;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+/**
+ * {@code AuctionDeadlineScheduler}의 DB row-lock 경로. 다음 종료 대상을
+ * {@link AuctionRepository}에서 조회한다 — Redis를 전혀 쓰지 않는다.
+ */
 @Slf4j
 @Component
+@Profile("!redis")
 @ConditionalOnProperty(
         name = "auction.deadline.scheduler.enabled",
         havingValue = "true",
         matchIfMissing = true
 )
-public class AuctionDeadlineScheduler {
+public class DbAuctionDeadlineScheduler {
     private static final int CLOSE_BATCH_SIZE = 100;
 
     private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor;
     private final AuctionRepository auctionRepository;
     private final AuctionEndingTransitionProcessor auctionEndingTransitionProcessor;
     private final TaskScheduler taskScheduler;
-    private final Clock clock;
-    @Autowired(required = false)
-    private StringRedisTemplate redisTemplate;
-    @Autowired(required = false)
-    private Environment environment;
+    private final java.time.Clock clock;
     private final Object scheduleLock = new Object();
     private ScheduledFuture<?> scheduledTask;
     private Integer scheduledAuctionId;
     private Instant scheduledCloseTime;
 
-    public AuctionDeadlineScheduler(
+    public DbAuctionDeadlineScheduler(
             AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor,
             AuctionRepository auctionRepository,
             AuctionEndingTransitionProcessor auctionEndingTransitionProcessor,
             @Qualifier("auctionDeadlineTaskScheduler") TaskScheduler taskScheduler,
-            Clock clock
+            java.time.Clock clock
     ) {
         this.auctionCloseSchedulerProcessor = auctionCloseSchedulerProcessor;
         this.auctionRepository = auctionRepository;
@@ -106,14 +107,6 @@ public class AuctionDeadlineScheduler {
     }
 
     private ScheduledAuctionTarget nextTarget() {
-        if (isRedisProfile() && redisTemplate != null) {
-            ScheduledAuctionTarget activeTarget = redisTarget("auction:active:by-close-time");
-            ScheduledAuctionTarget endingTarget = redisTarget("auction:ending-window:by-close-time");
-            if (activeTarget == null) return endingTarget;
-            if (endingTarget == null) return activeTarget;
-            return activeTarget.closeTime().isBefore(endingTarget.closeTime()) ? activeTarget : endingTarget;
-        }
-
         List<Auction> openCandidates = auctionRepository.findNextCloseTarget(
                 List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)
         );
@@ -134,18 +127,6 @@ public class AuctionDeadlineScheduler {
             return openTarget;
         }
         return openTarget.closeTime().isBefore(endingTarget.closeTime()) ? openTarget : endingTarget;
-    }
-
-    private boolean isRedisProfile() {
-        return environment != null && environment.matchesProfiles("redis");
-    }
-
-    private ScheduledAuctionTarget redisTarget(String key) {
-        java.util.Set<ZSetOperations.TypedTuple<String>> targets = redisTemplate.opsForZSet().rangeWithScores(key, 0, 0);
-        if (targets == null || targets.isEmpty()) return null;
-        ZSetOperations.TypedTuple<String> target = targets.iterator().next();
-        if (target.getValue() == null || target.getScore() == null) return null;
-        return new ScheduledAuctionTarget(Integer.valueOf(target.getValue()), Instant.ofEpochMilli(target.getScore().longValue()));
     }
 
     private record ScheduledAuctionTarget(Integer auctionId, Instant closeTime) {

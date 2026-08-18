@@ -1,4 +1,4 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.redis;
 
 import java.time.Clock;
 import java.time.Duration;

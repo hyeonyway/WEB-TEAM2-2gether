@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.dbidding.auction.controller.AuctionController;
 import com.dbidding.auction.service.AuctionClosingScheduler;
 import com.dbidding.auction.service.AuctionCommandService;
-import com.dbidding.auction.service.AuctionDeadlineScheduler;
 import com.dbidding.auction.service.AuctionQueryService;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,7 +25,6 @@ class AuctionProfileConfigurationTest {
                 AuctionCommandService.class,
                 AuctionQueryService.class,
                 AuctionClosingScheduler.class,
-                AuctionDeadlineScheduler.class,
                 AuctionSchedulingConfig.class
         );
     }

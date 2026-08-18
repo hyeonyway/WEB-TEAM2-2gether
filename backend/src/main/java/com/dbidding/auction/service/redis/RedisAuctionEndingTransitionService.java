@@ -1,6 +1,9 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.redis;
 
 import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
+import com.dbidding.auction.service.AuctionEndingTransitionProcessor;
+import com.dbidding.auction.service.EndingExtensionProvider;
 import com.dbidding.auction.sse.AuctionStreamPayload;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.global.redis.RedisIntegerValue;
@@ -20,7 +23,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("redis")
 @RequiredArgsConstructor
-class RedisAuctionEndingTransitionProcessor implements AuctionEndingTransitionProcessor {
+class RedisAuctionEndingTransitionService implements AuctionEndingTransitionProcessor {
     private static final String ENDING_WINDOW_BY_CLOSE_TIME = "auction:ending-window:by-close-time";
     private static final String ACTIVE_BY_CLOSE_TIME = "auction:active:by-close-time";
     private static final String TIMELINE_STREAM = "event:timeline";

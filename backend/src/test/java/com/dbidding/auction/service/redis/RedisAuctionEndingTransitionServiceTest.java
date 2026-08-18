@@ -1,4 +1,4 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.metrics.AuctionMetrics;
+import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
+import com.dbidding.auction.service.EndingExtensionProvider;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,7 +23,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 
-class RedisAuctionEndingTransitionProcessorTest {
+class RedisAuctionEndingTransitionServiceTest {
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     private final ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
     private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
@@ -34,7 +36,7 @@ class RedisAuctionEndingTransitionProcessorTest {
     @Test
     void due_경매만_전이하고_성공한_경매의_연장마감으로_재예약을_요청한다() {
         Instant now = Instant.parse("2026-08-10T00:00:00Z");
-        RedisAuctionEndingTransitionProcessor processor = new RedisAuctionEndingTransitionProcessor(
+        RedisAuctionEndingTransitionService processor = new RedisAuctionEndingTransitionService(
                 redisTemplate, script, extensionProvider, auctionMetrics, eventPublisher, auctionStreamPublisher
         );
         when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);

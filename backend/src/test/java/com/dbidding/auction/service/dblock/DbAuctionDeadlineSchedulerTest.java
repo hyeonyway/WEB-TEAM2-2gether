@@ -1,4 +1,4 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.dblock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,6 +10,9 @@ import static org.mockito.Mockito.when;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
+import com.dbidding.auction.service.AuctionCloseSchedulerProcessor;
+import com.dbidding.auction.service.AuctionEndingTransitionProcessor;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,15 +23,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
-import org.springframework.data.redis.core.DefaultTypedTuple;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.Trigger;
 import org.springframework.test.util.ReflectionTestUtils;
 
-class AuctionDeadlineSchedulerTest {
+class DbAuctionDeadlineSchedulerTest {
     private static final Instant NOW = Instant.parse("2026-07-29T01:00:00Z");
 
     private final AuctionCloseSchedulerProcessor auctionCloseSchedulerProcessor = mock(AuctionCloseSchedulerProcessor.class);
@@ -36,7 +35,7 @@ class AuctionDeadlineSchedulerTest {
     private final AuctionEndingTransitionProcessor auctionEndingTransitionProcessor = mock(AuctionEndingTransitionProcessor.class);
     private final CapturingTaskScheduler taskScheduler = new CapturingTaskScheduler();
     private final Clock clock = Clock.fixed(NOW, ZoneId.of("Asia/Seoul"));
-    private final AuctionDeadlineScheduler scheduler = new AuctionDeadlineScheduler(
+    private final DbAuctionDeadlineScheduler scheduler = new DbAuctionDeadlineScheduler(
             auctionCloseSchedulerProcessor,
             auctionRepository,
             auctionEndingTransitionProcessor,
@@ -52,30 +51,6 @@ class AuctionDeadlineSchedulerTest {
         scheduler.scheduleNext("test");
 
         assertThat(taskScheduler.scheduledInstant).isEqualTo(NOW.plus(Duration.ofMinutes(5)));
-    }
-
-    @Test
-    void Redis_활성_경매_인덱스의_가장_빠른_마감_시간에_종료_작업을_예약한다() {
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        @SuppressWarnings("unchecked")
-        ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
-        when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
-        Instant closeTime = Instant.parse("2026-07-29T01:05:00Z");
-        when(zSetOperations.rangeWithScores("auction:active:by-close-time", 0, 0))
-                .thenReturn(new java.util.LinkedHashSet<>(List.of(
-                        new DefaultTypedTuple<>("7", (double) closeTime.toEpochMilli())
-                )));
-        MockEnvironment environment = new MockEnvironment();
-        environment.setActiveProfiles("redis");
-        ReflectionTestUtils.setField(scheduler, "environment", environment);
-        ReflectionTestUtils.setField(scheduler, "redisTemplate", redisTemplate);
-
-        scheduler.scheduleNext("redis_test");
-
-        assertThat(taskScheduler.scheduledInstant).isEqualTo(closeTime);
-        verify(auctionRepository, org.mockito.Mockito.never()).findNextCloseTarget(
-                List.of(AuctionStatus.OPEN), PageRequest.of(0, 1)
-        );
     }
 
     @Test

@@ -1,4 +1,4 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.dblock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -11,6 +11,8 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.repository.AuctionRepository;
+import com.dbidding.auction.service.AuctionCloseScheduleChangedEvent;
+import com.dbidding.auction.service.EndingExtensionProvider;
 import com.dbidding.auction.sse.AuctionStreamEventType;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import java.time.Duration;
