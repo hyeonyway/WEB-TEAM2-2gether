@@ -70,9 +70,9 @@ grep -rln "debug-auth" src/main/java src/test/java
 - Removes: `global.security.session.LocalSessionSseTerminationPublisher`
 - Preserves: `SessionSseTerminationPublisher` 인터페이스, `RedisSessionSseTerminationPublisher`(이제 유일한 구현체)
 
-- [ ] **Step 1:** 위 3개 파일 삭제/수정
-- [ ] **Step 2:** `./gradlew compileJava compileTestJava` 통과 확인
-- [ ] **Step 3:** 커밋
+- [x] **Step 1:** 위 3개 파일 삭제/수정
+- [x] **Step 2:** `./gradlew compileJava compileTestJava` 통과 확인
+- [x] **Step 3:** 커밋
 
 ### Task 3: global/security `debug-auth` 분기 제거
 
