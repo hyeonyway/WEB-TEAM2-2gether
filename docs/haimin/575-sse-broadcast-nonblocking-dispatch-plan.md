@@ -34,6 +34,25 @@ QPS130/구독자500/경매15, 2회 반복으로 재현 확인됨).
   "제출"과 "실제 실행 시작"의 의미가 이전과 동일하게 유지되도록 함(active는 이제 acquire 성공
   이후부터 세므로 오히려 더 정확해짐).
 
+## 실측 검증 결과
+
+로컬 부하테스트 스택(`~/dbidding-loadtest-local`)에서 순수 SSE fan-out 부하테스트(#569 스크립트,
+QPS130/구독자500명/경매15개)를 `AUCTION_SSE_VIRTUAL_MAX_CONCURRENCY=100`으로 이 수정 전/후 각각
+재현했다.
+
+| 지표 | 수정 전 | 수정 후 |
+|---|---|---|
+| `auction_sse_delivery_latency` 평균 (경매 이벤트가 구독자 500명에게 실제로 배달되기까지 걸린 시간) | 7,634.5ms | **1,980.9ms** |
+| p99 | 43,496ms | **9,122ms** |
+
+**캡을 걸어도 유저가 체감하는 배달 지연이 약 3.9배 개선**돼서, 캡 없을 때(가상스레드 무제한, 1,527.7ms)와
+비슷한 수준까지 회복됐다 — 원인 분석(broadcast() 순회가 더 이상 캡 때문에 안 막힘)이 실측으로 확인됨.
+
+⚠️ 다만 이 수정은 "가상스레드가 threadpool 프로필보다 느리다"는 더 근본적인 격차(같은 조건에서
+threadpool은 44.7ms)를 좁히는 건 아니다 — "가상스레드를 쓰더라도 캡을 걸어서 안전하게 운영할 수
+있게" 만든 것이지 threadpool을 이기게 만든 건 아니다. 상세 분석·후속 실험 아이디어는
+`~/dbidding-loadtest-local/순수-SSE-fanout-부하테스트-569.md`의 "#575 수정 검증" 섹션 참고.
+
 ## 범위 밖
 
 - `AuctionSseConnectionManager`/`PerConnectionSseSendDispatcher`/executor 설정(bean 이름, 기본
@@ -46,8 +65,8 @@ QPS130/구독자500/경매15, 2회 반복으로 재현 확인됨).
 - [x] `VirtualThreadSseTaskExecutor` 관련 기존 테스트 통과, 캡이 꽉 찬 상태에서도 `execute()`
       호출자가 블로킹되지 않는다는 신규 테스트 추가
 - [x] `./gradlew compileJava compileTestJava` 통과
-- [ ] (가능하면) `~/dbidding-loadtest-local`에서 같은 조건(QPS130/500명/15경매, cap=100)으로
-      재실행해 `auction_sse_delivery_latency`가 무제한 수준(1,500ms대)에 가까워지는지 확인 —
-      로컬 스택 재기동이 필요해 PR 전에는 보류, 필요 시 사용자가 직접 진행
+- [x] `~/dbidding-loadtest-local`에서 같은 조건(QPS130/500명/15경매, cap=100)으로 재실행 —
+      `auction_sse_delivery_latency` 평균이 7,634.5ms → 1,980.9ms로 개선, 무제한 수준(1,527.7ms)에
+      근접함을 확인(위 "실측 검증 결과" 참고)
 
 > 이 문서는 claude의 도움을 받아 작성되었습니다.
