@@ -20,6 +20,7 @@ import com.dbidding.order.OrderRepository;
 import com.dbidding.order.realtime.RedisOrderRealtimeStateProjection;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import jakarta.persistence.EntityManager;
@@ -83,6 +84,17 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(readOnly = true)
     public boolean hasProjectionError() {
         return inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
+    }
+
+    /** ERROR로 막힌 aggregate(경매)를 제외하고 가장 오래된 PENDING을 고른다. 한 aggregate의
+     * ERROR가 관계없는 다른 aggregate의 처리까지 막는 head-of-line blocking을 없앤다. */
+    @Transactional(readOnly = true)
+    public Optional<AuctionTimelineEvent> findNextEligiblePending() {
+        List<Integer> blocked = inboxRepository.findAuctionIdsWithError();
+        if (blocked.isEmpty()) {
+            return inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.PENDING);
+        }
+        return inboxRepository.findEligiblePending(blocked, org.springframework.data.domain.PageRequest.of(0, 1)).stream().findFirst();
     }
 
     /** 첫 오류를 다시 PENDING으로 전환한다. 이후 투영 worker는 DB inbox의 ID 순서대로 처리한다. */
