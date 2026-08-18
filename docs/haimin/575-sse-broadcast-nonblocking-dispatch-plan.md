@@ -43,9 +43,11 @@ QPS130/구독자500/경매15, 2회 반복으로 재현 확인됨).
 
 ## 완료 기준
 
-- [ ] `VirtualThreadSseTaskExecutor` 관련 기존 테스트 통과
-- [ ] `./gradlew compileJava compileTestJava` 통과
+- [x] `VirtualThreadSseTaskExecutor` 관련 기존 테스트 통과, 캡이 꽉 찬 상태에서도 `execute()`
+      호출자가 블로킹되지 않는다는 신규 테스트 추가
+- [x] `./gradlew compileJava compileTestJava` 통과
 - [ ] (가능하면) `~/dbidding-loadtest-local`에서 같은 조건(QPS130/500명/15경매, cap=100)으로
-      재실행해 `auction_sse_delivery_latency`가 무제한 수준(1,500ms대)에 가까워지는지 확인
+      재실행해 `auction_sse_delivery_latency`가 무제한 수준(1,500ms대)에 가까워지는지 확인 —
+      로컬 스택 재기동이 필요해 PR 전에는 보류, 필요 시 사용자가 직접 진행
 
 > 이 문서는 claude의 도움을 받아 작성되었습니다.
