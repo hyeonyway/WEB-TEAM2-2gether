@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StartServerScriptTest {
 
     @Test
-    void JWT_SECRET_없이도_DB_연결_검증까지_진행한다() throws Exception {
+    void JWT_SECRET_없이도_Redis_연결_검증까지_진행한다() throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder("bash", "scripts/start-server.sh", "true")
             .redirectErrorStream(true);
         Map<String, String> environment = processBuilder.environment();
@@ -20,13 +20,11 @@ class StartServerScriptTest {
         if (path != null) {
             environment.put("PATH", path);
         }
-        environment.put("DB_HOST", "127.0.0.1");
-        environment.put("DB_PORT", "1");
-        environment.put("DB_NAME", "dbidding");
-        environment.put("DB_USERNAME", "dbidding");
-        environment.put("DB_PASSWORD", "dbidding");
-        environment.put("DB_SCHEMA_WAIT_SECONDS", "1");
-        environment.put("SCHEMA_FILE", "/dev/null");
+        environment.put("REDIS_HOST", "127.0.0.1");
+        environment.put("REDIS_PORT", "1");
+        environment.put("REDIS_USERNAME", "default");
+        environment.put("REDIS_PASSWORD", "redis");
+        environment.put("REDIS_WAIT_SECONDS", "1");
 
         Process process = processBuilder.start();
         boolean completed = process.waitFor(5, TimeUnit.SECONDS);
@@ -35,6 +33,6 @@ class StartServerScriptTest {
         assertThat(completed).isTrue();
         assertThat(process.exitValue()).isNotZero();
         assertThat(output).doesNotContain("JWT_SECRET 환경변수가 필요합니다.");
-        assertThat(output).contains("MySQL 연결을 기다립니다");
+        assertThat(output).contains("Redis 연결을 기다립니다");
     }
 }
