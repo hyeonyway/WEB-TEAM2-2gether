@@ -29,7 +29,7 @@ public class WalletSseExecutorConfig {
     }
 
     /**
-     * caller는 {@code WalletSseRedisSubscriber}(SSE 전용 백그라운드 스레드)다. 이 executor는
+     * caller는 {@code WalletSseConnectionManager}(SSE 전용 백그라운드 스레드)다. 이 executor는
      * 순수 SSE send만 하고 다른 부작용(DB write 등)이 없어, 포화 시 discard해도 잔고
      * 값 자체는 유실되지 않는다(재연결/재조회 시 최신 값을 다시 받는다) — API 스레드
      * 보호를 우선한다.
