@@ -1,7 +1,7 @@
 package com.dbidding.auction.stream;
 
 import com.dbidding.global.redis.RedisIntegerValue;
-import com.dbidding.order.OrderStatus;
+import com.dbidding.order.domain.OrderStatus;
 import com.dbidding.wallet.domain.PointTransactionType;
 import java.time.Instant;
 import java.util.Map;

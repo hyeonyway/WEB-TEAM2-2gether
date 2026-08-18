@@ -1,6 +1,6 @@
-package com.dbidding.order.realtime;
+package com.dbidding.order.service.redis;
 
-import com.dbidding.order.Order;
+import com.dbidding.order.domain.Order;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;

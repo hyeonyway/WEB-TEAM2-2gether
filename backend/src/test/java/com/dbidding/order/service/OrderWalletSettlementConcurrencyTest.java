@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -24,7 +24,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
 import com.dbidding.notification.NotificationEventListener;
+import com.dbidding.order.domain.Order;
 import com.dbidding.order.exception.InvalidOrderStatusException;
+import com.dbidding.order.repository.OrderRepository;
 import com.dbidding.wallet.domain.PointTransactionType;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.repository.WalletRepository;

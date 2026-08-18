@@ -1,11 +1,13 @@
-package com.dbidding.order;
+package com.dbidding.order.service;
 
+import com.dbidding.order.domain.Order;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCancelledEvent.CancelledBy;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
 import com.dbidding.order.port.OrderEventPort;
+import com.dbidding.order.repository.OrderRepository;
 import com.dbidding.wallet.service.WalletService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

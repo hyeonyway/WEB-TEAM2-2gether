@@ -17,7 +17,7 @@ import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.card.service.CardService;
-import com.dbidding.order.OrderService;
+import com.dbidding.order.service.OrderService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import java.time.Clock;

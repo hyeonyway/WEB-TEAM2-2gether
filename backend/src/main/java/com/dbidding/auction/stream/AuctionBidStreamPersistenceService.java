@@ -15,9 +15,9 @@ import com.dbidding.wallet.service.WalletService;
 import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
-import com.dbidding.order.OrderService;
-import com.dbidding.order.OrderRepository;
-import com.dbidding.order.realtime.RedisOrderRealtimeStateProjection;
+import com.dbidding.order.service.OrderService;
+import com.dbidding.order.repository.OrderRepository;
+import com.dbidding.order.service.redis.RedisOrderRealtimeStateProjection;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -184,7 +184,7 @@ public class AuctionBidStreamPersistenceService {
     }
 
     private void projectOrderState(OrderStateChangedStreamEvent event) {
-        com.dbidding.order.Order order = orderRepository.findByIdForUpdate(event.orderId())
+        com.dbidding.order.domain.Order order = orderRepository.findByIdForUpdate(event.orderId())
                 .orElseThrow(() -> new InvalidBidStreamEventException("존재하지 않는 주문 상태 이벤트입니다: " + event.orderId()));
         if (!order.getAuctionId().equals(event.auctionId()) || !order.getBuyerId().equals(event.buyerId())
                 || !order.getSellerId().equals(event.sellerId())) {

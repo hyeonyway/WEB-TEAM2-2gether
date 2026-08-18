@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
 import com.dbidding.global.concurrent.RedisStateSingleFlight;
+import com.dbidding.order.domain.Order;
+import com.dbidding.order.repository.OrderRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

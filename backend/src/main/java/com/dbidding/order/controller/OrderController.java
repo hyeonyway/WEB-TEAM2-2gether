@@ -1,8 +1,10 @@
-package com.dbidding.order;
+package com.dbidding.order.controller;
 
 import com.dbidding.global.security.CurrentUser;
 import com.dbidding.order.dto.OrderResponse;
-import com.dbidding.order.realtime.RedisOrderRealtimeStateReader;
+import com.dbidding.order.service.OrderService;
+import com.dbidding.order.service.redis.RedisOrderCommandService;
+import com.dbidding.order.service.redis.RedisOrderRealtimeStateReader;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;

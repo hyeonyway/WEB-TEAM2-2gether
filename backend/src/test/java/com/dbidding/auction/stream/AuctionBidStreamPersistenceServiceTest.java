@@ -17,10 +17,10 @@ import com.dbidding.account.repository.AccountRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.card.service.CardService;
-import com.dbidding.order.OrderService;
-import com.dbidding.order.OrderRepository;
-import com.dbidding.order.Order;
-import com.dbidding.order.realtime.RedisOrderRealtimeStateProjection;
+import com.dbidding.order.service.OrderService;
+import com.dbidding.order.repository.OrderRepository;
+import com.dbidding.order.domain.Order;
+import com.dbidding.order.service.redis.RedisOrderRealtimeStateProjection;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.wallet.domain.PointTransactionType;
 import java.util.UUID;
@@ -178,7 +178,7 @@ class AuctionBidStreamPersistenceServiceTest {
         );
         given(inboxRepository.findByStreamId("order-2")).willReturn(java.util.Optional.empty());
         OrderStateChangedStreamEvent event = new OrderStateChangedStreamEvent("order-2", UUID.randomUUID(), "order.completed.v1",
-                20, 10, 1L, 2, 2, 1, com.dbidding.order.OrderStatus.COMPLETED, 1, 1L, 1L, 0L,
+                20, 10, 1L, 2, 2, 1, com.dbidding.order.domain.OrderStatus.COMPLETED, 1, 1L, 1L, 0L,
                 PointTransactionType.ORDER_SETTLEMENT, 1L, "key", Instant.parse("2026-08-10T12:00:00Z"));
 
         service.recordPending(event);
@@ -357,7 +357,7 @@ class AuctionBidStreamPersistenceServiceTest {
     void 존재하지_않는_ORDER와_ENDING_대상은_오류로_처리한다() {
         AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
         OrderStateChangedStreamEvent orderEvent = new OrderStateChangedStreamEvent("order-missing", UUID.randomUUID(), "order.completed.v1",
-                20, 10, 1L, 2, 2, 1, com.dbidding.order.OrderStatus.COMPLETED, 1, 1L, 1L, 0L,
+                20, 10, 1L, 2, 2, 1, com.dbidding.order.domain.OrderStatus.COMPLETED, 1, 1L, 1L, 0L,
                 PointTransactionType.ORDER_SETTLEMENT, 1L, "key", Instant.parse("2026-08-10T12:00:00Z"));
         given(orderRepository.findByIdForUpdate(20)).willReturn(java.util.Optional.empty());
         given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.empty());
@@ -377,12 +377,12 @@ class AuctionBidStreamPersistenceServiceTest {
         given(order.getBuyerId()).willReturn(2);
         given(order.getSellerId()).willReturn(1);
         OrderStateChangedStreamEvent event = new OrderStateChangedStreamEvent("order-1", UUID.randomUUID(), "order.completed.v1",
-                20, 10, 2L, 2, 2, 1, com.dbidding.order.OrderStatus.COMPLETED, 1, 3L, 50_000L, 0L,
+                20, 10, 2L, 2, 2, 1, com.dbidding.order.domain.OrderStatus.COMPLETED, 1, 3L, 50_000L, 0L,
                 PointTransactionType.ORDER_SETTLEMENT, 10_000L, "order-key", Instant.parse("2026-08-10T12:00:00Z"));
 
         service.project(event);
 
-        verify(order).applyProjectedStatus(com.dbidding.order.OrderStatus.COMPLETED);
+        verify(order).applyProjectedStatus(com.dbidding.order.domain.OrderStatus.COMPLETED);
         verify(walletProjectionService).project(org.mockito.ArgumentMatchers.any(WalletStateChangedStreamEvent.class));
         verify(realtime).markProjectedStatusAfterCommit(10, 20, "COMPLETED");
     }

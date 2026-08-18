@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.dbidding.order.domain.OrderStatus;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.port.OrderEventPort;
 import com.dbidding.wallet.service.RedisWalletStateSeeder;

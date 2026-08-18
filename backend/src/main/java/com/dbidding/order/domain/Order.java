@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.domain;
 
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import jakarta.persistence.Column;

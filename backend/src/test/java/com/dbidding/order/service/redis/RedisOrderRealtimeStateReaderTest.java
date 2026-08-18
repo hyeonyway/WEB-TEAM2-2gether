@@ -1,10 +1,9 @@
-package com.dbidding.order.realtime;
+package com.dbidding.order.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.dbidding.order.RedisOrderListStateSeeder;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;

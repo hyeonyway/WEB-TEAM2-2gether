@@ -20,7 +20,7 @@ import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
-import com.dbidding.order.OrderService;
+import com.dbidding.order.service.OrderService;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;

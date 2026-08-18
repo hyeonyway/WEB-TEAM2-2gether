@@ -1,7 +1,8 @@
-package com.dbidding.order;
+package com.dbidding.order.service.redis;
 
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.global.redis.RedisIntegerValue;
+import com.dbidding.order.domain.OrderStatus;
 import com.dbidding.order.dto.OrderResponse;
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.exception.OrderAccessDeniedException;

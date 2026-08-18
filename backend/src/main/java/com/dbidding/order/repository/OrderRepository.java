@@ -1,5 +1,6 @@
-package com.dbidding.order;
+package com.dbidding.order.repository;
 
+import com.dbidding.order.domain.Order;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -7,7 +7,10 @@ import com.dbidding.global.security.CurrentUserProvider;
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
-import com.dbidding.order.realtime.RedisOrderRealtimeStateReader;
+import com.dbidding.order.domain.Order;
+import com.dbidding.order.domain.OrderStatus;
+import com.dbidding.order.service.OrderService;
+import com.dbidding.order.service.redis.RedisOrderRealtimeStateReader;
 import com.dbidding.order.dto.OrderResponse;
 import java.time.Instant;
 import java.util.List;

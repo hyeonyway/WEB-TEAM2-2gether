@@ -1,7 +1,6 @@
-package com.dbidding.order.realtime;
+package com.dbidding.order.service.redis;
 
-import com.dbidding.order.OrderStatus;
-import com.dbidding.order.RedisOrderListStateSeeder;
+import com.dbidding.order.domain.OrderStatus;
 import com.dbidding.order.dto.OrderResponse;
 import java.time.Instant;
 import java.util.Comparator;

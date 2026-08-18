@@ -1,7 +1,7 @@
 package com.dbidding.order.dto;
 
-import com.dbidding.order.Order;
-import com.dbidding.order.OrderStatus;
+import com.dbidding.order.domain.Order;
+import com.dbidding.order.domain.OrderStatus;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 

@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,12 +8,15 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.dbidding.order.domain.Order;
+import com.dbidding.order.domain.OrderStatus;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.exception.OrderAccessDeniedException;
 import com.dbidding.order.exception.OrderNotFoundException;
 import com.dbidding.order.port.OrderEventPort;
+import com.dbidding.order.repository.OrderRepository;
 import com.dbidding.wallet.service.WalletService;
 import java.sql.SQLException;
 import java.util.Optional;

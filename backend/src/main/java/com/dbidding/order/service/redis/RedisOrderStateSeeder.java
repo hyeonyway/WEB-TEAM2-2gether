@@ -1,8 +1,10 @@
-package com.dbidding.order;
+package com.dbidding.order.service.redis;
 
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
 import com.dbidding.global.concurrent.RedisStateSingleFlight;
+import com.dbidding.order.domain.Order;
+import com.dbidding.order.repository.OrderRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;

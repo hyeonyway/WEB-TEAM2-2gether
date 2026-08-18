@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
 import com.dbidding.global.concurrent.RedisStateSingleFlight;
+import com.dbidding.order.domain.Order;
+import com.dbidding.order.repository.OrderRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -83,7 +85,7 @@ class RedisOrderStateSeederTest {
         when(order.getSellerId()).thenReturn(4);
         when(order.getCardName()).thenReturn("리자몽");
         when(order.getPrice()).thenReturn(10_000L);
-        when(order.getStatus()).thenReturn(com.dbidding.order.OrderStatus.PENDING_CONFIRM);
+        when(order.getStatus()).thenReturn(com.dbidding.order.domain.OrderStatus.PENDING_CONFIRM);
         when(order.getCreatedAt()).thenReturn(java.time.Instant.parse("2026-08-14T00:00:00Z"));
         return order;
     }

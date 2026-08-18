@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.domain;
 
 public enum OrderStatus {
     PENDING_CONFIRM,

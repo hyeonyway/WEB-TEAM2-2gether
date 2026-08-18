@@ -1,4 +1,4 @@
-package com.dbidding.order;
+package com.dbidding.order.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
