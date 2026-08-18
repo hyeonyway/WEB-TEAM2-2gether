@@ -80,7 +80,6 @@ class RedisAuctionColdSeedConnectionPoolIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        given(projectionCatchUpVerifier.isCaughtUp()).willReturn(true);
         given(projectionCatchUpVerifier.isCaughtUpForAuctionFresh(org.mockito.ArgumentMatchers.anyInt())).willReturn(true);
         jdbcTemplate.update("""
                 INSERT INTO users (id, email, nickname, role, status, encrypted_password, salt)

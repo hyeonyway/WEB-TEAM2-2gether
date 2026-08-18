@@ -28,7 +28,7 @@ class RedisOrderStateSeeder {
         return singleFlight.execute(indexKey, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
             return orderRepository.findById(orderId).map(order -> {
-                if (!projectionCatchUpVerifier.isCaughtUpForAuction(order.getAuctionId())) throw AuctionException.stateRecoveryRequired();
+                if (!projectionCatchUpVerifier.isCaughtUpForAuctionFresh(order.getAuctionId())) throw AuctionException.stateRecoveryRequired();
                 return seed(order);
             }).orElse(false);
         });
@@ -40,7 +40,7 @@ class RedisOrderStateSeeder {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
         return singleFlight.execute(indexKey, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(indexKey))) return false;
-            if (!projectionCatchUpVerifier.isCaughtUpForAuction(order.getAuctionId())) throw AuctionException.stateRecoveryRequired();
+            if (!projectionCatchUpVerifier.isCaughtUpForAuctionFresh(order.getAuctionId())) throw AuctionException.stateRecoveryRequired();
             return seed(order);
         });
     }

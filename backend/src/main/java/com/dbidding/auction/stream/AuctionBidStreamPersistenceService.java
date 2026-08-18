@@ -309,11 +309,27 @@ public class AuctionBidStreamPersistenceService {
     }
 
     private AuctionTimelineEvent archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
-        Integer userId = event instanceof WalletStateChangedStreamEvent wallet ? wallet.userId() : null;
+        Integer userId = extractWalletAffectingUserId(event);
         return new AuctionTimelineEvent(
             event.streamId(), auctionId, userId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
                 payload, event.occurredAt(), clock.instant()
         );
+    }
+
+    /**
+     * 이 이벤트가 PENDING인 동안 지갑 상태를 변경할 특정 유저가 있다면 그 userId를 반환한다.
+     * {@link RedisWalletStateSeeder}의 userId 스코프 catch-up 확인이 이 이벤트를 놓치지 않도록
+     * {@link WalletStateChangedStreamEvent}뿐 아니라 지갑을 hold/release/capture하는
+     * {@link BidAcceptedStreamEvent}(입찰자), 정산으로 지갑을 바꾸는
+     * {@link OrderStateChangedStreamEvent}(walletUserId)도 함께 채운다.
+     */
+    private Integer extractWalletAffectingUserId(AuctionWalletTimelineEvent event) {
+        return switch (event) {
+            case WalletStateChangedStreamEvent wallet -> wallet.userId();
+            case BidAcceptedStreamEvent bid -> bid.bidderId();
+            case OrderStateChangedStreamEvent order -> order.walletUserId();
+            default -> null;
+        };
     }
 
     private void validateLeadingBidder(BidAcceptedStreamEvent event, Bid currentLeadingBid) {

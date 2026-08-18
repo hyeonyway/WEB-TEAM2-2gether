@@ -145,7 +145,7 @@ class AuctionBidStreamPersistenceServiceTest {
     }
 
     @Test
-    void 입찰_이벤트는_지갑_이벤트가_아니므로_inbox의_userId를_비워둔다() {
+    void 입찰_이벤트는_입찰자_지갑을_hold하므로_inbox에_입찰자_userId를_채운다() {
         AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
                 inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService, orderService, orderRepository, java.util.Optional.empty(), cardService,
                 auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
@@ -166,7 +166,26 @@ class AuctionBidStreamPersistenceServiceTest {
 
         ArgumentCaptor<AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(AuctionTimelineEvent.class);
         verify(inboxRepository).save(inbox.capture());
-        assertThat(inbox.getValue().getUserId()).isNull();
+        assertThat(inbox.getValue().getUserId()).isEqualTo(2);
+        assertThat(inbox.getValue().getAuctionId()).isEqualTo(10);
+    }
+
+    @Test
+    void 주문_상태_이벤트는_정산으로_지갑이_바뀔_유저의_userId를_inbox에_채운다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService, orderService, orderRepository, java.util.Optional.empty(), cardService,
+                auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
+        );
+        given(inboxRepository.findByStreamId("order-2")).willReturn(java.util.Optional.empty());
+        OrderStateChangedStreamEvent event = new OrderStateChangedStreamEvent("order-2", UUID.randomUUID(), "order.completed.v1",
+                20, 10, 1L, 2, 2, 1, com.dbidding.order.OrderStatus.COMPLETED, 1, 1L, 1L, 0L,
+                PointTransactionType.ORDER_SETTLEMENT, 1L, "key", Instant.parse("2026-08-10T12:00:00Z"));
+
+        service.recordPending(event);
+
+        ArgumentCaptor<AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(AuctionTimelineEvent.class);
+        verify(inboxRepository).save(inbox.capture());
+        assertThat(inbox.getValue().getUserId()).isEqualTo(1);
         assertThat(inbox.getValue().getAuctionId()).isEqualTo(10);
     }
 
