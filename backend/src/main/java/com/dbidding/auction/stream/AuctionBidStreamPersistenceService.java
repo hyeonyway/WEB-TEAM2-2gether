@@ -68,7 +68,7 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionTimelineEvent recordMalformed(String streamId, Map<String, String> payload) {
         return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionTimelineEvent(
-                streamId, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
+                streamId, null, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
                 payload.toString(), Instant.now(), clock.instant()
         )));
     }
@@ -309,8 +309,9 @@ public class AuctionBidStreamPersistenceService {
     }
 
     private AuctionTimelineEvent archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
+        Integer userId = event instanceof WalletStateChangedStreamEvent wallet ? wallet.userId() : null;
         return new AuctionTimelineEvent(
-            event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
+            event.streamId(), auctionId, userId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
                 payload, event.occurredAt(), clock.instant()
         );
     }

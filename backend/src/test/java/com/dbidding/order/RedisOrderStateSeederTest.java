@@ -31,11 +31,11 @@ class RedisOrderStateSeederTest {
         Order order = order(100, 10);
         when(redisTemplate.hasKey("order:state:by-order-id:100")).thenReturn(false);
         when(orderRepository.findById(100)).thenReturn(java.util.Optional.of(order));
-        when(catchUpVerifier.isCaughtUp(10)).thenReturn(false);
+        when(catchUpVerifier.isCaughtUpForAuction(10)).thenReturn(false);
 
         assertThatThrownBy(() -> seeder.seedIfAbsent(100)).isInstanceOf(RuntimeException.class);
 
-        verify(catchUpVerifier).isCaughtUp(10);
+        verify(catchUpVerifier).isCaughtUpForAuction(10);
         verify(orderRepository).findById(100);
     }
 
@@ -43,11 +43,11 @@ class RedisOrderStateSeederTest {
     void seedIfAbsent_Order는_그_주문의_경매_단위로_catch_up을_확인한다() {
         Order order = order(100, 10);
         when(redisTemplate.hasKey("order:state:by-order-id:100")).thenReturn(false);
-        when(catchUpVerifier.isCaughtUp(10)).thenReturn(false);
+        when(catchUpVerifier.isCaughtUpForAuction(10)).thenReturn(false);
 
         assertThatThrownBy(() -> seeder.seedIfAbsent(order)).isInstanceOf(RuntimeException.class);
 
-        verify(catchUpVerifier).isCaughtUp(10);
+        verify(catchUpVerifier).isCaughtUpForAuction(10);
     }
 
     @Test
@@ -60,7 +60,7 @@ class RedisOrderStateSeederTest {
         seeder.seedAssumingCaughtUp(first);
         seeder.seedAssumingCaughtUp(second);
 
-        verify(catchUpVerifier, times(0)).isCaughtUp(any());
+        verify(catchUpVerifier, times(0)).isCaughtUpForAuction(any());
     }
 
     @Test

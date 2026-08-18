@@ -43,7 +43,7 @@ public class RedisAuctionStateSeeder {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
         return singleFlight.execute(key, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
-            if (!projectionCatchUpVerifier.isCaughtUp(auctionId)) throw AuctionException.stateRecoveryRequired();
+            if (!projectionCatchUpVerifier.isCaughtUpForAuctionFresh(auctionId)) throw AuctionException.stateRecoveryRequired();
             return batchCoordinator.requestSeedData(auctionId).join()
                     .map(data -> seed(data.auction(), data.leading(), data.card(), data.imagePaths(), data.latestBids(), data.recentBids()))
                     .orElse(false);
