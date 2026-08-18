@@ -149,4 +149,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
 
     @Query("select a.id from Auction a where a.status = :status")
     List<Integer> findIdsByStatus(@Param("status") AuctionStatus status);
+
+    @Query("select max(a.id) from Auction a")
+    Integer findMaxId();
 }

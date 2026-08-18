@@ -52,6 +52,12 @@ public class WalletProjectionService {
     public void project(WalletStateChangedStreamEvent event) {
         Wallet wallet = walletRepository.findByUserId(event.userId())
                 .orElseThrow(() -> new IllegalStateException("지갑 projection 대상이 없습니다: " + event.userId()));
+        int updated = walletRepository.updateProjectionIfNewer(
+                event.userId(), event.availableBalance() + event.frozenBalance(), event.walletVersion());
+        // updateProjectionIfNewer가 버전 가드로 잔액을 안 바꿨다면(stale 이벤트), 거래내역/hold도
+        // 같이 건너뛴다 - 잔액만 보호하고 나머지 부수효과는 그대로 반영하면 거래내역엔 기록이 남는데
+        // 잔액은 안 바뀌는 유령 기록, hold 상태 오염으로 인한 frozenBalance 오계산이 생긴다.
+        if (updated == 0) return;
         if (event.transactionType() != null && !pointRecordRepository.existsByEventId(event.eventId())) {
             pointRecordRepository.save(PointRecord.projected(
                     wallet.getId(), event.auctionId(), event.transactionAmount(),
@@ -68,8 +74,6 @@ public class WalletProjectionService {
                             wallet.getId(), event.auctionId(), event.holdAmount(), event.holdStatus(), event.walletVersion(), event.eventId()
                     )));
         }
-        walletRepository.updateProjectionIfNewer(
-                event.userId(), event.availableBalance() + event.frozenBalance(), event.walletVersion());
         // Redis 승인 직후 이미 wallet SSE를 발행한다. projection은 MySQL 반영만 담당한다.
     }
 }
