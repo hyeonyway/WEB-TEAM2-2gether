@@ -97,8 +97,8 @@ class RedisProjectionCatchUpVerifierTest {
         when(eventRepository.existsByAuctionIdAndProjectionStatusIn(1, UNPROCESSED_STATUSES)).thenReturn(true);
         when(eventRepository.existsByAuctionIdAndProjectionStatusIn(2, UNPROCESSED_STATUSES)).thenReturn(false);
 
-        assertThat(verifier.isCaughtUp(1)).isFalse();
-        assertThat(verifier.isCaughtUp(2)).isTrue();
+        assertThat(verifier.isCaughtUpForAuction(1)).isFalse();
+        assertThat(verifier.isCaughtUpForAuction(2)).isTrue();
     }
 
     @Test
@@ -106,7 +106,7 @@ class RedisProjectionCatchUpVerifierTest {
         RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
         when(eventRepository.existsByAuctionIdAndProjectionStatusIn(3, UNPROCESSED_STATUSES)).thenReturn(false);
 
-        assertThat(verifier.isCaughtUp(3)).isTrue();
+        assertThat(verifier.isCaughtUpForAuction(3)).isTrue();
     }
 
     @Test
@@ -114,8 +114,8 @@ class RedisProjectionCatchUpVerifierTest {
         RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
         when(eventRepository.existsByAuctionIdAndProjectionStatusIn(4, UNPROCESSED_STATUSES)).thenReturn(false);
 
-        assertThat(verifier.isCaughtUp(4)).isTrue();
-        assertThat(verifier.isCaughtUp(4)).isTrue();
+        assertThat(verifier.isCaughtUpForAuction(4)).isTrue();
+        assertThat(verifier.isCaughtUpForAuction(4)).isTrue();
 
         verify(eventRepository, times(1)).existsByAuctionIdAndProjectionStatusIn(4, UNPROCESSED_STATUSES);
     }
@@ -127,14 +127,116 @@ class RedisProjectionCatchUpVerifierTest {
                 .thenReturn(false);
 
         for (int auctionId = 1; auctionId <= 10_001; auctionId++) {
-            verifier.isCaughtUp(auctionId);
+            verifier.isCaughtUpForAuction(auctionId);
         }
         now.set(now.get().plusMillis(10));
-        verifier.isCaughtUp(10_002);
+        verifier.isCaughtUpForAuction(10_002);
 
         java.util.Map<?, ?> auctionCached = (java.util.Map<?, ?>)
                 org.springframework.test.util.ReflectionTestUtils.getField(verifier, "auctionCached");
         assertThat(auctionCached).hasSize(1);
+    }
+
+    @Test
+    void 경매_단위_fresh_확인은_캐시된_값이_있어도_항상_다시_조회한다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(5, UNPROCESSED_STATUSES)).thenReturn(false);
+        assertThat(verifier.isCaughtUpForAuction(5)).isTrue();
+
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(5, UNPROCESSED_STATUSES)).thenReturn(true);
+
+        assertThat(verifier.isCaughtUpForAuctionFresh(5)).isFalse();
+        verify(eventRepository, times(2)).existsByAuctionIdAndProjectionStatusIn(5, UNPROCESSED_STATUSES);
+    }
+
+    @Test
+    void 경매_단위_fresh_확인_결과는_이후_캐시된_호출자에게도_반영된다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(6, UNPROCESSED_STATUSES)).thenReturn(true);
+
+        assertThat(verifier.isCaughtUpForAuctionFresh(6)).isFalse();
+        assertThat(verifier.isCaughtUpForAuction(6)).isFalse();
+
+        verify(eventRepository, times(1)).existsByAuctionIdAndProjectionStatusIn(6, UNPROCESSED_STATUSES);
+    }
+
+    @Test
+    void 유저_단위_확인은_그_유저의_이벤트_이력만_본다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(1, UNPROCESSED_STATUSES)).thenReturn(true);
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(2, UNPROCESSED_STATUSES)).thenReturn(false);
+
+        assertThat(verifier.isCaughtUpForUser(1)).isFalse();
+        assertThat(verifier.isCaughtUpForUser(2)).isTrue();
+    }
+
+    @Test
+    void 유저_단위_확인은_이벤트가_아직_없으면_캐치업된_것으로_본다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(3, UNPROCESSED_STATUSES)).thenReturn(false);
+
+        assertThat(verifier.isCaughtUpForUser(3)).isTrue();
+    }
+
+    @Test
+    void 유저_단위_확인도_TTL_이내에는_캐시된_값을_재사용한다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(4, UNPROCESSED_STATUSES)).thenReturn(false);
+
+        assertThat(verifier.isCaughtUpForUser(4)).isTrue();
+        assertThat(verifier.isCaughtUpForUser(4)).isTrue();
+
+        verify(eventRepository, times(1)).existsByUserIdAndProjectionStatusIn(4, UNPROCESSED_STATUSES);
+    }
+
+    @Test
+    void 다른_경매의_PENDING은_유저_단위_확인에_영향을_주지_않는다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(999, UNPROCESSED_STATUSES)).thenReturn(true);
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(7, UNPROCESSED_STATUSES)).thenReturn(false);
+
+        assertThat(verifier.isCaughtUpForAuction(999)).isFalse();
+        assertThat(verifier.isCaughtUpForUser(7)).isTrue();
+    }
+
+    @Test
+    void 유저_단위_캐시는_임계값을_넘으면_만료된_항목을_정리한다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(1));
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(org.mockito.ArgumentMatchers.anyInt(), eq(UNPROCESSED_STATUSES)))
+                .thenReturn(false);
+
+        for (int userId = 1; userId <= 10_001; userId++) {
+            verifier.isCaughtUpForUser(userId);
+        }
+        now.set(now.get().plusMillis(10));
+        verifier.isCaughtUpForUser(10_002);
+
+        java.util.Map<?, ?> userCached = (java.util.Map<?, ?>)
+                org.springframework.test.util.ReflectionTestUtils.getField(verifier, "userCached");
+        assertThat(userCached).hasSize(1);
+    }
+
+    @Test
+    void 유저_단위_fresh_확인은_캐시된_값이_있어도_항상_다시_조회한다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(5, UNPROCESSED_STATUSES)).thenReturn(false);
+        assertThat(verifier.isCaughtUpForUser(5)).isTrue();
+
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(5, UNPROCESSED_STATUSES)).thenReturn(true);
+
+        assertThat(verifier.isCaughtUpForUserFresh(5)).isFalse();
+        verify(eventRepository, times(2)).existsByUserIdAndProjectionStatusIn(5, UNPROCESSED_STATUSES);
+    }
+
+    @Test
+    void 유저_단위_fresh_확인_결과는_이후_캐시된_호출자에게도_반영된다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.existsByUserIdAndProjectionStatusIn(6, UNPROCESSED_STATUSES)).thenReturn(true);
+
+        assertThat(verifier.isCaughtUpForUserFresh(6)).isFalse();
+        assertThat(verifier.isCaughtUpForUser(6)).isFalse();
+
+        verify(eventRepository, times(1)).existsByUserIdAndProjectionStatusIn(6, UNPROCESSED_STATUSES);
     }
 
     @Test

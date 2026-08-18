@@ -68,7 +68,7 @@ class AuctionTimelineEventRepositoryTest {
 
     private AuctionTimelineEvent save(String streamId, Integer auctionId, Long auctionVersion, AuctionBidEventProjectionStatus status) {
         AuctionTimelineEvent event = new AuctionTimelineEvent(
-                streamId, auctionId, auctionVersion, "bid.accepted.v1", 1, "{}", Instant.now(), Instant.now()
+                streamId, auctionId, null, auctionVersion, "bid.accepted.v1", 1, "{}", Instant.now(), Instant.now()
         );
         if (status == AuctionBidEventProjectionStatus.PROCESSED) event.markProcessed(Instant.now());
         if (status == AuctionBidEventProjectionStatus.ERROR) event.markError("test");

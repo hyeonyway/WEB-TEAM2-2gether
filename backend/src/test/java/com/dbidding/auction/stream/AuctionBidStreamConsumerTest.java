@@ -256,7 +256,7 @@ class AuctionBidStreamConsumerTest {
     @Test
     void pending_inbox의_유효한_payload는_projection_후_처리완료로_표시한다() throws Exception {
         AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
-        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-1", null, null, "wallet.charged.v1", 2,
+        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-1", null, null, null, "wallet.charged.v1", 2,
                 "{\"schemaVersion\":\"2\",\"eventId\":\"8ef477e7-1c80-42ea-a7af-8d8ea9c6d411\",\"eventType\":\"wallet.charged.v1\",\"userId\":\"1\",\"walletVersion\":\"2\",\"availableBalance\":\"10000\",\"frozenBalance\":\"0\",\"occurredAt\":\"2026-08-10T12:00:00Z\"}",
                 Instant.parse("2026-08-10T12:00:00Z"), Instant.now());
         AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
@@ -274,7 +274,7 @@ class AuctionBidStreamConsumerTest {
     @Test
     void pending_inbox의_손상된_payload는_projection_오류로_표시한다() throws Exception {
         AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
-        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-bad", null, null, "wallet.charged.v1", 2, "not-json",
+        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-bad", null, null, null, "wallet.charged.v1", 2, "not-json",
                 Instant.parse("2026-08-10T12:00:00Z"), Instant.now());
         AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
                 new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 10),
@@ -448,7 +448,7 @@ class AuctionBidStreamConsumerTest {
     @Test
     void inbox_projection_실패는_error로_기록한다() throws Exception {
         AuctionBidStreamPersistenceService persistence = mock(AuctionBidStreamPersistenceService.class);
-        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-fail", null, null, "wallet.charged.v1", 2,
+        AuctionTimelineEvent pending = new AuctionTimelineEvent("inbox-fail", null, null, null, "wallet.charged.v1", 2,
                 "{\"schemaVersion\":\"2\",\"eventId\":\"8ef477e7-1c80-42ea-a7af-8d8ea9c6d411\",\"eventType\":\"wallet.charged.v1\",\"userId\":\"1\",\"walletVersion\":\"2\",\"availableBalance\":\"10000\",\"frozenBalance\":\"0\",\"occurredAt\":\"2026-08-10T12:00:00Z\"}", Instant.now(), Instant.now());
         AuctionBidStreamConsumer consumer = new AuctionBidStreamConsumer(mock(StringRedisTemplate.class), persistence,
                 new AuctionBidStreamProperties(Duration.ofMillis(1), Duration.ofSeconds(1), 1, Duration.ofSeconds(1), 1),

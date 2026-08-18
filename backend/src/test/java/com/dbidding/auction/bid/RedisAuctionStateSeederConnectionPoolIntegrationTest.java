@@ -82,8 +82,7 @@ class RedisAuctionStateSeederConnectionPoolIntegrationTest {
     @Timeout(10)
     void pool_size와_같은_동시_cold_seed도_batch_DB_커넥션을_막지_않는다() throws Exception {
         given(redisTemplate.hasKey(org.mockito.ArgumentMatchers.anyString())).willReturn(false);
-        given(projectionCatchUpVerifier.isCaughtUp()).willReturn(true);
-        given(projectionCatchUpVerifier.isCaughtUp(anyInt())).willReturn(true);
+        given(projectionCatchUpVerifier.isCaughtUpForAuctionFresh(anyInt())).willReturn(true);
         given(batchCoordinator.requestSeedData(anyInt())).willAnswer(invocation ->
                 CompletableFuture.supplyAsync(() -> {
                     jdbcTemplate.queryForObject("SELECT 1", Integer.class);

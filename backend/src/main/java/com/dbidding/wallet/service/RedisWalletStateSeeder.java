@@ -34,7 +34,7 @@ public class RedisWalletStateSeeder {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return;
         singleFlight.execute(key, () -> {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) return false;
-            if (!projectionCatchUpVerifier.isCaughtUp()) throw AuctionException.stateRecoveryRequired();
+            if (!projectionCatchUpVerifier.isCaughtUpForUserFresh(userId)) throw AuctionException.stateRecoveryRequired();
             batchCoordinator.requestSeedData(userId).join()
                     .ifPresent(seedData -> seed(seedData.wallet(), seedData.holds()));
             return true;

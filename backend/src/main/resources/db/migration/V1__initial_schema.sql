@@ -291,6 +291,7 @@ CREATE TABLE timeline_events
     id              BIGINT       NOT NULL AUTO_INCREMENT,
     stream_id       VARCHAR(64)  NOT NULL,
     auction_id      INT,
+    user_id         INT,
     auction_version BIGINT,
     event_type      VARCHAR(64)  NOT NULL,
     schema_version  INT          NOT NULL,
@@ -306,6 +307,7 @@ CREATE TABLE timeline_events
     CONSTRAINT uk_timeline_events_stream_id UNIQUE (stream_id),
 
     INDEX idx_timeline_events_auction_id (auction_id),
+    INDEX idx_timeline_events_user_id (user_id),
     INDEX idx_timeline_events_projection_status (projection_status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
