@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.dto;
 
 public record AuctionCloseData(
         Integer cardId,

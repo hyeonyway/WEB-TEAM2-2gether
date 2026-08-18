@@ -1,5 +1,7 @@
 package com.dbidding.auction.bid.redis;
 
+import com.dbidding.auction.bid.dto.RedisAuctionCreateCommand;
+import com.dbidding.auction.bid.dto.RedisAuctionCreateResult;
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.domain.AuctionStatus;
 import java.time.Clock;

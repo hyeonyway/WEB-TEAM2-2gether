@@ -8,10 +8,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.dbidding.auction.bid.AuctionCloseData;
-import com.dbidding.auction.bid.BidCommand;
-import com.dbidding.auction.bid.BidEventData;
-import com.dbidding.auction.bid.BidExecutionResult;
+import com.dbidding.auction.bid.dto.AuctionCloseData;
+import com.dbidding.auction.bid.dto.BidCommand;
+import com.dbidding.auction.bid.dto.BidEventData;
+import com.dbidding.auction.bid.dto.BidExecutionResult;
 import com.dbidding.auction.bid.BidExecutor;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.BidStatus;

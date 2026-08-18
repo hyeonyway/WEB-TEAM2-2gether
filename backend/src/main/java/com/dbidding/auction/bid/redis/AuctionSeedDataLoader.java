@@ -1,5 +1,7 @@
 package com.dbidding.auction.bid.redis;
 
+import com.dbidding.auction.bid.dto.AuctionSeedData;
+import com.dbidding.auction.bid.dto.AuctionSeedDbData;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionStatus;

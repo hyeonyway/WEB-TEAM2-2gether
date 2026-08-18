@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.dbidding.auction.bid.dto.AuctionSeedData;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
 import com.dbidding.auction.repository.AuctionTimelineEventRepository;

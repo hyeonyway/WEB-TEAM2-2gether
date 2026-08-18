@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid.redis;
+package com.dbidding.auction.bid.dto;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import java.time.Instant;

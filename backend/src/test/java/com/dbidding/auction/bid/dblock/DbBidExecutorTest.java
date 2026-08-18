@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
-import com.dbidding.auction.bid.BidCommand;
+import com.dbidding.auction.bid.dto.BidCommand;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;

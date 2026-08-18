@@ -1,5 +1,7 @@
 package com.dbidding.auction.bid.redis;
 
+import com.dbidding.auction.bid.dto.AuctionSeedData;
+import com.dbidding.auction.bid.dto.AuctionSeedDbData;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;

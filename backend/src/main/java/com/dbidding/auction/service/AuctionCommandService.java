@@ -1,14 +1,14 @@
 package com.dbidding.auction.service;
 
 import com.dbidding.auction.IdempotencyKeys;
-import com.dbidding.auction.bid.AuctionCloseData;
-import com.dbidding.auction.bid.BidCommand;
-import com.dbidding.auction.bid.BidEventData;
-import com.dbidding.auction.bid.BidExecutionResult;
+import com.dbidding.auction.bid.dto.AuctionCloseData;
+import com.dbidding.auction.bid.dto.BidCommand;
+import com.dbidding.auction.bid.dto.BidEventData;
+import com.dbidding.auction.bid.dto.BidExecutionResult;
 import com.dbidding.auction.bid.BidExecutor;
-import com.dbidding.auction.bid.redis.RedisAuctionCreateCommand;
+import com.dbidding.auction.bid.dto.RedisAuctionCreateCommand;
 import com.dbidding.auction.bid.redis.RedisAuctionCreateExecutor;
-import com.dbidding.auction.bid.redis.RedisAuctionCreateResult;
+import com.dbidding.auction.bid.dto.RedisAuctionCreateResult;
 import com.dbidding.auction.bid.redis.RedisCardStateReader;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;

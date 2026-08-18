@@ -3,6 +3,8 @@ package com.dbidding.auction.bid.redis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dbidding.auction.bid.dto.RedisAuctionCreateCommand;
+import com.dbidding.auction.bid.dto.RedisAuctionCreateResult;
 import com.dbidding.auction.exception.AuctionException;
 import java.time.Clock;
 import java.time.Instant;

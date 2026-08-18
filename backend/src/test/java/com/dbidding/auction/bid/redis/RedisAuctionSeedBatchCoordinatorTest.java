@@ -8,6 +8,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.dbidding.auction.bid.dto.AuctionSeedData;
+import com.dbidding.auction.bid.dto.AuctionSeedDbData;
 import com.dbidding.auction.domain.Auction;
 import java.time.Instant;
 import java.util.ArrayList;

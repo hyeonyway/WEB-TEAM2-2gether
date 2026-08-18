@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.dbidding.auction.bid.dto.AuctionSeedData;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.BidRepository;

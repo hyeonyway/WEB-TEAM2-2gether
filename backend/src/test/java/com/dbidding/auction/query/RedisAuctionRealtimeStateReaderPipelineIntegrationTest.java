@@ -7,7 +7,8 @@ import com.dbidding.auction.domain.AuctionSort;
 import com.dbidding.auction.dto.AuctionCursorCodec;
 import com.dbidding.auction.dto.AuctionSearchRequest;
 import com.dbidding.auction.service.AuctionQueryService;
-import com.dbidding.auction.service.DbAuctionQueryService;
+import com.dbidding.auction.service.dblock.DbAuctionQueryService;
+import com.dbidding.auction.service.redis.RedisAuctionQueryService;
 import com.dbidding.wallet.service.WalletService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,9 +97,10 @@ class RedisAuctionRealtimeStateReaderPipelineIntegrationTest {
         int userId = 100;
         redisTemplate.opsForSet().add("auction:dashboard:participating:" + userId, "999");
         redisTemplate.getConnectionFactory().getConnection().serverCommands().resetConfigStats();
-        AuctionQueryService service = new AuctionQueryService(
-                mock(WalletService.class), mock(DbAuctionQueryService.class), new AuctionCursorCodec());
-        ReflectionTestUtils.setField(service, "realtimeStateReader", reader);
+        AuctionQueryService service = new AuctionQueryService(mock(DbAuctionQueryService.class));
+        RedisAuctionQueryService redisAuctionQueryService = new RedisAuctionQueryService(
+                mock(WalletService.class), new AuctionCursorCodec(), reader, null);
+        ReflectionTestUtils.setField(service, "redisAuctionQueryService", redisAuctionQueryService);
 
         var response = service.search(
                 userId, new AuctionSearchRequest("", null, AuctionSort.BID_COUNT, null, null, 20));

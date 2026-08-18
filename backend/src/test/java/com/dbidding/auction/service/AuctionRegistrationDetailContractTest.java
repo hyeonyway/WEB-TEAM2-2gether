@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.dto.AuctionCursorCodec;
+import com.dbidding.auction.service.dblock.DbAuctionQueryService;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.service.CardService;
 import com.dbidding.auction.repository.AuctionImageRepository;

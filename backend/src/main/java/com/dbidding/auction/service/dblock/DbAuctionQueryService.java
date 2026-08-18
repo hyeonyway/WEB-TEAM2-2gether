@@ -1,4 +1,4 @@
-package com.dbidding.auction.service;
+package com.dbidding.auction.service.dblock;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;

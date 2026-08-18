@@ -9,9 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.ArgumentMatchers.argThat;
 
-import com.dbidding.auction.bid.BidCommand;
-import com.dbidding.auction.bid.BidEventData;
-import com.dbidding.auction.bid.BidExecutionResult;
+import com.dbidding.auction.bid.dto.BidCommand;
+import com.dbidding.auction.bid.dto.BidEventData;
+import com.dbidding.auction.bid.dto.BidExecutionResult;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

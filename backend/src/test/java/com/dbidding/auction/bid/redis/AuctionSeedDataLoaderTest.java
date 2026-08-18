@@ -3,6 +3,7 @@ package com.dbidding.auction.bid.redis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.dbidding.auction.bid.dto.AuctionSeedDbData;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionStatus;
