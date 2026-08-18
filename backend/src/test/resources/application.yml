@@ -19,6 +19,8 @@ spring:
 
   flyway:
     enabled: true
+    # 테스트 fixture가 목 데이터를 직접 구성하므로 테스트 DB에는 스키마만 적용한다.
+    target: 1
 
   test:
     database:
