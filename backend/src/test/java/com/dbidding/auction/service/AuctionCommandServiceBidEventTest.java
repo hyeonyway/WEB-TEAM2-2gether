@@ -24,7 +24,7 @@ import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.card.service.CardService;
 import com.dbidding.order.OrderService;
-import com.dbidding.auction.port.ImageUploadPort;
+import com.dbidding.upload.adapter.AuctionImageUploadAdapter;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -56,7 +56,7 @@ class AuctionCommandServiceBidEventTest {
     @Mock
     private WalletService walletService;
     @Mock
-    private ImageUploadPort imageUploadPort;
+    private AuctionImageUploadAdapter imageUploadAdapter;
     @Mock
     private AuctionEventPublisher auctionEventPublisher;
     @Mock
@@ -80,7 +80,7 @@ class AuctionCommandServiceBidEventTest {
                 auctionImageRepository,
                 bidRepository,
                 walletService,
-                imageUploadPort,
+                imageUploadAdapter,
                 auctionEventPublisher,
                 auctionStreamPublisher,
                 cardService,

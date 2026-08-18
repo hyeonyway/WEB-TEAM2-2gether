@@ -28,13 +28,13 @@ import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.metrics.AuctionMetrics.BidResult;
 import com.dbidding.auction.metrics.AuctionMetrics.CloseResult;
 import com.dbidding.auction.metrics.AuctionMetrics.LockOperation;
-import com.dbidding.auction.port.ImageUploadPort;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.sse.AuctionStreamPayload;
 import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.card.service.CardService;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.order.OrderService;
+import com.dbidding.upload.adapter.AuctionImageUploadAdapter;
 import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
@@ -65,7 +65,7 @@ public class AuctionCommandService {
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
     private final WalletService walletService;
-    private final ImageUploadPort imageUploadPort;
+    private final AuctionImageUploadAdapter imageUploadAdapter;
     private final AuctionEventPublisher auctionEventPublisher;
     private final AuctionStreamPublisher auctionStreamPublisher;
     private final CardService cardService;
@@ -86,7 +86,7 @@ public class AuctionCommandService {
 
         CardSnapshot card = cardSnapshotForCreate(request.itemId());
         boolean psaVerified = validatePsaCertification(card, request);
-        List<ImageUploadPort.ResolvedImage> images = imageUploadPort.resolveImages(request.imageUploadTokens());
+        List<AuctionImageUploadAdapter.ResolvedImage> images = imageUploadAdapter.resolveImages(request.imageUploadTokens());
         validateImages(images);
 
         Instant now = now();
@@ -125,7 +125,7 @@ public class AuctionCommandService {
         auction.recordCreateIdempotency(idempotencyKey, requestHash);
         Auction savedAuction = auctionRepository.save(auction);
         List<AuctionImage> auctionImages = images.stream()
-                .sorted(java.util.Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
+                .sorted(java.util.Comparator.comparingInt(AuctionImageUploadAdapter.ResolvedImage::sortOrder))
                 .map(image -> new AuctionImage(savedAuction, image.imagePath()))
                 .toList();
         auctionImageRepository.saveAll(auctionImages);
@@ -160,7 +160,7 @@ public class AuctionCommandService {
             String requestHash,
             CardSnapshot card,
             boolean psaVerified,
-            List<ImageUploadPort.ResolvedImage> images,
+            List<AuctionImageUploadAdapter.ResolvedImage> images,
             Instant now,
             Instant endsAt
     ) {
@@ -169,8 +169,8 @@ public class AuctionCommandService {
                 request.auctionName(), request.description(), request.sellerMemo(),
                 request.psaCertification(), request.selfGrade(), psaVerified, request.startPrice(), request.buyNowPrice(),
                 request.shippingFee(), request.bidIncrement(), images.stream()
-                        .sorted(java.util.Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
-                        .map(ImageUploadPort.ResolvedImage::imagePath).toList(),
+                        .sorted(java.util.Comparator.comparingInt(AuctionImageUploadAdapter.ResolvedImage::sortOrder))
+                        .map(AuctionImageUploadAdapter.ResolvedImage::imagePath).toList(),
                 endsAt, idempotencyKey, requestHash
         ));
         AuctionOpenedEvent openedEvent = new AuctionOpenedEvent(
@@ -364,7 +364,7 @@ public class AuctionCommandService {
         return Optional.of(createResponse(auction));
     }
 
-    private void validateImages(List<ImageUploadPort.ResolvedImage> images) {
+    private void validateImages(List<AuctionImageUploadAdapter.ResolvedImage> images) {
         if (images.isEmpty()) {
             throw AuctionException.invalidRequest("이미지는 1장 이상 필요합니다.");
         }

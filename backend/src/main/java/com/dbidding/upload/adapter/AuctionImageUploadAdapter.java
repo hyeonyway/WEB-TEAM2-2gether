@@ -1,16 +1,19 @@
 package com.dbidding.upload.adapter;
 
-import com.dbidding.auction.port.ImageUploadPort;
 import java.util.List;
 import java.util.stream.IntStream;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!auction-mock")
-public class AuctionImageUploadAdapter implements ImageUploadPort {
+public class AuctionImageUploadAdapter {
 
-    @Override
+    public record ResolvedImage(
+            String imagePath,
+            int sortOrder,
+            boolean representative
+    ) {
+    }
+
     public List<ResolvedImage> resolveImages(List<String> uploadTokens) {
         if (uploadTokens == null) {
             return List.of();

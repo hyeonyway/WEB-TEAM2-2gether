@@ -3,7 +3,6 @@ package com.dbidding.auction.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dbidding.auction.event.AuctionEventPublisher;
-import com.dbidding.auction.port.AuctionCardPort;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -43,9 +42,6 @@ class AuctionDueClosingParallelIntegrationTest {
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private AuctionEventPublisher auctionEventPublisher;
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    private AuctionCardPort auctionCardPort;
-
     @BeforeEach
     void setUp() {
         insertFixtures();
