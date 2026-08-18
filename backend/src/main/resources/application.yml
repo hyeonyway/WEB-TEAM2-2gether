@@ -37,6 +37,13 @@ spring:
       # schema.sql은 앱이 자동 실행하지 않음 (최초 1회 수동 실행 방식 - DB_SETUP.md 참고)
       mode: never
 
+  flyway:
+    # Flyway가 MySQL 전용 지원 모듈을 사용하고 기존 schema.sql 기반 DB를 인식하도록 설정
+    enabled: ${FLYWAY_ENABLED:false}
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+
 server:
   servlet:
     session:
