@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;

@@ -11,9 +11,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.auction.domain.Auction;
-import com.dbidding.auction.bid.RedisAuctionCreateExecutor;
-import com.dbidding.auction.bid.RedisAuctionCreateResult;
-import com.dbidding.auction.bid.RedisCardStateReader;
+import com.dbidding.auction.bid.redis.RedisAuctionCreateExecutor;
+import com.dbidding.auction.bid.redis.RedisAuctionCreateResult;
+import com.dbidding.auction.bid.redis.RedisCardStateReader;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.dto.AuctionCreateRequest;
 import com.dbidding.auction.metrics.AuctionMetrics;

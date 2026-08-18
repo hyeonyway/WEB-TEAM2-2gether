@@ -3,6 +3,9 @@ package com.dbidding.auction.bid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.dbidding.auction.bid.dblock.DbBidExecutor;
+import com.dbidding.auction.bid.redis.RedisBidExecutor;
+import com.dbidding.auction.bid.redis.RedisBidLuaConfiguration;
 import com.dbidding.auction.event.AuctionEventPublisher;
 import com.dbidding.auction.metrics.AuctionMetrics;
 import com.dbidding.auction.repository.AuctionRepository;

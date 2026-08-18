@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.redis;
 
 import java.time.Instant;
 import java.util.List;

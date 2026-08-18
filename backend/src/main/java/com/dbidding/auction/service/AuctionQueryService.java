@@ -14,7 +14,7 @@ import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.service.WalletService;
 import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
-import com.dbidding.auction.bid.RedisAuctionStateSeeder;
+import com.dbidding.auction.bid.redis.RedisAuctionStateSeeder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

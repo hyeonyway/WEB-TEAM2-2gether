@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.dblock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
+import com.dbidding.auction.bid.BidCommand;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;

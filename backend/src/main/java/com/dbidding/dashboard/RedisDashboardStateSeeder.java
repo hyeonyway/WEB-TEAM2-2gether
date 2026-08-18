@@ -1,6 +1,6 @@
 package com.dbidding.dashboard;
 
-import com.dbidding.auction.bid.RedisAuctionStateSeeder;
+import com.dbidding.auction.bid.redis.RedisAuctionStateSeeder;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.exception.AuctionException;
 import com.dbidding.auction.repository.BidRepository;

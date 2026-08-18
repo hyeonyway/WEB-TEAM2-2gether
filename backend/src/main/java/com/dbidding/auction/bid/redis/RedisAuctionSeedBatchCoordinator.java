@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.redis;
 
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import jakarta.annotation.PreDestroy;

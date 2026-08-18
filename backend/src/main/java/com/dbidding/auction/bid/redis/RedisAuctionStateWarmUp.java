@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.redis;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;

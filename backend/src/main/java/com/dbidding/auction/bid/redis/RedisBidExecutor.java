@@ -1,5 +1,10 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.redis;
 
+import com.dbidding.auction.bid.AuctionCloseData;
+import com.dbidding.auction.bid.BidCommand;
+import com.dbidding.auction.bid.BidEventData;
+import com.dbidding.auction.bid.BidExecutionResult;
+import com.dbidding.auction.bid.BidExecutor;
 import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.auction.IdempotencyKeys;

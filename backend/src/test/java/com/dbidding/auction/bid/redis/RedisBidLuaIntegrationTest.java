@@ -1,8 +1,10 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dbidding.auction.bid.BidCommand;
+import com.dbidding.auction.bid.BidExecutionResult;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

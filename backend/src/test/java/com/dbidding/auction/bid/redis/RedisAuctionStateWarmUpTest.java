@@ -1,4 +1,4 @@
-package com.dbidding.auction.bid;
+package com.dbidding.auction.bid.redis;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
