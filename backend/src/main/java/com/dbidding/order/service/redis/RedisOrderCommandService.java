@@ -10,7 +10,7 @@ import com.dbidding.order.exception.OrderNotFoundException;
 import com.dbidding.order.port.OrderEventPort;
 import com.dbidding.wallet.domain.WalletAmountPolicy;
 import com.dbidding.wallet.exception.InvalidWalletAmountException;
-import com.dbidding.wallet.service.RedisWalletStateSeeder;
+import com.dbidding.wallet.service.redis.RedisWalletStateSeeder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;

@@ -1,4 +1,4 @@
-package com.dbidding.wallet.service;
+package com.dbidding.wallet.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

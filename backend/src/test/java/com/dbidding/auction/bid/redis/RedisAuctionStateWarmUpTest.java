@@ -24,7 +24,7 @@ class RedisAuctionStateWarmUpTest {
     void warmUp이_비활성이어도_기존_OPEN_상태의_ending_인덱스를_보정한다() throws Exception {
         var auctionRepository = mock(com.dbidding.auction.repository.AuctionRepository.class);
         var stateSeeder = mock(RedisAuctionStateSeeder.class);
-        var walletStateSeeder = mock(com.dbidding.wallet.service.RedisWalletStateSeeder.class);
+        var walletStateSeeder = mock(com.dbidding.wallet.service.redis.RedisWalletStateSeeder.class);
         var redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked") ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
         @SuppressWarnings("unchecked") HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
@@ -53,7 +53,7 @@ class RedisAuctionStateWarmUpTest {
     void 활성_경매_전체를_안전_상한_이내로_조회해_warmUp하고_낙찰_후보_지갑도_함께_시딩한다() throws Exception {
         var auctionRepository = mock(com.dbidding.auction.repository.AuctionRepository.class);
         var stateSeeder = mock(RedisAuctionStateSeeder.class);
-        var walletStateSeeder = mock(com.dbidding.wallet.service.RedisWalletStateSeeder.class);
+        var walletStateSeeder = mock(com.dbidding.wallet.service.redis.RedisWalletStateSeeder.class);
         var redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked") ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
         @SuppressWarnings("unchecked") HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
@@ -78,7 +78,7 @@ class RedisAuctionStateWarmUpTest {
     void 안전_상한이_0이면_활성_경매_조회_자체를_건너뛴다() throws Exception {
         var auctionRepository = mock(com.dbidding.auction.repository.AuctionRepository.class);
         var stateSeeder = mock(RedisAuctionStateSeeder.class);
-        var walletStateSeeder = mock(com.dbidding.wallet.service.RedisWalletStateSeeder.class);
+        var walletStateSeeder = mock(com.dbidding.wallet.service.redis.RedisWalletStateSeeder.class);
         var redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked") ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
         @SuppressWarnings("unchecked") HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);

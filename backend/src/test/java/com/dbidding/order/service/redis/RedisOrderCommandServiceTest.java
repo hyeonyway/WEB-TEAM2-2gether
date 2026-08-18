@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 import com.dbidding.order.domain.OrderStatus;
 import com.dbidding.order.event.OrderCompletedEvent;
 import com.dbidding.order.port.OrderEventPort;
-import com.dbidding.wallet.service.RedisWalletStateSeeder;
+import com.dbidding.wallet.service.redis.RedisWalletStateSeeder;
 import com.dbidding.wallet.sse.WalletBalanceChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;

@@ -1,4 +1,4 @@
-package com.dbidding.wallet.service;
+package com.dbidding.wallet.service.redis;
 
 import com.dbidding.wallet.repository.WalletBootstrapRow;
 import com.dbidding.wallet.repository.WalletRepository;

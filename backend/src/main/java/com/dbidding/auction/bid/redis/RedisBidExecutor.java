@@ -36,7 +36,7 @@ public class RedisBidExecutor implements BidExecutor {
     private final RedisScript<String> bidAcceptScript;
     private final Clock clock;
     private final RedisAuctionStateSeeder auctionStateSeeder;
-    private final com.dbidding.wallet.service.RedisWalletStateSeeder walletStateSeeder;
+    private final com.dbidding.wallet.service.redis.RedisWalletStateSeeder walletStateSeeder;
     private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
@@ -45,7 +45,7 @@ public class RedisBidExecutor implements BidExecutor {
             RedisScript<String> bidAcceptScript,
             Clock clock,
             @Nullable RedisAuctionStateSeeder auctionStateSeeder,
-            @Nullable com.dbidding.wallet.service.RedisWalletStateSeeder walletStateSeeder,
+            @Nullable com.dbidding.wallet.service.redis.RedisWalletStateSeeder walletStateSeeder,
             ApplicationEventPublisher eventPublisher
     ) {
         this.redisTemplate = redisTemplate;

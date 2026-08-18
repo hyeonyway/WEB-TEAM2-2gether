@@ -1,4 +1,4 @@
-package com.dbidding.wallet.service;
+package com.dbidding.wallet.service.redis;
 
 import com.dbidding.wallet.dto.WalletBalanceResponse;
 import com.dbidding.wallet.dto.WalletTransactionResponse;
@@ -11,6 +11,7 @@ import com.dbidding.wallet.metrics.WalletMetrics;
 import com.dbidding.wallet.repository.PointRecordRepository;
 import com.dbidding.wallet.repository.WalletHoldRepository;
 import com.dbidding.wallet.repository.WalletRepository;
+import com.dbidding.wallet.service.WalletService;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;

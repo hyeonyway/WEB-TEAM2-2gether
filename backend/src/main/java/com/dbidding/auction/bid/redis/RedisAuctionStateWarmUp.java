@@ -3,7 +3,7 @@ package com.dbidding.auction.bid.redis;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.service.AuctionEndingPolicy;
-import com.dbidding.wallet.service.RedisWalletStateSeeder;
+import com.dbidding.wallet.service.redis.RedisWalletStateSeeder;
 import java.time.Clock;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
