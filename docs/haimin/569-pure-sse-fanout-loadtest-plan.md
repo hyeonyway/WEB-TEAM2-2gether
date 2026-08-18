@@ -52,14 +52,36 @@ threadpool(`up-all-redis-sse.sh`) vs virtual thread(`up-all-redis-sse-virtual.sh
 - `WalletSseExecutorConfig`(항상 threadpool 고정, virtual thread 토글 없음) 자체는 안 건드림 —
   이번 비교에서 wallet 실제 send는 baseline으로 남는다는 점만 인지하고 진행.
 - `run-k6.sh`/Prometheus 쿼리 스크립트 자체는 수정하지 않음(기존 컨벤션만 따르면 그대로 동작 확인됨).
+- 이번 브랜치에서는 `SessionCsrfFilter`/`seed/seed-load-test-auctions.js` 자체는 안 건드림(둘 다
+  별도 이슈 대상 — 아래 "설계와 달라진 부분" 참고).
+
+## 설계와 달라진 부분 (실제 실행하며 드러남)
+
+로컬 스택(`~/dbidding-loadtest-local`)에서 실행해보며 원래 설계에 없던 문제 세 가지를 발견해서
+`pure-fanout.js`만 수정해 대응했다(백엔드 프로덕션 코드는 안 건드림):
+
+1. **`SessionCsrfFilter`가 익명 POST를 전부 막음** — `/api/auth/login`, `/api/auth/signup`을 뺀
+   모든 POST/PUT/PATCH/DELETE에 걸려서, 세션 쿠키 없이 호출하던 조합 발행 엔드포인트가 403으로
+   100% 막혔다. `pure-fanout.js`가 이미 로그인해둔 bidder 세션의 쿠키+CSRF 토큰을 실어 보내도록
+   수정. (별도 이슈 [#575](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/issues/575)로
+   연결됨 — 이건 CSRF 필터 자체가 아니라 이 발견 과정에서 나온 가상스레드 cap 스윕에서 확인된
+   `broadcast()` 블로킹 문제.)
+2. **`seed/seed-load-test-auctions.js`가 세션 인증 전환(#469) 전 JWT 방식 그대로 남아있어서** 같은
+   CSRF 필터에 막혀 사용 불가 — 이 스크립트는 안 고치고, `pure-fanout.js`의 `setup()`이 자체적으로
+   (이미 로그인해둔 bidder 세션으로) 경매 15개를 시드하도록 우회.
+3. **본측정 전 웜업 단계 없음** — `auction-bid.js` 등 다른 스크립트처럼 낮은 rate로 미리 돌려
+   JIT/커넥션풀을 데우는 단계가 빠져있어서 추가(`WARMUP_RATE`/`WARMUP_DURATION`, 결과는 별도
+   `fanout_warmup_*` 메트릭으로 분리).
 
 ## 완료 기준
 
-- [ ] `AuctionSseTestBidApplicationService`가 Redis publish 경로를 타도록 변경, 기존 auction
+- [x] `AuctionSseTestBidApplicationService`가 Redis publish 경로를 타도록 변경, 기존 auction
       test-event 관련 테스트(`AuctionSseContractTest` 등) 통과
-- [ ] notification/wallet 테스트 발행 서비스 추가, 관련 단위 테스트 추가
-- [ ] 조합 엔드포인트 추가 및 통합 확인
-- [ ] `./gradlew compileJava compileTestJava` 통과
-- [ ] `pure-fanout.js` 문법 확인(`node --check`) 및 로컬 스택에서 짧은 시간 실행 확인
+- [x] notification/wallet 테스트 발행 서비스 추가, 관련 단위 테스트 추가
+- [x] 조합 엔드포인트 추가 및 통합 확인
+- [x] `./gradlew compileJava compileTestJava` 통과
+- [x] `pure-fanout.js` 문법 확인(`node --check`) 및 로컬 스택에서 실제 threadpool/가상스레드
+      비교 실행까지 완료 — 결과·분석은 `~/dbidding-loadtest-local/순수-SSE-fanout-부하테스트-569.md`
+      참고(별도 저장소라 이 PR에는 포함 안 됨)
 
 > 이 문서는 claude의 도움을 받아 작성되었습니다.
