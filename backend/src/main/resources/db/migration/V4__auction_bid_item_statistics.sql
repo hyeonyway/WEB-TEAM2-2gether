@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/003-auction-bid-item-statistics.sql
 -- Service-flow seed data: auctions -> bids -> item statistics.
 -- MySQL 8 recursive CTEs keep the source compact while producing a complete
 -- 32 source days for every catalog item: a 30-day visible range plus

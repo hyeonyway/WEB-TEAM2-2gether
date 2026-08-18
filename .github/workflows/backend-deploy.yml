@@ -70,11 +70,6 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Initialize MySQL schema
-        run: |
-          docker exec -i "${{ job.services.mysql.id }}" \
-            mysql -udbidding -pdbidding dbidding < backend/src/main/resources/db/migration/V1__initial_schema.sql
-
       - name: Run Gradle tests
         working-directory: backend
         run: ./gradlew test jacocoTestReport --no-daemon

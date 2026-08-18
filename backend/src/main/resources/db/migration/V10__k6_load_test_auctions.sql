@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/009-k6-load-test-auctions.sql
 -- k6 부하테스트 전용 경매 300개.
 -- 진행 경매의 2/3에 즉시낙찰가를 넣고, 모두 24시간 이내에 종료되도록 한다.
 -- 원래 `seed-load-test-auctions.js`로 POST /api/auctions API를 통해

@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/002-user.sql
 -- Deterministic sellers and bidders for local service-flow data.
 
 SET NAMES utf8mb4;

@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/007-seller-failed-auction-seed.sql
 -- Failed (유찰) auction seed data for DEBUG_USER_ID=1.
 -- Covers the "내가 판 주문 → 유찰" dashboard tab (issue #233): auctions that
 -- closed with no winning bid never get an Order row, so they need their own

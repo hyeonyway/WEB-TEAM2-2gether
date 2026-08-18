@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/004-dashboard-current-auctions.sql
 -- Dashboard seed data for DEBUG_USER_ID=1.
 -- Creates 50 auctions in progress and 12 recently won auctions.
 -- Every auction has bids from deterministic seed users.

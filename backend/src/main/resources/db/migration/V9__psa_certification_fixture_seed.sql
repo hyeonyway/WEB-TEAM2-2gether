@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/008-psa-certification-fixture-seed.sql
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 USE `dbidding`;
