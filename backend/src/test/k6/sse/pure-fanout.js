@@ -85,18 +85,62 @@ export const options = {
 };
 
 export function setup() {
-  const auctionIds = configuredAuctionIds();
-  if (auctionIds.length !== auctionCount) {
-    throw new Error(`AUCTION_IDS에 서로 다른 진행 중 경매 ID ${auctionCount}개를 지정하세요.`);
-  }
   const sessions = login(loadTestUsers(biddersTotal));
   const userIds = resolveUserIds(sessions);
   const bidders = sessions.map((session, index) => ({...session, userId: userIds[index]}));
+
+  // seed/seed-load-test-auctions.js는 아직 옛 JWT(Authorization: Bearer) 인증이라
+  // 세션 전환(#469) 이후 403으로 막힌다 — AUCTION_IDS를 안 주면 이미 로그인해둔
+  // bidder 세션(쿠키+CSRF)으로 이 스크립트가 직접 경매를 만든다.
+  const auctionIds = configuredAuctionIds().length > 0 ? configuredAuctionIds() : seedAuctions(bidders);
+  if (auctionIds.length !== auctionCount) {
+    throw new Error(`경매 ID가 ${auctionCount}개가 아닙니다(실제 ${auctionIds.length}개) — AUCTION_IDS를 직접 지정하거나 자동 시드 결과를 확인하세요.`);
+  }
+
   const biddersByAuction = {};
   auctionIds.forEach((auctionId, index) => {
     biddersByAuction[auctionId] = bidders.slice(index * biddersPerAuction, (index + 1) * biddersPerAuction);
   });
   return {auctionIds, biddersByAuction};
+}
+
+// buyNowPrice를 생략해 즉시낙찰 없이(seed-load-test-auctions.js와 동일한 이유, #566 이전
+// 기본 시드는 buyNowPrice가 낮게 걸려있어 테스트 중 금방 CLOSED됨) 테스트 내내 살아있는
+// 경매를 만든다. 실제 낙찰 처리는 어차피 하지 않으니 판매자=입찰자 세션 재사용도 무해하다.
+function seedAuctions(bidders) {
+  const responses = http.batch(Array.from({length: auctionCount}, (_, index) => {
+    const seller = bidders[index % bidders.length];
+    return {
+      method: 'POST',
+      url: `${baseUrl}/api/auctions`,
+      body: JSON.stringify({
+        itemId: 1 + Math.floor(Math.random() * 12864),
+        auctionName: `[LOAD-TEST] pure-fanout 부하테스트 경매 #${index + 1}`,
+        description: '순수 SSE fan-out 부하테스트 전용 경매입니다. 즉시낙찰 없음.',
+        imageUploadTokens: ['load-test/placeholder.webp'],
+        startPrice: 10000 + Math.floor(Math.random() * 5000) * 10,
+        bidIncrement: 1000,
+        durationHours: 24,
+        shippingFee: 3000,
+      }),
+      params: {
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `SESSION=${seller.cookie}`,
+          'X-CSRF-Token': seller.csrfToken,
+          'Idempotency-Key': `k6-pure-fanout-seed-${index}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        },
+        responseCallback: http.expectedStatuses(201),
+        tags: {name: 'POST /api/auctions (pure-fanout seed)'},
+      },
+    };
+  }));
+  return responses.map((response, index) => {
+    if (response.status !== 201) {
+      throw new Error(`경매 시드 실패 (index=${index}, status=${response.status}, body=${response.body})`);
+    }
+    return response.json('id');
+  });
 }
 
 export function auctionSse(data) {
