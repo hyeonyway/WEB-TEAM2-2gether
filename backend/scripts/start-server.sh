@@ -6,22 +6,12 @@ DB_PORT="${DB_PORT:?DB_PORT 환경변수가 필요합니다.}"
 DB_NAME="${DB_NAME:?DB_NAME 환경변수가 필요합니다.}"
 DB_USERNAME="${DB_USERNAME:?DB_USERNAME 환경변수가 필요합니다.}"
 DB_PASSWORD="${DB_PASSWORD:?DB_PASSWORD 환경변수가 필요합니다.}"
-DB_SCHEMA_SYNC_MODE="${DB_SCHEMA_SYNC_MODE:-reset-on-mismatch}"
 DB_SCHEMA_WAIT_SECONDS="${DB_SCHEMA_WAIT_SECONDS:-60}"
-DB_SNAPSHOT_DIR="${DB_SNAPSHOT_DIR:-/app/db-snapshots}"
-SCHEMA_FILE="${SCHEMA_FILE:-/app/db/resources/db/migration/V1__initial_schema.sql}"
-INITIAL_DATA_DIR="${INITIAL_DATA_DIR:-/app/db/resources/required-data}"
 MYSQL_BIN="${MYSQL_BIN:-mysql}"
-MYSQLDUMP_BIN="${MYSQLDUMP_BIN:-mysqldump}"
 REDIS_CLI="${REDIS_CLI:-redis-cli}"
 
 if [[ ! "$DB_NAME" =~ ^[A-Za-z0-9_]+$ ]]; then
   echo "[db-startup] DB_NAME에는 영문, 숫자, 밑줄만 사용할 수 있습니다." >&2
-  exit 1
-fi
-
-if [[ "$DB_SCHEMA_SYNC_MODE" != "reset-on-mismatch" && "$DB_SCHEMA_SYNC_MODE" != "validate" ]]; then
-  echo "[db-startup] DB_SCHEMA_SYNC_MODE는 reset-on-mismatch 또는 validate여야 합니다." >&2
   exit 1
 fi
 
@@ -30,14 +20,8 @@ if [[ ! "$DB_SCHEMA_WAIT_SECONDS" =~ ^[0-9]+$ ]] || (( DB_SCHEMA_WAIT_SECONDS < 
   exit 1
 fi
 
-if [[ ! -r "$SCHEMA_FILE" ]]; then
-  echo "[db-startup] 스키마 파일을 읽을 수 없습니다: $SCHEMA_FILE" >&2
-  exit 1
-fi
-
 export MYSQL_PWD="$DB_PASSWORD"
 MYSQL=("$MYSQL_BIN" --protocol=TCP --connect-timeout=3 --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USERNAME" --default-character-set=utf8mb4)
-MYSQLDUMP=("$MYSQLDUMP_BIN" --protocol=TCP --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USERNAME" --default-character-set=utf8mb4 --no-tablespaces)
 
 wait_for_mysql() {
   local deadline=$((SECONDS + DB_SCHEMA_WAIT_SECONDS))
@@ -177,7 +161,7 @@ compare_and_sync_schema() {
 
 main() {
   wait_for_mysql
-  compare_and_sync_schema
+  echo "[db-startup] DB 연결을 확인했습니다. 스키마 마이그레이션은 Flyway가 수행합니다."
   exec "$@"
 }
 
