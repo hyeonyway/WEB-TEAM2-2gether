@@ -17,6 +17,10 @@ spring:
     init:
       mode: never
 
+  flyway:
+    # Testcontainers는 각 테스트가 init script로 스키마를 준비한다.
+    enabled: false
+
   test:
     database:
       replace: none

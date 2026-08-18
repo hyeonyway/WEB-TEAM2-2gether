@@ -1,10 +1,3 @@
-CREATE DATABASE IF NOT EXISTS dbidding
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_0900_ai_ci;
-
-USE dbidding;
-
-
 CREATE TABLE shedlock
 (
     name       VARCHAR(64)  NOT NULL,
