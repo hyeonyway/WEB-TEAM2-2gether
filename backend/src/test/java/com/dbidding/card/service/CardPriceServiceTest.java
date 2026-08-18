@@ -1,6 +1,6 @@
 package com.dbidding.card.service;
 
-import com.dbidding.auction.adapter.CardAuctionAdapter;
+import com.dbidding.auction.adapter.dblock.CardAuctionAdapter;
 import com.dbidding.auction.service.AuctionInsightQueryService;
 import com.dbidding.account.domain.Account;
 import com.dbidding.card.domain.CardMetadata;

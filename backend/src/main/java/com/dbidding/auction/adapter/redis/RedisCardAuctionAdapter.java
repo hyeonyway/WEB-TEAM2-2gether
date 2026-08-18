@@ -1,4 +1,4 @@
-package com.dbidding.auction.adapter;
+package com.dbidding.auction.adapter.redis;
 
 import com.dbidding.card.port.CardAuctionPort;
 import java.time.Clock;

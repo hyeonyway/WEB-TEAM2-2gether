@@ -1,4 +1,4 @@
-package com.dbidding.auction.adapter;
+package com.dbidding.auction.adapter.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;

@@ -1,4 +1,4 @@
-package com.dbidding.auction.adapter;
+package com.dbidding.auction.adapter.dblock;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.AuctionRepository;
