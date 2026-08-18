@@ -712,7 +712,7 @@ README에서는 서비스와 핵심 기술만 요약하고,
 </td>
 <td align="center">
   <a href="https://github.com/JeongSH1">
-    <img src="https://github.com/user-attachments/assets/85f97f98-b4fa-4894-9dcd-59bded030046" width="120">
+    <img src="https://github.com/user-attachments/assets/2beb3840-6582-4bdd-bd33-7bb5911ca5e9" width="120">
   </a>
 </td>
 <td align="center">
