@@ -19,7 +19,7 @@ public abstract class AccountMySqlIntegrationTest {
 
 	protected static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4")
 		.withDatabaseName("dbidding")
-		.withInitScript("schema.sql");
+		.withInitScript("db/migration/V1__initial_schema.sql");
 
 	static {
 		MYSQL.start();
