@@ -6,6 +6,8 @@ import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -72,7 +74,20 @@ public class AuctionSseConnectionManager {
         // add하는 구조라(캐싱 안 됨), 같은 인스턴스를 여러 emitter가 동시에 send()하면
         // 그 내부 Set에 여러 스레드가 동시에 add하다 ConcurrentModificationException이 난다.
         // 그래서 emitter마다 event(...)를 새로 호출해 독립된 builder를 만든다.
-        emitters.forEach(emitter -> sendDispatcher.dispatch(() -> registry.send(emitter, event(eventType, serializedPayload, eventId))));
+        //
+        // #585: sendDispatcher가 캡이 걸린 가상스레드 executor일 때(구독자 수가 캡보다
+        // 훨씬 많으면) 매번 같은 순서로 순회하면 항상 앞쪽 emitter만 permit을 따고 뒤쪽은
+        // 계속 discard되는 편향(기아)이 생긴다 — emitters는 CopyOnWriteArraySet이라
+        // 순회 순서가 사실상 구독 순서로 고정돼 있기 때문. eventId를 회전 오프셋으로 써서
+        // 매 이벤트마다 순회 시작 위치를 돌리면, 장기적으로 모든 emitter가 골고루 앞자리를
+        // 차지해 특정 구독자군만 계속 못 받는 걸 막는다.
+        List<SseEmitter> orderedEmitters = new ArrayList<>(emitters);
+        int size = orderedEmitters.size();
+        int startIndex = (int) (eventId % size);
+        for (int i = 0; i < size; i++) {
+            SseEmitter emitter = orderedEmitters.get((startIndex + i) % size);
+            sendDispatcher.dispatch(() -> registry.send(emitter, event(eventType, serializedPayload, eventId)));
+        }
     }
 
     @Async("auctionSseTaskExecutor")
