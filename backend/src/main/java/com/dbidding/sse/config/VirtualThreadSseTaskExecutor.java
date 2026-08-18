@@ -23,9 +23,13 @@ import org.springframework.core.task.TaskRejectedException;
  * 스레드는 생성 비용이 거의 없어 무제한으로 뜨면 순간적으로 CPU 코어를 전부
  * 점유해버릴 수 있는데(SSE 브로드캐스트 fan-out이 bid 처리용 CPU를 잠식하는
  * 문제), 이 permit이 backend CPU를 SSE와 다른 작업 사이에서 나누는 손잡이
- * 역할을 한다. permit 획득은 {@link #execute(Runnable)} 호출 스레드(대개
- * 브로드캐스터 자신의 가상 스레드)에서 블로킹하고, 실행 중인 task가 끝나야
- * 반납되므로 초과분은 자연히 대기열처럼 밀린다.
+ * 역할을 한다. permit 획득(블로킹)은 {@link #execute(Runnable)} 호출 스레드가 아니라
+ * {@code super.execute()}가 새로 띄우는 가상스레드 안에서 한다(#575) — 그래야
+ * {@code execute()}를 부르는 쪽(대개 {@code broadcast()}의 emitter 순회 루프)이
+ * 캡이 꽉 찼을 때도 안 막히고 바로 다음 emitter로 넘어갈 수 있다. 예전엔 이
+ * acquire()가 execute() 호출 스레드 자체에서 블로킹해서, 순회 루프 하나가
+ * "실행 중인 task 하나 끝날 때까지" 매번 멈춰 서는 문제가 있었다(순수 SSE
+ * fan-out 부하테스트에서 캡을 걸수록 오히려 배달 지연이 나빠지는 현상으로 확인됨).
  */
 public class VirtualThreadSseTaskExecutor extends SimpleAsyncTaskExecutor {
 
@@ -70,18 +74,18 @@ public class VirtualThreadSseTaskExecutor extends SimpleAsyncTaskExecutor {
 
     @Override
     public void execute(Runnable task) {
-        if (concurrencyLimiter != null) {
-            try {
-                concurrencyLimiter.acquire();
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new TaskRejectedException("SSE 브로드캐스트 permit 대기 중 인터럽트됨", exception);
-            }
-        }
         submitted.increment();
-        active.incrementAndGet();
-        long startNanos = System.nanoTime();
         super.execute(() -> {
+            if (concurrencyLimiter != null) {
+                try {
+                    concurrencyLimiter.acquire();
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new TaskRejectedException("SSE 브로드캐스트 permit 대기 중 인터럽트됨", exception);
+                }
+            }
+            active.incrementAndGet();
+            long startNanos = System.nanoTime();
             try {
                 task.run();
                 completed.increment();

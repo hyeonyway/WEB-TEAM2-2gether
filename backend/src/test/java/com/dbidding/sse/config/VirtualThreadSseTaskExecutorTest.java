@@ -3,6 +3,7 @@ package com.dbidding.sse.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -90,5 +91,35 @@ class VirtualThreadSseTaskExecutorTest {
         releaseFirst.countDown();
 
         assertThat(secondStarted.await(1, TimeUnit.SECONDS)).isTrue();
+    }
+
+    @Test
+    void 캡이_꽉_찬_상태에서도_execute_호출자는_블로킹되지_않는다() throws InterruptedException {
+        // #575: acquire()가 execute() 호출자가 아니라 super.execute()가 띄우는 새 가상스레드
+        // 안에서 블로킹해야 한다 — 그래야 broadcast()의 emitter 순회 루프가 캡 때문에 안 막힌다.
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        VirtualThreadSseTaskExecutor executor = new VirtualThreadSseTaskExecutor("test-", registry, "auction-sse", 1);
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+
+        executor.execute(() -> {
+            firstStarted.countDown();
+            try {
+                releaseFirst.await();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertThat(firstStarted.await(1, TimeUnit.SECONDS)).isTrue();
+
+        // permit이 하나도 없는 상태에서 execute()를 호출한 이 스레드(테스트 메인 스레드) 자체는
+        // 즉시 리턴해야 한다 — 실제 task 실행(및 그 안의 acquire 대기)은 새로 뜬 가상스레드가 떠안는다.
+        long startNanos = System.nanoTime();
+        executor.execute(() -> { });
+        long elapsedMillis = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+
+        assertThat(elapsedMillis).isLessThan(300);
+
+        releaseFirst.countDown();
     }
 }
