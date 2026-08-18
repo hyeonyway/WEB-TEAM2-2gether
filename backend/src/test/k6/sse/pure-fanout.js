@@ -196,10 +196,17 @@ function publishFanoutEvent(data, successMetric, errorMetric, tagName) {
   const auctionId = data.auctionIds[Math.floor(Math.random() * data.auctionIds.length)];
   const bidders = data.biddersByAuction[auctionId];
   const [outbid, newBidder] = pickTwoDistinct(bidders);
+  // SessionCsrfFilter는 /api/auth/login, /api/auth/signup을 뺀 모든 POST에 걸린다
+  // (익명 POST는 세션이 없어 403) — 이 엔드포인트도 예외가 아니라서, 이미 로그인해둔
+  // bidder 세션(둘 중 아무 쪽이나) 쿠키+CSRF 토큰을 그대로 실어 보낸다.
   const response = http.post(
     `${baseUrl}/api/test/sse-fanout/random-bid-event?auctionId=${auctionId}&outbidUserId=${outbid.userId}&newBidderUserId=${newBidder.userId}`,
     null,
-    {responseCallback: http.expectedStatuses(202, 404, 500), tags: {name: tagName}},
+    {
+      headers: {Cookie: `SESSION=${outbid.cookie}`, 'X-CSRF-Token': outbid.csrfToken},
+      responseCallback: http.expectedStatuses(202, 404, 500),
+      tags: {name: tagName},
+    },
   );
   successMetric.add(response.status === 202);
   errorMetric.add(response.status >= 500);
