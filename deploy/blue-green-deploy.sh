@@ -24,9 +24,13 @@ log() { echo "[blue-green-deploy] $*"; }
 fail() { echo "[blue-green-deploy] ERROR: $*" >&2; exit 1; }
 
 port_for() {
+    # nginx -> backend는 Docker 네트워크 안에서 컨테이너 이름으로 직접 붙는다 -
+    # 호스트 포트 매핑(8080/8081)을 안 거치므로 컬러와 무관하게 컨테이너
+    # 내부 리스닝 포트(스프링 부트 기본값 8080)를 그대로 써야 한다. 컬러별
+    # 호스트 포트 8080/8081은 사람이 밖에서 curl로 색을 구분해 찌를 때만
+    # 쓰는 값이라 여기(nginx upstream) 용도가 아니다.
     case "$1" in
-        blue)  echo 8080 ;;
-        green) echo 8081 ;;
+        blue|green) echo 8080 ;;
         *) fail "알 수 없는 색: $1" ;;
     esac
 }
