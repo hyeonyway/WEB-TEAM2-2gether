@@ -75,13 +75,14 @@ export const options = {
       preAllocatedVUs, maxVUs, gracefulStop: '10s',
     },
   },
-  thresholds: {
-    auction_sse_connected: ['rate>0.99'],
-    me_sse_connected: ['rate>0.99'],
-    sse_barrier_ready: ['rate>0.99'],
-    fanout_publish_success: ['rate>0.99'],
-    fanout_server_error: ['rate<0.01'],
-  },
+  // threshold를 pass/fail 게이트로 안 쓴다(#579) — 이 스크립트는 인위적 지연(SSE_SEND_ARTIFICIAL_DELAY_MS)
+  // 등으로 일부러 과부하/성공률 저하 조건을 만들어 threadpool vs 가상스레드를 비교하는 용도라,
+  // 정상 조건을 가정하는 rate>0.99류 threshold가 걸리면 유효한 측정값이 나왔는데도 k6 exit code가
+  // 실패로 떨어진다(run-k6.sh 재시도 로직이 이걸 진짜 실패로 오인해 백엔드가 아직 회복 중인데
+  // 곧바로 재시도하다 로그인이 504로 죽는 문제까지 이어짐). auction_sse_connected/me_sse_connected/
+  // fanout_publish_success/fanout_server_error 값 자체는 metrics에 그대로 남으니 결과 JSON에서
+  // 확인 가능하다.
+  thresholds: {},
 };
 
 export function setup() {
