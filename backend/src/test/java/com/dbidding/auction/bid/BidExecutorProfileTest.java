@@ -44,7 +44,7 @@ class BidExecutorProfileTest {
 
     @Test
     void 다른_운영_프로필만_활성화돼도_기본_DbBidExecutor가_등록된다() {
-        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("local-sse"))
+        contextRunner.withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("sse-virtual-threads"))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(DbBidExecutor.class);
