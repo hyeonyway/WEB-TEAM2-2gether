@@ -233,20 +233,20 @@ class AuctionSseContractTest {
 
     @Test
     void 테스트_입찰_이벤트는_버전과_가격을_순차적으로_증가시킨다() {
-        AuctionSseConnectionManager manager = mock(AuctionSseConnectionManager.class);
+        AuctionStreamPublisher streamPublisher = mock(AuctionStreamPublisher.class);
         AuctionSseTestAuctionReader reader = mock(AuctionSseTestAuctionReader.class);
         when(reader.findRandomActiveAuction()).thenReturn(Optional.of(new AuctionSseTestAuctionReader.Snapshot(
                 10, 40_000L, 40_000L, 1_000L, 0,
                 Instant.now().plus(Duration.ofHours(1)), "OPEN", 5)));
         AuctionSseTestBidApplicationService service =
-                new AuctionSseTestBidApplicationService(manager, reader, Clock.systemUTC());
+                new AuctionSseTestBidApplicationService(streamPublisher, reader, Clock.systemUTC());
 
         AuctionStreamPayload first = service.publishRandomBid();
         AuctionStreamPayload second = service.publishRandomBid();
 
         assertThat(second.currentPrice()).isEqualTo(first.currentPrice() + 1_000L);
-        verify(manager).broadcast(first);
-        verify(manager).broadcast(second);
+        verify(streamPublisher).publish(first);
+        verify(streamPublisher).publish(second);
     }
 
     private AuctionStreamPayload bidPayload() {
