@@ -86,6 +86,41 @@ DB 경로가 "대체 구현체"가 아니라 애초에 유일한 공용 코어�
    다르면(`RedisAuctionEndingTransitionProcessor` vs `AuctionEndingTransitionService`)
    통일한다.
 
+## Port/Adapter 구조 정리 — 이번에 같이 확인
+
+이 리팩토링과 별개로 팀이 이미 "Port·Adapter 구조도 뗀다"는 방향을 여러 차례
+적용해왔다(`docs/hyeonmoon/wallet/9-remove-wallet-port-adapter.md`,
+`docs/hyeonmoon/notification/*`). 그 문서들이 정리한 기준을 그대로 가져온다:
+
+> 실제로 프로필별 대체 구현이 있는 Port(이벤트 발행처럼 구현 교체가 의미 있는 것)는
+> 유지하고, 대체 구현 없이 단일 구현으로 굳어진 값 호출용 Port는 걷어내고 소비자가
+> 구현체를 직접 호출한다.
+
+이번 `#572` 작업 범위(`auction`, `card`, `order`, `dashboard`, `wallet`)에 남은
+Port/Adapter 4개를 이 기준으로 재확인한 결과:
+
+| Port | 구현체 | 판정 |
+|---|---|---|
+| `auction.port.AuctionCardPort` | `MockAuctionCardAdapter`(유일, 프로덕션 어디서도 미주입) | **삭제** — 이슈 6번에 이미 반영, 고아 인터페이스 |
+| `auction.port.ImageUploadPort` | `MockImageUploadAdapter`(auction-mock) / `upload.adapter.AuctionImageUploadAdapter`(실제) | **삭제 추가** — 7번 항목에서 Mock을 지우면 `AuctionImageUploadAdapter` 하나만 남는 단일 구현 Port가 됨. 아래 상세 참고 |
+| `card.port.CardAuctionPort` | `auction.adapter.CardAuctionAdapter`(`!redis`) / `RedisCardAuctionAdapter`(`redis`) | **유지** — 진짜 프로필별 대체 구현 두 개, 이번 재설계의 패턴 A 대상 그대로 |
+| `order.port.OrderEventPort` | `order.adapter.SpringOrderEventAdapter`(유일, `@Profile` 없음) | **유지** — 단일 구현이지만 이벤트 발행 Port라 기존 문서(9번, 17~19번째 줄)에서 명시적으로 범위 제외한 대상, 이번에도 안 건드림 |
+
+### 이슈 #7 확장 — `ImageUploadPort` 제거
+
+원래 이슈 7번은 `MockImageUploadAdapter` 삭제 + `AuctionImageUploadAdapter`의
+`@Profile("!auction-mock")` 제거만 다뤘다. Mock을 지우고 나면 `ImageUploadPort`가
+구현체 하나(`AuctionImageUploadAdapter`)만 남는 단일 구현 Port가 되므로, 기존
+`WalletProvisioningPort` 제거 때와 같은 이유로 이번에 같이 걷어낸다.
+
+- 삭제: `backend/src/main/java/com/dbidding/auction/port/ImageUploadPort.java`
+- 수정: `backend/src/main/java/com/dbidding/upload/adapter/AuctionImageUploadAdapter.java` —
+  `implements ImageUploadPort` 제거(클래스는 유지, `resolveImages` 시그니처 그대로),
+  `@Profile("!auction-mock")`도 함께 제거(7번 원래 범위)
+- 수정: `backend/src/main/java/com/dbidding/auction/service/AuctionCommandService.java` —
+  필드 타입을 `ImageUploadPort imageUploadPort` → `AuctionImageUploadAdapter` 직접 참조로
+  교체(또는 클래스명을 Port 흔적 없는 이름으로 리네임할지는 구현 시점에 결정)
+
 ## 도메인별 목표 구조
 
 ### auction/bid (이슈 #9)
@@ -106,11 +141,13 @@ DB 경로가 "대체 구현체"가 아니라 애초에 유일한 공용 코어�
 
 - `auction/adapter/redis/`: `RedisCardAuctionAdapter`
 - `auction/adapter/dblock/`: `CardAuctionAdapter`
-- `auction/adapter/`(유지, `#572` 6번 항목에서 별도 삭제): `MockAuctionCardAdapter`,
+- `auction/adapter/`(유지, `#572` 6·7번 항목에서 별도 삭제): `MockAuctionCardAdapter`,
   `InMemoryAuctionEventAdapter`, `MockImageUploadAdapter`, `SpringAuctionEventPublisher`
   — 이들은 `auction-mock` 축이라 이번 redis/dblock 재설계와 무관, 6·7번 항목에서
   먼저 삭제된 뒤 이 패키지엔 `SpringAuctionEventPublisher`만 남는다.
-- `auction/port/AuctionCardPort.java` — 6번 항목에서 고아 인터페이스로 판정, 삭제.
+- `auction/port/AuctionCardPort.java`, `auction/port/ImageUploadPort.java` — 둘 다
+  6·7번 항목에서 삭제(전자는 원래 고아 인터페이스, 후자는 이번에 추가로 확인한 단일
+  구현 Port). 자세한 판정 근거는 "Port/Adapter 구조 정리" 절 참고.
 
 ### auction/service (이슈 #11, 스코프에서 제일 큼)
 
