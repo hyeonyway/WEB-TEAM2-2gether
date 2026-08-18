@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -35,6 +36,7 @@ public class RedisProjectionCatchUpVerifier {
     private final Duration cacheTtl;
 
     private volatile CachedResult cached;
+    private final ConcurrentHashMap<Integer, CachedResult> auctionCached = new ConcurrentHashMap<>();
 
     @Autowired
     public RedisProjectionCatchUpVerifier(
@@ -74,6 +76,32 @@ public class RedisProjectionCatchUpVerifier {
                 .orElse(false)
                 && !eventRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.PENDING)
                 && !eventRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
+    }
+
+    /**
+     * 콜드시드 대상 aggregate(경매/주문) 하나의 이벤트 이력만 확인한다. 전역 {@link #isCaughtUp()}과
+     * 달리 관계없는 다른 aggregate의 PENDING/ERROR에는 영향받지 않으므로, 한 경매의 지연이 다른
+     * 경매의 콜드시드까지 503으로 막는 문제가 없다.
+     */
+    public boolean isCaughtUp(Integer auctionId) {
+        CachedResult current = auctionCached.get(auctionId);
+        if (current != null && clock.instant().isBefore(current.expiresAt())) return current.caughtUp();
+        String key = CACHE_KEY + ":" + auctionId;
+        return singleFlight.execute(key, () -> {
+            CachedResult latest = auctionCached.get(auctionId);
+            if (latest != null && clock.instant().isBefore(latest.expiresAt())) return latest.caughtUp();
+            boolean result = checkCaughtUp(auctionId);
+            auctionCached.put(auctionId, new CachedResult(result, clock.instant().plus(cacheTtl)));
+            return result;
+        });
+    }
+
+    private boolean checkCaughtUp(Integer auctionId) {
+        return eventRepository.findFirstByAuctionIdOrderByIdDesc(auctionId)
+                .map(inbox -> inbox.getProjectionStatus() == AuctionBidEventProjectionStatus.PROCESSED)
+                .orElse(true)
+                && !eventRepository.existsByAuctionIdAndProjectionStatus(auctionId, AuctionBidEventProjectionStatus.PENDING)
+                && !eventRepository.existsByAuctionIdAndProjectionStatus(auctionId, AuctionBidEventProjectionStatus.ERROR);
     }
 
     private record CachedResult(boolean caughtUp, Instant expiresAt) {}

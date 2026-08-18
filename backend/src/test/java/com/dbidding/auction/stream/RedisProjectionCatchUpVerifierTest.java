@@ -90,6 +90,48 @@ class RedisProjectionCatchUpVerifierTest {
     }
 
     @Test
+    void 경매_단위_확인은_그_경매의_이벤트_이력만_본다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        AuctionTimelineEvent processedA = mock(AuctionTimelineEvent.class);
+        when(processedA.getProjectionStatus()).thenReturn(AuctionBidEventProjectionStatus.PROCESSED);
+        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(1)).thenReturn(Optional.of(processedA));
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(1, AuctionBidEventProjectionStatus.PENDING)).thenReturn(true);
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(1, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
+
+        AuctionTimelineEvent processedB = mock(AuctionTimelineEvent.class);
+        when(processedB.getProjectionStatus()).thenReturn(AuctionBidEventProjectionStatus.PROCESSED);
+        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(2)).thenReturn(Optional.of(processedB));
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(2, AuctionBidEventProjectionStatus.PENDING)).thenReturn(false);
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(2, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
+
+        assertThat(verifier.isCaughtUp(1)).isFalse();
+        assertThat(verifier.isCaughtUp(2)).isTrue();
+    }
+
+    @Test
+    void 경매_단위_확인은_이벤트가_아직_없으면_캐치업된_것으로_본다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(3)).thenReturn(Optional.empty());
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(3, AuctionBidEventProjectionStatus.PENDING)).thenReturn(false);
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(3, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
+
+        assertThat(verifier.isCaughtUp(3)).isTrue();
+    }
+
+    @Test
+    void 경매_단위_확인도_TTL_이내에는_캐시된_값을_재사용한다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
+        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(4)).thenReturn(Optional.empty());
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(4, AuctionBidEventProjectionStatus.PENDING)).thenReturn(false);
+        when(eventRepository.existsByAuctionIdAndProjectionStatus(4, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
+
+        assertThat(verifier.isCaughtUp(4)).isTrue();
+        assertThat(verifier.isCaughtUp(4)).isTrue();
+
+        verify(eventRepository, times(1)).findFirstByAuctionIdOrderByIdDesc(4);
+    }
+
+    @Test
     void 서로_다른_엔티티가_동시에_콜드미스_나도_실제_조회는_한_번만_수행된다() throws Exception {
         stubLatestProcessed();
         RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
