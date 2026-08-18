@@ -218,6 +218,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # 이 스텝은 deploy/blue-green-deploy.sh 하나만 scp로 가져가려는 용도라
+          # 이후 git 자격증명이 필요 없다 - 뒤 SSH/SCP 스텝에 남아있지 않게 한다.
+          persist-credentials: false
 
       - name: Sync deploy script to EC2
         uses: appleboy/scp-action@v0.1.7

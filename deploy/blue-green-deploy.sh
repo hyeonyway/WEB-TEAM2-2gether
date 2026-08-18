@@ -65,6 +65,12 @@ wait_for_readiness() {
 
     log "backend-${color}(포트 ${mgmt_port})의 readiness를 최대 ${READINESS_TIMEOUT_SECONDS}초 기다립니다."
     until curl -sf "http://localhost:${mgmt_port}/actuator/health/readiness" >/dev/null 2>&1; do
+        # 컨테이너가 이미 죽었으면(오늘 실제로 겪은 크래시 루프 같은 경우)
+        # 타임아웃 끝까지 기다리지 않고 바로 실패 처리한다.
+        if [ -z "$(docker compose -f "$COMPOSE_FILE" ps -q --status running "backend-${color}")" ]; then
+            log "backend-${color} 컨테이너가 실행 중이 아닙니다 - readiness를 더 기다리지 않습니다."
+            return 1
+        fi
         if (( SECONDS >= deadline )); then
             return 1
         fi
@@ -99,8 +105,11 @@ main() {
     to="$(opposite_of "$from")"
     log "현재 서비스 중: backend-${from}. 새로 띄울 색: backend-${to}."
 
-    log "backend-${to} 이미지를 최신으로 기동합니다."
-    docker compose -f "$COMPOSE_FILE" pull "backend-${to}"
+    # 호출부(backend-deploy.yml)가 이미 정확한 digest를 pull해서 :latest로 태그해뒀다.
+    # 여기서 다시 `compose pull`(태그 기준)을 하면 그 사이 레지스트리에 다른 이미지가
+    # :latest로 올라온 경우 의도치 않은 이미지로 바뀔 수 있어 하지 않는다 - 로컬에 이미
+    # 태그된 그 이미지 그대로 기동한다.
+    log "backend-${to}를 기동합니다."
     docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate "backend-${to}"
 
     if ! wait_for_readiness "$to"; then
