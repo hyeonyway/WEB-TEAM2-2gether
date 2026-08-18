@@ -1,7 +1,9 @@
 package com.dbidding.auction.bid;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dbidding.auction.exception.AuctionException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -81,6 +83,24 @@ class RedisAuctionCreateLuaIntegrationTest {
 
         assertThat(executor.execute(command("create-1")).auctionId()).isEqualTo(1);
         assertThat(redisTemplate.opsForStream().size("event:timeline")).isEqualTo(1L);
+    }
+
+    @Test
+    void 이미_존재하는_ID와_충돌하면_기존_경매_state를_덮어쓰지_않는다() {
+        // auction:sequence가 어떤 이유로든(예: 카운터 리셋) 이미 활성 경매가 쓰고 있는 ID 바로 앞
+        // 값을 가리키면, 다음 INCR이 그 경매와 같은 ID를 내놓는다. auction-create.lua는 이제 HSET
+        // 전에 EXISTS를 확인해서, 충돌하면 생성 자체를 거부하고 살아있는 state를 보존한다.
+        redisTemplate.opsForHash().putAll("auction:state:5", java.util.Map.of(
+                "status", "OPEN", "sellerId", "1", "sequence", "619", "currentPrice", "682841", "bidCount", "624"
+        ));
+        redisTemplate.opsForValue().set("auction:sequence", "4");
+
+        assertThatThrownBy(() -> executor.execute(command("collide-1")))
+                .isInstanceOf(AuctionException.class);
+
+        assertThat(redisTemplate.opsForHash().entries("auction:state:5"))
+                .containsEntry("sequence", "619")
+                .containsEntry("currentPrice", "682841");
     }
 
     private RedisAuctionCreateCommand command(String idempotencyKey) {

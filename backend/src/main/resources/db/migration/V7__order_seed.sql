@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/006-order-seed.sql
 -- Order seed data for DEBUG_USER_ID=1.
 -- Covers both sides of the "주문" dashboard tab:
 --   * 내가 산 주문 (buyer=1) — reuses 4 of user 1's already-won auctions from

@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/003-auction-bid-item-statistics.sql
 -- Service-flow seed data: auctions -> bids -> item statistics.
 -- MySQL 8 recursive CTEs keep the source compact while producing a complete
 -- 32 source days for every catalog item: a 30-day visible range plus
@@ -278,18 +279,22 @@ SELECT
   '현재 진행 상태와 입찰 이력이 연결된 초기 데이터',
   `seed`.`base_price`,
   `seed`.`current_price`,
-  -- 부하테스트 중 즉시낙찰로 조기 종료되지 않도록 즉시낙찰가를 아예 안 넣음(009 파일과 동일 방식).
-  NULL,
+  -- 진행 경매의 2/3은 즉시 낙찰을 지원한다.
+  CASE
+    WHEN MOD(`seed`.`item_id`, 3) <> 0
+      THEN `seed`.`base_price` + ((`seed`.`number_of_bids` + 10) * `seed`.`bid_unit`)
+    ELSE NULL
+  END,
   3000,
   `seed`.`auction_status`,
   TIMESTAMPADD(HOUR, -(2 + MOD(`seed`.`item_id`, 10)), NOW(6)),
   CASE
     WHEN `seed`.`auction_status` = 'ENDING' THEN TIMESTAMPADD(MINUTE, 30, NOW(6))
-    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
+    ELSE TIMESTAMPADD(HOUR, 24, NOW(6))
   END,
   CASE
     WHEN `seed`.`auction_status` = 'ENDING' THEN TIMESTAMPADD(MINUTE, 30, NOW(6))
-    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
+    ELSE TIMESTAMPADD(HOUR, 24, NOW(6))
   END,
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,

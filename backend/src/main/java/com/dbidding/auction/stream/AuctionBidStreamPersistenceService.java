@@ -20,6 +20,7 @@ import com.dbidding.order.OrderRepository;
 import com.dbidding.order.realtime.RedisOrderRealtimeStateProjection;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import jakarta.persistence.EntityManager;
@@ -67,7 +68,7 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuctionTimelineEvent recordMalformed(String streamId, Map<String, String> payload) {
         return inboxRepository.findByStreamId(streamId).orElseGet(() -> inboxRepository.save(new AuctionTimelineEvent(
-                streamId, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
+                streamId, null, null, null, payload.getOrDefault("eventType", "unknown"), malformedSchemaVersion(payload),
                 payload.toString(), Instant.now(), clock.instant()
         )));
     }
@@ -83,6 +84,17 @@ public class AuctionBidStreamPersistenceService {
     @Transactional(readOnly = true)
     public boolean hasProjectionError() {
         return inboxRepository.existsByProjectionStatus(AuctionBidEventProjectionStatus.ERROR);
+    }
+
+    /** ERROR로 막힌 aggregate(경매)를 제외하고 가장 오래된 PENDING을 고른다. 한 aggregate의
+     * ERROR가 관계없는 다른 aggregate의 처리까지 막는 head-of-line blocking을 없앤다. */
+    @Transactional(readOnly = true)
+    public Optional<AuctionTimelineEvent> findNextEligiblePending() {
+        List<Integer> blocked = inboxRepository.findAuctionIdsWithError();
+        if (blocked.isEmpty()) {
+            return inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.PENDING);
+        }
+        return inboxRepository.findEligiblePending(blocked, org.springframework.data.domain.PageRequest.of(0, 1)).stream().findFirst();
     }
 
     /** 첫 오류를 다시 PENDING으로 전환한다. 이후 투영 worker는 DB inbox의 ID 순서대로 처리한다. */
@@ -297,10 +309,27 @@ public class AuctionBidStreamPersistenceService {
     }
 
     private AuctionTimelineEvent archive(AuctionWalletTimelineEvent event, Integer auctionId, Long auctionVersion, String payload) {
+        Integer userId = extractWalletAffectingUserId(event);
         return new AuctionTimelineEvent(
-            event.streamId(), auctionId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
+            event.streamId(), auctionId, userId, auctionVersion, event.archiveEventType(), event.schemaVersion(),
                 payload, event.occurredAt(), clock.instant()
         );
+    }
+
+    /**
+     * 이 이벤트가 PENDING인 동안 지갑 상태를 변경할 특정 유저가 있다면 그 userId를 반환한다.
+     * {@link RedisWalletStateSeeder}의 userId 스코프 catch-up 확인이 이 이벤트를 놓치지 않도록
+     * {@link WalletStateChangedStreamEvent}뿐 아니라 지갑을 hold/release/capture하는
+     * {@link BidAcceptedStreamEvent}(입찰자), 정산으로 지갑을 바꾸는
+     * {@link OrderStateChangedStreamEvent}(walletUserId)도 함께 채운다.
+     */
+    private Integer extractWalletAffectingUserId(AuctionWalletTimelineEvent event) {
+        return switch (event) {
+            case WalletStateChangedStreamEvent wallet -> wallet.userId();
+            case BidAcceptedStreamEvent bid -> bid.bidderId();
+            case OrderStateChangedStreamEvent order -> order.walletUserId();
+            default -> null;
+        };
     }
 
     private void validateLeadingBidder(BidAcceptedStreamEvent event, Bid currentLeadingBid) {

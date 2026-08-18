@@ -23,7 +23,7 @@ class AuctionSchemaIndexTest {
     }
 
     private String readSchema() throws IOException {
-        try (InputStream input = getClass().getResourceAsStream("/schema.sql")) {
+        try (InputStream input = getClass().getResourceAsStream("/db/migration/V1__initial_schema.sql")) {
             assertThat(input).isNotNull();
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }

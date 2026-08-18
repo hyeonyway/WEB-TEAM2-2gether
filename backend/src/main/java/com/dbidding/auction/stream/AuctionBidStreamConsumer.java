@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import com.dbidding.auction.domain.AuctionTimelineEvent;
-import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
@@ -51,7 +50,6 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
     private final AuctionBidStreamPersistenceService persistenceService;
     private final AuctionBidStreamProperties properties;
     private final AuctionBidStreamConsumerLeaderLock leaderLock;
-    private final AuctionTimelineEventRepository inboxRepository;
     private final ObjectMapper objectMapper;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("auction-timeline-single-", 0).factory()
@@ -141,11 +139,11 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
         acknowledgeAndDelete(record);
     }
 
-    /** Redis Stream은 inbox 적재만 담당하고, 실제 projection은 DB inbox 순서만 따른다. */
+    /** Redis Stream은 inbox 적재만 담당하고, 실제 projection은 DB inbox 순서만 따른다.
+     * ERROR로 막힌 경매만 건너뛰므로, 한 경매의 ERROR가 다른 경매·지갑 이벤트 처리까지
+     * 막는 head-of-line blocking이 없다. */
     private boolean projectOldestPending() {
-        if (persistenceService.hasProjectionError()) return false;
-        AuctionTimelineEvent inbox = inboxRepository.findFirstByProjectionStatusOrderByIdAsc(
-                com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING).orElse(null);
+        AuctionTimelineEvent inbox = persistenceService.findNextEligiblePending().orElse(null);
         if (inbox == null) return false;
         try {
             AuctionWalletTimelineEvent event = AuctionWalletTimelineEvent.from(

@@ -8,18 +8,19 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.mysql.MySQLContainer;
 
-@SpringBootTest(properties = {
+	@SpringBootTest(properties = {
 	"statistic.scheduler.enabled=false",
 	"auction.closing.scheduler.enabled=false",
 	"auction.deadline.scheduler.enabled=false",
 	"spring.sql.init.mode=never",
+	"spring.flyway.enabled=false",
 	"spring.jpa.hibernate.ddl-auto=validate"
 })
 public abstract class AccountMySqlIntegrationTest {
 
 	protected static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4")
 		.withDatabaseName("dbidding")
-		.withInitScript("schema.sql");
+		.withInitScript("db/migration/V1__initial_schema.sql");
 
 	static {
 		MYSQL.start();

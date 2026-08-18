@@ -2,6 +2,7 @@ package com.dbidding.wallet.service;
 
 import static org.mockito.Mockito.*;
 import com.dbidding.auction.stream.WalletStateChangedStreamEvent;
+import com.dbidding.wallet.domain.HoldStatus;
 import com.dbidding.wallet.domain.PointTransactionType;
 import com.dbidding.wallet.domain.Wallet;
 import com.dbidding.wallet.repository.PointRecordRepository;
@@ -52,5 +53,24 @@ class WalletProjectionServiceTest {
                         null, null, null, PointTransactionType.CHARGE, 10_000L, "key", Instant.now()));
 
         verify(events, never()).publishEvent(any());
+    }
+
+    @Test
+    void 버전_가드를_통과하지_못한_이벤트는_거래내역과_hold도_반영하지_않는다() {
+        WalletRepository wallets = mock(WalletRepository.class);
+        PointRecordRepository records = mock(PointRecordRepository.class);
+        WalletHoldRepository holds = mock(WalletHoldRepository.class);
+        Wallet wallet = mock(Wallet.class);
+        when(wallets.findByUserId(1)).thenReturn(Optional.of(wallet));
+        when(wallet.getId()).thenReturn(10);
+        // 잔액 UPDATE가 버전 가드에 걸려 0행 갱신됐다 - 이 이벤트는 stale이다.
+        when(wallets.updateProjectionIfNewer(1, 10_000L, 2L)).thenReturn(0);
+
+        new WalletProjectionService(wallets, records, holds).project(new WalletStateChangedStreamEvent(
+                "1-0", UUID.randomUUID(), "wallet.charged.v1", 1, 2L, 10_000L, 0L,
+                2, 10_000L, HoldStatus.HELD, PointTransactionType.CHARGE, 10_000L, "key", Instant.now()));
+
+        verify(records, never()).save(any());
+        verify(holds, never()).save(any());
     }
 }

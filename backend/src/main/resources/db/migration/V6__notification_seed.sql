@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/005-notification-seed.sql
 -- Notification seed data for DEBUG_USER_ID=1.
 -- Reuses the auctions created by 004-dashboard-current-auctions.sql so the
 -- notification list has realistic entries to click through locally:

@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/004-dashboard-current-auctions.sql
 -- Dashboard seed data for DEBUG_USER_ID=1.
 -- Creates 50 auctions in progress and 12 recently won auctions.
 -- Every auction has bids from deterministic seed users.
@@ -72,9 +73,9 @@ SELECT
   '오늘 시작한 대시보드 테스트용 진행 경매',
   `seed`.`start_price`,
   `seed`.`start_price` + (`seed`.`number_of_bids` * `seed`.`bid_unit`),
-  -- 진행 경매의 절반은 즉시 구매를 지원한다.
+  -- 진행 경매의 2/3은 즉시 낙찰을 지원한다.
   CASE
-    WHEN MOD(`seed`.`item_id`, 2) = 0
+    WHEN MOD(`seed`.`item_id`, 3) <> 0
       THEN `seed`.`start_price` + ((`seed`.`number_of_bids` + 10) * `seed`.`bid_unit`)
     ELSE NULL
   END,
@@ -84,12 +85,12 @@ SELECT
   CASE
     WHEN `seed`.`auction_status` = 'ENDING'
       THEN TIMESTAMPADD(MINUTE, 20 + MOD(`seed`.`item_id`, 40), NOW(6))
-    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
+    ELSE TIMESTAMPADD(HOUR, 24, NOW(6))
   END,
   CASE
     WHEN `seed`.`auction_status` = 'ENDING'
       THEN TIMESTAMPADD(MINUTE, 20 + MOD(`seed`.`item_id`, 40), NOW(6))
-    ELSE TIMESTAMPADD(DAY, 7, NOW(6))
+    ELSE TIMESTAMPADD(HOUR, 24, NOW(6))
   END,
   `seed`.`number_of_bids`,
   `seed`.`bid_unit`,

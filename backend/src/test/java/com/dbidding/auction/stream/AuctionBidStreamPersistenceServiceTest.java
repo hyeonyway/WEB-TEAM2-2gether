@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
+import com.dbidding.auction.domain.AuctionTimelineEvent;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.dbidding.auction.repository.AuctionRepository;
@@ -136,8 +138,55 @@ class AuctionBidStreamPersistenceServiceTest {
 
         verify(walletProjectionService).project(event);
         verify(walletService, org.mockito.Mockito.never()).charge(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
-        verify(inboxRepository).save(org.mockito.ArgumentMatchers.any());
+        ArgumentCaptor<AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(AuctionTimelineEvent.class);
+        verify(inboxRepository).save(inbox.capture());
+        assertThat(inbox.getValue().getUserId()).isEqualTo(1);
         verify(auctionRepository, org.mockito.Mockito.never()).findByIdForUpdate(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 입찰_이벤트는_입찰자_지갑을_hold하므로_inbox에_입찰자_userId를_채운다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService, orderService, orderRepository, java.util.Optional.empty(), cardService,
+                auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
+        );
+        given(inboxRepository.findByStreamId("1-0")).willReturn(java.util.Optional.empty());
+        given(auctionRepository.findByIdForUpdate(10)).willReturn(java.util.Optional.of(auction));
+        given(auction.getId()).willReturn(10);
+        given(auction.getLastBidEventVersion()).willReturn(0L);
+        given(auction.isNextBidEventVersion(org.mockito.ArgumentMatchers.anyLong())).willReturn(true);
+        given(bidRepository.findFirstByAuctionIdAndStatusOrderByBidPriceDescCreatedAtAsc(
+                10, com.dbidding.auction.domain.BidStatus.LEADING
+        )).willReturn(java.util.Optional.empty());
+        given(auction.applyStreamBid(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .willReturn(true);
+
+        service.persist(event("1-0", 1L, 2, null));
+
+        ArgumentCaptor<AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(AuctionTimelineEvent.class);
+        verify(inboxRepository).save(inbox.capture());
+        assertThat(inbox.getValue().getUserId()).isEqualTo(2);
+        assertThat(inbox.getValue().getAuctionId()).isEqualTo(10);
+    }
+
+    @Test
+    void 주문_상태_이벤트는_정산으로_지갑이_바뀔_유저의_userId를_inbox에_채운다() {
+        AuctionBidStreamPersistenceService service = new AuctionBidStreamPersistenceService(
+                inboxRepository, auctionRepository, auctionImageRepository, bidRepository, walletService, accountRepository, walletProjectionService, orderService, orderRepository, java.util.Optional.empty(), cardService,
+                auctionEventPublisher, Clock.fixed(Instant.parse("2026-08-10T12:00:00Z"), ZoneOffset.UTC)
+        );
+        given(inboxRepository.findByStreamId("order-2")).willReturn(java.util.Optional.empty());
+        OrderStateChangedStreamEvent event = new OrderStateChangedStreamEvent("order-2", UUID.randomUUID(), "order.completed.v1",
+                20, 10, 1L, 2, 2, 1, com.dbidding.order.OrderStatus.COMPLETED, 1, 1L, 1L, 0L,
+                PointTransactionType.ORDER_SETTLEMENT, 1L, "key", Instant.parse("2026-08-10T12:00:00Z"));
+
+        service.recordPending(event);
+
+        ArgumentCaptor<AuctionTimelineEvent> inbox = ArgumentCaptor.forClass(AuctionTimelineEvent.class);
+        verify(inboxRepository).save(inbox.capture());
+        assertThat(inbox.getValue().getUserId()).isEqualTo(1);
+        assertThat(inbox.getValue().getAuctionId()).isEqualTo(10);
     }
 
     @Test
@@ -371,6 +420,34 @@ class AuctionBidStreamPersistenceServiceTest {
         verify(walletService).hold(2, 10, 10_000L);
         verify(walletService).capture(2, 10, 10_000L);
         verify(walletService, org.mockito.Mockito.never()).release(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void ERROR로_막힌_경매가_없으면_전체_PENDING중_가장_오래된_것을_고른다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        AuctionTimelineEvent oldestPending = org.mockito.Mockito.mock(AuctionTimelineEvent.class);
+        given(inboxRepository.findAuctionIdsWithError()).willReturn(java.util.List.of());
+        given(inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.PENDING))
+                .willReturn(java.util.Optional.of(oldestPending));
+
+        assertThat(service.findNextEligiblePending()).contains(oldestPending);
+
+        verify(inboxRepository, org.mockito.Mockito.never()).findEligiblePending(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void ERROR로_막힌_경매가_있으면_그_경매를_제외한_PENDING만_고른다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        AuctionTimelineEvent eligible = org.mockito.Mockito.mock(AuctionTimelineEvent.class);
+        given(inboxRepository.findAuctionIdsWithError()).willReturn(java.util.List.of(1));
+        given(inboxRepository.findEligiblePending(org.mockito.ArgumentMatchers.eq(java.util.List.of(1)),
+                org.mockito.ArgumentMatchers.any())).willReturn(java.util.List.of(eligible));
+
+        assertThat(service.findNextEligiblePending()).contains(eligible);
+
+        verify(inboxRepository, org.mockito.Mockito.never()).findFirstByProjectionStatusOrderByIdAsc(
+                org.mockito.ArgumentMatchers.any());
     }
 
     private AuctionBidStreamPersistenceService service(java.util.Optional<RedisOrderRealtimeStateProjection> realtimeProjection) {

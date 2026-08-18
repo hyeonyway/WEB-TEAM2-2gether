@@ -1,3 +1,4 @@
+-- Source: backend/src/main/resources/required-data/001-pokemon-card.sql
 -- Pokemon card catalog generated from origin.html.
 -- Cards: 804
 -- image_path is an S3 object key, not a public URL.

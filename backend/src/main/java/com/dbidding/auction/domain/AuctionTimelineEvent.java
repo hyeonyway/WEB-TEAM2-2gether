@@ -26,6 +26,9 @@ public class AuctionTimelineEvent {
     @Column(name = "auction_id")
     private Integer auctionId;
 
+    @Column(name = "user_id")
+    private Integer userId;
+
     @Column(name = "auction_version")
     private Long auctionVersion;
 
@@ -60,6 +63,7 @@ public class AuctionTimelineEvent {
     public AuctionTimelineEvent(
             String streamId,
             Integer auctionId,
+            Integer userId,
             Long auctionVersion,
             String eventType,
             Integer schemaVersion,
@@ -69,6 +73,7 @@ public class AuctionTimelineEvent {
     ) {
         this.streamId = streamId;
         this.auctionId = auctionId;
+        this.userId = userId;
         this.auctionVersion = auctionVersion;
         this.eventType = eventType;
         this.schemaVersion = schemaVersion;
