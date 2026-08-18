@@ -188,8 +188,6 @@ readiness 실패 시 자동 롤백(2번 단계에서 타임아웃)이 핵심 —
        LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: WARN
        LOGGING_LEVEL_ORG_HIBERNATE: WARN
        LOGGING_LEVEL_COM_DBIDDING: INFO
-       JWT_SECRET: ${JWT_SECRET}
-       JWT_SECURE_COOKIE: "true"
        TZ: Asia/Seoul
        SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "30"
        SERVER_TOMCAT_THREADS_MAX: "50"
@@ -221,12 +219,28 @@ readiness 실패 시 자동 롤백(2번 단계에서 타임아웃)이 핵심 —
 
    networks:
      app-network:
-       driver: bridge
+       # 기존 nginx가 떠 있는 네트워크를 그대로 쓴다(external: true) - 이 값 없이
+       # 그냥 `driver: bridge`만 쓰면 compose가 이 파일이 있는 디렉터리 이름
+       # (`~/deploy/` → 프로젝트명 "deploy")을 접두어로 붙여 `deploy_app-network`라는
+       # *새* 네트워크를 만들어버린다. nginx는 원래 `~/docker-compose.yml`(프로젝트명
+       # "ubuntu")로 떴으므로 그 네트워크는 `ubuntu_app-network`다 - 이름이 다르면
+       # backend-blue/green이 떠도 nginx가 DNS로 못 찾아서 컷오버가 502로 끝난다.
+       # 실제로 한 번 이 문제로 배포가 막혔다(아래 인시던트 참고). 호스트에서
+       # `docker network ls`로 nginx가 실제로 붙어있는 네트워크 이름을 먼저 확인하고
+       # 그 이름을 여기 `name:`에 넣을 것 - "ubuntu_app-network"는 이 환경 기준값이라
+       # 호스트/프로젝트명이 다르면 값이 다를 수 있다.
+       name: ubuntu_app-network
+       external: true
    ```
 
    (`SLACK_LOG_WEBHOOK_URL`은 기존 host `~/docker-compose.yml`에 평문으로 박혀 있던
    값인데, git에 이 문서로도 남기지 않기 위해 여기선 env var 참조로 바꿔뒀다 —
-   `~/.env`에 실제 값을 추가해두거나, 호스트 파일엔 기존처럼 평문으로 둬도 된다.)
+   `~/.env`에 실제 값을 추가해두거나, 호스트 파일엔 기존처럼 평문으로 둬도 된다.
+   `JWT_SECRET`/`JWT_SECURE_COOKIE`는 애초에 안 넣었다 - 현재 코드베이스 어디서도
+   JWT_SECRET을 참조하지 않는다(#469에서 세션 인증으로 완전히 전환됨, `#587` 이후
+   `start-server.sh`도 이 값을 요구하지 않는다 - `StartServerScriptTest`의
+   `JWT_SECRET_없이도_Redis_연결_검증까지_진행한다` 테스트로 확인됨). 넣어도 아무도
+   안 읽으니 무해하지만, 이미 안 쓰는 값이라 넣을 이유가 없다.)
 
 2. 호스트 `~/nginx/conf.d/default.conf`의 `upstream backend_server { ... }` 블록을
    아래처럼 바꾼다(원래는 `server backend:8080;` 한 줄이었던 것):
@@ -245,6 +259,20 @@ readiness 실패 시 자동 롤백(2번 단계에서 타임아웃)이 핵심 —
 
    (확장자를 `.conf`가 아닌 `.inc`로 — `nginx.conf`의 `include conf.d/*.conf;`가 이
    파일을 다시 읽어버려서 문법 에러 나는 걸 피하려는 것)
+
+   **`~/nginx/conf.d/` 디렉터리 소유권을 `ubuntu`로 바꿔둔다** — 원래 이 디렉터리가
+   root 소유라, 컷오버 스크립트(CI가 SSH로 `ubuntu` 사용자 권한으로 실행)가
+   `upstream-active.inc`를 갱신하려고 할 때 `mv: ... Permission denied`로 실패한다
+   (실제로 한 번 이 문제로 배포가 막혔다 — 아래 인시던트 참고). `sudo cp`로 파일만
+   만들어두면 파일은 root 소유로 남아 스크립트가 여전히 못 덮어쓰므로, 디렉터리
+   전체를 넘겨야 한다:
+
+   ```bash
+   sudo chown -R ubuntu:ubuntu ~/nginx/conf.d
+   ```
+
+   컨테이너 안 nginx 프로세스는 이 디렉터리를 읽기 전용(`:ro`)으로만 마운트하므로
+   호스트 쪽 소유권을 바꿔도 컨테이너의 읽기 권한에는 영향 없다.
 
 4. `docker exec nginx nginx -t && docker exec nginx nginx -s reload`로 반영 확인
 5. 기존 단일 `backend` 컨테이너를 위 `docker-compose.prod.yml` 기준 `backend-blue`로
@@ -269,6 +297,41 @@ readiness 실패 시 자동 롤백(2번 단계에서 타임아웃)이 핵심 —
   compose에서 제거해 이 실패 유형을 구조적으로 없앴다.
 - 되돌리기 쉬운 상태(백업, 이전 이미지 digest 고정, 컷오버 스크립트의 readiness 타임아웃
   자동 롤백)를 미리 갖춰둔 덕에 완전한 장기 장애로는 번지지 않았다.
+
+### 2026-08-18 인시던트 #2 — 첫 실제 CI 배포에서 컷오버 실패
+
+위 인시던트를 수습하고 SCHEMA_FILE 문제를 구조적으로 없앤 뒤, `main` 머지로 처음
+CI가 실제로 `blue-green-deploy.sh`를 돌렸을 때 또 다른 두 문제로 컷오버가 막혔다.
+이번엔 웜업·readiness까지는 전부 성공했고 nginx 전환 단계에서만 실패해서, 서비스가
+완전히 죽지는 않고(구 색이 계속 트래픽을 받는 중이었음) "새 배포가 안 붙는" 상태로
+남았다 — 그러다 사람이 직접 `~/nginx/conf.d/upstream-active.inc` 갱신을 시도하는
+과정에서 구 색 컨테이너가 사라지면서 짧게 502가 났다(직접 개입 중 발생, 자동 롤백
+경로는 아님).
+
+1. **`mv: ... Permission denied`** — `~/nginx/conf.d/`가 root 소유라, CI가 SSH로
+   붙는 `ubuntu` 사용자 권한으로는 `upstream-active.inc`를 덮어쓸 수 없었다. 최초
+   셋업 때 `sudo cp`로 파일만 만들어두고 디렉터리 소유권은 안 바꿨던 게 원인 — 위
+   "적용 절차" 3번에 `chown -R ubuntu:ubuntu` 단계를 추가해 해결.
+2. **`backend-green`이 nginx와 다른 도커 네트워크에 뜸** — `docker-compose.prod.yml`의
+   `networks.app-network`를 `driver: bridge`(새 네트워크 생성)로 뒀는데, 이 compose
+   파일이 `~/deploy/`에서 실행되니 프로젝트명이 "deploy"로 잡혀 `deploy_app-network`가
+   새로 만들어졌다. 정작 nginx는 `~/docker-compose.yml`(프로젝트명 "ubuntu")로 뜬
+   `ubuntu_app-network`에 있어서, backend-green이 떠도 nginx가 DNS로 찾을 방법이
+   없었다(`docker exec nginx getent hosts backend-green` 실패로 확인). 위 "적용 절차"
+   1번의 compose 예시에 `external: true`로 기존 네트워크를 참조하도록 수정.
+
+교훈:
+- 다중 서비스를 서로 다른 compose 프로젝트(=서로 다른 디렉터리)로 나눌 때는 **네트워크를
+  공유해야 하면 반드시 `external: true`로 명시**해야 한다 — 같은 네트워크 "이름"을 써도
+  프로젝트명이 다르면 실제로는 다른 네트워크가 된다. `docker network ls`로 실제
+  네트워크 이름을 직접 확인하고 넣을 것, 환경마다 다를 수 있다.
+- 호스트 파일 권한을 `sudo cp`/`sudo tee`로 임시 우회하면 "지금 당장은 되는데 다음에
+  다른 사용자·자동화가 건드릴 때 막히는" 함정이 된다 — 애초에 그 리소스를 누가
+  지속적으로 관리할지(이번 경우 CI의 `ubuntu` 사용자) 소유권 자체를 맞춰두는 게 맞다.
+- 이번에도 readiness 게이트와 컷오버 실패 시 자동 롤백 덕분에, nginx 전환 전까지는
+  구 색이 계속 트래픽을 받고 있어서 "배포 실패"가 "서비스 다운"으로 바로 이어지지
+  않았다 — 다만 그 뒤 사람이 수동으로 개입하는 과정에서 별도 실수로 짧은 502가
+  있었으니, 수동 복구 절차 자체도 이 문서에 정리해두는 게 다음번엔 낫다.
 
 ## 남은 결정 사항
 
