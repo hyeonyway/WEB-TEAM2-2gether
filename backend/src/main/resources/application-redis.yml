@@ -36,11 +36,10 @@ auction:
   state-seeding:
     warm-up:
       enabled: ${AUCTION_STATE_WARM_UP_ENABLED:true}
-      closing-window-minutes: ${AUCTION_STATE_WARM_UP_CLOSING_WINDOW_MINUTES:30}
-      # 마감임박/최근 개설 - 입찰 진행에 곧바로 영향을 주는 경매.
-      recent-limit: ${AUCTION_STATE_WARM_UP_RECENT_LIMIT:500}
-      # 입찰수/가격(양끝)/변동률 각 정렬 기준 상위권 - 목록 조회 첫 페이지가 비지 않도록.
-      list-coverage-limit: ${AUCTION_STATE_WARM_UP_LIST_COVERAGE_LIMIT:500}
+      # 활성(OPEN/ENDING) 경매를 전부 warm-up한다 - 어떤 정렬 기준으로도 목록 커버리지 문제가
+      # 생기지 않는다. 이 값은 실제 캡이 아니라, 예상 밖 급증으로 기동이 무한정 오래 걸리는 것만
+      # 막는 안전 상한이다.
+      max-active-auctions: ${AUCTION_STATE_WARM_UP_MAX_ACTIVE_AUCTIONS:50000}
     auction-cold-batch:
       # 서로 다른 auctionId의 동시 콜드시드를 이 시간(ms) 동안 모아 배치 쿼리 1회로 묶는다.
       # wallet-cold-batch와 동일한 트레이드오프 — 경합 없는 단독 요청도 이만큼 기다린다.

@@ -216,21 +216,49 @@ jobs:
       packages: read
 
     steps:
-      - name: Deploy image digest on EC2
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # 이 스텝은 deploy/blue-green-deploy.sh 하나만 scp로 가져가려는 용도라
+          # 이후 git 자격증명이 필요 없다 - 뒤 SSH/SCP 스텝에 남아있지 않게 한다.
+          persist-credentials: false
+
+      - name: Sync deploy script to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # blue-green-deploy.sh는 순수 자동화 로직이라 매 배포마다 최신으로 동기화한다.
+          # docker-compose.prod.yml/nginx는 인프라 토폴로지라 git에 안 두고 호스트
+          # ~/deploy/, ~/nginx/에서 직접 수동 관리한다(설정 원본은
+          # docs/hyeonmoon/global/4-blue-green-deploy-readiness-design.md "적용 절차"
+          # 참고) - 여기서 건드리지 않는다.
+          source: "deploy/blue-green-deploy.sh"
+          target: "~/deploy-sync"
+          strip_components: 1
+
+      - name: Pin image digest and run blue-green cutover
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -euo pipefail
             IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
             DIGEST="${{ needs.publish-prod-image.outputs.digest }}"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             docker pull "${IMAGE}@${DIGEST}"
             docker tag "${IMAGE}@${DIGEST}" "${IMAGE}:latest"
-            cd ~
-            docker compose up -d --no-deps --force-recreate backend
-            docker image prune -f
+
+            mkdir -p ~/deploy
+            cp ~/deploy-sync/blue-green-deploy.sh ~/deploy/blue-green-deploy.sh
+            chmod +x ~/deploy/blue-green-deploy.sh
+            rm -rf ~/deploy-sync
+
+            cd ~/deploy
+            ./blue-green-deploy.sh
 
   notify:
     name: Notify Slack
