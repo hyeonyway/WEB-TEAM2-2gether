@@ -1,4 +1,4 @@
-package com.dbidding.dashboard;
+package com.dbidding.dashboard.service.redis;
 
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
@@ -6,7 +6,10 @@ import com.dbidding.auction.domain.BidStatus;
 import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
 import com.dbidding.auction.dto.AuctionResponses;
 import com.dbidding.auction.service.AuctionQueryService;
+import com.dbidding.dashboard.domain.ParticipatingAuctionSort;
+import com.dbidding.dashboard.domain.RecentWinSort;
 import com.dbidding.dashboard.dto.DashboardResponse;
+import com.dbidding.dashboard.service.DashboardQueryService;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;

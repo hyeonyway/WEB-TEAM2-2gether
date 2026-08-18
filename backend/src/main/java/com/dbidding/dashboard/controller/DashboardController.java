@@ -1,6 +1,9 @@
-package com.dbidding.dashboard;
+package com.dbidding.dashboard.controller;
 
+import com.dbidding.dashboard.domain.ParticipatingAuctionSort;
+import com.dbidding.dashboard.domain.RecentWinSort;
 import com.dbidding.dashboard.dto.DashboardResponse;
+import com.dbidding.dashboard.service.DashboardQueryService;
 import com.dbidding.global.security.CurrentUser;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

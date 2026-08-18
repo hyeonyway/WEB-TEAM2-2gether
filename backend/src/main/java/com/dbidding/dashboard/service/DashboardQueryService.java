@@ -1,5 +1,7 @@
-package com.dbidding.dashboard;
+package com.dbidding.dashboard.service;
 
+import com.dbidding.dashboard.domain.ParticipatingAuctionSort;
+import com.dbidding.dashboard.domain.RecentWinSort;
 import com.dbidding.dashboard.dto.DashboardResponse;
 import java.util.List;
 

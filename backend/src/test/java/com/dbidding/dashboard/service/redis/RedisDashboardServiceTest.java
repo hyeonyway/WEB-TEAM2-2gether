@@ -1,4 +1,4 @@
-package com.dbidding.dashboard;
+package com.dbidding.dashboard.service.redis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -9,6 +9,7 @@ import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.query.RedisAuctionRealtimeStateReader;
 import com.dbidding.auction.service.AuctionQueryService;
+import com.dbidding.dashboard.domain.ParticipatingAuctionSort;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

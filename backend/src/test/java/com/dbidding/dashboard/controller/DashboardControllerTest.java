@@ -1,11 +1,14 @@
-package com.dbidding.dashboard;
+package com.dbidding.dashboard.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.dbidding.dashboard.domain.ParticipatingAuctionSort;
+import com.dbidding.dashboard.domain.RecentWinSort;
 import com.dbidding.dashboard.dto.DashboardResponse;
+import com.dbidding.dashboard.service.DashboardQueryService;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.global.exception.UnauthorizedException;

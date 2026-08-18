@@ -1,4 +1,4 @@
-package com.dbidding.dashboard;
+package com.dbidding.dashboard.service.redis;
 
 import com.dbidding.auction.bid.redis.RedisAuctionStateSeeder;
 import com.dbidding.auction.domain.AuctionStatus;

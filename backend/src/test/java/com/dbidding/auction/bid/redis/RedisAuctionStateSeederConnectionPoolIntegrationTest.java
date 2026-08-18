@@ -11,7 +11,7 @@ import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.auction.stream.RedisProjectionCatchUpVerifier;
-import com.dbidding.dashboard.RedisDashboardStateSeeder;
+import com.dbidding.dashboard.service.redis.RedisDashboardStateSeeder;
 import com.dbidding.global.concurrent.RedisStateSingleFlight;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
