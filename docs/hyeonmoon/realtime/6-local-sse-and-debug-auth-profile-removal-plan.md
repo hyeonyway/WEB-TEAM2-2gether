@@ -86,6 +86,6 @@ grep -rln "debug-auth" src/main/java src/test/java
 - Removes: `global.security.TestAuthFilter`
 - 영향 없음: `RequestUserIdWriter`, `RequestCurrentUserProvider`, `JwtAuthFilter` 등 기본 인증 흐름은 `debug-auth`와 무관하게 그대로 유지
 
-- [ ] **Step 1:** 위 4개 파일 삭제
-- [ ] **Step 2:** `./gradlew compileJava compileTestJava` 통과 확인
-- [ ] **Step 3:** 커밋
+- [x] **Step 1:** 위 4개 파일 삭제
+- [x] **Step 2:** `./gradlew compileJava compileTestJava` 통과 확인
+- [x] **Step 3:** 커밋
