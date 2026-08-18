@@ -15,7 +15,7 @@
 &nbsp; | &nbsp;
 [GitHub Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki)
 &nbsp; | &nbsp;
-[API 문서](API_DOCUMENT_URL)
+[API 문서](https://api.dbidding.shop/swagger-ui/index.html#/)
 
 </div>
 
