@@ -8,11 +8,12 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.mysql.MySQLContainer;
 
-@SpringBootTest(properties = {
+	@SpringBootTest(properties = {
 	"statistic.scheduler.enabled=false",
 	"auction.closing.scheduler.enabled=false",
 	"auction.deadline.scheduler.enabled=false",
 	"spring.sql.init.mode=never",
+	"spring.flyway.enabled=false",
 	"spring.jpa.hibernate.ddl-auto=validate"
 })
 public abstract class AccountMySqlIntegrationTest {
