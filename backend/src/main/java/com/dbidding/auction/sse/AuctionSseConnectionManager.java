@@ -10,7 +10,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -36,8 +38,19 @@ public class AuctionSseConnectionManager {
             ObjectMapper objectMapper,
             @Qualifier("auctionSseSendDispatcher") SseSendDispatcher sendDispatcher
     ) {
+        this(clock, metrics, objectMapper, sendDispatcher, 0);
+    }
+
+    @Autowired
+    public AuctionSseConnectionManager(
+            Clock clock,
+            @Qualifier("auctionSseMetrics") SseMetrics metrics,
+            ObjectMapper objectMapper,
+            @Qualifier("auctionSseSendDispatcher") SseSendDispatcher sendDispatcher,
+            @Value("${SSE_SEND_ARTIFICIAL_DELAY_MS:0}") long sendArtificialDelayMillis
+    ) {
         this.clock = clock;
-        this.registry = new SseEmitterRegistry<>(metrics);
+        this.registry = new SseEmitterRegistry<>(metrics, null, sendArtificialDelayMillis);
         this.objectMapper = objectMapper;
         this.sendDispatcher = sendDispatcher;
         this.connectionCountSupplier = registry::totalConnectionCount;

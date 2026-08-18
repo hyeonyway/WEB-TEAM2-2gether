@@ -33,14 +33,23 @@ public class SseEmitterRegistry<K> {
     private final ConcurrentMap<SseEmitter, ReentrantLock> sendLocksByEmitter = new ConcurrentHashMap<>();
     private final SseMetrics metrics;
     private final SessionSseConnectionRegistry sessionRegistry;
+    // 부하테스트 전용 손잡이(#569 실험 A) — emitter.send()가 느린 I/O를 흉내내도록 인위적
+    // 지연을 준다. 운영 기본값은 0(no-op)이고, threadpool vs 가상스레드 비교 실험에서만
+    // SSE_SEND_ARTIFICIAL_DELAY_MS로 켠다.
+    private final long artificialSendDelayMillis;
 
     public SseEmitterRegistry(SseMetrics metrics) {
-        this(metrics, null);
+        this(metrics, null, 0);
     }
 
     public SseEmitterRegistry(SseMetrics metrics, SessionSseConnectionRegistry sessionRegistry) {
+        this(metrics, sessionRegistry, 0);
+    }
+
+    public SseEmitterRegistry(SseMetrics metrics, SessionSseConnectionRegistry sessionRegistry, long artificialSendDelayMillis) {
         this.metrics = metrics;
         this.sessionRegistry = sessionRegistry;
+        this.artificialSendDelayMillis = artificialSendDelayMillis;
     }
 
     /**
@@ -113,11 +122,17 @@ public class SseEmitterRegistry<K> {
         ReentrantLock sendLock = sendLocksByEmitter.computeIfAbsent(emitter, ignored -> new ReentrantLock());
         sendLock.lock();
         try {
+            if (artificialSendDelayMillis > 0) {
+                Thread.sleep(artificialSendDelayMillis);
+            }
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
             callMetrics.recordSendFailure();
             metrics.recordConnectionClosed(emitter, CloseReason.SEND_FAILURE);
             removeAndComplete(emitter);
+            return false;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
             return false;
         } finally {
             sendLock.unlock();

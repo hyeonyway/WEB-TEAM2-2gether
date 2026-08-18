@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,9 +35,10 @@ public class MeSseConnectionManager {
     public MeSseConnectionManager(
             SessionSseConnectionRegistry sessionRegistry,
             @Qualifier("meSseMetrics") SseMetrics metrics,
-            @Qualifier("notificationFanOutTaskExecutor") TaskExecutor heartbeatExecutor
+            @Qualifier("notificationFanOutTaskExecutor") TaskExecutor heartbeatExecutor,
+            @Value("${SSE_SEND_ARTIFICIAL_DELAY_MS:0}") long sendArtificialDelayMillis
     ) {
-        this.registry = new SseEmitterRegistry<>(metrics, sessionRegistry);
+        this.registry = new SseEmitterRegistry<>(metrics, sessionRegistry, sendArtificialDelayMillis);
         this.heartbeatDispatcher = new PerConnectionSseSendDispatcher(heartbeatExecutor);
         this.connectionCountSupplier = registry::totalConnectionCount;
         metrics.registerConnectionGauge(connectionCountSupplier);
@@ -47,7 +49,14 @@ public class MeSseConnectionManager {
      * 매니저 테스트에서도 공유 연결 관리자를 직접 만들어 써야 해서(#557) public이다.
      */
     public MeSseConnectionManager(SseMetrics metrics, TaskExecutor heartbeatExecutor) {
-        this(new SessionSseConnectionRegistry(), metrics, heartbeatExecutor);
+        this(new SessionSseConnectionRegistry(), metrics, heartbeatExecutor, 0);
+    }
+
+    /** 테스트 편의 생성자 — 세션 레지스트리를 직접 지정해야 하는 테스트용. */
+    public MeSseConnectionManager(
+            SessionSseConnectionRegistry sessionRegistry, SseMetrics metrics, TaskExecutor heartbeatExecutor
+    ) {
+        this(sessionRegistry, metrics, heartbeatExecutor, 0);
     }
 
     public SseEmitter connect(Integer userId, String sessionId) {
