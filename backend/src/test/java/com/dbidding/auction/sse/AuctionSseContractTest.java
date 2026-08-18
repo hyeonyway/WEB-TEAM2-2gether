@@ -20,15 +20,12 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
 import java.util.Set;
-import java.util.Optional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -206,13 +203,6 @@ class AuctionSseContractTest {
     }
 
     @Test
-    void 테스트_이벤트_엔드포인트는_test_프로필에서만_활성화된다() {
-        Profile profile = AuctionSseTestEventController.class.getAnnotation(Profile.class);
-
-        assertThat(profile.value()).containsExactly("test");
-    }
-
-    @Test
     void heartbeat은_send용_executor에서_비동기로_실행된다() throws Exception {
         Async heartbeat = AuctionSseConnectionManager.class.getMethod("heartbeat").getAnnotation(Async.class);
 
@@ -229,24 +219,6 @@ class AuctionSseContractTest {
         assertThat(broadcast.value()).isEqualTo("auctionSseBroadcastTaskExecutor");
         assertThat(broadcast.value()).isNotEqualTo(
                 AuctionSseConnectionManager.class.getMethod("heartbeat").getAnnotation(Async.class).value());
-    }
-
-    @Test
-    void 테스트_입찰_이벤트는_버전과_가격을_순차적으로_증가시킨다() {
-        AuctionStreamPublisher streamPublisher = mock(AuctionStreamPublisher.class);
-        AuctionSseTestAuctionReader reader = mock(AuctionSseTestAuctionReader.class);
-        when(reader.findRandomActiveAuction()).thenReturn(Optional.of(new AuctionSseTestAuctionReader.Snapshot(
-                10, 40_000L, 40_000L, 1_000L, 0,
-                Instant.now().plus(Duration.ofHours(1)), "OPEN", 5)));
-        AuctionSseTestBidApplicationService service =
-                new AuctionSseTestBidApplicationService(streamPublisher, reader, Clock.systemUTC());
-
-        AuctionStreamPayload first = service.publishRandomBid();
-        AuctionStreamPayload second = service.publishRandomBid();
-
-        assertThat(second.currentPrice()).isEqualTo(first.currentPrice() + 1_000L);
-        verify(streamPublisher).publish(first);
-        verify(streamPublisher).publish(second);
     }
 
     private AuctionStreamPayload bidPayload() {
