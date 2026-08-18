@@ -2,8 +2,8 @@ package com.dbidding.notification.dto;
 
 import java.time.Instant;
 
-import com.dbidding.notification.Notification;
-import com.dbidding.notification.NotificationType;
+import com.dbidding.notification.domain.Notification;
+import com.dbidding.notification.domain.NotificationType;
 
 public record NotificationResponse(
         Long id,

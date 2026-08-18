@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.domain;
 
 import java.time.Instant;
 

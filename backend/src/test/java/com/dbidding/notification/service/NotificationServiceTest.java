@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,6 +7,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.dbidding.notification.domain.Notification;
+import com.dbidding.notification.domain.NotificationType;
+import com.dbidding.notification.dto.NotificationInsertRow;
+import com.dbidding.notification.dto.NotificationPage;
+import com.dbidding.notification.exception.NotificationException;
+import com.dbidding.notification.repository.NotificationRepository;
 import java.util.List;
 import java.util.Optional;
 

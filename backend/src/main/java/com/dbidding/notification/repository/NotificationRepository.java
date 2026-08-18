@@ -1,5 +1,7 @@
-package com.dbidding.notification;
+package com.dbidding.notification.repository;
 
+import com.dbidding.notification.domain.Notification;
+import com.dbidding.notification.domain.NotificationType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;

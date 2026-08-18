@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dbidding.global.security.session.MeSseConnectionManager;
-import com.dbidding.notification.NotificationType;
+import com.dbidding.notification.domain.NotificationType;
 import com.dbidding.notification.dto.NotificationResponse;
 import com.dbidding.sse.metrics.SseMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,8 +8,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dbidding.global.security.CurrentUser;
+import com.dbidding.notification.domain.NotificationType;
 import com.dbidding.notification.dto.NotificationListResponse;
+import com.dbidding.notification.dto.NotificationPage;
 import com.dbidding.notification.dto.NotificationUnreadCountResponse;
+import com.dbidding.notification.service.NotificationService;
 
 @RestController
 @RequestMapping("/api/notifications")

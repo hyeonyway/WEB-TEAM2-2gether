@@ -1,4 +1,7 @@
-package com.dbidding.notification;
+package com.dbidding.notification.dto;
+
+import com.dbidding.notification.domain.Notification;
+import com.dbidding.notification.domain.NotificationType;
 
 public record NotificationInsertRow(Integer userId, Integer auctionId, NotificationType type, Long bidId, String message) {
 

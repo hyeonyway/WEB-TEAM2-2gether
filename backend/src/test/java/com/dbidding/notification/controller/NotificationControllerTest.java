@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -15,6 +15,11 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 import com.dbidding.global.security.CurrentUserProvider;
+import com.dbidding.notification.domain.Notification;
+import com.dbidding.notification.domain.NotificationType;
+import com.dbidding.notification.dto.NotificationPage;
+import com.dbidding.notification.exception.NotificationException;
+import com.dbidding.notification.service.NotificationService;
 
 @WebMvcTest(NotificationController.class)
 class NotificationControllerTest {

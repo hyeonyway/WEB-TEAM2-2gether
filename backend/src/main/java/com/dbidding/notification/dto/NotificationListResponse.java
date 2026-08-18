@@ -2,8 +2,6 @@ package com.dbidding.notification.dto;
 
 import java.util.List;
 
-import com.dbidding.notification.NotificationPage;
-
 public record NotificationListResponse(
         List<NotificationResponse> items,
         Long nextCursor,

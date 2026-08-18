@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.domain;
 
 public enum NotificationType {
     AUCTION_OPENED,

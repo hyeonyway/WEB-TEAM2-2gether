@@ -5,7 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.dbidding.notification.NotificationType;
+import com.dbidding.notification.domain.NotificationType;
 import com.dbidding.notification.dto.NotificationResponse;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;

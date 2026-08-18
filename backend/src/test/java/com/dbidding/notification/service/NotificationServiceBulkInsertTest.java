@@ -1,7 +1,11 @@
-package com.dbidding.notification;
+package com.dbidding.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dbidding.notification.domain.Notification;
+import com.dbidding.notification.domain.NotificationType;
+import com.dbidding.notification.dto.NotificationInsertRow;
+import com.dbidding.notification.repository.NotificationRepository;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

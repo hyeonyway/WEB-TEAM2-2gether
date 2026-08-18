@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,7 +13,11 @@ import com.dbidding.auction.event.AuctionOpenedEvent;
 import com.dbidding.auction.event.BidPlacedEvent;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.service.CardPriceService;
+import com.dbidding.notification.domain.Notification;
+import com.dbidding.notification.domain.NotificationType;
+import com.dbidding.notification.dto.NotificationInsertRow;
 import com.dbidding.notification.dto.NotificationResponse;
+import com.dbidding.notification.repository.NotificationRepository;
 import com.dbidding.notification.sse.NotificationPushMessage;
 import com.dbidding.notification.sse.NotificationPushPublisher;
 import com.dbidding.order.event.OrderCancelledEvent;

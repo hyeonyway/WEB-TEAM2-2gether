@@ -23,7 +23,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
-import com.dbidding.notification.NotificationEventListener;
+import com.dbidding.notification.service.NotificationEventListener;
 import com.dbidding.order.domain.Order;
 import com.dbidding.order.exception.InvalidOrderStatusException;
 import com.dbidding.order.repository.OrderRepository;

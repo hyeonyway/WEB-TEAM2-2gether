@@ -1,4 +1,4 @@
-package com.dbidding.notification;
+package com.dbidding.notification.exception;
 
 import org.springframework.http.HttpStatus;
 
