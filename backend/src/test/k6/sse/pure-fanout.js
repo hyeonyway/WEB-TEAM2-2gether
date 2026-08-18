@@ -17,8 +17,13 @@ const sseSubscribers = positiveInt(__ENV.SSE_SUBSCRIBERS, 500);
 const eventQps = positiveInt(__ENV.EVENT_QPS, 130);
 const duration = __ENV.DURATION || '3m';
 const sseRampUp = __ENV.SSE_RAMP_UP || '30s';
-const sseDuration = __ENV.SSE_DURATION || addDurations(duration, '30s');
-const mainStartTime = __ENV.MAIN_START_TIME || addDurations(sseRampUp, '5s');
+// 본측정 전에 낮은 rate로 미리 돌려서 JIT/커넥션풀을 데운다(auction-bid.js와 동일한 이유) —
+// 안 그러면 threadpool/virtual 비교 초반 지연시간이 워밍업 비용으로 왜곡될 수 있다.
+const warmupRate = positiveInt(__ENV.WARMUP_RATE, 20);
+const warmupDuration = __ENV.WARMUP_DURATION || '30s';
+const warmupStartTime = __ENV.WARMUP_START_TIME || addDurations(sseRampUp, '5s');
+const mainStartTime = __ENV.MAIN_START_TIME || addDurations(warmupStartTime, warmupDuration);
+const sseDuration = __ENV.SSE_DURATION || addDurations(warmupDuration, addDurations(duration, '10s'));
 const loginBatchSize = positiveInt(__ENV.LOGIN_BATCH_SIZE, 25);
 const preAllocatedVUs = positiveInt(__ENV.PRE_ALLOCATED_VUS, 50);
 const maxVUs = positiveInt(__ENV.MAX_VUS, 300);
@@ -36,6 +41,9 @@ const meSseDeliveryTimestampInvalid = new Counter('me_sse_delivery_timestamp_inv
 const sseBarrierReady = new Rate('sse_barrier_ready');
 const fanoutPublishSuccess = new Rate('fanout_publish_success');
 const fanoutServerError = new Rate('fanout_server_error');
+// 웜업 구간 발행 결과는 본측정 threshold를 흐리지 않도록 별도 메트릭으로 분리한다.
+const fanoutWarmupPublishSuccess = new Rate('fanout_warmup_publish_success');
+const fanoutWarmupServerError = new Rate('fanout_warmup_server_error');
 
 export const options = {
   setupTimeout: __ENV.SETUP_TIMEOUT || '5m',
@@ -55,6 +63,11 @@ export const options = {
     sseReadiness: {
       executor: 'per-vu-iterations', exec: 'waitForSse', vus: 1, iterations: 1,
       maxDuration: mainStartTime, gracefulStop: '5s',
+    },
+    eventWarmup: {
+      executor: 'constant-arrival-rate', exec: 'publishWarmupEvent',
+      startTime: warmupStartTime, rate: warmupRate, timeUnit: '1s', duration: warmupDuration,
+      preAllocatedVUs, maxVUs, gracefulStop: '5s',
     },
     eventPublisher: {
       executor: 'constant-arrival-rate', exec: 'publishEvent',
@@ -126,23 +139,36 @@ export function waitForSse() {
 }
 
 export function publishEvent(data) {
+  publishFanoutEvent(data, fanoutPublishSuccess, fanoutServerError, 'POST /api/test/sse-fanout/random-bid-event');
+}
+
+// 본측정과 같은 호출을 낮은 rate로 미리 실행해 JIT/커넥션풀을 데운다 — 결과는 본측정
+// threshold(fanout_publish_success 등)에 안 섞이도록 별도 메트릭/태그로 기록한다.
+export function publishWarmupEvent(data) {
+  publishFanoutEvent(data, fanoutWarmupPublishSuccess, fanoutWarmupServerError, 'POST /api/test/sse-fanout/random-bid-event (warmup)');
+}
+
+function publishFanoutEvent(data, successMetric, errorMetric, tagName) {
   const auctionId = data.auctionIds[Math.floor(Math.random() * data.auctionIds.length)];
   const bidders = data.biddersByAuction[auctionId];
   const [outbid, newBidder] = pickTwoDistinct(bidders);
   const response = http.post(
     `${baseUrl}/api/test/sse-fanout/random-bid-event?auctionId=${auctionId}&outbidUserId=${outbid.userId}&newBidderUserId=${newBidder.userId}`,
     null,
-    {responseCallback: http.expectedStatuses(202, 404, 500), tags: {name: 'POST /api/test/sse-fanout/random-bid-event'}},
+    {responseCallback: http.expectedStatuses(202, 404, 500), tags: {name: tagName}},
   );
-  fanoutPublishSuccess.add(response.status === 202);
-  fanoutServerError.add(response.status >= 500);
+  successMetric.add(response.status === 202);
+  errorMetric.add(response.status >= 500);
 }
 
 export function handleSummary(data) {
   const result = {
     generatedAt: new Date().toISOString(),
     scenario: 'pure-fanout',
-    testConfig: {auctionCount, biddersPerAuction, biddersTotal, sseSubscribers, eventQps, duration},
+    testConfig: {
+      auctionCount, biddersPerAuction, biddersTotal, sseSubscribers, eventQps, duration,
+      warmupRate, warmupDuration,
+    },
     ...data,
   };
   return resultFile ? {[resultFile]: JSON.stringify(result, null, 2), stdout: summaryText(data)} : {stdout: summaryText(data)};
