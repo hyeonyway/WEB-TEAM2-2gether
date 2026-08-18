@@ -1,4 +1,4 @@
-package com.dbidding.wishlist;
+package com.dbidding.wishlist.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -17,6 +17,9 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 import com.dbidding.global.security.CurrentUserProvider;
 import com.dbidding.card.service.CardPriceService;
+import com.dbidding.wishlist.domain.Wishlist;
+import com.dbidding.wishlist.exception.WishlistException;
+import com.dbidding.wishlist.service.WishlistService;
 
 @WebMvcTest(WishlistController.class)
 class WishlistControllerTest {

@@ -1,4 +1,4 @@
-package com.dbidding.wishlist;
+package com.dbidding.wishlist.controller;
 
 import java.util.List;
 
@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dbidding.global.security.CurrentUser;
 import com.dbidding.card.dto.CardResponses;
 import com.dbidding.card.service.CardPriceService;
+import com.dbidding.wishlist.domain.Wishlist;
 import com.dbidding.wishlist.dto.WishlistCreateRequest;
 import com.dbidding.wishlist.dto.WishlistResponse;
+import com.dbidding.wishlist.service.WishlistService;
 
 import jakarta.validation.Valid;
 

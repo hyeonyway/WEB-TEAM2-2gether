@@ -1,4 +1,4 @@
-package com.dbidding.wishlist;
+package com.dbidding.wishlist.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -19,7 +19,7 @@ import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.notification.dto.NotificationInsertRow;
 import com.dbidding.notification.service.NotificationService;
 import com.dbidding.notification.domain.NotificationType;
-import com.dbidding.wishlist.WishlistService;
+import com.dbidding.wishlist.service.WishlistService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;

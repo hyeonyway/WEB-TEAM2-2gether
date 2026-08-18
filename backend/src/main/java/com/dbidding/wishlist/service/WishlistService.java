@@ -1,5 +1,8 @@
-package com.dbidding.wishlist;
+package com.dbidding.wishlist.service;
 
+import com.dbidding.wishlist.domain.Wishlist;
+import com.dbidding.wishlist.exception.WishlistException;
+import com.dbidding.wishlist.repository.WishlistRepository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;

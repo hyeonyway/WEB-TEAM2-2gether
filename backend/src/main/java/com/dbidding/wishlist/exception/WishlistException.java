@@ -1,4 +1,4 @@
-package com.dbidding.wishlist;
+package com.dbidding.wishlist.exception;
 
 import org.springframework.http.HttpStatus;
 

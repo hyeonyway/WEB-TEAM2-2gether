@@ -2,7 +2,7 @@ package com.dbidding.wishlist.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import com.dbidding.wishlist.Wishlist;
+import com.dbidding.wishlist.domain.Wishlist;
 
 public record WishlistResponse(
         Integer id,

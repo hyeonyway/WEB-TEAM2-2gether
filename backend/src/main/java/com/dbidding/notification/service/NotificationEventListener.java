@@ -13,7 +13,7 @@ import com.dbidding.notification.sse.NotificationPushMessage;
 import com.dbidding.notification.sse.NotificationPushPublisher;
 import com.dbidding.order.event.OrderCancelledEvent;
 import com.dbidding.order.event.OrderCompletedEvent;
-import com.dbidding.wishlist.WishlistService;
+import com.dbidding.wishlist.service.WishlistService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

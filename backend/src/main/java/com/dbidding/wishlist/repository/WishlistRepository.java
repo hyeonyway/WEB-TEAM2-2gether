@@ -1,5 +1,6 @@
-package com.dbidding.wishlist;
+package com.dbidding.wishlist.repository;
 
+import com.dbidding.wishlist.domain.Wishlist;
 import java.util.Collection;
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package com.dbidding.wishlist;
+package com.dbidding.wishlist.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.dbidding.wishlist.domain.Wishlist;
+import com.dbidding.wishlist.exception.WishlistException;
+import com.dbidding.wishlist.repository.WishlistRepository;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;

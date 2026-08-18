@@ -8,7 +8,7 @@ import com.dbidding.card.repository.CardMetadataRepository;
 import com.dbidding.statistic.service.StatisticQueryService;
 import com.dbidding.statistic.service.StatisticQueryService.CardSummary;
 import com.dbidding.statistic.service.StatisticQueryService.DailyPrice;
-import com.dbidding.wishlist.WishlistService;
+import com.dbidding.wishlist.service.WishlistService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
