@@ -34,6 +34,8 @@ public interface AuctionTimelineEventRepository extends JpaRepository<AuctionTim
 
     boolean existsByAuctionIdAndProjectionStatus(Integer auctionId, AuctionBidEventProjectionStatus projectionStatus);
 
+    boolean existsByAuctionIdAndProjectionStatusIn(Integer auctionId, Collection<AuctionBidEventProjectionStatus> projectionStatuses);
+
     @Query("""
             SELECT DISTINCT t.auctionId FROM AuctionTimelineEvent t
             WHERE t.projectionStatus = :status AND t.auctionId IS NOT NULL

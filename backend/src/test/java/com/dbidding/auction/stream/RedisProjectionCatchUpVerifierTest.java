@@ -31,6 +31,8 @@ import org.springframework.data.redis.core.StreamOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 class RedisProjectionCatchUpVerifierTest {
+    private static final List<AuctionBidEventProjectionStatus> UNPROCESSED_STATUSES =
+            List.of(AuctionBidEventProjectionStatus.PENDING, AuctionBidEventProjectionStatus.ERROR);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     private final StreamOperations<String, Object, Object> streamOperations = mock(StreamOperations.class);
@@ -92,17 +94,8 @@ class RedisProjectionCatchUpVerifierTest {
     @Test
     void 경매_단위_확인은_그_경매의_이벤트_이력만_본다() {
         RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
-        AuctionTimelineEvent processedA = mock(AuctionTimelineEvent.class);
-        when(processedA.getProjectionStatus()).thenReturn(AuctionBidEventProjectionStatus.PROCESSED);
-        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(1)).thenReturn(Optional.of(processedA));
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(1, AuctionBidEventProjectionStatus.PENDING)).thenReturn(true);
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(1, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
-
-        AuctionTimelineEvent processedB = mock(AuctionTimelineEvent.class);
-        when(processedB.getProjectionStatus()).thenReturn(AuctionBidEventProjectionStatus.PROCESSED);
-        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(2)).thenReturn(Optional.of(processedB));
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(2, AuctionBidEventProjectionStatus.PENDING)).thenReturn(false);
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(2, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(1, UNPROCESSED_STATUSES)).thenReturn(true);
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(2, UNPROCESSED_STATUSES)).thenReturn(false);
 
         assertThat(verifier.isCaughtUp(1)).isFalse();
         assertThat(verifier.isCaughtUp(2)).isTrue();
@@ -111,9 +104,7 @@ class RedisProjectionCatchUpVerifierTest {
     @Test
     void 경매_단위_확인은_이벤트가_아직_없으면_캐치업된_것으로_본다() {
         RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
-        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(3)).thenReturn(Optional.empty());
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(3, AuctionBidEventProjectionStatus.PENDING)).thenReturn(false);
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(3, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(3, UNPROCESSED_STATUSES)).thenReturn(false);
 
         assertThat(verifier.isCaughtUp(3)).isTrue();
     }
@@ -121,14 +112,29 @@ class RedisProjectionCatchUpVerifierTest {
     @Test
     void 경매_단위_확인도_TTL_이내에는_캐시된_값을_재사용한다() {
         RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(500));
-        when(eventRepository.findFirstByAuctionIdOrderByIdDesc(4)).thenReturn(Optional.empty());
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(4, AuctionBidEventProjectionStatus.PENDING)).thenReturn(false);
-        when(eventRepository.existsByAuctionIdAndProjectionStatus(4, AuctionBidEventProjectionStatus.ERROR)).thenReturn(false);
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(4, UNPROCESSED_STATUSES)).thenReturn(false);
 
         assertThat(verifier.isCaughtUp(4)).isTrue();
         assertThat(verifier.isCaughtUp(4)).isTrue();
 
-        verify(eventRepository, times(1)).findFirstByAuctionIdOrderByIdDesc(4);
+        verify(eventRepository, times(1)).existsByAuctionIdAndProjectionStatusIn(4, UNPROCESSED_STATUSES);
+    }
+
+    @Test
+    void 경매_단위_캐시는_임계값을_넘으면_만료된_항목을_정리한다() {
+        RedisProjectionCatchUpVerifier verifier = verifier(Duration.ofMillis(1));
+        when(eventRepository.existsByAuctionIdAndProjectionStatusIn(org.mockito.ArgumentMatchers.anyInt(), eq(UNPROCESSED_STATUSES)))
+                .thenReturn(false);
+
+        for (int auctionId = 1; auctionId <= 10_001; auctionId++) {
+            verifier.isCaughtUp(auctionId);
+        }
+        now.set(now.get().plusMillis(10));
+        verifier.isCaughtUp(10_002);
+
+        java.util.Map<?, ?> auctionCached = (java.util.Map<?, ?>)
+                org.springframework.test.util.ReflectionTestUtils.getField(verifier, "auctionCached");
+        assertThat(auctionCached).hasSize(1);
     }
 
     @Test

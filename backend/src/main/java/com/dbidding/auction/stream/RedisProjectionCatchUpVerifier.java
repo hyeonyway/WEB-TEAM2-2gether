@@ -28,6 +28,10 @@ import org.springframework.stereotype.Component;
 public class RedisProjectionCatchUpVerifier {
     private static final String STREAM_KEY = "event:timeline";
     private static final String CACHE_KEY = "auction:projection:catchup";
+    private static final List<AuctionBidEventProjectionStatus> UNPROCESSED_STATUSES =
+            List.of(AuctionBidEventProjectionStatus.PENDING, AuctionBidEventProjectionStatus.ERROR);
+    /** 이 크기를 넘어서면 다음 쓰기 때 만료된 항목을 정리한다 — TTL이 짧아 대부분 비워진다. */
+    private static final int AUCTION_CACHE_CLEANUP_THRESHOLD = 10_000;
 
     private final StringRedisTemplate redisTemplate;
     private final AuctionTimelineEventRepository eventRepository;
@@ -92,16 +96,21 @@ public class RedisProjectionCatchUpVerifier {
             if (latest != null && clock.instant().isBefore(latest.expiresAt())) return latest.caughtUp();
             boolean result = checkCaughtUp(auctionId);
             auctionCached.put(auctionId, new CachedResult(result, clock.instant().plus(cacheTtl)));
+            evictExpiredIfOversized();
             return result;
         });
     }
 
     private boolean checkCaughtUp(Integer auctionId) {
-        return eventRepository.findFirstByAuctionIdOrderByIdDesc(auctionId)
-                .map(inbox -> inbox.getProjectionStatus() == AuctionBidEventProjectionStatus.PROCESSED)
-                .orElse(true)
-                && !eventRepository.existsByAuctionIdAndProjectionStatus(auctionId, AuctionBidEventProjectionStatus.PENDING)
-                && !eventRepository.existsByAuctionIdAndProjectionStatus(auctionId, AuctionBidEventProjectionStatus.ERROR);
+        return !eventRepository.existsByAuctionIdAndProjectionStatusIn(auctionId, UNPROCESSED_STATUSES);
+    }
+
+    /** TTL로 무의미해진 항목이 auctionId마다 하나씩 쌓여 무한정 커지지 않도록, 크기 임계값을
+     * 넘으면 그 시점에 이미 만료된 항목만 정리한다. */
+    private void evictExpiredIfOversized() {
+        if (auctionCached.size() <= AUCTION_CACHE_CLEANUP_THRESHOLD) return;
+        Instant now = clock.instant();
+        auctionCached.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().expiresAt()));
     }
 
     private record CachedResult(boolean caughtUp, Instant expiresAt) {}
