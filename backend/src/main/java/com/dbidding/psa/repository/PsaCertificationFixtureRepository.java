@@ -1,4 +1,4 @@
-package com.dbidding.psa;
+package com.dbidding.psa.repository;
 
 import com.dbidding.psa.domain.PsaCertificationFixture;
 import java.util.Optional;

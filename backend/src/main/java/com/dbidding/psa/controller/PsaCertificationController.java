@@ -1,5 +1,6 @@
-package com.dbidding.psa;
+package com.dbidding.psa.controller;
 
+import com.dbidding.psa.service.PsaCertificationService;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;

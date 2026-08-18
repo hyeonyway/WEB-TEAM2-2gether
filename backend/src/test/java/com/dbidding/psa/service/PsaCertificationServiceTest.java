@@ -1,4 +1,4 @@
-package com.dbidding.psa;
+package com.dbidding.psa.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import com.dbidding.card.service.CardPsaGradeQueryService;
 import com.dbidding.psa.domain.PsaCertificationFixture;
 import com.dbidding.psa.exception.PsaCertificationNotFoundException;
+import com.dbidding.psa.repository.PsaCertificationFixtureRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

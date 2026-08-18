@@ -1,8 +1,9 @@
-package com.dbidding.psa;
+package com.dbidding.psa.service;
 
 import com.dbidding.card.service.CardPsaGradeQueryService;
 import com.dbidding.psa.domain.PsaCertificationFixture;
 import com.dbidding.psa.exception.PsaCertificationNotFoundException;
+import com.dbidding.psa.repository.PsaCertificationFixtureRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
