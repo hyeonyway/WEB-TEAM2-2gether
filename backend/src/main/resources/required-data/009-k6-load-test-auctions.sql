@@ -1,7 +1,5 @@
 -- k6 부하테스트 전용 경매 300개.
--- 즉시낙찰가(buy_now_price)를 아예 안 넣어서 부하테스트 도중 즉시낙찰로
--- 조기 종료되지 않는다. 개설 후 7일 동안 열려있게 잡아서 장시간 반복
--- 부하테스트에도 안전하다.
+-- 진행 경매의 2/3에 즉시낙찰가를 넣고, 모두 24시간 이내에 종료되도록 한다.
 -- 원래 `seed-load-test-auctions.js`로 POST /api/auctions API를 통해
 -- 런타임에 만들었는데, DB 스키마 리셋(reset-on-mismatch) 때마다 날아가서
 -- required-data로 옮겼다. ID 3001001~3001300 대역은 다른 required-data
@@ -53,15 +51,19 @@ SELECT
   `seed`.`seller_id`,
   `seed`.`item_id`,
   CONCAT(`card`.`name`, ' k6 부하테스트 경매'),
-  '부하테스트 전용 경매입니다. 즉시낙찰 없음.',
+  '부하테스트 전용 경매입니다.',
   `seed`.`start_price`,
   `seed`.`start_price`,
-  NULL,
+  CASE
+    WHEN MOD(`seed`.`item_id`, 3) <> 0
+      THEN `seed`.`start_price` + 30000
+    ELSE NULL
+  END,
   3000,
   'OPEN',
   NOW(6),
-  TIMESTAMPADD(DAY, 7, NOW(6)),
-  TIMESTAMPADD(DAY, 7, NOW(6)),
+  TIMESTAMPADD(HOUR, 24, NOW(6)),
+  TIMESTAMPADD(HOUR, 24, NOW(6)),
   0,
   1000,
   0
