@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dbidding.auction.domain.Auction;
+import com.dbidding.auction.domain.AuctionBidEventProjectionStatus;
+import com.dbidding.auction.domain.AuctionTimelineEvent;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.repository.AuctionTimelineEventRepository;
 import com.dbidding.auction.repository.AuctionRepository;
@@ -371,6 +373,34 @@ class AuctionBidStreamPersistenceServiceTest {
         verify(walletService).hold(2, 10, 10_000L);
         verify(walletService).capture(2, 10, 10_000L);
         verify(walletService, org.mockito.Mockito.never()).release(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void ERROR로_막힌_경매가_없으면_전체_PENDING중_가장_오래된_것을_고른다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        AuctionTimelineEvent oldestPending = org.mockito.Mockito.mock(AuctionTimelineEvent.class);
+        given(inboxRepository.findAuctionIdsWithError()).willReturn(java.util.List.of());
+        given(inboxRepository.findFirstByProjectionStatusOrderByIdAsc(AuctionBidEventProjectionStatus.PENDING))
+                .willReturn(java.util.Optional.of(oldestPending));
+
+        assertThat(service.findNextEligiblePending()).contains(oldestPending);
+
+        verify(inboxRepository, org.mockito.Mockito.never()).findEligiblePending(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void ERROR로_막힌_경매가_있으면_그_경매를_제외한_PENDING만_고른다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        AuctionTimelineEvent eligible = org.mockito.Mockito.mock(AuctionTimelineEvent.class);
+        given(inboxRepository.findAuctionIdsWithError()).willReturn(java.util.List.of(1));
+        given(inboxRepository.findEligiblePending(org.mockito.ArgumentMatchers.eq(java.util.List.of(1)),
+                org.mockito.ArgumentMatchers.any())).willReturn(java.util.List.of(eligible));
+
+        assertThat(service.findNextEligiblePending()).contains(eligible);
+
+        verify(inboxRepository, org.mockito.Mockito.never()).findFirstByProjectionStatusOrderByIdAsc(
+                org.mockito.ArgumentMatchers.any());
     }
 
     private AuctionBidStreamPersistenceService service(java.util.Optional<RedisOrderRealtimeStateProjection> realtimeProjection) {
