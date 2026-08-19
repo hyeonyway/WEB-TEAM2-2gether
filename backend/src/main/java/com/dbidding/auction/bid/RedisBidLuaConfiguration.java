@@ -76,6 +76,22 @@ public class RedisBidLuaConfiguration {
     }
 
     @Bean
+    public RedisScript<Long> auctionBidderStateGcScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-bidder-state-gc.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<Long> auctionDashboardParticipatingGcScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/auction-dashboard-participating-gc.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
+    @Bean
     public RedisScript<Long> cardActiveAuctionCountScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/card-active-auction-count.lua"));
@@ -119,6 +135,14 @@ public class RedisBidLuaConfiguration {
     public RedisScript<Long> auctionSequenceSyncScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/auction-sequence-sync.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
+    @Bean
+    public RedisScript<Long> orderStateIndexGcScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/order-state-index-gc.lua"));
         script.setResultType(Long.class);
         return script;
     }

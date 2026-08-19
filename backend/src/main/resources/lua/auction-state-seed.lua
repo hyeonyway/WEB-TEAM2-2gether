@@ -42,13 +42,21 @@ for index = 1, recentBidCount do
 end
 
 redis.call('HSET', KEYS[1], unpack(stateArguments))
-redis.call('ZADD', KEYS[2], ARGV[1], ARGV[2])
-if redis.call('HGET', KEYS[1], 'status') == 'OPEN' then
-    local estimatedCloseTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'estimatedCloseTimeEpochMillis')) or tonumber(ARGV[1])
-    redis.call('ZADD', KEYS[4], estimatedCloseTimeEpochMillis - 300000, ARGV[2])
+local status = redis.call('HGET', KEYS[1], 'status')
+-- 종료 상태는 EXPIRE만 걸고 활성 인덱스 5종에는 아예 넣지 않는다: 활성 인덱스 GC(auction-active-index-gc.lua)는
+-- 24시간 이상 지난 뒤에야 상태를 재확인하는데, state의 TTL(최대 6시간)이 그보다 짧아 GC가 확인할 시점엔 이미
+-- state가 사라져 status를 영영 알 수 없게 된다 - 즉 한 번 넣으면 어떤 GC로도 못 지우는 영구 리크가 된다.
+if status == 'ENDED' or status == 'CANCELLED' or status == 'FAILED' then
+    redis.call('EXPIRE', KEYS[1], 3600 + (tonumber(ARGV[2]) % 18001))
+else
+    redis.call('ZADD', KEYS[2], ARGV[1], ARGV[2])
+    if status == 'OPEN' then
+        local estimatedCloseTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'estimatedCloseTimeEpochMillis')) or tonumber(ARGV[1])
+        redis.call('ZADD', KEYS[4], estimatedCloseTimeEpochMillis - 300000, ARGV[2])
+    end
+    redis.call('ZADD', KEYS[5], ARGV[position], ARGV[2])
+    redis.call('ZADD', KEYS[6], ARGV[position + 1], ARGV[2])
+    redis.call('ZADD', KEYS[7], ARGV[position + 2], ARGV[2])
+    redis.call('ZADD', KEYS[8], ARGV[position + 3], ARGV[2])
 end
-redis.call('ZADD', KEYS[5], ARGV[position], ARGV[2])
-redis.call('ZADD', KEYS[6], ARGV[position + 1], ARGV[2])
-redis.call('ZADD', KEYS[7], ARGV[position + 2], ARGV[2])
-redis.call('ZADD', KEYS[8], ARGV[position + 3], ARGV[2])
 return 1

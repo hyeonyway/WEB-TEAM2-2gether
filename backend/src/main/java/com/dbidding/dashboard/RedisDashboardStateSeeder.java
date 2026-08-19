@@ -30,6 +30,10 @@ public class RedisDashboardStateSeeder {
         auctionStateSeeder.seedAllIfAbsent(
                 bidRepository.findDistinctAuctionByBidderIdAndAuctionStatusIn(userId, ACTIVE_STATUSES)
         );
+        // TTL을 걸지 않는다: 첫 시딩 이후로는 bid-accept.lua가 매 입찰마다 실시간으로
+        // auction:dashboard:participating을 갱신하므로, 이 마커가 만료돼 재조회가 발생해도
+        // seedAllIfAbsent는 "없는 것만 채우는" 방식이라 드리프트를 고치지도 못하면서 콜드미스만
+        // 인위적으로 만들어낸다 - 콜드미스 자체를 없애는 게 목표인 아키텍처와 반대 방향이다.
         redisTemplate.opsForValue().set(markerKey, "1");
     }
 }

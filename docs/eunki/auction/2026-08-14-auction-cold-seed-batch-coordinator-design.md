@@ -1,5 +1,12 @@
 # 경매 온디맨드 콜드시드 배치 코디네이터
 
+> **적용 완료.** `RedisAuctionSeedBatchCoordinator`/`AuctionSeedData`가 존재하고
+> `RedisAuctionStateSeeder.seedIfAbsent`가 이를 거치며, 개별 6-쿼리 `seed(Auction)` 오버로드는
+> 삭제되어 코디네이터가 넘겨주는 결과를 받는 형태로 남아있다. "후속" 절의 warm-up 통합
+> (`RedisAuctionStateWarmUp` → `seedAllIfAbsent`가 반환한 낙찰 후보 userId를 지갑 시더에 전달)도
+> 코드에 그대로 반영되어 있다(2026-08-19 코드 기준 확인). 이 통합으로 [[wallet-cold-seed-batch-coordinator-design]]에서
+> 설명한 독립 `RedisWalletStateWarmUp`은 삭제되었다 — 자세한 내용은 그 문서의 갱신 노트 참고.
+
 ## Context
 
 [[wallet-cold-seed-batch-coordinator-design]]에서 지갑에 적용한 것과 동일한 N+1

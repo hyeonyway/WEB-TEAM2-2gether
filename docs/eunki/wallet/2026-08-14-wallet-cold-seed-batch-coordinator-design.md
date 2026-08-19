@@ -1,5 +1,14 @@
 # #451/#452 — 지갑 온디맨드 콜드시드 캐싱과 배치 코디네이터
 
+> **일부 갱신됨(2026-08-19 코드 기준 확인).** #451(캐칭업 전역 캐싱)과 #452(배치
+> 코디네이터)는 아래 설계대로 그대로 존재한다. 다만 "기동 시 warm-up" 절에서 설명하는
+> 독립적인 `RedisWalletStateWarmUp`/`WalletHoldRepository.findDistinctHeldUserIds`는
+> 현재 코드에 **더 이상 존재하지 않는다** — [[auction-cold-seed-batch-coordinator-design]]의
+> "후속" 작업으로 `RedisAuctionStateWarmUp`이 `seedAllIfAbsent`가 반환하는 낙찰 후보(LEADING)
+> userId를 지갑 시더에 바로 넘기는 방식으로 대체되었다. 아래 "기동 시 warm-up" 절과
+> `wallet-warm-up` 설정 블록은 이 대체 이전의 원래 설계를 남겨둔 것이며, 현재는 적용되지
+> 않는다.
+
 ## Context
 
 `RedisWalletStateSeeder.seedIfAbsent(Integer userId)`는 콜드 유저 1명마다:
@@ -46,7 +55,7 @@ userId당 최대 1건만 들어온다는 불변식을 유지한다.
 파일: `RedisWalletSeedBatchCoordinator.java`, `WalletSeedData.java` (배치 결과를
 유저별로 묶는 `resolveBatch` 공용 헬퍼 포함)
 
-## 기동 시 warm-up (auction과 동일한 패턴)
+## 기동 시 warm-up (auction과 동일한 패턴) — ⚠️ 이후 대체됨, 아래 "일부 갱신됨" 참고
 
 `RedisAuctionStateWarmUp`이 기동 시 마감 임박 활성 경매를 미리 Redis에 올려두는
 것처럼, `RedisWalletStateWarmUp`을 추가해 **현재 자금이 묶여있는(HELD) 지갑**을
@@ -76,16 +85,17 @@ auction:
     wallet-cold-batch:
       window-ms: ${WALLET_COLD_SEED_BATCH_WINDOW_MS:5}
       max-batch-size: ${WALLET_COLD_SEED_MAX_BATCH_SIZE:200}
-    wallet-warm-up:
-      enabled: ${WALLET_STATE_WARM_UP_ENABLED:true}
-      recent-limit: ${WALLET_STATE_WARM_UP_RECENT_LIMIT:200}
 ```
+
+`wallet-warm-up.*`(`enabled`/`recent-limit`) 설정은 `RedisWalletStateWarmUp` 삭제와 함께
+제거되었다 — 현재 `application-redis.yml`에는 존재하지 않는다.
 
 ## 검증
 
 - 단위 테스트: `RedisProjectionCatchUpVerifierTest`(캐시/TTL/동시성),
   `RedisWalletSeedBatchCoordinatorTest`(윈도우/크기 조기flush/예외 전파/빈 지갑),
-  `RedisWalletStateSeederTest`(seedAllIfAbsent 배치 검증), `RedisWalletStateWarmUpTest`
+  `RedisWalletStateSeederTest`(seedAllIfAbsent 배치 검증)
+  — `RedisWalletStateWarmUpTest`는 해당 클래스와 함께 삭제됨
 - `./gradlew test --tests "com.dbidding.wallet.*" --tests "com.dbidding.auction.*"
   --tests "com.dbidding.order.*"` — 사전에 알려진 `timeline_events` 스키마 무관
   실패(9건)를 제외하고 전부 통과, 회귀 없음
