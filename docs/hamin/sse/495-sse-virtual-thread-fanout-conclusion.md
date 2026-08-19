@@ -84,10 +84,40 @@ system(Erlang-B) 성격이라 평균에 딱 맞추면 여전히 손실이 남는
   "한쪽 포화가 다른 쪽 전체를 막지 않게" 격리하려는 것 — 스레드 모델과 무관하게 항상
   유효한 설계 원칙이다.
 
+## 7. 운영 캡 값 설정 — "평균 동시성"이 아니라 "단일 이벤트 버스트 크기" 기준 (#607, 2026-08-19)
+
+#585로 admission control(tryAcquire+discard)은 갖췄지만, 운영 compose에는 캡 자체가
+안 걸려있었다(`AUCTION_SSE_VIRTUAL_MAX_CONCURRENCY`/`NOTIFICATION_FANOUT_VIRTUAL_MAX_CONCURRENCY`
+미설정=0, 무제한) — 실제로는 안전망이 꺼진 채 운영 중이었다.
+
+운영 지표를 확인해보니 구독자 1,000명·`virtualExecutorSubmittedRatePerSec` 4,300/s에
+`virtualExecutorActiveMax`가 2에 불과했다 — Little's Law로 역산하면 task당 평균 소요시간이
+약 0.46ms라는 뜻이고, 이 정도면 SSE fan-out 자체가 지금 부하에선 거의 공짜에 가깝다.
+
+**처음엔 이 평균 동시성(active~2) 기준으로 캡을 300~500 정도로 제안했는데, 이는 틀린
+기준이었다** — 인기 경매 하나에 구독자가 몰려있으면, 이벤트 1건이 broadcast() 루프
+안에서 그 구독자 수만큼 **거의 동시에** tryAcquire를 쏜다. 시스템 전체 평균 부하(초당
+4,300건)가 아무리 낮아도, **그 순간의 버스트 크기가 캡보다 크면 그 인기 경매의 이벤트에서만
+매번 손실**이 난다 — 평균과 순간 버스트는 완전히 다른 숫자다.
+
+**올바른 기준은 "가장 인기 많은 경매 하나가 가질 수 있는 최대 동시 구독자 수"**다. 이
+기준으로 캡을 크게(예: 1,000~2,000) 잡아도 힙 걱정은 크지 않다 — send가 빨라서(운영
+실측 ~0.46ms/task) 버스트가 순식간에 다 처리되고 permit이 바로 풀리기 때문에, 이건
+#585에서 재현한 힙 OOM 조건(유입이 처리 능력을 **지속적으로** 넘어서는 상황)과는 성격이
+다른, 순간 스파이크일 뿐이다. 다만 `SERVER_TOMCAT_MAX_CONNECTIONS=4000`(전체 연결
+상한)보다는 확실히 작아야 의미가 있다 — 그 이상 값은 도달할 방법 자체가 없어 사실상
+무제한과 같다.
+
+**적용**: `AUCTION_SSE_VIRTUAL_MAX_CONCURRENCY`/`NOTIFICATION_FANOUT_VIRTUAL_MAX_CONCURRENCY`를
+**2000**으로 설정(`~/deploy/docker-compose.prod.yml`, blue-green 배포로 무중단 적용) —
+Tomcat 상한(4,000)의 절반 수준으로, 인기 경매 버스트를 넉넉히 커버하면서도 유의미한
+상한으로 남도록 잡았다.
+
 ## 완료 기준
 
 - [x] threadpool vs 가상스레드 비교 실측 완료(부하 수준별, delay별, 구독자 수별)
 - [x] `VirtualThreadSseTaskExecutor` 캡을 진짜 admission control(tryAcquire+discard)로 수정(#585, PR #589)
 - [x] 위 결론 문서화
+- [x] 운영 환경에 캡 2000 적용(#607)
 
 > 이 문서는 claude의 도움을 받아 작성되었습니다.
