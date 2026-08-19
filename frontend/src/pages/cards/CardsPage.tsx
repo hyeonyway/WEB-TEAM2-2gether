@@ -87,6 +87,7 @@ export default function CardsPage(){
           <label className="grade-filter"><select aria-label="PSA 등급" value={grade} onChange={event=>{setGrade(event.target.value);updateFilters({psaGrade:event.target.value})}}>
             <option value="">전체 등급</option>
             {Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
+            {['민트','근민트','우량','양호','보통','하'].map(value=><option key={value} value={value}>{value}</option>)}
           </select></label>
         </div>
       </div>

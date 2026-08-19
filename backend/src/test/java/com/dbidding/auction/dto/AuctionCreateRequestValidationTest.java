@@ -2,6 +2,8 @@ package com.dbidding.auction.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dbidding.auction.domain.AuctionPricePolicy;
+import com.dbidding.wallet.domain.WalletAmountPolicy;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -49,6 +51,51 @@ class AuctionCreateRequestValidationTest {
                 .extracting(ConstraintViolation::getPropertyPath)
                 .map(Object::toString)
                 .contains("imageUploadTokens[0].<list element>");
+    }
+
+    @Test
+    void 즉시구매가와_배송비는_지갑_최대_잔액을_초과할_수_없다() {
+        long overMax = WalletAmountPolicy.MAX_BALANCE + 1;
+        AuctionCreateRequest request = new AuctionCreateRequest(
+                1, "경매", "설명", null, null, List.of("upload-token"),
+                10_000L, 1_000L, overMax, 12, overMax
+        );
+
+        Set<ConstraintViolation<AuctionCreateRequest>> violations = validator.validate(request);
+
+        assertThat(violations)
+                .extracting(ConstraintViolation::getPropertyPath)
+                .map(Object::toString)
+                .contains("buyNowPrice", "shippingFee");
+    }
+
+    @Test
+    void 시작가와_호가_단위는_각각의_상한을_초과할_수_없다() {
+        AuctionCreateRequest request = new AuctionCreateRequest(
+                1, "경매", "설명", null, null, List.of("upload-token"),
+                AuctionPricePolicy.MAX_START_PRICE + 1, AuctionPricePolicy.MAX_BID_INCREMENT + 1,
+                null, 12, 3_000L
+        );
+
+        Set<ConstraintViolation<AuctionCreateRequest>> violations = validator.validate(request);
+
+        assertThat(violations)
+                .extracting(ConstraintViolation::getPropertyPath)
+                .map(Object::toString)
+                .contains("startPrice", "bidIncrement");
+    }
+
+    @Test
+    void 시작가와_호가_단위를_각각_상한까지_채워도_합이_지갑_최대_잔액을_넘지_않는다() {
+        AuctionCreateRequest request = new AuctionCreateRequest(
+                1, "경매", "설명", null, null, List.of("upload-token"),
+                AuctionPricePolicy.MAX_START_PRICE, AuctionPricePolicy.MAX_BID_INCREMENT,
+                null, 12, 3_000L
+        );
+
+        assertThat(validator.validate(request)).isEmpty();
+        assertThat(AuctionPricePolicy.MAX_START_PRICE + AuctionPricePolicy.MAX_BID_INCREMENT)
+                .isEqualTo(WalletAmountPolicy.MAX_BALANCE);
     }
 
     @Test

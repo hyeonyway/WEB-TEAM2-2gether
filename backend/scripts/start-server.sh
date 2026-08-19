@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REDIS_HOST="${REDIS_HOST:?Redis를 비우려면 REDIS_HOST 환경변수가 필요합니다.}"
-REDIS_PORT="${REDIS_PORT:?Redis를 비우려면 REDIS_PORT 환경변수가 필요합니다.}"
-REDIS_USERNAME="${REDIS_USERNAME:?Redis를 비우려면 REDIS_USERNAME 환경변수가 필요합니다.}"
-REDIS_PASSWORD="${REDIS_PASSWORD:?Redis를 비우려면 REDIS_PASSWORD 환경변수가 필요합니다.}"
+REDIS_HOST="${REDIS_HOST:?REDIS_HOST 환경변수가 필요합니다.}"
+REDIS_PORT="${REDIS_PORT:?REDIS_PORT 환경변수가 필요합니다.}"
+REDIS_USERNAME="${REDIS_USERNAME:?REDIS_USERNAME 환경변수가 필요합니다.}"
+REDIS_PASSWORD="${REDIS_PASSWORD:?REDIS_PASSWORD 환경변수가 필요합니다.}"
 REDIS_CLI="${REDIS_CLI:-redis-cli}"
 REDIS_WAIT_SECONDS="${REDIS_WAIT_SECONDS:-60}"
 
@@ -22,9 +22,5 @@ until REDISCLI_AUTH="$REDIS_PASSWORD" "${redis_cli_args[@]}" PING >/dev/null 2>&
   fi
   sleep 2
 done
-
-echo "[startup] 서버 시작 전에 Redis DB를 비웁니다."
-REDISCLI_AUTH="$REDIS_PASSWORD" "${redis_cli_args[@]}" FLUSHDB
-echo "[startup] Redis DB flush가 완료됐습니다."
 
 exec "$@"
