@@ -2,6 +2,7 @@ package com.dbidding.auction.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dbidding.wallet.domain.WalletAmountPolicy;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -49,6 +50,22 @@ class AuctionCreateRequestValidationTest {
                 .extracting(ConstraintViolation::getPropertyPath)
                 .map(Object::toString)
                 .contains("imageUploadTokens[0].<list element>");
+    }
+
+    @Test
+    void 가격_관련_필드는_지갑_최대_잔액을_초과할_수_없다() {
+        long overMax = WalletAmountPolicy.MAX_BALANCE + 1;
+        AuctionCreateRequest request = new AuctionCreateRequest(
+                1, "경매", "설명", null, null, List.of("upload-token"),
+                overMax, overMax, overMax, 12, overMax
+        );
+
+        Set<ConstraintViolation<AuctionCreateRequest>> violations = validator.validate(request);
+
+        assertThat(violations)
+                .extracting(ConstraintViolation::getPropertyPath)
+                .map(Object::toString)
+                .contains("startPrice", "bidIncrement", "buyNowPrice", "shippingFee");
     }
 
     @Test

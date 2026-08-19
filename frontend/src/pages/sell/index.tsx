@@ -12,6 +12,11 @@ import{createRegistrationSubmission,sellMutations}from'../../queries/sellMutatio
 import{initialSellForm}from'./data/initialState';
 
 const digits=value=>value.replace(/\D/g,'');
+const MAX_MONEY=1_000_000_000_000;
+const moneyDigits=value=>{
+  const raw=digits(value);
+  return raw&&Number(raw)>MAX_MONEY?String(MAX_MONEY):raw;
+};
 const money=value=>value?Number(value).toLocaleString():'';
 const formLanguage=language=>({JP:'일본어',Japanese:'일본어',EN:'영어',English:'영어',KR:'한국어',Korean:'한국어'}[language]??'기타');
 const psaValue=grade=>grade.replace(/^PSA\s*/i,'');
@@ -262,7 +267,7 @@ function StepTwo({form,setField,photos,addPhotos,removePhoto,photoError}){
   return <><Title step="2" title="사진 및 설명" copy="상품 상태를 확인할 수 있는 사진과 설명을 등록하세요."/><div className="sell-photo-heading"><h3>상품 사진</h3><span>{photos.length} / 8장 등록</span></div><div className="sell-photo-grid">{Array.from({length:8},(_,index)=>{const photo=photos[index];if(photo)return <figure key={photo.id}><img src={photo.url} alt={'등록 사진 '+(index+1)}/>{index===0&&<figcaption>대표 이미지</figcaption>}<button type="button" onClick={()=>removePhoto(photo.id)} aria-label={(index+1)+'번 사진 삭제'}>×</button></figure>;if(index===photos.length)return <label key="upload" className="sell-photo-slot" htmlFor="product-photos"><b>+</b><span>사진 추가</span><input id="product-photos" type="file" accept="image/png,image/jpeg" multiple onChange={addPhotos}/></label>;return <div className="sell-photo-slot empty" key={index} aria-hidden="true"/>})}</div>{photoError&&<ErrorText>{photoError}</ErrorText>}<div className="sell-field-list"><label htmlFor="description">상품 상태 및 설명 <em>필수</em></label><textarea id="description" value={form.description} onChange={e=>setField('description',e.target.value)} placeholder="카드 상태, 보관 방법, 흠집 및 특이사항" required/><label htmlFor="seller-memo">판매자 메모</label><textarea id="seller-memo" value={form.sellerMemo} onChange={e=>setField('sellerMemo',e.target.value)} placeholder="구매자에게 전달할 추가 내용"/></div></>;
 }
 
-function MoneyInput({id,value,onChange}){return <div className="sell-money-input"><input id={id} inputMode="numeric" value={money(value)} onChange={e=>onChange(digits(e.target.value))}/><span>원</span></div>}
+function MoneyInput({id,value,onChange}){return <div className="sell-money-input"><input id={id} inputMode="numeric" value={money(value)} onChange={e=>onChange(moneyDigits(e.target.value))}/><span>원</span></div>}
 function StepThree({form,setField}){
   const buyPriceMissing=form.buyNowEnabled&&!form.buyNowPrice;
   const buyPriceTooLow=form.buyNowEnabled&&!buyPriceMissing&&Number(form.buyNowPrice)<=Number(form.startPrice);

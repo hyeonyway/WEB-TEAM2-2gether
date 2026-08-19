@@ -1,5 +1,6 @@
 package com.dbidding.auction.dto;
 
+import com.dbidding.wallet.domain.WalletAmountPolicy;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -16,11 +17,11 @@ public record AuctionCreateRequest(
         @Size(max = 1000) String sellerMemo,
         @Size(max = 32) String psaCertification,
         @NotEmpty List<@Size(max = 255) String> imageUploadTokens,
-        @NotNull @Min(1) Long startPrice,
-        @NotNull @Min(1) Long bidIncrement,
-        @Positive Long buyNowPrice,
+        @NotNull @Min(1) @Max(WalletAmountPolicy.MAX_BALANCE) Long startPrice,
+        @NotNull @Min(1) @Max(WalletAmountPolicy.MAX_BALANCE) Long bidIncrement,
+        @Positive @Max(WalletAmountPolicy.MAX_BALANCE) Long buyNowPrice,
         @NotNull @Min(1) @Max(24) Integer durationHours,
-        @NotNull @Min(0) Long shippingFee,
+        @NotNull @Min(0) @Max(WalletAmountPolicy.MAX_BALANCE) Long shippingFee,
         @Size(max = 16) String gradeType,
         @Size(max = 32) String selfGrade,
         @Size(max = 8) String psaGrade
