@@ -1,5 +1,6 @@
 package com.dbidding.auction.query;
 
+import com.dbidding.auction.BidderAlias;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.BidResponses;
@@ -220,7 +221,7 @@ public class RedisAuctionRealtimeStateReader {
         // 같은 id로 뭉개진다. 프론트가 이미 "DB에 아직 없는 실시간 입찰"을 음수 id로 표시하는
         // 관례(-event_id)를 따르므로 여기서도 -sequence를 쓴다.
         return new BidResponses.BidSummary(bidId == null ? -sequence : bidId,
-                RedisIntegerValue.parseLongExact(value(values.get("bidPrice"))), alias(bidderId),
+                RedisIntegerValue.parseLongExact(value(values.get("bidPrice"))), BidderAlias.mask(bidderId),
                 bidderId.equals(highestBidderId), Instant.parse(value(values.get("occurredAt"))));
     }
 
@@ -239,7 +240,6 @@ public class RedisAuctionRealtimeStateReader {
     private String recentBidKey(Integer auctionId) { return "auction:recent-bids:" + auctionId; }
     private String bidderKey(Integer auctionId, Integer userId) { return "auction:bidder:" + auctionId + ":" + userId; }
     private String participatingKey(Integer userId) { return "auction:dashboard:participating:" + userId; }
-    private String alias(Integer bidderId) { return bidderId == null ? "" : bidderId < 100 ? "user-" + bidderId + "***" : "user-" + String.valueOf(bidderId).substring(0, 2) + "***"; }
 
     public record RealtimeState(AuctionStatus status, long currentPrice, long bidIncrement, int bidCount,
                                 Instant closeTime, Long buyNowPrice, MyBidStatus myBidStatus,

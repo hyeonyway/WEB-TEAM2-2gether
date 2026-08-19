@@ -1,5 +1,6 @@
 package com.dbidding.auction.service;
 
+import com.dbidding.auction.BidderAlias;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionSort;
@@ -338,17 +339,10 @@ public class DbAuctionQueryService {
         return BidResponses.BidSummary.builder()
                 .id(bid.getId())
                 .amount(bid.getBidPrice())
-                .bidderAlias(bidderAlias(bid.getBidderId()))
+                .bidderAlias(BidderAlias.mask(bid.getBidderId()))
                 .isHighest(Objects.equals(bid.getId(), highestBidId))
                 .createdAt(bid.getCreatedAt())
                 .build();
-    }
-
-    private String bidderAlias(Integer bidderId) {
-        String value = String.valueOf(bidderId);
-        return value.length() <= 2
-                ? "user-" + value + "***"
-                : "user-" + value.substring(0, 2) + "***";
     }
 
     private MyBidStatus myBidStatus(Bid bid) {
