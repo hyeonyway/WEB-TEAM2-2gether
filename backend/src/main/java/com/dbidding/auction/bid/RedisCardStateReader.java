@@ -4,13 +4,15 @@ import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.card.exception.CardException;
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.repository.CardMetadataRepository;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 /** Redis-first 경매 command가 사용하는 MySQL 원본의 카드 snapshot read-through cache다. */
@@ -19,17 +21,20 @@ import org.springframework.stereotype.Component;
 public class RedisCardStateReader {
     private final StringRedisTemplate redisTemplate;
     private final CardMetadataRepository cardMetadataRepository;
+    private final RedisScript<Long> cardCacheSeedScript;
     private final long ttlSeconds;
     private final long ttlJitterSeconds;
 
     public RedisCardStateReader(
             StringRedisTemplate redisTemplate,
             CardMetadataRepository cardMetadataRepository,
+            @Qualifier("cardCacheSeedScript") RedisScript<Long> cardCacheSeedScript,
             @Value("${card.snapshot-cache.ttl-seconds:86400}") long ttlSeconds,
             @Value("${card.snapshot-cache.ttl-jitter-seconds:3600}") long ttlJitterSeconds
     ) {
         this.redisTemplate = redisTemplate;
         this.cardMetadataRepository = cardMetadataRepository;
+        this.cardCacheSeedScript = cardCacheSeedScript;
         this.ttlSeconds = ttlSeconds;
         this.ttlJitterSeconds = ttlJitterSeconds;
     }
@@ -77,14 +82,14 @@ public class RedisCardStateReader {
                 card.getLanguage(), card.getImagePath());
     }
 
+    /** 카드 캐시 hash가 아직 없을 때만, 5개 필드 기록과 TTL 설정을 하나의 Lua EVAL로 원자적으로 수행한다. */
     private void putIfAbsent(String key, CardSnapshot snapshot) {
-        var hashes = redisTemplate.opsForHash();
-        hashes.putIfAbsent(key, "name", snapshot.name());
-        hashes.putIfAbsent(key, "setName", snapshot.setName());
-        hashes.putIfAbsent(key, "psaGrade", nullableValue(snapshot.psaGrade()));
-        hashes.putIfAbsent(key, "language", nullableValue(snapshot.language()));
-        hashes.putIfAbsent(key, "thumbnailUrl", snapshot.thumbnailUrl());
-        redisTemplate.expire(key, Duration.ofSeconds(ttlFor(snapshot.cardId())));
+        List<String> args = List.of(
+                nullableValue(snapshot.name()), nullableValue(snapshot.setName()), nullableValue(snapshot.psaGrade()),
+                nullableValue(snapshot.language()), nullableValue(snapshot.thumbnailUrl()),
+                String.valueOf(ttlFor(snapshot.cardId()))
+        );
+        redisTemplate.execute(cardCacheSeedScript, List.of(key), args.toArray());
     }
 
     private String required(Map<Object, Object> state, String field) {

@@ -146,4 +146,12 @@ public class RedisBidLuaConfiguration {
         script.setResultType(Long.class);
         return script;
     }
+
+    @Bean
+    public RedisScript<Long> cardCacheSeedScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/card-cache-seed.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
 }
