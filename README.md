@@ -204,7 +204,10 @@
 ## Frontend
 
 <p>
-  [Frontend 기술 배지]
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white"/>
+<img src="https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black"/>
+<img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white"/>
+<img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white"/>
 </p>
 
 ## Backend
@@ -248,10 +251,7 @@
 
 # 4. 시스템 아키텍처
 
-[📷 최종 시스템 아키텍처 이미지]
-
-> 포함 요소 예시  
-> Client / CloudFront / S3 / Nginx / Backend / Redis / MySQL / Prometheus / Grafana
+<img src="https://private-user-images.githubusercontent.com/146147073/637367435-c9792e00-7802-4468-b592-9570bf0635f4.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3ODcxMDc3NjIsIm5iZiI6MTc4NzEwNzQ2MiwicGF0aCI6Ii8xNDYxNDcwNzMvNjM3MzY3NDM1LWM5NzkyZTAwLTc4MDItNDQ2OC1iNTkyLTk1NzBiZjA2MzVmNC5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjYwODE5JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI2MDgxOVQwMjQ0MjJaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT02YWZhYzM0NGQ4ZWE5MzlhZDk1YjEyMTMyNWRiMDJhZTdlZWI2YTc1MDc3OGI3ZDQyYTRlMmQzYTJiYjdiZjFjJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCZyZXNwb25zZS1jb250ZW50LXR5cGU9aW1hZ2UlMkZwbmcifQ.5PrOuU66bGGoGBvFCyRhpE9Tzt6QNU9yH2IkZtUjUcw" alt="dbidding 시스템아키텍처">
 
 <br/>
 
@@ -286,8 +286,7 @@ MySQL은 비동기 Projection을 통해 영속 데이터를 유지합니다.
 ---
 
 # 5. ERD
-
-[📷 최종 ERD 이미지] (https://github.com/user-attachments/assets/feaa7e80-16a9-47b3-9c75-b96b57c60727)
+<img src="https://github.com/user-attachments/assets/feaa7e80-16a9-47b3-9c75-b96b57c60727" alt="dbidding ERD" width="800">
 
 주요 도메인은 다음과 같이 구성됩니다.
 
@@ -369,7 +368,7 @@ flowchart LR
     Cleanup --> Response
 ```
 
-[👉 Redis 상태 관리 Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/5.5-Redis-%EB%B9%84%EC%96%B4-%EC%9E%88%EC%9D%84-%EB%95%8C-%EC%83%81%ED%83%9C-%EB%B3%B5%EC%9B%90-&-Redis-%EC%83%81%ED%83%9C-%EC%82%AC%EC%A0%84-%EC%A0%81%EC%9E%AC)
+[👉 Redis 상태 관리 Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/5.5-Redis-%EB%B9%84%EC%96%B4-%EC%9E%88%EC%9D%84-%EB%95%8C-%EC%83%81%ED%83%9C-%EB%B3%B5%EC%9B%90-&-Redis-%EC%83%81%ED%83%9C-%EC%82%AC%EC%A0%84-%EC%A0%81%EC%9E%AC)<br/>
 [👉 Redis TTL Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/5.7-TTL-%EC%A0%95%EC%B1%85)
 
 <br/>
@@ -403,7 +402,7 @@ DB Inbox (PROCESSED 완료)
 데이터 유실 없이 순차적으로 따라잡을(Catch-up) 수 있으며, 
 투영 오류 발생 시 **Transactional Inbox에 영속화된 원본 이벤트를 기반으로 안전하게 재처리(Replay)**할 수 있도록 설계했습니다.
 
-[👉 Redis-Mysql Projection Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/%EC%8B%A4%EC%8B%9C%EA%B0%84-%EA%B2%BD%EB%A7%A4-%EC%8B%9C%EC%8A%A4%ED%85%9C-Redis-Stream-%EA%B8%B0%EB%B0%98-%EB%8D%B0%EC%9D%B4%ED%84%B0-%EC%98%81%EC%86%8D%ED%99%94)
+[👉 Redis-Mysql Projection Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/%EC%8B%A4%EC%8B%9C%EA%B0%84-%EA%B2%BD%EB%A7%A4-%EC%8B%9C%EC%8A%A4%ED%85%9C-Redis-Stream-%EA%B8%B0%EB%B0%98-%EB%8D%B0%EC%9D%B4%ED%84%B0-%EC%98%81%EC%86%8D%ED%99%94)
 
 <br/>
 
@@ -431,9 +430,8 @@ SSE Broadcast, 알림 전달, 비동기 후처리 등 다양한 작업이 동시
 
 <br/>
 
-[📷 ThreadPoolExecutor vs Virtual Thread 구조 비교 이미지]
 
-[👉 비동기 Executor Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/%EC%8B%A4%EC%8B%9C%EA%B0%84-%ED%86%B5%EC%8B%A0-SSE-Executor-%EA%B5%AC%EC%A1%B0)
+[👉 비동기 Executor Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/%EC%8B%A4%EC%8B%9C%EA%B0%84-%ED%86%B5%EC%8B%A0-SSE-Executor-%EA%B5%AC%EC%A1%B0) <br/>
 [👉 가상스레드 Wiki](https://github.com/softeerbootcamp-8th/WEB-TEAM2-2gether/wiki/%EC%8B%A4%EC%8B%9C%EA%B0%84-%ED%86%B5%EC%8B%A0-Virtual-Thread%EC%99%80-%EB%8F%99%EC%8B%9C%EC%84%B1-%EC%A0%9C%ED%95%9C)
 <br/>
 
@@ -762,14 +760,12 @@ README에서는 서비스와 핵심 기술만 요약하고,
 
 - GitHub Issue 기반 작업 관리
 - CodeRabbit을 활용한 AI 기반 Code Review
-- Daily Scrum
+- 매일 오전 데일리 스크럼 / 퇴근 전 KPT 기반 일일회고
 - 기술 조사 및 설계 문서화
 - 부하 테스트 결과 공유
 - 장애 및 병목 원인 분석 문서화
 
 <br/>
-
-[📷 GitHub Project / Wiki / 팀 활동 이미지]
 
 <br/>
 
