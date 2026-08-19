@@ -124,6 +124,17 @@ class NotificationEventListenerTest {
     }
 
     @Test
+    void 선두_입찰자가_자신의_입찰_위에_즉시낙찰하면_상회_입찰_알림을_보내지_않는다() {
+        listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
+
+        listener.handleBidPlaced(bidPlacedEvent(1));
+
+        verifyNoInteractions(cardPriceService);
+        verifyNoInteractions(notificationService);
+        verifyNoInteractions(notificationPushPublisher);
+    }
+
+    @Test
     void 낙찰되면_낙찰자와_판매자_알림을_한번에_저장하고_각각_SSE로_push한다() {
         listener = new NotificationEventListener(wishlistService, cardPriceService, notificationService, notificationRepository, notificationPushPublisher);
 

@@ -132,6 +132,24 @@ class AuctionCommandServiceBidEventTest {
     }
 
     @Test
+    void 선두_입찰자가_자기_입찰_위에_즉시낙찰해도_previousBidderId를_그대로_전달한다() {
+        // #613: previousBidderId가 bidderId와 같아지는 것 자체는 정상 데이터다(자기 자신 위에 즉시낙찰).
+        // AuctionStreamPayload(SSE) 소비자가 진짜 값을 필요로 하므로 여기서 null로 정규화하지 않고
+        // 그대로 흘려보낸다 — self-outbid 알림 억제는 NotificationEventListener 쪽에서 처리한다.
+        BidExecutionResult outcome = outcomeWith(new BidEventData(
+                1, 2, 20L, 40_000L, 1_000L, AuctionStatus.ENDED,
+                new AuctionCloseData(1, "리자몽", "10", "JP", "/thumb.png", 5)
+        ));
+        when(bidExecutor.execute(any(BidCommand.class))).thenReturn(outcome);
+
+        auctionCommandService.participate(2, 1, new BidCreateRequest(100_000L), "self-buy-now-key");
+
+        verify(auctionEventPublisher).publishBidPlaced(argThat((BidPlacedEvent event) ->
+                event.bidderId().equals(2) && event.previousBidderId().equals(2)
+        ));
+    }
+
+    @Test
     void 즉시낙찰이면_AuctionClosedEvent도_로컬과_스트림_양쪽에_발행한다() {
         AuctionCloseData closeData = new AuctionCloseData(1, "리자몽", "10", "JP", "/thumb.png", 5);
         BidExecutionResult outcome = outcomeWith(new BidEventData(
