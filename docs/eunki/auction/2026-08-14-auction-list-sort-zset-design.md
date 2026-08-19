@@ -1,5 +1,10 @@
 # 경매 목록 Redis 조회를 정렬 기준별 ZSET으로 분리 (#448)
 
+> **적용 완료.** 아래 설계대로 `auction:active:by-bid-count`/`by-price`/`by-change-rate`/`by-open-time`
+> 4개 ZSET이 `auction-create.lua`/`bid-accept.lua`/`auction-close-request.lua`/
+> `auction-state-seed.lua`/`auction-active-index-gc.lua`와 `RedisAuctionActiveIndexCleanupScheduler`,
+> `RedisAuctionRealtimeStateReader.activeIdsBatch()`에 코드로 반영되어 있다(2026-08-19 코드 기준 확인).
+
 ## 목적
 
 `AuctionQueryService.searchRedisActiveAuctions`는 지금 `auction:active:by-close-time`
