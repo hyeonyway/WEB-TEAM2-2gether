@@ -33,6 +33,19 @@ auction:
       fixed-delay-ms: ${AUCTION_ACTIVE_INDEX_CLEANUP_FIXED_DELAY_MS:3600000}
       stale-after: ${AUCTION_ACTIVE_INDEX_CLEANUP_STALE_AFTER:PT24H}
       batch-size: ${AUCTION_ACTIVE_INDEX_CLEANUP_BATCH_SIZE:100}
+  bidder-state:
+    cleanup:
+      # auction:state가 이미 사라진 auction:bidder:*/auction:dashboard:participating:* 잔여 항목을
+      # SCAN으로 순회해 정리한다 - 입찰 hot path(bid-accept.lua)는 건드리지 않는 안전망 방식이다.
+      fixed-delay-ms: ${AUCTION_BIDDER_STATE_CLEANUP_FIXED_DELAY_MS:3600000}
+      # 정상적인 1회 실행 상한이 아니라, 매칭 키가 폭증했을 때만 브레이크를 거는 안전 상한이다 -
+      # 이보다 작게 잡으면 매칭 키 수가 이 값을 넘는 순간부터 매 실행이 커서 0에서 다시 시작해
+      # 항상 같은 앞부분만 훑고 뒤쪽 orphan 키에는 영원히 도달하지 못한다.
+      scan-limit: ${AUCTION_BIDDER_STATE_CLEANUP_SCAN_LIMIT:1000000}
+      batch-size: ${AUCTION_BIDDER_STATE_CLEANUP_BATCH_SIZE:200}
+      # participating은 SET이라 키 하나당 비용이 멤버 수에 비례한다 - flat 키(bidder/recent-bids)
+      # 배치보다 훨씬 작게 잡아 GC Lua 호출 1회가 Redis를 오래 블로킹하지 않게 한다.
+      participating-batch-size: ${AUCTION_BIDDER_STATE_CLEANUP_PARTICIPATING_BATCH_SIZE:20}
   state-seeding:
     warm-up:
       enabled: ${AUCTION_STATE_WARM_UP_ENABLED:true}
@@ -51,3 +64,17 @@ auction:
       window-ms: ${WALLET_COLD_SEED_BATCH_WINDOW_MS:5}
       # 윈도우가 끝나기 전이라도 이 크기에 도달하면 즉시 flush한다.
       max-batch-size: ${WALLET_COLD_SEED_MAX_BATCH_SIZE:200}
+
+order:
+  state-index:
+    cleanup:
+      # order:state:buyer/seller:{userId} Set은 SREM 로직이 없어 order:state가 이미 사라진
+      # auctionId가 그대로 쌓인다 - SCAN으로 순회해 안전망으로 정리한다.
+      fixed-delay-ms: ${ORDER_STATE_INDEX_CLEANUP_FIXED_DELAY_MS:3600000}
+      # 정상적인 1회 실행 상한이 아니라, 매칭 키가 폭증했을 때만 브레이크를 거는 안전 상한이다 -
+      # 이보다 작게 잡으면 매칭 키 수가 이 값을 넘는 순간부터 매 실행이 커서 0에서 다시 시작해
+      # 항상 같은 앞부분만 훑고 뒤쪽 orphan 키에는 영원히 도달하지 못한다.
+      scan-limit: ${ORDER_STATE_INDEX_CLEANUP_SCAN_LIMIT:1000000}
+      # buyer/seller 인덱스는 SET이라 키 하나당 비용이 멤버 수에 비례한다 - 작게 잡아 GC Lua
+      # 호출 1회가 Redis를 오래 블로킹하지 않게 한다.
+      batch-size: ${ORDER_STATE_INDEX_CLEANUP_BATCH_SIZE:20}
