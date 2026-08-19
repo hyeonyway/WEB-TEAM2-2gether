@@ -1,0 +1,51 @@
+anchor(stage0 시작) = 2026-08-19T16:05:27.898366
+stage_duration = 120s, stages = 6
+
+=== stage 0 (target QPS=50) ===
+endpoint                                                  count     mean      p95      p99      max
+GET /api/auctions                                          1201      9.0     21.9     41.3     85.4
+GET /api/auctions/:id                                      1200      6.0     18.6     43.8     93.6
+GET /api/auctions/:id/bid-context                          3601      7.4     18.8     49.2    142.9
+POST /api/auctions/:id/bids                                1200      8.7     19.6     46.6    154.8
+
+=== stage 1 (target QPS=100) ===
+endpoint                                                  count     mean      p95      p99      max
+GET /api/auctions                                          1801      9.1     18.3     56.6    450.6
+GET /api/auctions/:id                                      1800      4.1     10.9     28.8     80.2
+GET /api/auctions/:id/bid-context                          5402      5.8     13.3     35.1    379.8
+POST /api/auctions/:id/bids                                1801      6.8     15.6     31.0    127.2
+
+=== stage 2 (target QPS=150) ===
+endpoint                                                  count     mean      p95      p99      max
+GET /api/auctions                                          3001     10.0     35.8    102.3    195.8
+GET /api/auctions/:id                                      3000      3.4      9.5     21.6     66.2
+GET /api/auctions/:id/bid-context                          9001      5.8     17.0     52.4    161.4
+POST /api/auctions/:id/bids                                3000      6.8     15.4     42.7    168.7
+
+=== stage 3 (target QPS=200) ===
+endpoint                                                  count     mean      p95      p99      max
+GET /api/auctions                                          4202     22.3    113.6    253.4    371.1
+GET /api/auctions/:id                                      4199      9.3     44.4     87.3    240.2
+GET /api/auctions/:id/bid-context                         12602     14.2     68.8    166.8    287.2
+POST /api/auctions/:id/bids                                4201     13.4     68.8    143.2    283.6
+
+=== stage 4 (target QPS=300) ===
+endpoint                                                  count     mean      p95      p99      max
+GET /api/auctions                                          6019    275.8   1008.8   1393.3   1798.8
+GET /api/auctions/:id                                      5983    159.8    765.4   1518.9   1681.9
+GET /api/auctions/:id/bid-context                         18003    214.2    927.8   1526.3   1737.6
+POST /api/auctions/:id/bids                                6000    186.0    785.5   1304.4   1695.8
+
+=== stage 5 (target QPS=400) ===
+endpoint                                                  count     mean      p95      p99      max
+GET /api/auctions                                          8415    289.4    826.8   1054.1   1465.8
+GET /api/auctions/:id                                      8376    226.1    772.4   1151.1   1388.4
+GET /api/auctions/:id/bid-context                         25186    258.8    802.7   1103.2   1430.3
+POST /api/auctions/:id/bids                                8396    235.2    760.3   1011.1   1399.2
+
+=== 전체(all stages) ===
+endpoint                                                  count     mean      p95      p99      max
+GET /api/auctions                                         24639    172.4    780.8   1130.7   1798.8
+GET /api/auctions/:id                                     24558    118.6    642.6   1197.8   1681.9
+GET /api/auctions/:id/bid-context                         73795    144.5    718.2   1158.3   1737.6
+POST /api/auctions/:id/bids                               24598    129.7    661.9    995.5   1695.8
