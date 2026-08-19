@@ -237,6 +237,22 @@ public class WalletService {
 			.forEach(this::lockWallet);
 	}
 
+	/**
+	 * 이전 입찰자의 보류(hold)를 새 입찰자의 보류보다 먼저 release해야 하는지 판단한다.
+	 * {@link #lockWalletsInOrder(Integer...)}와 짝을 이루는 규칙 — 한 트랜잭션에서 두 사용자의
+	 * 지갑 행을 오름차순으로 먼저 잠가야 교차 대기(cross-wait)로 인한 데드락을 피할 수 있다.
+	 * previousBidderId가 currentBidderId보다 작으면 그 지갑 행이 먼저 잠겨야 하므로 release를
+	 * hold보다 먼저 호출해야 하고, 그렇지 않으면(previousBidderId가 더 크면) hold를 먼저
+	 * 호출해도 안전하다. previousBidderId가 없거나(null) currentBidderId와 같으면(자기 자신의
+	 * 재입찰) 별도로 release할 대상이 없으므로 false를 반환한다 — 호출부가 그 경우를 직접
+	 * 처리한다.
+	 */
+	public static boolean shouldReleaseBeforeHold(Integer previousBidderId, Integer currentBidderId) {
+		return previousBidderId != null
+			&& !previousBidderId.equals(currentBidderId)
+			&& previousBidderId < currentBidderId;
+	}
+
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WalletTransactionResponse settle(Integer sellerId, Integer auctionId, long amount) {
 		validatePositive(amount);

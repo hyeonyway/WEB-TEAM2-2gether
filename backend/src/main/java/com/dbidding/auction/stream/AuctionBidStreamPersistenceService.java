@@ -360,7 +360,7 @@ public class AuctionBidStreamPersistenceService {
             }
             return;
         }
-        if (previousBidderId != null && previousBidderId < event.bidderId()) {
+        if (WalletService.shouldReleaseBeforeHold(previousBidderId, event.bidderId())) {
             walletService.release(previousBidderId, auctionId);
             walletService.hold(event.bidderId(), auctionId, event.bidPrice());
         } else {
