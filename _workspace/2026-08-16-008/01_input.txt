@@ -1,0 +1,108 @@
+# 6.9 최종 성능 개선 결과
+
+## 초기 상태 → 최종 상태
+
+1차(08/04)에서는 QPS 150~300 구간에서 처리량이 약 94 iter/s에 묶이고 최대 VU 800까지 차는 정도만 확인할 수 있었다. 원인 후보를 하나로 좁히지 못한 채였다. 9차(08/16, Redis 전환 이후)에서는 같은 계열의 부하(pure-throughput, QPS 50~400 계단)에서 목록 조회 p95가 220~630ms대, 상세/bid-context는 90~200ms대까지 내려왔고, 76분 세션 동안 Full GC 0회·OOM 0회를 유지했다.
+
+<table header-row="true">
+<tr>
+<td>지표</td>
+<td>초기(1~4차)</td>
+<td>최종(9차)</td>
+</tr>
+<tr>
+<td>Hot Auction 입찰 p95</td>
+<td>정상 응답 자체는 빨랐으나 조회 API 25~30초</td>
+<td>90~140ms대(QPS400까지)</td>
+</tr>
+<tr>
+<td>목록 조회 p95</td>
+<td>측정 체계 없음(3차부터 계측 시작)</td>
+<td>220~630ms대(#529 수정 전 1,100~1,400ms 대비 55~75% 감소)</td>
+</tr>
+<tr>
+<td>Hikari active(핫경매 시나리오)</td>
+<td>30/30 포화(3~4차, 8차까지 동일)</td>
+<td>10/30 이하</td>
+</tr>
+<tr>
+<td>1000-tier 실패율</td>
+<td>82.68~98.38%(5차, OOM 포함)</td>
+<td>12.55%(9차, 단 프로필 조건 다름)</td>
+</tr>
+<tr>
+<td>Full GC</td>
+<td>세션당 다수(5·7차)</td>
+<td>0회(8·9차)</td>
+</tr>
+<tr>
+<td>SSE 연결 성공률(1000 VU급)</td>
+<td>30.6%(3차, 전역 broadcast)</td>
+<td>100%(9차, 선택 구독 + Redis 전환 후)</td>
+</tr>
+</table>
+
+## 병목별 개선 결과
+
+<table header-row="true">
+<tr>
+<td>영역</td>
+<td>원인</td>
+<td>개선</td>
+<td>참고</td>
+</tr>
+<tr>
+<td>DB Row Lock</td>
+<td>동일 Auction Row `FOR UPDATE` 직렬화, Connection Pool 확장으로도 안 풀림</td>
+<td>입찰 승인을 Redis Lua로 이전, MySQL 승인 경로 자체를 제거</td>
+<td>6.3, 6.6</td>
+</tr>
+<tr>
+<td>누적 Bid 조회 비용</td>
+<td>오래된 Auction일수록 Bid History 조회가 Lock Hold Time을 늘림</td>
+<td>Composite Index로 rows examined 7,080 → 1~3</td>
+<td>6.7</td>
+</tr>
+<tr>
+<td>SSE Broadcast</td>
+<td>이벤트 하나가 전체 연결에 fan-out, Blocking Write로 HOL Blocking</td>
+<td>전용 Executor 분리 + 선택 구독(`auctionIds`, 연결당 최대 16개)</td>
+<td>6.4</td>
+</tr>
+<tr>
+<td>JVM/OS Memory</td>
+<td>903MB RAM에서 GC pause와 Swap Thrashing이 겹침</td>
+<td>RAM 1.8GiB 증설, Heap 재조정</td>
+<td>6.5</td>
+</tr>
+<tr>
+<td>Cold Seed N+1</td>
+<td>Redis Cache Miss 시 Auction마다 개별 DB 조회</td>
+<td>짧은 Window로 모아 Batch Query 처리</td>
+<td>6.7</td>
+</tr>
+<tr>
+<td>목록 조회 중복</td>
+<td>항목마다 bid-context급 전체 조회 재사용, 고정 배치 50 과다조회</td>
+<td>목록 전용 경량 조회 + 필터 없을 때 배치 축소</td>
+<td>6.7</td>
+</tr>
+</table>
+
+## 해결하지 못한 문제
+
+- **목록 조회는 여전히 다른 API보다 2~4배 느리다.** 항목당 Redis read가 20회 남아 있는 구조적 한계다. keyword/PSA 필터가 걸린 검색은 이번 최적화 범위 밖으로 남겨뒀다.
+- **입찰 응답 반환 전 지갑/경매 Redis PUBLISH가 동기로 발생한다.** 승인 자체는 빨라졌지만, 이 PUBLISH가 응답 latency에 영향을 줄 수 있는 구조는 그대로다.
+- **세션 인증 전환 후 요청마다 Redis read+write가 붙는다.** `spring.session.redis.*` flush/save-mode 튜닝을 아직 안 했다.
+- **콜드시드 rewind로 프로젝션 파이프라인 전체가 멈추는 사고를 9차 세션 중 실제로 겪었다.** 경매 하나의 이전 최고입찰자 불일치가 전역 프로젝션을 막았다 — "정합성이 깨지면 운영자가 확인한다"는 의도된 설계지만, 그 확인·복구를 자동화하는 경로는 아직 없다.
+- **Tomcat 스레드 풀은 2vCPU 한계에 붙어 있다.** 50에서 80으로 올려봤지만 CPU가 먼저 포화되면서 오히려 latency가 나빠졌다 — 스레드 튜닝만으로는 못 푼다.
+
+## 한계 및 Trade-off
+
+- **8차와 9차는 완전한 A/B가 아니다.** 8차는 `local-sse,sse-virtual-threads` 프로필(가상스레드 + JVM 로컬 SSE), 9차는 `redis` 단일 프로필(플랫폼 스레드 + Redis Pub/Sub SSE)이라 두 변수가 같이 바뀌었다. Virtual Thread 자체의 순수 효과를 다시 보려면 8차와 같은 프로필로 별도 라운드가 필요하다.
+- **로컬 대조실험은 4차 이후 반복하지 않았다.** 이후 라운드는 전부 prod 단일 환경에서만 쟀다.
+- **Redis 승인 경로로 옮기면서 생긴 새 리스크(콜드시드 rewind, 프로젝션 정지)는 이번에 구조를 고치지 않고 운영 대응으로만 정리했다.** 근본적으로는 캐치업 검증 타이밍이나 프로젝션 오류의 영향 범위를 경매 단위로 좁히는 작업이 남아 있다.
+- **Redis 단일 인스턴스에 입찰 승인·캐시·세션·Pub/Sub이 다 몰려 있다.** 지금까지는 버텼지만, 트래픽이 더 늘면 이 중 하나가 다른 걸 밀어내는 상황이 생길 수 있다 — 아직 그 지점까지 부하를 걸어보진 않았다.
+- **Tomcat 스레드/CPU 트레이드오프는 인스턴스 스펙에 종속적이다.** vCPU를 늘리면 결론이 달라질 수 있지만, 이번 프로젝트 예산/스펙 안에서는 50이 최적값이었다.
+
+> 이 문서는 codex의 도움을 받아 작성하였습니다
