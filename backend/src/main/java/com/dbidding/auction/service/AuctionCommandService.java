@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import io.micrometer.core.instrument.Timer;
+import com.dbidding.global.metrics.MeasureTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -199,27 +200,18 @@ public class AuctionCommandService {
                 : redisCardStateReader.getCardSnapshot(itemId);
     }
 
+    @MeasureTime("auction.bid")
     public BidResponses.BidResult participate(
             Integer userId,
             Integer auctionId,
             BidCreateRequest request,
             String idempotencyKey
     ) {
-        Timer.Sample sample = auctionMetrics.start();
-        try {
-            BidExecutionResult outcome = bidExecutor.execute(
-                    new BidCommand(userId, auctionId, request.price(), idempotencyKey)
-            );
-            publishBidEvents(userId, auctionId, outcome);
-            auctionMetrics.finishBid(sample, BidResult.ACCEPTED);
-            return outcome.result();
-        } catch (AuctionException exception) {
-            auctionMetrics.finishBid(sample, BidResult.REJECTED);
-            throw exception;
-        } catch (RuntimeException exception) {
-            auctionMetrics.finishBid(sample, BidResult.ERROR);
-            throw exception;
-        }
+        BidExecutionResult outcome = bidExecutor.execute(
+                new BidCommand(userId, auctionId, request.price(), idempotencyKey)
+        );
+        publishBidEvents(userId, auctionId, outcome);
+        return outcome.result();
     }
 
     /**
