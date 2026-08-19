@@ -51,7 +51,9 @@ class RedisBidExecutorTest {
         when(redisTemplate.execute(eq(bidAcceptScript), eq(keys),
                 eq("2"), eq("43000"), eq("bid-key"), anyString(), eq("1786320000000"),
                 eq("2026-08-10T00:00:00Z"), eq("1000000000000")))
-                .thenReturn("ACCEPTED|1700000000000-0|43000|7|3|57000|43000|1|46000|2026-08-10T01:00:00Z|LEADING||1|40000|3000|9|OPEN|false|리자몽|10|JP|/thumb.png|7|100000|0|5|false");
+                // fields[3]은 이번 입찰 자신의 auctionVersion(예: 7)이 아니라, 밀려나는 이전
+                // 최고 입찰(bidderId=9) 자신의 버전을 음수로 표기한 값이다(-sequence 관례).
+                .thenReturn("ACCEPTED|1700000000000-0|43000|-6|3|57000|43000|1|46000|2026-08-10T01:00:00Z|LEADING||1|40000|3000|9|OPEN|false|리자몽|10|JP|/thumb.png|7|100000|0|5|false");
 
         var response = redisBidExecutor.execute(new BidCommand(2, 1, 43_000L, "bid-key"));
 
@@ -66,7 +68,9 @@ class RedisBidExecutorTest {
         assertThat(response.eventData())
                 .extracting(BidEventData::itemId, BidEventData::previousBidderId, BidEventData::startPrice, BidEventData::bidIncrement)
                 .containsExactly(1, 9, 40_000L, 3_000L);
-        assertThat(response.eventData().previousBidId()).isEqualTo(7L);
+        // 이전 최고 입찰 자신의 버전(6)을 음수로 표기한 값이어야 하며, 이번 입찰 자신의
+        // auctionVersion(7)이 되어서는 안 된다 - 이 값이 그대로면 회귀(#613)다.
+        assertThat(response.eventData().previousBidId()).isEqualTo(-6L);
         verify(eventPublisher).publishEvent(argThat((Object event) -> event instanceof WalletBalanceChangedEvent changed
                 && changed.userId().equals(2)
                 && changed.balance().availableBalance() == 57_000L

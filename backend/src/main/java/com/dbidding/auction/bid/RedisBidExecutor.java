@@ -112,6 +112,10 @@ public class RedisBidExecutor implements BidExecutor {
                 ? new AuctionCloseData(Integer.valueOf(fields[12]), fields[18], nullable(fields[19]),
                         nullable(fields[20]), nullable(fields[21]), Integer.valueOf(fields[22]))
                 : null;
+        // fields[3]은 이전 최고 입찰 "자신"의 버전을 음수로 표기한 값이다(bid-accept.lua의
+        // previousBidVersionString). 아직 MySQL에 projection되지 않은 Redis 전용 입찰이라
+        // 실제 PK가 없으므로, RedisAuctionRealtimeStateReader.summary()가 실시간 목록에 쓰는
+        // "-sequence" 관례를 그대로 따른다 — 새 입찰 자신의 auctionVersion과 혼동하지 않는다.
         return new BidExecutionResult(result, new BidEventData(
                 Integer.valueOf(fields[12]),
                 "null".equals(fields[15]) ? null : Integer.valueOf(fields[15]),
