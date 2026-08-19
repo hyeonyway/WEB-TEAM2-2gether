@@ -59,7 +59,6 @@ class AuctionBidStreamConsumerTest {
         when(record.getValue()).thenReturn(Map.of("eventType", "unknown"));
         when(persistence.recordMalformed("bad-1", Map.of("eventType", "unknown"))).thenReturn(inbox);
         when(inbox.getStreamId()).thenReturn("bad-1");
-        when(persistence.hasProjectionError()).thenReturn(false);
         when(persistence.markError(org.mockito.ArgumentMatchers.eq("bad-1"), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
 

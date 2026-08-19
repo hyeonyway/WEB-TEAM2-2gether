@@ -238,17 +238,25 @@ public class AuctionBidStreamPersistenceService {
         inboxRepository.findByStreamId(streamId).ifPresent(inbox -> inbox.markProcessed(clock.instant()));
     }
 
+    /**
+     * 이 streamId를 ERROR로 표시한다. 반환값은 시스템 전체의 첫 오류 여부가 아니라, "이 항목이
+     * 이번 호출로 처음 ERROR로 전이했는지"를 의미한다(이미 ERROR였던 항목을 재시도 실패로 다시
+     * markError하는 경우, 예: malformed 이벤트가 ACK 전 crash로 재전달되는 경우, 중복 로깅을 막기
+     * 위함). 여러 경매가 동시에 서로 다른 이유로 ERROR가 되는 head-of-line-blocking 회피 설계와
+     * 별개로, 각 항목의 오류는 개별적으로 (그리고 최초 1회) 로깅되어야 하므로 전역 존재 여부가
+     * 아니라 이 항목 자신의 이전 상태를 기준으로 판단한다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean markError(String streamId, RuntimeException exception) {
         AuctionTimelineEvent inbox = inboxRepository.findByStreamId(streamId)
                 .orElseThrow(() -> new IllegalStateException("수신 기록이 없는 Stream 이벤트입니다: " + streamId));
-        boolean firstError = !hasProjectionError();
+        boolean newlyErrored = inbox.getProjectionStatus() != AuctionBidEventProjectionStatus.ERROR;
         inbox.markError(exception.getClass().getSimpleName() + ": " + exception.getMessage());
         if (inbox.getAuctionId() != null && ("auction.buy-now.v1".equals(inbox.getEventType())
                 || inbox.getEventType().startsWith("order."))) {
             orderRealtimeStateProjection.ifPresent(projection -> projection.markProjectionError(inbox.getAuctionId()));
         }
-        return firstError;
+        return newlyErrored;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

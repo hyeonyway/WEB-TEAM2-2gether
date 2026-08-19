@@ -129,7 +129,7 @@ public class AuctionBidStreamConsumer implements SmartLifecycle {
             event = AuctionWalletTimelineEvent.from(record.getId().getValue(), values);
         } catch (InvalidBidStreamEventException exception) {
             AuctionTimelineEvent inbox = persistenceService.recordMalformed(record.getId().getValue(), values);
-            if (!persistenceService.hasProjectionError() && persistenceService.markError(inbox.getStreamId(), exception)) {
+            if (persistenceService.markError(inbox.getStreamId(), exception)) {
                 log.error("event=auction.bid.stream.projection.error streamId={} malformed=true", inbox.getStreamId(), exception);
             }
             acknowledgeAndDelete(record);
