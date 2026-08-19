@@ -27,7 +27,7 @@ export default function AuctionPage(){
   const initialSort=sorts.some(([,value])=>value===requestedSort)?requestedSort as AuctionListRequestDto['sort']:'LATEST';
   const[query,setQuery]=useState(requestedKeyword);
   const debouncedQuery=useDebouncedValue(query);
-  const[grade,setGrade]=useState('');
+  const[grade,setGrade]=useState(()=>searchParams.get('psaGrade')??'');
   const sort=initialSort;
   const listRequest={keyword:debouncedQuery,psaGrade:grade||null,sort,size:PAGE_SIZE};
   const listOptions=auctionQueries.list(listRequest,viewerScope);
@@ -85,8 +85,8 @@ export default function AuctionPage(){
     <div className="card-page-title"><h2>카드 경매</h2><span>전체 경매</span></div>
     <label className="card-search"><Search/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="경매 카드 검색..."/></label>
     <div className="card-toolbar"><div>{sorts.map(([label,value])=><button key={value} className={sort===value?'active':''} onClick={()=>setSearchParams(current=>{current.set('sort',value);return current;},{replace:true})}>{label}</button>)}</div>
-      <label className="grade-filter"><select value={grade} onChange={event=>setGrade(event.target.value)} aria-label="PSA 등급 필터">
-        <option value="">PSA 등급</option>{Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}
+      <label className="grade-filter"><select value={grade} onChange={event=>{const value=event.target.value;setGrade(value);setSearchParams(current=>{const next=new URLSearchParams(current);if(value)next.set('psaGrade',value);else next.delete('psaGrade');return next;},{replace:true})}} aria-label="PSA 등급 필터">
+        <option value="">PSA 등급</option>{Array.from({length:10},(_,index)=>10-index).map(value=><option key={value} value={value}>PSA {value}</option>)}{['민트','근민트','우량','양호','보통','하'].map(value=><option key={value} value={value}>{value}</option>)}
       </select></label>
     </div>
     {isPending?<AuctionCatalogSkeleton/>:error&&!data?<p className="form-error">경매 정보를 불러오지 못했습니다.</p>:<>
