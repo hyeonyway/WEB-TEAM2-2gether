@@ -1,21 +1,29 @@
 package com.dbidding.auction.bid;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.dbidding.card.domain.CardMetadata;
 import com.dbidding.card.domain.CardSet;
 import com.dbidding.card.repository.CardMetadataRepository;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 
 class RedisCardStateReaderTest {
+    @SuppressWarnings("unchecked")
+    private final RedisScript<Long> cardCacheSeedScript = Mockito.mock(RedisScript.class);
+
     @Test
     void 카드_snapshot을_Redis_상태에서_읽는다() {
         StringRedisTemplate redisTemplate = Mockito.mock(StringRedisTemplate.class);
@@ -27,7 +35,8 @@ class RedisCardStateReaderTest {
                 "name", "리자몽", "setName", "base", "psaGrade", "10", "language", "JP", "thumbnailUrl", "/cards/10.png"
         ));
 
-        var snapshot = new RedisCardStateReader(redisTemplate, cardRepository, 86_400, 3_600).getCardSnapshot(10);
+        var snapshot = new RedisCardStateReader(redisTemplate, cardRepository, cardCacheSeedScript, 86_400, 3_600)
+                .getCardSnapshot(10);
 
         assertThat(snapshot.cardId()).isEqualTo(10);
         assertThat(snapshot.name()).isEqualTo("리자몽");
@@ -36,7 +45,7 @@ class RedisCardStateReaderTest {
     }
 
     @Test
-    void cache_miss면_MySQL_snapshot을_적재하고_반환한다() {
+    void cache_miss면_MySQL_snapshot을_적재하고_Lua_스크립트로_원자적으로_반환한다() {
         StringRedisTemplate redisTemplate = Mockito.mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         HashOperations<String, Object, Object> hashes = Mockito.mock(HashOperations.class);
@@ -53,19 +62,25 @@ class RedisCardStateReaderTest {
         Mockito.when(redisTemplate.opsForHash()).thenReturn(hashes);
         Mockito.when(hashes.entries("card:cache:10")).thenReturn(Map.of());
         Mockito.when(cardRepository.findById(10)).thenReturn(Optional.of(card));
+        Mockito.when(redisTemplate.execute(eq(cardCacheSeedScript), anyList(), any(Object[].class))).thenReturn(1L);
 
-        var snapshot = new RedisCardStateReader(redisTemplate, cardRepository, 86_400, 3_600).getCardSnapshot(10);
+        var snapshot = new RedisCardStateReader(redisTemplate, cardRepository, cardCacheSeedScript, 86_400, 3_600)
+                .getCardSnapshot(10);
 
         assertThat(snapshot.name()).isEqualTo("리자몽");
-        verify(hashes).putIfAbsent("card:cache:10", "name", "리자몽");
-        verify(redisTemplate).expire("card:cache:10", java.time.Duration.ofSeconds(86_410));
+        ArgumentCaptor<List<String>> keys = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+        verify(redisTemplate).execute(eq(cardCacheSeedScript), keys.capture(), args.capture());
+        assertThat(keys.getValue()).containsExactly("card:cache:10");
+        assertThat(args.getValue()).containsExactly("리자몽", "base", "10", "JP", "/cards/10.png", "86410");
     }
 
     @Test
     void 카드_ID별_결정적_jitter로_cache_만료를_분산한다() {
         StringRedisTemplate redisTemplate = Mockito.mock(StringRedisTemplate.class);
         CardMetadataRepository cardRepository = Mockito.mock(CardMetadataRepository.class);
-        RedisCardStateReader reader = new RedisCardStateReader(redisTemplate, cardRepository, 86_400, 3_600);
+        RedisCardStateReader reader =
+                new RedisCardStateReader(redisTemplate, cardRepository, cardCacheSeedScript, 86_400, 3_600);
 
         assertThat(reader.ttlFor(10)).isEqualTo(86_410);
         assertThat(reader.ttlFor(11)).isEqualTo(86_411);
@@ -82,7 +97,8 @@ class RedisCardStateReaderTest {
                 "name", "리자몽", "setName", "base", "psaGrade", "10", "language", "JP", "thumbnailUrl", "/cards/10.png"
         ));
 
-        var snapshots = new RedisCardStateReader(redisTemplate, cardRepository, 86_400, 3_600).getCardSnapshots(List.of(10));
+        var snapshots = new RedisCardStateReader(redisTemplate, cardRepository, cardCacheSeedScript, 86_400, 3_600)
+                .getCardSnapshots(List.of(10));
 
         assertThat(snapshots.get(10).setName()).isEqualTo("base");
         verify(cardRepository, never()).findAllById(List.of(10));

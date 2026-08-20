@@ -11,7 +11,6 @@ import com.dbidding.auction.bid.RedisAuctionCreateExecutor;
 import com.dbidding.auction.bid.RedisAuctionCreateResult;
 import com.dbidding.auction.bid.RedisCardStateReader;
 import com.dbidding.auction.domain.Auction;
-import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionStatus;
 import com.dbidding.auction.domain.Bid;
 import com.dbidding.auction.domain.BidStatus;
@@ -35,7 +34,6 @@ import com.dbidding.auction.sse.AuctionStreamPublisher;
 import com.dbidding.card.service.CardService;
 import com.dbidding.card.dto.CardResponses.CardSnapshot;
 import com.dbidding.order.OrderService;
-import com.dbidding.auction.repository.AuctionImageRepository;
 import com.dbidding.auction.repository.AuctionRepository;
 import com.dbidding.auction.repository.BidRepository;
 import com.dbidding.wallet.service.WalletService;
@@ -50,6 +48,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -62,7 +61,7 @@ public class AuctionCommandService {
     private static final int MAX_IMAGE_COUNT = 8;
 
     private final AuctionRepository auctionRepository;
-    private final AuctionImageRepository auctionImageRepository;
+    private final AuctionCreateWriter auctionCreateWriter;
     private final BidRepository bidRepository;
     private final WalletService walletService;
     private final ImageUploadPort imageUploadPort;
@@ -79,7 +78,19 @@ public class AuctionCommandService {
     @Autowired(required = false)
     private RedisCardStateReader redisCardStateReader;
 
-    @Transactional
+    /**
+     * 검증(validateCreateRequest/validatePsaCertification), 카드 스냅샷 조회, 이미지 업로드
+     * 해석(imageUploadPort.resolveImages)은 모두 읽기 전용이거나 외부 I/O이고, DB write는
+     * Redis 프로필에서는 아예 없으며(createInRedis는 Redis/Lua 호출뿐, JPA 접근이 없다) DB
+     * 프로필에서도 실제 INSERT는 {@link AuctionCreateWriter#save}가 자신의 REQUIRES_NEW
+     * 트랜잭션에서 전담한다. 따라서 create() 자체를 {@code @Transactional}로 감쌀 필요가
+     * 없다 — 그렇게 하면 Redis 프로필 경로에서 DB를 전혀 쓰지 않는데도 불필요하게 커넥션
+     * 풀에서 커넥션을 하나 점유하게 된다. 아래 findIdempotentCreateResponse()의 단건 조회는
+     * Spring Data 리포지토리 메서드 자체가 호출마다 자기 트랜잭션을 갖기 때문에 별도의
+     * 앰비언트 트랜잭션이 없어도 안전하고, 그 결과를 매핑하는 createResponse()/
+     * toIdempotentResponse()도 스칼라 getter만 읽어 지연 로딩 이슈가 없다(Auction 엔티티에는
+     * @OneToMany/@ManyToOne 연관관계가 없다).
+     */
     public AuctionCreateResponse create(Integer userId, AuctionCreateRequest request, String idempotencyKey) {
         IdempotencyKeys.validate(idempotencyKey);
         validateCreateRequest(request);
@@ -123,12 +134,22 @@ public class AuctionCommandService {
                 .hyped(false)
                 .build();
         auction.recordCreateIdempotency(idempotencyKey, requestHash);
-        Auction savedAuction = auctionRepository.save(auction);
-        List<AuctionImage> auctionImages = images.stream()
-                .sorted(java.util.Comparator.comparingInt(ImageUploadPort.ResolvedImage::sortOrder))
-                .map(image -> new AuctionImage(savedAuction, image.imagePath()))
-                .toList();
-        auctionImageRepository.saveAll(auctionImages);
+        // 저장(및 이미지 저장)은 AuctionCreateWriter#save에서 REQUIRES_NEW로 별도 물리
+        // 트랜잭션에 태운다. create() 자체는 더 이상 @Transactional이 아니지만, 이 메서드가
+        // 향후 다시 트랜잭션으로 감싸이거나 다른 트랜잭션 컨텍스트 안에서 호출되더라도
+        // 유니크 제약(uk_auctions_user_idempotency) 위반 시 그 앰비언트 트랜잭션이
+        // rollback-only로 오염되지 않도록 REQUIRES_NEW를 유지한다(NotificationEventListener
+        // #saveAndPush와 동일 부류의 문제 — AuctionCreateWriter Javadoc 참고). REQUIRES_NEW
+        // 트랜잭션은 실패해도 완전히 롤백되고 끝나므로, 이 catch 블록에서 안전하게 재조회할
+        // 수 있고, 아래의 이미지/이벤트 발행은 패자 요청에서 전혀 실행되지 않는다(승자 요청이
+        // 이미 발행을 마쳤으므로 중복 발행도 없다).
+        Auction savedAuction;
+        try {
+            savedAuction = auctionCreateWriter.save(auction, images);
+        } catch (DataIntegrityViolationException exception) {
+            return findIdempotentCreateResponseAfterConflict(userId, idempotencyKey, requestHash)
+                    .orElseThrow(() -> exception);
+        }
         AuctionOpenedEvent openedEvent = new AuctionOpenedEvent(
                 savedAuction.getId(),
                 card.cardId(),
@@ -145,11 +166,12 @@ public class AuctionCommandService {
                 savedAuction.getStatus(),
                 now
         );
-        auctionEventPublisher.publishOpened(openedEvent);
-        auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
-
         AuctionCreateResponse response = createResponse(savedAuction);
-        publishCloseScheduleChanged(savedAuction, "auction_created");
+        publishAuctionCreatedSideEffects(savedAuction.getId(), () -> {
+            auctionEventPublisher.publishOpened(openedEvent);
+            auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
+            publishCloseScheduleChanged(savedAuction, "auction_created");
+        });
         return response;
     }
 
@@ -179,11 +201,13 @@ public class AuctionCommandService {
                 created.closeTime(), created.status(), now
         );
         if (!created.replayed()) {
-            auctionEventPublisher.publishOpened(openedEvent);
-            auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
-            eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
-                    created.auctionId(), created.closeTime(), "auction_created"
-            ));
+            publishAuctionCreatedSideEffects(created.auctionId(), () -> {
+                auctionEventPublisher.publishOpened(openedEvent);
+                auctionStreamPublisher.publish(AuctionStreamPayload.created(openedEvent));
+                eventPublisher.publishEvent(new AuctionCloseScheduleChangedEvent(
+                        created.auctionId(), created.closeTime(), "auction_created"
+                ));
+            });
         }
         return AuctionCreateResponse.builder()
                 .id(created.auctionId())
@@ -191,6 +215,25 @@ public class AuctionCommandService {
                 .startsAt(created.occurredAt())
                 .endsAt(created.closeTime())
                 .build();
+    }
+
+    /**
+     * 경매 생성(및 이미지) 저장은 이미 durable하게 커밋된 뒤(MySQL REQUIRES_NEW 트랜잭션
+     * 커밋 또는 Redis Lua 스크립트의 ACCEPTED 반환) 실행되는, 위시리스트 알림용
+     * {@code AuctionOpenedEvent} 발행 / SSE "경매 생성" 브로드캐스트 / 마감 스케줄 갱신
+     * 이벤트 발행을 하나로 묶는다. 이들은 부가적인 side-channel 통지일 뿐이고, 경매 자체는
+     * 이미 성공적으로 생성되어 있으므로 여기서 예외(e.g. Redis 다운으로 인한
+     * RedisConnectionFailureException)가 나더라도 클라이언트 응답을 실패시키면 안 된다.
+     * 게다가 idempotency 키로 재시도해도 위 저장 단계는 이미 커밋된 레코드를 그대로 반환하는
+     * 경로를 타서 이 발행 블록이 다시 실행되지 않으므로, 여기서 예외를 전파하면 알림/SSE
+     * 브로드캐스트가 재시도 기회 없이 영구 유실된다. 그래서 실패는 로그로만 남기고 삼킨다.
+     */
+    private void publishAuctionCreatedSideEffects(Integer auctionId, Runnable publishActions) {
+        try {
+            publishActions.run();
+        } catch (RuntimeException exception) {
+            log.error("event=auction.create.publish_failed auctionId={}", auctionId, exception);
+        }
     }
 
     private CardSnapshot cardSnapshotForCreate(Integer itemId) {
@@ -350,10 +393,32 @@ public class AuctionCommandService {
             String idempotencyKey,
             String requestHash
     ) {
-        Optional<Auction> existingAuction = auctionRepository.findBySellerIdAndCreateIdempotencyKey(
-                sellerId,
-                idempotencyKey
+        return toIdempotentResponse(
+                auctionRepository.findBySellerIdAndCreateIdempotencyKey(sellerId, idempotencyKey),
+                requestHash
         );
+    }
+
+    /**
+     * uk_auctions_user_idempotency 위반 이후의 재조회 전용. create() 자체는 트랜잭션을 열지
+     * 않으므로 위 {@link #findIdempotentCreateResponse}의 첫 조회도 이미 자신만의 스냅샷으로
+     * 끝나 있지만, 그래도 이 재조회는 {@link AuctionCreateWriter#findAfterConflict}를 통해
+     * 명시적으로 새 트랜잭션(REQUIRES_NEW)에서 실행한다 — create()가 앞으로 다시
+     * 트랜잭션으로 감싸이더라도(#393과 동일한 이유로 REPEATABLE READ 스냅샷이 고정될 수
+     * 있으므로) 방금 경쟁자가 커밋한 승자 레코드를 확실히 볼 수 있도록 하기 위함이다.
+     */
+    private Optional<AuctionCreateResponse> findIdempotentCreateResponseAfterConflict(
+            Integer sellerId,
+            String idempotencyKey,
+            String requestHash
+    ) {
+        return toIdempotentResponse(
+                auctionCreateWriter.findAfterConflict(sellerId, idempotencyKey),
+                requestHash
+        );
+    }
+
+    private Optional<AuctionCreateResponse> toIdempotentResponse(Optional<Auction> existingAuction, String requestHash) {
         if (existingAuction.isEmpty()) {
             return Optional.empty();
         }

@@ -277,16 +277,54 @@ class AuctionBidStreamPersistenceServiceTest {
     }
 
     @Test
-    void projection_오류는_inbox에_기록하고_첫_오류임을_반환한다() {
+    void projection_오류는_inbox에_기록하고_이_항목이_새로_ERROR로_전이했음을_반환한다() {
         AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
         com.dbidding.auction.domain.AuctionTimelineEvent event = org.mockito.Mockito.mock(com.dbidding.auction.domain.AuctionTimelineEvent.class);
         given(event.getEventType()).willReturn("wallet.charged.v1");
+        given(event.getProjectionStatus()).willReturn(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING);
         given(inboxRepository.findByStreamId("error-1")).willReturn(java.util.Optional.of(event));
-        given(inboxRepository.existsByProjectionStatus(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.ERROR)).willReturn(false);
 
         assertThat(service.markError("error-1", new IllegalStateException("failed"))).isTrue();
 
         verify(event).markError("IllegalStateException: failed");
+    }
+
+    @Test
+    void 서로_다른_두_경매가_각각_독립적으로_ERROR가_되면_둘_다_새_오류로_보고된다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        com.dbidding.auction.domain.AuctionTimelineEvent auctionAEvent = org.mockito.Mockito.mock(com.dbidding.auction.domain.AuctionTimelineEvent.class);
+        com.dbidding.auction.domain.AuctionTimelineEvent auctionBEvent = org.mockito.Mockito.mock(com.dbidding.auction.domain.AuctionTimelineEvent.class);
+        given(auctionAEvent.getEventType()).willReturn("wallet.charged.v1");
+        given(auctionBEvent.getEventType()).willReturn("wallet.charged.v1");
+        given(auctionAEvent.getProjectionStatus()).willReturn(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING);
+        given(auctionBEvent.getProjectionStatus()).willReturn(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.PENDING);
+        given(inboxRepository.findByStreamId("auction-a-1")).willReturn(java.util.Optional.of(auctionAEvent));
+        given(inboxRepository.findByStreamId("auction-b-1")).willReturn(java.util.Optional.of(auctionBEvent));
+
+        // 경매 A가 먼저 ERROR로 전이한다. (findNextEligiblePending()의 전역 조회 결과와 무관하게)
+        boolean auctionAShouldLog = service.markError("auction-a-1", new IllegalStateException("auction A failed"));
+        // 이 시점에 이미 시스템에는 ERROR 상태의 이벤트가 존재하지만(경매 A), 이후 완전히
+        // 무관한 경매 B의 실패도 독립적으로 로깅 대상이어야 head-of-line-blocking 회피 설계에서
+        // 두 경매 모두 운영자에게 알림이 간다.
+        boolean auctionBShouldLog = service.markError("auction-b-1", new IllegalStateException("auction B failed"));
+
+        assertThat(auctionAShouldLog).isTrue();
+        assertThat(auctionBShouldLog).isTrue();
+        verify(auctionAEvent).markError("IllegalStateException: auction A failed");
+        verify(auctionBEvent).markError("IllegalStateException: auction B failed");
+    }
+
+    @Test
+    void 이미_ERROR였던_항목을_다시_markError해도_새_오류로_보고하지_않는다() {
+        AuctionBidStreamPersistenceService service = service(java.util.Optional.empty());
+        com.dbidding.auction.domain.AuctionTimelineEvent event = org.mockito.Mockito.mock(com.dbidding.auction.domain.AuctionTimelineEvent.class);
+        given(event.getEventType()).willReturn("wallet.charged.v1");
+        given(event.getProjectionStatus()).willReturn(com.dbidding.auction.domain.AuctionBidEventProjectionStatus.ERROR);
+        given(inboxRepository.findByStreamId("already-error-1")).willReturn(java.util.Optional.of(event));
+
+        assertThat(service.markError("already-error-1", new IllegalStateException("failed again"))).isFalse();
+
+        verify(event).markError("IllegalStateException: failed again");
     }
 
     @Test

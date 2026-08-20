@@ -239,8 +239,8 @@ public class DbBidExecutor implements BidExecutor {
     }
 
     private boolean shouldReleasePreviousHoldFirst(Bid previousLeadingBid, Integer currentBidderId) {
-        return requiresPreviousHoldRelease(previousLeadingBid, currentBidderId)
-                && previousLeadingBid.getBidderId() < currentBidderId;
+        Integer previousBidderId = previousLeadingBid == null ? null : previousLeadingBid.getBidderId();
+        return WalletService.shouldReleaseBeforeHold(previousBidderId, currentBidderId);
     }
 
     private AuctionCloseData closeLockedAuction(Auction auction, Instant closedAt) {

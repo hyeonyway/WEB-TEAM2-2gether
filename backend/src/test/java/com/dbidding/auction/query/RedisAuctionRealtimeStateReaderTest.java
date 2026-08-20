@@ -140,4 +140,33 @@ class RedisAuctionRealtimeStateReaderTest {
         assertThat(realtime.myBidStatus()).isEqualTo(MyBidStatus.NONE);
         assertThat(realtime.myBidAmount()).isNull();
     }
+
+    @Test
+    void 최근_입찰_스트림의_손상된_레코드_하나가_myBidState까지_날리지_않는다() {
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(redisTemplate.opsForStream()).thenReturn(streamOperations);
+        var auctionState = new RedisAuctionRealtimeStateReader.AuctionState(
+                10, AuctionStatus.OPEN, 1, 10, "리자몽", "base", "10", "JP", "/cards/charizard.png",
+                "경매", "설명", null, null, null, false, 40_000L, 43_000L, 3_000L, 7, null, 3_000L,
+                Instant.parse("2026-08-10T00:00:00Z"), Instant.parse("2026-08-10T01:05:00Z"), List.of("/auctions/1.png")
+        );
+        var stored = new RedisAuctionRealtimeStateReader.StoredAuctionState(auctionState, 2);
+        when(hashOperations.entries("auction:bidder:10:2")).thenReturn(Map.of("status", "LEADING", "amount", "43000"));
+        // bidderId가 없는(옛 스키마 잔재 등으로 손상된) 레코드 하나와, 정상 레코드 하나가 섞여 있다.
+        MapRecord<String, Object, Object> corrupted = MapRecord.create("auction:recent-bids:10", Map.of(
+                "bidPrice", "43000", "sequence", "8", "occurredAt", "2026-08-10T00:02:00Z"
+        ));
+        MapRecord<String, Object, Object> valid = MapRecord.create("auction:recent-bids:10", Map.of(
+                "bidderId", "2", "bidPrice", "40000", "sequence", "7", "occurredAt", "2026-08-10T00:00:00Z"
+        ));
+        when(streamOperations.reverseRange(eq("auction:recent-bids:10"), any(), any()))
+                .thenReturn(List.of(corrupted, valid));
+
+        var realtime = new RedisAuctionRealtimeStateReader(redisTemplate).read(stored, 2);
+
+        assertThat(realtime).isNotNull();
+        assertThat(realtime.myBidStatus()).isEqualTo(MyBidStatus.LEADING);
+        assertThat(realtime.myBidAmount()).isEqualTo(43_000L);
+        assertThat(realtime.recentBids()).extracting(item -> item.id()).containsExactly(-7L);
+    }
 }

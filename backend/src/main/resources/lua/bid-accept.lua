@@ -23,6 +23,11 @@ local closeTimeEpochMillis = tonumber(redis.call('HGET', KEYS[1], 'closeTimeEpoc
 local estimatedCloseTime = redis.call('HGET', KEYS[1], 'estimatedCloseTime') or closeTime
 local highestBidderId = redis.call('HGET', KEYS[1], 'highestBidderId')
 local highestHoldAmount = tonumber(redis.call('HGET', KEYS[1], 'highestHoldAmount') or '0')
+-- 'sequence'는 입찰마다 정확히 1씩 증가하는 경매별 버전 카운터라, 아래 HINCRBY(라인 88 부근)로
+-- 덮어쓰기 전 이 값은 곧 "현재 최고 입찰(이번에 밀려날 입찰)" 자신의 버전과 같다. 콜드시드
+-- (RedisAuctionStateSeeder)도 이 필드를 auction.lastBidEventVersion으로 채우므로, 최고
+-- 입찰이 Redis 네이티브든 DB에서 시드됐든 항상 성립한다.
+local previousSequence = tonumber(redis.call('HGET', KEYS[1], 'sequence') or '0')
 local requestedPrice = tonumber(ARGV[2])
 local buyNowPrice = tonumber(redis.call('HGET', KEYS[1], 'buyNowPrice'))
 local cardName = redis.call('HGET', KEYS[1], 'cardName') or ''
@@ -68,6 +73,10 @@ redis.call('HSET', KEYS[2], 'availableBalance', newAvailableString, 'frozenBalan
 redis.call('HSET', KEYS[3], 'amount', priceString)
 
 local previousBidderId = highestBidderId or ''
+-- 아직 MySQL에 없는 Redis 전용 입찰의 식별자는 음수 sequence로 표기하는 관례를 따른다
+-- (RedisAuctionRealtimeStateReader.summary()의 "-sequence" 관례 참고). 여기서도 밀려나는
+-- 이전 최고 입찰 자신의 버전을 음수로 넘겨 "이번 입찰 자신의 버전"과 혼동하지 않게 한다.
+local previousBidVersionString = previousBidderId == '' and 'null' or integerString(-previousSequence)
 local previousAvailable = ''
 local previousFrozen = ''
 local previousWalletVersion = ''
@@ -148,7 +157,7 @@ if buyNow then
     pendingOrderStatus = 'PENDING'
 end
 
-local result = 'ACCEPTED|' .. streamId .. '|' .. priceString .. '|' .. auctionVersionString .. '|' .. bidCountString
+local result = 'ACCEPTED|' .. streamId .. '|' .. priceString .. '|' .. previousBidVersionString .. '|' .. bidCountString
     .. '|' .. newAvailableString .. '|' .. integerString(newFrozen) .. '|' .. bidderWalletVersionString
     .. '|' .. integerString(price + bidIncrement) .. '|' .. nextCloseTime
     .. '|' .. (buyNow and 'WON' or 'LEADING') .. '|' .. pendingOrderStatus

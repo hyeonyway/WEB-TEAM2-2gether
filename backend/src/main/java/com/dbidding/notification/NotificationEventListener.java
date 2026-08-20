@@ -66,7 +66,11 @@ public class NotificationEventListener {
     @Async("notificationTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleBidPlaced(BidPlacedEvent event) {
-        if (event.previousBidderId() == null) {
+        // previousBidderId가 bidderId와 같을 수 있다: 선두 입찰자 본인이 자기 입찰 위에 즉시낙찰(buy-now)한
+        // 경우, "직전 입찰"이 실제로 본인 것이라 이렇게 채워진다(#613). 이 경우 상회당한 타인이 없으므로
+        // 알림을 스킵한다. previousBidderId 자체는 다른 소비자(AuctionStreamPayload → SSE)가 진짜 값을
+        // 필요로 해 여기서 null로 정규화하지 않는다.
+        if (event.previousBidderId() == null || event.previousBidderId().equals(event.bidderId())) {
             return;
         }
         String cardName = cardPriceService.getCard(event.itemId(), 1).name();

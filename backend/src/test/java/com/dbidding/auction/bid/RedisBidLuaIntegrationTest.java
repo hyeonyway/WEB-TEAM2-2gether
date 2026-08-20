@@ -72,10 +72,15 @@ class RedisBidLuaIntegrationTest {
                 "availableBalance", "100000", "frozenBalance", "0", "walletVersion", "9"
         ));
 
-        executor.execute(new BidCommand(2, 1, 43_000L, "request-1"));
+        BidExecutionResult response = executor.execute(new BidCommand(2, 1, 43_000L, "request-1"));
 
         assertThat(redisTemplate.opsForHash().get("auction:state:1", "currentPrice")).isEqualTo("43000");
         assertThat(redisTemplate.opsForHash().get("auction:state:1", "sequence")).isEqualTo("7");
+        // 이전 최고 입찰자(bidderId=1)는 sequence=6에서 최고가였다. previousBidId는 새 입찰
+        // 자신의 auctionVersion(7)이 아니라, 밀려나는 이전 최고 입찰 자신의 버전(6)을 음수로
+        // 표기한 값이어야 한다(#613) - 아직 MySQL에 projection되지 않아 실제 PK가 없다.
+        assertThat(response.eventData().previousBidderId()).isEqualTo(1);
+        assertThat(response.eventData().previousBidId()).isEqualTo(-6L);
         assertThat(redisTemplate.opsForHash().get("wallet:balance:2", "availableBalance")).isEqualTo("57000");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:2", "frozenBalance")).isEqualTo("43000");
         assertThat(redisTemplate.opsForHash().get("wallet:balance:1", "availableBalance")).isEqualTo("100000");

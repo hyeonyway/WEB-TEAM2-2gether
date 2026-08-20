@@ -13,6 +13,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
@@ -56,7 +57,12 @@ class RedisCardStateReaderColdMissIntegrationTest {
             HashOperations<String, Object, Object> hashes = Mockito.mock(HashOperations.class);
             Mockito.when(redisTemplate.opsForHash()).thenReturn(hashes);
             Mockito.when(hashes.entries(Mockito.anyString())).thenReturn(Map.of());
-            RedisCardStateReader reader = new RedisCardStateReader(redisTemplate, cardMetadataRepository, 86_400, 3_600);
+            @SuppressWarnings("unchecked")
+            RedisScript<Long> cardCacheSeedScript = Mockito.mock(RedisScript.class);
+            Mockito.when(redisTemplate.execute(Mockito.eq(cardCacheSeedScript), Mockito.anyList(), Mockito.any(Object[].class)))
+                    .thenReturn(1L);
+            RedisCardStateReader reader =
+                    new RedisCardStateReader(redisTemplate, cardMetadataRepository, cardCacheSeedScript, 86_400, 3_600);
 
             Map<Integer, CardSnapshot> snapshots = reader.getCardSnapshots(List.of(cardId));
 

@@ -1,5 +1,6 @@
 package com.dbidding.auction.service;
 
+import com.dbidding.auction.BidderAlias;
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionImage;
 import com.dbidding.auction.domain.AuctionSort;
@@ -41,6 +42,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class DbAuctionQueryService {
+
+    /**
+     * 판매자별 유찰 목록은 페이지네이션 없이 전량 반환되므로, 유찰이 누적된 판매자의 응답이
+     * 무한정 커지지 않도록 내부적으로 상한을 둔다. 전체 페이지네이션 전환은 프런트엔드의
+     * 응답 형태 변경(배열 -> 페이지 응답)이 함께 필요한 후속 작업으로 남겨둔다.
+     */
+    public static final int MAX_FAILED_AUCTIONS = 100;
+
     private final AuctionRepository auctionRepository;
     private final AuctionImageRepository auctionImageRepository;
     private final BidRepository bidRepository;
@@ -107,7 +116,7 @@ public class DbAuctionQueryService {
 
     public List<AuctionResponses.FailedAuctionSummary> getFailedAuctions(Integer sellerId) {
         List<Auction> auctions = auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(
-                sellerId, AuctionStatus.FAILED);
+                sellerId, AuctionStatus.FAILED, PageRequest.of(0, MAX_FAILED_AUCTIONS));
         Map<Integer, CardSnapshot> cards = cardSnapshots(auctions);
         return auctions.stream()
                 .map(auction -> new AuctionResponses.FailedAuctionSummary(
@@ -338,17 +347,10 @@ public class DbAuctionQueryService {
         return BidResponses.BidSummary.builder()
                 .id(bid.getId())
                 .amount(bid.getBidPrice())
-                .bidderAlias(bidderAlias(bid.getBidderId()))
+                .bidderAlias(BidderAlias.mask(bid.getBidderId()))
                 .isHighest(Objects.equals(bid.getId(), highestBidId))
                 .createdAt(bid.getCreatedAt())
                 .build();
-    }
-
-    private String bidderAlias(Integer bidderId) {
-        String value = String.valueOf(bidderId);
-        return value.length() <= 2
-                ? "user-" + value + "***"
-                : "user-" + value.substring(0, 2) + "***";
     }
 
     private MyBidStatus myBidStatus(Bid bid) {
