@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,51 @@ class SseEmitterRegistryTest {
         assertThat(overlapDetected).isFalse();
         assertThat(registry.emittersFor(10)).containsExactly(emitter);
         assertThat(registry.emittersFor(20)).containsExactly(emitter);
+    }
+
+    @Test
+    void 이미_전송_중인_emitter에_보내면_블로킹_없이_즉시_버려진다() throws Exception {
+        // #615 — 예전엔 emitter별 send를 ReentrantLock.lock()(무제한 대기)으로 직렬화해서,
+        // 죽은 클라이언트 하나가 emitter.send() 안에서 영원히(또는 아주 오래) 블로킹되면
+        // 그 뒤로 도착하는 모든 이벤트가 새 가상스레드를 만들어 이 락을 무제한 대기하며
+        // 동시성 캡의 permit을 반납 없이 계속 붙잡았다 — 죽은 클라이언트 1개가 전역 캡
+        // 전체를 잠식할 수 있었다(슬로우 리더 부하테스트에서 실측). tryLock()+discard로
+        // 바꿔서, 이미 전송 중인 emitter에 또 보내려 하면 블로킹 없이 즉시 버려지는지
+        // (=호출 스레드가 안 막히는지) 검증한다.
+        SseEmitterRegistry<Integer> registry = new SseEmitterRegistry<>(new SseMetrics(new SimpleMeterRegistry(), "test"));
+        SseEmitter emitter = mock(SseEmitter.class);
+        registry.register(Set.of(10), emitter, null);
+
+        CountDownLatch sendStarted = new CountDownLatch(1);
+        CountDownLatch releaseSend = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            sendStarted.countDown();
+            assertThat(releaseSend.await(2, TimeUnit.SECONDS)).isTrue();
+            return null;
+        }).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Boolean> firstSend = executor.submit(
+                    () -> registry.send(emitter, SseEmitter.event().comment("first")));
+            assertThat(sendStarted.await(2, TimeUnit.SECONDS)).isTrue();
+
+            // firstSend가 아직 emitter.send() 안에서 블로킹 중인 상태에서 두 번째 이벤트를
+            // 보낸다 — 락을 무제한 대기하지 않고 즉시(=아주 짧은 시간 안에) 리턴해야 한다.
+            Future<Boolean> secondSend = executor.submit(
+                    () -> registry.send(emitter, SseEmitter.event().comment("second")));
+            boolean discarded = secondSend.get(200, TimeUnit.MILLISECONDS);
+
+            assertThat(discarded).isTrue();
+            releaseSend.countDown();
+            assertThat(firstSend.get(2, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            executor.shutdown();
+        }
+
+        // "second"는 버려졌으므로 emitter.send()는 connected(등록 시 1회) + first(1회) =
+        // 2번만 호출된다.
+        verify(emitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
     }
 
     @Test
