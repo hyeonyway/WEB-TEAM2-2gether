@@ -6,9 +6,11 @@ import com.dbidding.auction.domain.MyBidStatus;
 import com.dbidding.auction.dto.BidResponses;
 import com.dbidding.global.redis.RedisIntegerValue;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Component;
  * <p>현재 키 형식은 단일 Redis 인스턴스를 전제로 한다. Cluster로 확장할 때는 Lua에서 함께
  * 접근하는 경매 키에 같은 hash tag를 적용해야 한다.</p>
  */
+@Slf4j
 @Component
 @Profile("redis")
 public class RedisAuctionRealtimeStateReader {
@@ -40,14 +43,16 @@ public class RedisAuctionRealtimeStateReader {
 
     public RealtimeState read(StoredAuctionState stored, Integer userId) {
         Integer auctionId = stored.state().auctionId();
+        // recentBids 파싱 실패는 그 목록만 비우고, myBidState는 별도로 파싱해 서로의 실패가 섞이지 않게 한다.
+        List<BidResponses.BidSummary> recentBids = recentBids(auctionId, stored.highestBidderId());
         try {
             AuctionState state = stored.state();
-            List<BidResponses.BidSummary> recentBids = recentBids(auctionId, stored.highestBidderId());
             Map<Object, Object> myBid = userId == null ? Map.of() : redisTemplate.opsForHash().entries(bidderKey(auctionId, userId));
-            MyBidState myBidState = parseMyBidStateOrNone(myBid);
+            MyBidState myBidState = parseMyBidStateOrNone(auctionId, userId, myBid);
             return new RealtimeState(state.status(), state.currentPrice(), state.bidIncrement(), state.bidCount(), state.closeTime(), state.buyNowPrice(),
                     myBidState.status(), myBidState.amount(), recentBids);
         } catch (IllegalArgumentException | ArithmeticException exception) {
+            log.warn("event=auction.redis_state.read_failed auctionId={} userId={}", auctionId, userId, exception);
             return null;
         }
     }
@@ -62,14 +67,15 @@ public class RedisAuctionRealtimeStateReader {
         Map<Object, Object> fields = redisTemplate.opsForHash().entries(stateKey(auctionId));
         AuctionState state = parseAuctionState(auctionId, fields);
         if (state == null) return null;
-        return new StoredAuctionState(state, highestBidderId(fields));
+        return new StoredAuctionState(state, highestBidderId(auctionId, fields));
     }
 
     /** highestBidderId 하나가 손상돼도 나머지 필드로 만들어진 state 자체는 살린다. */
-    private Integer highestBidderId(Map<Object, Object> fields) {
+    private Integer highestBidderId(Integer auctionId, Map<Object, Object> fields) {
         try {
             return nullableInteger(fields.get("highestBidderId"));
         } catch (IllegalArgumentException | ArithmeticException exception) {
+            log.warn("event=auction.redis_state.highest_bidder_parse_failed auctionId={}", auctionId, exception);
             return null;
         }
     }
@@ -106,7 +112,7 @@ public class RedisAuctionRealtimeStateReader {
         for (int index = 0; index < participatingIds.size(); index++) {
             Map<Object, Object> fields = fieldsList.get(index);
             // 손상된(파싱 불가) bidder state는 미참여 상태로 취급한다 - read(StoredAuctionState, Integer)와 동일한 처리.
-            if (!fields.isEmpty()) states.put(participatingIds.get(index), parseMyBidStateOrNone(fields));
+            if (!fields.isEmpty()) states.put(participatingIds.get(index), parseMyBidStateOrNone(participatingIds.get(index), userId, fields));
         }
         return states;
     }
@@ -140,6 +146,7 @@ public class RedisAuctionRealtimeStateReader {
                     optionalInstant(fields.get("estimatedCloseTime")).orElse(Instant.parse(required(fields, "closeTime")))
             );
         } catch (IllegalArgumentException | ArithmeticException exception) {
+            log.warn("event=auction.redis_state.parse_failed auctionId={}", auctionId, exception);
             return null;
         }
     }
@@ -159,10 +166,11 @@ public class RedisAuctionRealtimeStateReader {
     }
 
     /** 손상된 bidder state를 미참여(NONE)로 취급한다 - 목록 조회와 단건 조회가 같은 기준으로 fallback한다. */
-    private MyBidState parseMyBidStateOrNone(Map<Object, Object> fields) {
+    private MyBidState parseMyBidStateOrNone(Integer auctionId, Integer userId, Map<Object, Object> fields) {
         try {
             return parseMyBidState(fields);
         } catch (IllegalArgumentException | ArithmeticException exception) {
+            log.warn("event=auction.redis_state.my_bid_parse_failed auctionId={} userId={}", auctionId, userId, exception);
             return new MyBidState(MyBidStatus.NONE, null);
         }
     }
@@ -203,12 +211,22 @@ public class RedisAuctionRealtimeStateReader {
                 state.buyNowPrice(), stored.highestBidderId());
     }
 
+    /** 스트림 레코드 하나가 손상돼도(예: 옛 스키마 잔재) 그 레코드만 건너뛰고 나머지 최근 입찰은 살린다. */
     private List<BidResponses.BidSummary> recentBids(Integer auctionId, Integer highestBidderId) {
         List<MapRecord<String, Object, Object>> records = redisTemplate.opsForStream().reverseRange(
                 recentBidKey(auctionId), Range.unbounded(), org.springframework.data.redis.connection.Limit.limit().count(5)
         );
         if (records == null) return List.of();
-        return records.stream().map(record -> summary(record, highestBidderId)).toList();
+        List<BidResponses.BidSummary> summaries = new ArrayList<>();
+        for (MapRecord<String, Object, Object> record : records) {
+            try {
+                summaries.add(summary(record, highestBidderId));
+            } catch (IllegalArgumentException | ArithmeticException exception) {
+                log.warn("event=auction.redis_state.recent_bid_entry_parse_failed auctionId={} recordId={}",
+                        auctionId, record.getId(), exception);
+            }
+        }
+        return summaries;
     }
 
     private BidResponses.BidSummary summary(MapRecord<String, Object, Object> record, Integer highestBidderId) {
