@@ -156,13 +156,16 @@ class DbAuctionQueryServiceTest {
         Bid older = bid(1L, 3, auction, 44_000L, BidStatus.OUTBID);
         given(bidRepository.findByBidderIdOrderByCreatedAtDescIdDesc(3)).willReturn(List.of(latest, older));
         given(cardService.getCardSnapshots(List.of(1))).willReturn(Map.of(1, card()));
-        given(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).willReturn(List.of());
+        AuctionImage uploadedImage = new AuctionImage(auction, "/uploads/front.png");
+        ReflectionTestUtils.setField(uploadedImage, "id", 11);
+        given(auctionImageRepository.findByAuctionIdInOrderById(List.of(1))).willReturn(List.of(uploadedImage));
 
         var response = service.getDashboardAuctions(3);
 
         assertThat(response).singleElement().satisfies(item -> {
             assertThat(item.id()).isEqualTo(1);
             assertThat(item.bidAmount()).isEqualTo(45_000L);
+            assertThat(item.card().thumbnailUrl()).isEqualTo("/cards/original.png");
         });
     }
 

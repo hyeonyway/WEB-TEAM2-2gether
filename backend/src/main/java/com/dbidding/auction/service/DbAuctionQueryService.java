@@ -274,7 +274,7 @@ public class DbAuctionQueryService {
     ) {
         Auction auction = bid.getAuction();
         return new AuctionResponses.DashboardAuction(
-                auction.getId(), auction.getSellerId(), cardSummary(card, representativeImage),
+                auction.getId(), auction.getSellerId(), cardSummary(card, null),
                 auction.getStartPrice(), auction.getCurrentPrice(), auction.getBidPriceUnit(),
                 auction.getBidCount(), auction.getEstimatedCloseTime(), auction.getCloseTime(),
                 auction.getStatus(), bid.getStatus(), bid.getBidPrice());
