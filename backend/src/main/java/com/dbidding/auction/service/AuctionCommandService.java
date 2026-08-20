@@ -78,7 +78,19 @@ public class AuctionCommandService {
     @Autowired(required = false)
     private RedisCardStateReader redisCardStateReader;
 
-    @Transactional
+    /**
+     * 검증(validateCreateRequest/validatePsaCertification), 카드 스냅샷 조회, 이미지 업로드
+     * 해석(imageUploadPort.resolveImages)은 모두 읽기 전용이거나 외부 I/O이고, DB write는
+     * Redis 프로필에서는 아예 없으며(createInRedis는 Redis/Lua 호출뿐, JPA 접근이 없다) DB
+     * 프로필에서도 실제 INSERT는 {@link AuctionCreateWriter#save}가 자신의 REQUIRES_NEW
+     * 트랜잭션에서 전담한다. 따라서 create() 자체를 {@code @Transactional}로 감쌀 필요가
+     * 없다 — 그렇게 하면 Redis 프로필 경로에서 DB를 전혀 쓰지 않는데도 불필요하게 커넥션
+     * 풀에서 커넥션을 하나 점유하게 된다. 아래 findIdempotentCreateResponse()의 단건 조회는
+     * Spring Data 리포지토리 메서드 자체가 호출마다 자기 트랜잭션을 갖기 때문에 별도의
+     * 앰비언트 트랜잭션이 없어도 안전하고, 그 결과를 매핑하는 createResponse()/
+     * toIdempotentResponse()도 스칼라 getter만 읽어 지연 로딩 이슈가 없다(Auction 엔티티에는
+     * @OneToMany/@ManyToOne 연관관계가 없다).
+     */
     public AuctionCreateResponse create(Integer userId, AuctionCreateRequest request, String idempotencyKey) {
         IdempotencyKeys.validate(idempotencyKey);
         validateCreateRequest(request);
@@ -122,15 +134,15 @@ public class AuctionCommandService {
                 .hyped(false)
                 .build();
         auction.recordCreateIdempotency(idempotencyKey, requestHash);
-        // 저장(및 이미지 저장)만 AuctionCreateWriter#save에서 REQUIRES_NEW로 별도 물리
-        // 트랜잭션에 태운다 — create() 전체가 하나의 트랜잭션이라, 여기서 유니크 제약
-        // (uk_auctions_user_idempotency) 위반이 나면 catch를 해도 이 트랜잭션 자체가
-        // rollback-only로 마킹되어 이후 재조회가 커밋 시점에 UnexpectedRollbackException으로
-        // 실패한다(NotificationEventListener#saveAndPush와 동일 부류의 문제이지만, 그쪽은
-        // 호출부에 애초에 활성 트랜잭션이 없어 이 분리가 필요 없었다 — AuctionCreateWriter
-        // Javadoc 참고). REQUIRES_NEW 트랜잭션은 실패해도 완전히 롤백되고 끝나므로, 이 catch
-        // 블록에서 안전하게 재조회할 수 있고, 아래의 이미지/이벤트 발행은 패자 요청에서
-        // 전혀 실행되지 않는다(승자 요청이 이미 발행을 마쳤으므로 중복 발행도 없다).
+        // 저장(및 이미지 저장)은 AuctionCreateWriter#save에서 REQUIRES_NEW로 별도 물리
+        // 트랜잭션에 태운다. create() 자체는 더 이상 @Transactional이 아니지만, 이 메서드가
+        // 향후 다시 트랜잭션으로 감싸이거나 다른 트랜잭션 컨텍스트 안에서 호출되더라도
+        // 유니크 제약(uk_auctions_user_idempotency) 위반 시 그 앰비언트 트랜잭션이
+        // rollback-only로 오염되지 않도록 REQUIRES_NEW를 유지한다(NotificationEventListener
+        // #saveAndPush와 동일 부류의 문제 — AuctionCreateWriter Javadoc 참고). REQUIRES_NEW
+        // 트랜잭션은 실패해도 완전히 롤백되고 끝나므로, 이 catch 블록에서 안전하게 재조회할
+        // 수 있고, 아래의 이미지/이벤트 발행은 패자 요청에서 전혀 실행되지 않는다(승자 요청이
+        // 이미 발행을 마쳤으므로 중복 발행도 없다).
         Auction savedAuction;
         try {
             savedAuction = auctionCreateWriter.save(auction, images);
@@ -388,12 +400,12 @@ public class AuctionCommandService {
     }
 
     /**
-     * uk_auctions_user_idempotency 위반 이후의 재조회 전용. create()의 첫 조회(위 {@link
-     * #findIdempotentCreateResponse})가 이미 이 트랜잭션의 REPEATABLE READ 스냅샷을 고정해뒀기
-     * 때문에(#393과 동일한 이유), 그 스냅샷을 그대로 쓰면 방금 경쟁자가 커밋한 행을 못 볼 수
-     * 있다. 그래서 이 재조회는 {@link AuctionCreateWriter#findAfterConflict}를 통해 완전히
-     * 새 트랜잭션(REQUIRES_NEW)에서 실행해, 새 스냅샷으로 방금 커밋된 승자 레코드를 확실히
-     * 본다.
+     * uk_auctions_user_idempotency 위반 이후의 재조회 전용. create() 자체는 트랜잭션을 열지
+     * 않으므로 위 {@link #findIdempotentCreateResponse}의 첫 조회도 이미 자신만의 스냅샷으로
+     * 끝나 있지만, 그래도 이 재조회는 {@link AuctionCreateWriter#findAfterConflict}를 통해
+     * 명시적으로 새 트랜잭션(REQUIRES_NEW)에서 실행한다 — create()가 앞으로 다시
+     * 트랜잭션으로 감싸이더라도(#393과 동일한 이유로 REPEATABLE READ 스냅샷이 고정될 수
+     * 있으므로) 방금 경쟁자가 커밋한 승자 레코드를 확실히 볼 수 있도록 하기 위함이다.
      */
     private Optional<AuctionCreateResponse> findIdempotentCreateResponseAfterConflict(
             Integer sellerId,
