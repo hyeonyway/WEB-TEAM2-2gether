@@ -27,9 +27,24 @@ public class SseEmitterRegistry<K> {
     private final ConcurrentMap<SseEmitter, String> sessionIdByEmitter = new ConcurrentHashMap<>();
     // emitter 1개가 키(topic) 여러 개를 동시에 구독할 수 있어서, 서로 다른 키의 broadcast가
     // 같은 emitter에 대해 동시에 send()를 호출할 수 있다. SseEmitter.send()는 동시 호출을
-    // 지원하지 않아 IllegalStateException으로 연결이 끊기므로, emitter별로 send를 직렬화한다.
-    // 가상스레드 환경(auctionSseTaskExecutor 등)이라 synchronized 대신 ReentrantLock을 쓴다 —
-    // synchronized는 JDK 21에서 블로킹 시 가상스레드를 캐리어에 pinning시킨다.
+    // 지원하지 않아 IllegalStateException으로 연결이 끊기므로, emitter별로 send를 직렬화해야
+    // 한다. 가상스레드 환경(auctionSseTaskExecutor 등)이라 synchronized 대신 ReentrantLock을
+    // 쓴다 — synchronized는 JDK 21에서 블로킹 시 가상스레드를 캐리어에 pinning시킨다.
+    //
+    // 예전엔 {@code lock()}(무제한 대기)으로 직렬화했는데, 느리거나 완전히 멈춘 클라이언트
+    // 하나가 emitter.send() 안에서 오래 블로킹되면 그 뒤로 같은 emitter를 향한 모든 send
+    // 호출이 새 가상스레드를 만들어 그 락을 무제한 대기하면서 동시성 캡의 세마포어 permit을
+    // 반납 없이 계속 붙잡아, 죽은 클라이언트 1개가 전역 동시성 캡 전체를 잠식할 수 있었다
+    // (#615, 슬로우 리더 부하테스트에서 실측 — 죽은 리더 1~5%만 있어도 가상스레드 프로필
+    // 전체가 무너짐). 세마포어 자체는 이미 {@code tryAcquire()}로 논블로킹 확인하지만
+    // (VirtualThreadSseTaskExecutor, #585), 그건 "동시 실행 중" 개수만 제한할 뿐 그 아래
+    // 이 락에서 "대기 중" 개수는 전혀 제한하지 않았던 것.
+    //
+    // 지금은 {@code tryLock()}(논블로킹)을 써서, 이미 다른 스레드가 이 emitter에 보내는
+    // 중이면 이번 이벤트는 블로킹 없이 그냥 버린다 — 죽은 emitter 1개당 실제로 블로킹되는
+    // 건 락을 먼저 잡은 그 한 번의 시도뿐이고, 그 뒤로 도착하는 이벤트들은 새 가상스레드/
+    // permit을 전혀 안 쓴 채 즉시 리턴한다. SSE 페이로드가 "최신 상태가 이전 상태를
+    // 대체하는" 성격(가격/입찰수 등)이라 중간값을 버려도 되는 채널에만 안전하다.
     private final ConcurrentMap<SseEmitter, ReentrantLock> sendLocksByEmitter = new ConcurrentHashMap<>();
     private final SseMetrics metrics;
     private final SessionSseConnectionRegistry sessionRegistry;
@@ -97,8 +112,14 @@ public class SseEmitterRegistry<K> {
     /**
      * 여러 도메인이 emitter 등록(연결 관리)은 공유 registry 하나로 통합하면서도, 도메인별
      * 전송시간·실패 카운트({@code dbidding.<stream>.sse.send.*})는 각자의 {@link SseMetrics}로
-     * 계속 따로 집계하고 싶을 때 쓰는 오버로드다(#557). emitter별 send 직렬화(락)는 registry가
+     * 계속 따로 집계하고 싶을 때 쓰는 오버로드다(#557). emitter별 send 직렬화는 registry가
      * 여전히 하나로 관리하므로, 서로 다른 도메인이 같은 emitter에 동시에 보내도 충돌하지 않는다.
+     *
+     * <p>이 emitter로 가는 send가 이미 진행 중이면(다른 스레드가 락을 쥐고 있으면) 이번
+     * 이벤트는 블로킹 없이 그냥 버리고 {@code true}를 반환한다(#615) — 그래서 이 메서드가
+     * 항상 "실제로 보내졌다"를 의미하지는 않는다. 지금 이 반환값을 쓰는 유일한 호출부
+     * ({@link #register})는 매번 새로 만든 emitter에 최초 1회만 호출하므로 경합이 없어
+     * 실질적인 의미 변화는 없다.
      *
      * <p>연결 종료 사유({@code dbidding.sse.connections.closed})는 {@code callMetrics}가 아니라
      * registry 자신의 {@link #metrics}로 기록한다. {@link SseConnectionCloseMetrics}는 emitter별
@@ -109,9 +130,13 @@ public class SseEmitterRegistry<K> {
      * 이 쪽은 애초에 도메인별로 나눌 개념이 아니다.
      */
     public boolean send(SseEmitter emitter, SseEmitter.SseEventBuilder event, SseMetrics callMetrics) {
-        Timer.Sample sample = callMetrics.startSend();
         ReentrantLock sendLock = sendLocksByEmitter.computeIfAbsent(emitter, ignored -> new ReentrantLock());
-        sendLock.lock();
+        if (!sendLock.tryLock()) {
+            // 이미 다른 스레드가 이 emitter에 보내는 중이다 — 블로킹 없이 이번 이벤트는
+            // 버린다. emitter.send()를 아예 호출하지 않으므로 새 가상스레드/permit 소비도 없다.
+            return true;
+        }
+        Timer.Sample sample = callMetrics.startSend();
         try {
             emitter.send(event);
         } catch (IOException | IllegalStateException exception) {
