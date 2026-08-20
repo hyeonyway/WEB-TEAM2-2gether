@@ -6,12 +6,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @Profile("redis")
 @RequiredArgsConstructor
@@ -22,8 +24,20 @@ public class RedisAuctionCreateExecutor {
     @Qualifier("auctionCreateScript")
     private final RedisScript<String> auctionCreateScript;
     private final Clock clock;
+    private final RedisAuctionSequenceSync auctionSequenceSync;
 
     public RedisAuctionCreateResult execute(RedisAuctionCreateCommand command) {
+        return execute(command, true);
+    }
+
+    /**
+     * {@code auction:sequence} 카운터가 MySQL 최대 ID보다 뒤처져 있으면 Lua 스크립트가
+     * {@code ID_COLLISION}을 반환한다. 이 경우 재시작 없이도 즉시 카운터를 재동기화하고
+     * 딱 한 번만 재시도한다({@link RedisAuctionSequenceSync}는 뒤로 되돌리지 않는 멱등
+     * 연산이라 재시도해도 안전하다). 재시도 후에도 충돌이면 더 이상 자동 복구할 수 없는
+     * 상황이므로 예외를 던져 클라이언트의 재시도에 맡긴다.
+     */
+    private RedisAuctionCreateResult execute(RedisAuctionCreateCommand command, boolean allowResyncRetry) {
         Instant occurredAt = clock.instant();
         String raw = redisTemplate.execute(auctionCreateScript, List.of(
                         "auction:sequence",
@@ -43,7 +57,18 @@ public class RedisAuctionCreateExecutor {
                 Long.toString(command.bidPriceUnit()), String.join("\n", command.imagePaths()), command.closeTime().toString(),
                 Long.toString(command.closeTime().toEpochMilli()), command.idempotencyKey(), command.idempotencyRequestHash(), occurredAt.toString(),
                 Long.toString(occurredAt.toEpochMilli()));
+        if (allowResyncRetry && isIdCollision(raw)) {
+            log.warn("event=auction.create.id_collision.detected sellerId={} itemId={} - resyncing auction:sequence and retrying once",
+                    command.sellerId(), command.itemId());
+            auctionSequenceSync.sync();
+            return execute(command, false);
+        }
         return parse(raw, command.closeTime());
+    }
+
+    private boolean isIdCollision(String raw) {
+        String[] fields = raw.split("\\|", -1);
+        return fields.length == 2 && "REJECTED".equals(fields[0]) && "ID_COLLISION".equals(fields[1]);
     }
 
     private RedisAuctionCreateResult parse(String raw, Instant closeTime) {

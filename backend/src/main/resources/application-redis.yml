@@ -28,6 +28,11 @@ auction:
   catchup-verification:
     # 여러 엔티티가 동시에 콜드미스 나도 전역 캐치업 여부는 이 주기로만 재확인한다.
     cache-ttl: ${AUCTION_CATCHUP_CACHE_TTL:PT0.5S}
+  sequence-sync:
+    # 기동 시 1회 동기화 이후에도 auction:sequence 카운터가 MySQL 최대 ID보다 뒤처질 수 있어
+    # (Redis 장애 복구, FLUSHDB 등) 재시작 없이 스스로 따라잡도록 주기적으로 재확인한다.
+    # ID_COLLISION 발생 시에는 이와 별개로 즉시(reactively) 재동기화된다.
+    fixed-delay-ms: ${AUCTION_SEQUENCE_SYNC_FIXED_DELAY_MS:300000}
   active-index:
     cleanup:
       fixed-delay-ms: ${AUCTION_ACTIVE_INDEX_CLEANUP_FIXED_DELAY_MS:3600000}
