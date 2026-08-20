@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dbidding.auction.domain.Auction;
 import com.dbidding.auction.domain.AuctionStatus;
+import com.dbidding.auction.service.DbAuctionQueryService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
@@ -65,6 +67,25 @@ class AuctionRepositoryWindowQueryTest {
 
         assertThat(result).extracting(Auction::getId).contains(recentlyClosed.getId());
         assertThat(result).extracting(Auction::getId).doesNotContain(oldClosed.getId());
+    }
+
+    @Test
+    void 유찰_목록_조회는_상한_개수까지만_마감_최신순으로_반환한다() {
+        int cap = DbAuctionQueryService.MAX_FAILED_AUCTIONS;
+        int totalFailed = cap + 5;
+        Instant base = Instant.now().minus(Duration.ofDays(1));
+        List<Auction> saved = new java.util.ArrayList<>();
+        for (int i = 0; i < totalFailed; i++) {
+            // i가 커질수록 closeTime이 더 과거 -> 마감 최신순 정렬 시 앞쪽(i가 작은 것)이 먼저 온다.
+            saved.add(closedAuction(AuctionStatus.FAILED, base.minus(Duration.ofMinutes(i))));
+        }
+
+        List<Auction> result = auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(
+                sellerId, AuctionStatus.FAILED, PageRequest.of(0, cap));
+
+        assertThat(result).hasSize(cap);
+        List<Integer> expectedIds = saved.subList(0, cap).stream().map(Auction::getId).toList();
+        assertThat(result).extracting(Auction::getId).containsExactlyElementsOf(expectedIds);
     }
 
     private Auction save(AuctionStatus status, Instant openTime, Instant closeTime) {

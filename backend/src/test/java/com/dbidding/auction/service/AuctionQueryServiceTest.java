@@ -339,7 +339,8 @@ class AuctionQueryServiceTest {
     @Test
     void 판매자의_유찰_경매를_마감_최신순으로_조회한다() {
         Auction failed = auction(1, AuctionStatus.FAILED, 42_000L, 0);
-        when(auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(2, AuctionStatus.FAILED))
+        when(auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(
+                2, AuctionStatus.FAILED, PageRequest.of(0, DbAuctionQueryService.MAX_FAILED_AUCTIONS)))
                 .thenReturn(List.of(failed));
         when(cardService.getCardSnapshots(List.of(1))).thenReturn(Map.of(1, card(1)));
 

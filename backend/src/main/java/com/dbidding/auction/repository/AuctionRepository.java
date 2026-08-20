@@ -82,7 +82,8 @@ public interface AuctionRepository extends JpaRepository<Auction, Integer> {
 
     Optional<Auction> findBySellerIdAndCreateIdempotencyKey(Integer sellerId, String createIdempotencyKey);
 
-    List<Auction> findBySellerIdAndStatusOrderByCloseTimeDesc(Integer sellerId, AuctionStatus status);
+    List<Auction> findBySellerIdAndStatusOrderByCloseTimeDesc(
+            Integer sellerId, AuctionStatus status, Pageable pageable);
 
     long countByItemIdAndStatusInAndCloseTimeAfter(
             Integer itemId,

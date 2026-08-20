@@ -136,7 +136,8 @@ class DbAuctionQueryServiceTest {
     @Test
     void DB_유찰_목록은_판매자와_FAILED_조건의_결과를_반환한다() {
         Auction failed = auction(1, AuctionStatus.FAILED, 42_000L, 0);
-        given(auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(2, AuctionStatus.FAILED))
+        given(auctionRepository.findBySellerIdAndStatusOrderByCloseTimeDesc(
+                2, AuctionStatus.FAILED, PageRequest.of(0, DbAuctionQueryService.MAX_FAILED_AUCTIONS)))
                 .willReturn(List.of(failed));
         given(cardService.getCardSnapshots(List.of(1))).willReturn(Map.of(1, card()));
 
