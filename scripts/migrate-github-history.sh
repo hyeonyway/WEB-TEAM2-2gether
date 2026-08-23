@@ -71,9 +71,25 @@ marker_seen() { grep -Fqx "$1" "$MARKERS" 2>/dev/null; }
 remember_marker() { printf '%s\n' "$1" >> "$MARKERS"; }
 
 ensure_label() {
-  local name="$1" color="${2:-ededed}" description="${3:-}"
-  gh api "repos/$TARGET_REPO/labels/$(printf '%s' "$name" | jq -sRr @uri)" >/dev/null 2>&1 && return 0
-  if [[ "$MODE" == "dry-run" ]]; then printf '  [dry-run] label: %s\n' "$name"; return 0; fi
+  local name="$1" color="${2:-ededed}" description="${3:-}" encoded
+  encoded="$(printf '%s' "$name" | jq -sRr @uri)"
+
+  if gh api "repos/$TARGET_REPO/labels/$encoded" >/dev/null 2>&1; then
+    if [[ "$MODE" == "dry-run" ]]; then
+      printf '  [dry-run] sync label: %s (#%s)\n' "$name" "$color"
+      return 0
+    fi
+    gh api --method PATCH "repos/$TARGET_REPO/labels/$encoded" \
+      -f new_name="$name" \
+      -f color="$color" \
+      -f description="$description" >/dev/null
+    return 0
+  fi
+
+  if [[ "$MODE" == "dry-run" ]]; then
+    printf '  [dry-run] create label: %s (#%s)\n' "$name" "$color"
+    return 0
+  fi
   gh label create "$name" --repo "$TARGET_REPO" --color "$color" --description "$description" >/dev/null
 }
 
