@@ -45,31 +45,86 @@ $table
 EOF_BODY
 }
 
+append_pr_discussion_section() {
+  local kind="$1" row="$2" out="$3" author at url body extra path line
+  author="$(jq -r '.user.login // "unknown"' <<< "$row")"
+  at="$(jq -r '.submitted_at // .created_at // "unknown"' <<< "$row")"
+  url="$(jq -r '.html_url // ""' <<< "$row")"
+  body="$(jq -r '.body // ""' <<< "$row")"
+  extra=""
+  [[ "$kind" == "review" ]] && extra=" · $(jq -r '.state // "COMMENTED"' <<< "$row")"
+  if [[ "$kind" == "inline" ]]; then
+    path="$(jq -r '.path // ""' <<< "$row")"
+    line="$(jq -r '.line // .original_line // ""' <<< "$row")"
+    extra=" · $path${line:+:$line}"
+  fi
+  [[ -z "$body" && "$kind" == "review" ]] && body="_(review submitted without a body)_"
+  cat >> "$out" <<EOF_SECTION
+
+---
+
+### Original PR $kind$extra
+
+**@$author** · $at  
+$url
+
+$body
+EOF_SECTION
+}
+
 copy_pr_discussion() {
-  local number="$1" target="$2" kind endpoint row author at url body extra path line
+  local number="$1" target="$2" detail="$3" kind endpoint row count out has_any=0
   (( INCLUDE_COMMENTS == 1 )) || return 0
+  out="$TMP_DIR/pr-discussion.md"
+  : > "$out"
+
   for kind in conversation review inline; do
     case "$kind" in
-      conversation) endpoint="issues/$number/comments" ;;
-      review) endpoint="pulls/$number/reviews" ;;
-      inline) endpoint="pulls/$number/comments" ;;
+      conversation)
+        count="$(jq -r '.comments // 0' <<< "$detail")"
+        (( count > 0 )) || continue
+        endpoint="issues/$number/comments"
+        ;;
+      review)
+        endpoint="pulls/$number/reviews"
+        ;;
+      inline)
+        count="$(jq -r '.review_comments // 0' <<< "$detail")"
+        (( count > 0 )) || continue
+        endpoint="pulls/$number/comments"
+        ;;
     esac
+
     gh api --paginate "repos/$SOURCE_REPO/$endpoint?per_page=100" > "$TMP_DIR/pr-$kind.json" 2>/dev/null || continue
     while IFS= read -r row; do
-      author="$(jq -r '.user.login // "unknown"' <<< "$row")"
-      at="$(jq -r '.submitted_at // .created_at // "unknown"' <<< "$row")"
-      url="$(jq -r '.html_url // ""' <<< "$row")"; body="$(jq -r '.body // ""' <<< "$row")"; extra=""
-      [[ "$kind" == "review" ]] && extra=" · $(jq -r '.state // "COMMENTED"' <<< "$row")"
-      if [[ "$kind" == "inline" ]]; then
-        path="$(jq -r '.path // ""' <<< "$row")"; line="$(jq -r '.line // .original_line // ""' <<< "$row")"
-        extra=" · $path${line:+:$line}"
-      fi
-      [[ -z "$body" && "$kind" == "review" ]] && body="_(review submitted without a body)_"
-      add_archive_comment "$target" "> **Original PR $kind$extra** by @$author · $at  
-> $url
-
-$body"
+      has_any=1
+      append_pr_discussion_section "$kind" "$row" "$out"
     done < <(jq -c '.[]' "$TMP_DIR/pr-$kind.json")
+  done
+
+  (( has_any == 1 )) || return 0
+
+  # GitHub comment bodies have a size limit. Split the aggregated archive into
+  # conservative chunks while preserving every original discussion entry.
+  python3 - "$out" <<'PY' | while IFS= read -r chunk; do
+import pathlib, sys
+text = pathlib.Path(sys.argv[1]).read_text()
+limit = 50000
+parts = []
+while text:
+    if len(text.encode()) <= limit:
+        parts.append(text); break
+    cut = min(len(text), 45000)
+    while len(text[:cut].encode()) > limit:
+        cut -= 1000
+    sep = text.rfind("\n---\n", 0, cut)
+    if sep > 0: cut = sep
+    parts.append(text[:cut])
+    text = text[cut:]
+for p in parts:
+    print(p.replace("\x1e", "" ).replace("\n", "\x1e"))
+PY
+    add_archive_comment "$target" "$(printf '%s' "$chunk" | tr '\036' '\n')"
   done
 }
 
@@ -131,6 +186,7 @@ scan_prs_from_git() {
   while IFS=$'\t' read -r sha subject; do
     (( MAX_ITEMS > 0 && count >= MAX_ITEMS )) && break
     number="$(extract_pr_number_from_commit_message "$subject")"; [[ -z "$number" ]] && continue
+    marker_seen "$(pr_marker "$SOURCE_REPO" "$number")" && continue
     archive_pr_from_git "$number" "$sha"; ((count+=1))
   done < <(git -C "$GIT_DIR" log "$ref" --format=$'%H\t%s')
 }
@@ -144,15 +200,16 @@ migrate_prs() {
   while IFS= read -r item; do
     (( MAX_ITEMS > 0 && count >= MAX_ITEMS )) && break
     number="$(jq -r '.number' <<< "$item")"; marker="$(pr_marker "$SOURCE_REPO" "$number")"; title="$(jq -r '.title' <<< "$item")"
-    if marker_seen "$marker"; then printf '[PR #%s] already archived\n' "$number"; ((count+=1)); continue; fi
+    if marker_seen "$marker"; then printf '[PR #%s] already archived\n' "$number"; continue; fi
     if ! detail="$(gh api "repos/$SOURCE_REPO/pulls/$number" 2>/dev/null)"; then
       sha="$(find_pr_commit "$number" || true)"; [[ -n "$sha" ]] && archive_pr_from_git "$number" "$sha" || printf 'WARN: PR #%s not detectable in Git.\n' "$number" >&2
       ((count+=1)); continue
     fi
-    printf '[PR #%s] %s\n' "$number" "$title"; ensure_label archived-pr 6f42c1 "Archived pull request"; ensure_source_labels "$item"
+    printf '[PR #%s] %s\n' "$number" "$title"
+    ensure_label archived-pr 6f42c1 "Archived pull request"
     labels="$(jq -c '[.labels[]?.name] + ["archived-pr"] | unique' <<< "$item")"
     target="$(create_archive_issue "[Archived PR #$number] $title" "$(build_pr_archive_body_from_api "$detail")" "$labels")"
-    copy_pr_discussion "$number" "$target"
+    copy_pr_discussion "$number" "$target" "$detail"
     state="$(jq -r '.state // "closed"' <<< "$detail")"; merged="$(jq -r '.merged // false' <<< "$detail")"
     [[ "$state" == "closed" || "$merged" == "true" ]] && close_archive_issue "$target" completed
     remember_marker "$marker"; ((count+=1))
