@@ -30,8 +30,14 @@ jobs:
           ref: chore/github-history-migration
           fetch-depth: 0
 
-      - name: Resume remaining PRs with REST bulk fallback
+      - name: Complete missing issues
+        run: python3 scripts/complete-missing-issues.py
+
+      - name: Complete missing PR archives
         run: python3 scripts/fast-rest-migrate-prs.py
+
+      - name: Remove duplicate archives and verify
+        run: python3 scripts/dedupe-migration-history.py
 
       - name: Show API rate limit
         if: always()
