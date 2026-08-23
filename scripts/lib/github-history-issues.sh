@@ -38,7 +38,7 @@ EOF_BODY
 }
 
 migrate_issues() {
-  local item number marker title labels target state reason count=0 comment
+  local item number marker title labels target state reason comments_count count=0 comment
   printf '== Issues ==\n'
   if ! gh api --paginate "repos/$SOURCE_REPO/issues?state=all&per_page=100" > "$TMP_DIR/source-issues.json" 2>/dev/null; then
     printf 'WARN: source Issues API unavailable; issues cannot be reconstructed from Git history.\n' >&2
@@ -52,15 +52,15 @@ migrate_issues() {
     title="$(jq -r '.title' <<< "$item")"
     if marker_seen "$marker"; then
       printf '[issue #%s] already migrated\n' "$number"
-      ((count+=1)); continue
+      continue
     fi
 
     printf '[issue #%s] %s\n' "$number" "$title"
-    ensure_source_labels "$item"
     labels="$(jq -c '[.labels[]?.name]' <<< "$item")"
     target="$(create_archive_issue "$title" "$(build_issue_archive_body "$item")" "$labels")"
 
-    if (( INCLUDE_COMMENTS == 1 )); then
+    comments_count="$(jq -r '.comments // 0' <<< "$item")"
+    if (( INCLUDE_COMMENTS == 1 && comments_count > 0 )); then
       if gh api --paginate "repos/$SOURCE_REPO/issues/$number/comments?per_page=100" > "$TMP_DIR/issue-comments.json" 2>/dev/null; then
         while IFS= read -r comment; do
           add_archive_comment "$target" "$(archive_issue_comment_body "$comment")"
