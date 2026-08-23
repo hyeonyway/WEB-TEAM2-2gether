@@ -23,5 +23,5 @@ jobs:
         with:
           ref: chore/github-history-migration
           fetch-depth: 1
-      - name: Remove duplicate archives and verify exact coverage
-        run: python3 scripts/dedupe-migration-history.py
+      - name: Tombstone duplicate archives and verify exact coverage
+        run: python3 scripts/tombstone-duplicate-migration-issues.py
