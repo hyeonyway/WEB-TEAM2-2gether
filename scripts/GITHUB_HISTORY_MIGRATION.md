@@ -11,6 +11,7 @@ Verified on 2026-08-23:
 - The source Issues and Pull Request APIs were accessible at verification time.
 - Final verification expects exactly one archive marker per source item: 290 Issues and 334 Pull Requests.
 - Duplicate migration artifacts are closed as duplicates and their canonical migration markers are removed so reruns remain idempotent.
+- Finalization is idempotent and may be safely retried.
 
 The migration script is dry-run by default. It recreates source issues as target issues and archives historical PRs as closed issues. When source PR metadata is no longer readable, it falls back to merge/squash commit messages and diffs from the fork's Git history.
 
