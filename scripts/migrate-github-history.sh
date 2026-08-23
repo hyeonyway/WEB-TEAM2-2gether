@@ -74,15 +74,11 @@ ensure_label() {
   local name="$1" color="${2:-ededed}" description="${3:-}" encoded
   encoded="$(printf '%s' "$name" | jq -sRr @uri)"
 
+  # Existing labels are intentionally left unchanged. This avoids overwriting
+  # manually adjusted labels in the target fork. Missing labels are created
+  # with the source repository's original color and description.
   if gh api "repos/$TARGET_REPO/labels/$encoded" >/dev/null 2>&1; then
-    if [[ "$MODE" == "dry-run" ]]; then
-      printf '  [dry-run] sync label: %s (#%s)\n' "$name" "$color"
-      return 0
-    fi
-    gh api --method PATCH "repos/$TARGET_REPO/labels/$encoded" \
-      -f new_name="$name" \
-      -f color="$color" \
-      -f description="$description" >/dev/null
+    [[ "$MODE" == "dry-run" ]] && printf '  [dry-run] label exists: %s\n' "$name"
     return 0
   fi
 
@@ -91,6 +87,18 @@ ensure_label() {
     return 0
   fi
   gh label create "$name" --repo "$TARGET_REPO" --color "$color" --description "$description" >/dev/null
+}
+
+sync_all_source_labels() {
+  local row
+  printf 'Labels: copying missing source labels first\n'
+  while IFS= read -r row; do
+    [[ -z "$row" ]] && continue
+    ensure_label \
+      "$(jq -r '.name' <<< "$row")" \
+      "$(jq -r '.color // "ededed"' <<< "$row")" \
+      "$(jq -r '.description // ""' <<< "$row")"
+  done < <(gh api --paginate --slurp "repos/$SOURCE_REPO/labels?per_page=100" | jq -c '.[][]')
 }
 
 ensure_source_labels() {
@@ -124,6 +132,7 @@ close_archive_issue() {
 main() {
   parse_args "$@"; init_migration
   printf 'Source: %s\nTarget: %s\nMode: %s\n' "$SOURCE_REPO" "$TARGET_REPO" "$MODE"
+  sync_all_source_labels
   [[ "$ONLY" != "prs" ]] && migrate_issues
   [[ "$ONLY" != "issues" ]] && migrate_prs
   if [[ "$MODE" == "dry-run" ]]; then printf '\nDry-run only. Re-run with --apply to write.\n'; else printf '\nArchive run finished. Hidden markers make reruns idempotent.\n'; fi
