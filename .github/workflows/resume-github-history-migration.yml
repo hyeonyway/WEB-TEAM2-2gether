@@ -30,8 +30,8 @@ jobs:
           ref: chore/github-history-migration
           fetch-depth: 0
 
-      - name: Migrate remaining PRs in GraphQL batches and dedupe
-        run: python3 scripts/fast-migrate-prs.py
+      - name: Resume remaining PRs with REST bulk fallback
+        run: python3 scripts/fast-rest-migrate-prs.py
 
       - name: Show API rate limit
         if: always()
