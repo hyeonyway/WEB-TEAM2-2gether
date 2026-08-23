@@ -19,6 +19,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SOURCE_REPO: softeerbootcamp-8th/WEB-TEAM2-2gether
       TARGET_REPO: hyeonyway/WEB-TEAM2-2gether
+      FINALIZE_RETRY: "2"
     steps:
       - uses: actions/checkout@v4
         with:
