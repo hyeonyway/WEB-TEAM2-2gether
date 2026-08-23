@@ -1,0 +1,32 @@
+name: Cancel duplicate history migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cancel-history-migrations.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Cancel active migration runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for status in queued in_progress; do
+            gh api --paginate "repos/$REPO/actions/workflows/migrate-github-history.yml/runs?status=$status&per_page=100" \
+              --jq '.workflow_runs[].id' |
+            while read -r run_id; do
+              [ -n "$run_id" ] || continue
+              echo "Cancelling migration run $run_id ($status)"
+              gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" || true
+            done
+          done
