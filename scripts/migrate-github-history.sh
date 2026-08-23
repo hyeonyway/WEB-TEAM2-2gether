@@ -25,7 +25,7 @@ Usage: bash scripts/migrate-github-history.sh [options]
   --issues-only     Copy issues only.
   --prs-only        Archive PRs only.
   --no-comments     Skip comments and reviews.
-  --max-items N     At most N issues and N PRs (0 = unlimited).
+  --max-items N     At most N NEW issues and N NEW PRs (0 = unlimited).
   --target-ref REF  Ref used for Git fallback (default: main).
   -h, --help        Show help.
 
@@ -73,15 +73,10 @@ remember_marker() { printf '%s\n' "$1" >> "$MARKERS"; }
 ensure_label() {
   local name="$1" color="${2:-ededed}" description="${3:-}" encoded
   encoded="$(printf '%s' "$name" | jq -sRr @uri)"
-
-  # Existing labels are intentionally left unchanged. This avoids overwriting
-  # manually adjusted labels in the target fork. Missing labels are created
-  # with the source repository's original color and description.
   if gh api "repos/$TARGET_REPO/labels/$encoded" >/dev/null 2>&1; then
     [[ "$MODE" == "dry-run" ]] && printf '  [dry-run] label exists: %s\n' "$name"
     return 0
   fi
-
   if [[ "$MODE" == "dry-run" ]]; then
     printf '  [dry-run] create label: %s (#%s)\n' "$name" "$color"
     return 0
@@ -101,20 +96,15 @@ sync_all_source_labels() {
   done < <(gh api --paginate --slurp "repos/$SOURCE_REPO/labels?per_page=100" | jq -c '.[][]')
 }
 
-ensure_source_labels() {
-  local json="$1" row
-  while IFS= read -r row; do
-    [[ -z "$row" ]] && continue
-    ensure_label "$(jq -r '.name' <<< "$row")" "$(jq -r '.color // "ededed"' <<< "$row")" "$(jq -r '.description // ""' <<< "$row")"
-  done < <(jq -c '.labels[]?' <<< "$json")
-}
-
 create_archive_issue() {
-  local title="$1" body="$2" labels_json="$3" result label
-  if [[ "$MODE" == "dry-run" ]]; then printf '  [dry-run] issue: %s\n' "$title" >&2; printf '0'; return 0; fi
-  result="$(gh issue create --repo "$TARGET_REPO" --title "$title" --body "$body")"
-  while IFS= read -r label; do [[ -n "$label" ]] && gh issue edit "$result" --repo "$TARGET_REPO" --add-label "$label" >/dev/null; done < <(jq -r '.[]' <<< "$labels_json")
-  printf '%s' "${result##*/}"
+  local title="$1" body="$2" labels_json="$3" payload
+  if [[ "$MODE" == "dry-run" ]]; then
+    printf '  [dry-run] issue: %s\n' "$title" >&2
+    printf '0'
+    return 0
+  fi
+  payload="$(jq -n --arg title "$title" --arg body "$body" --argjson labels "$labels_json" '{title:$title,body:$body,labels:$labels}')"
+  gh api --method POST "repos/$TARGET_REPO/issues" --input - <<< "$payload" | jq -r '.number'
 }
 
 add_archive_comment() {
@@ -124,9 +114,9 @@ add_archive_comment() {
 }
 
 close_archive_issue() {
-  local number="$1"
+  local number="$1" reason="${2:-completed}"
   [[ "$MODE" == "dry-run" ]] && return 0
-  gh issue close "$number" --repo "$TARGET_REPO" >/dev/null
+  gh api --method PATCH "repos/$TARGET_REPO/issues/$number" -f state=closed -f state_reason="$reason" >/dev/null
 }
 
 main() {
