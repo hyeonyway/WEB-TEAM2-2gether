@@ -1,0 +1,39 @@
+name: Resume GitHub history migration
+
+on:
+  push:
+    branches:
+      - chore/github-history-migration
+    paths:
+      - .github/workflows/resume-github-history-migration.yml
+
+concurrency:
+  group: github-history-migration-single
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_REPO: softeerbootcamp-8th/WEB-TEAM2-2gether
+      TARGET_REPO: hyeonyway/WEB-TEAM2-2gether
+      TARGET_REF: main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/github-history-migration
+          fetch-depth: 0
+
+      - name: Resume remaining history only
+        run: bash scripts/migrate-github-history.sh --apply
+
+      - name: Show API rate limit
+        if: always()
+        run: gh api rate_limit --jq '.resources.core | {limit, remaining, reset}'
